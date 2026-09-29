@@ -1,0 +1,127 @@
+.dialog {
+  width: min(100% - 2rem, var(--dialog-width, 34rem));
+  max-width: none;
+  max-height: min(100dvh - 2rem, 52rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.dialog[data-size="sm"] {
+  --dialog-width: 27rem;
+}
+
+.dialog[data-size="lg"] {
+  --dialog-width: 46rem;
+}
+
+.dialog[open] {
+  animation: dialog-in 180ms var(--ease);
+}
+
+.dialog::backdrop {
+  background: var(--backdrop, rgb(3 8 21 / 55%));
+  backdrop-filter: blur(2px);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem 1.35rem 0.4rem;
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.title {
+  font-size: 1.125rem;
+}
+
+.description {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: -0.3rem -0.5rem 0 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+}
+
+.body {
+  padding: 0.6rem 1.35rem 1.1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.9rem 1.35rem 1.2rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.footer:empty {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .dialog {
+    width: calc(100% - 1rem);
+    max-height: calc(100dvh - 1rem);
+    border-radius: var(--radius-lg);
+  }
+
+  .header {
+    padding: 1rem 1rem 0.35rem;
+  }
+
+  .body {
+    padding: 0.5rem 1rem 1rem;
+  }
+
+  .footer {
+    padding: 0.8rem 1rem 1rem;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}

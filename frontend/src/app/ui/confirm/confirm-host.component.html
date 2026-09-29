@@ -1,0 +1,13 @@
+@if (confirm.pending(); as question) {
+    <app-dialog size="sm" [heading]="question.title" (dismiss)="confirm.settle(false)">
+        @if (question.message) {
+            <p class="message">{{ question.message }}</p>
+        }
+        <div dialogFooter>
+            <button appButton variant="secondary" autofocus (click)="confirm.settle(false)">{{ question.cancelLabel || ("common.cancel" | t) }}</button>
+            <button appButton [variant]="question.tone === 'danger' ? 'danger' : 'primary'" (click)="confirm.settle(true)">
+                {{ question.confirmLabel || ("common.confirm" | t) }}
+            </button>
+        </div>
+    </app-dialog>
+}

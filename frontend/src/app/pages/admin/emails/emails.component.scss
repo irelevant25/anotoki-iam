@@ -1,0 +1,14 @@
+@use "../admin-list";
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+}
+
+.error-text {
+  color: var(--danger);
+  max-width: 22rem;
+  overflow-wrap: anywhere;
+}

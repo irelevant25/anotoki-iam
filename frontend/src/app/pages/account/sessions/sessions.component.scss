@@ -1,0 +1,52 @@
+.skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem 1.25rem 1.25rem;
+
+  .skeleton:nth-child(2) {
+    width: 85%;
+  }
+
+  .skeleton:nth-child(3) {
+    width: 70%;
+  }
+}
+
+.padded {
+  padding: 0.5rem 1.25rem 1.25rem;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.25rem 1.25rem 0.75rem;
+}
+
+.device,
+.how {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.device app-icon {
+  color: var(--muted);
+}
+
+.apps {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.ended {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.row-current td:first-child {
+  box-shadow: inset 3px 0 0 var(--primary);
+}

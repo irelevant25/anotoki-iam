@@ -1,0 +1,925 @@
+////
+/// The anotoki IAM stylesheet: every colour token, and the few element styles
+/// the whole app shares.
+///
+/// Colours exist only as custom properties, and both palettes below define the
+/// same names - so no component can reach for a colour one theme lacks. Light
+/// is written straight onto :root, which makes a page without `data-theme` a
+/// complete light page. Dark applies in two ways: `data-theme="dark"` (the
+/// toggle, or theme-boot.js before the app loads), and the system preference
+/// for as long as nothing has said "light".
+///
+/// Contrast: text, muted text, links and the status colours all clear WCAG AA
+/// (4.5:1) against the surfaces they sit on, in both palettes.
+////
+
+@mixin palette-light {
+  color-scheme: light;
+
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --surface-2: #f7f9fc;
+  --surface-3: #eef2f8;
+  --surface-raised: #ffffff;
+  --border: #dde4ef;
+  --border-strong: #c3cfe0;
+
+  --text: #0f1b33;
+  --muted: #5b6880;
+  --subtle: #6b778d;
+
+  --primary: #1f5fbf;
+  --primary-hover: #194f9f;
+  --primary-contrast: #ffffff;
+  --primary-soft: #e7effb;
+  --primary-soft-text: #1a4f9e;
+  --accent: #3b8ee8;
+  --link: #1f5fbf;
+
+  --danger: #c62f3b;
+  --danger-hover: #a8242f;
+  --danger-contrast: #ffffff;
+  --danger-soft: #fbeaec;
+  --danger-border: #f1c3c8;
+
+  --success: #177f4d;
+  --success-soft: #e6f4ec;
+  --success-border: #bfe3cf;
+
+  --warning: #9a6512;
+  --warning-soft: #fbf2e1;
+  --warning-border: #eed6a8;
+
+  --info: #1f5fbf;
+  --info-soft: #e7effb;
+  --info-border: #c5d7f3;
+
+  --ring: rgb(31 95 191 / 32%);
+  --focus: #1f5fbf;
+  --backdrop: rgb(15 27 51 / 45%);
+  --skeleton: #e6ebf3;
+  --skeleton-shine: #f3f6fb;
+
+  --shadow-sm: 0 1px 2px rgb(15 27 51 / 6%);
+  --shadow: 0 1px 2px rgb(15 27 51 / 5%), 0 8px 24px rgb(15 27 51 / 6%);
+  --shadow-lg: 0 4px 12px rgb(15 27 51 / 8%), 0 24px 56px rgb(15 27 51 / 14%);
+}
+
+@mixin palette-dark {
+  color-scheme: dark;
+
+  --bg: #070d1c;
+  --surface: #0e1830;
+  --surface-2: #132044;
+  --surface-3: #18284f;
+  --surface-raised: #122042;
+  --border: #22325a;
+  --border-strong: #31467a;
+
+  --text: #e8eefb;
+  --muted: #9aa8c4;
+  --subtle: #8b99b6;
+
+  --primary: #4d8ff0;
+  --primary-hover: #6aa2f4;
+  --primary-contrast: #06101f;
+  --primary-soft: rgb(77 143 240 / 16%);
+  --primary-soft-text: #a9c8f8;
+  --accent: #8fc2ff;
+  --link: #8fc2ff;
+
+  --danger: #ff6b75;
+  --danger-hover: #ff8a92;
+  --danger-contrast: #1f0609;
+  --danger-soft: rgb(255 107 117 / 12%);
+  --danger-border: rgb(255 107 117 / 35%);
+
+  --success: #4cc38a;
+  --success-soft: rgb(76 195 138 / 12%);
+  --success-border: rgb(76 195 138 / 35%);
+
+  --warning: #e5b454;
+  --warning-soft: rgb(229 180 84 / 12%);
+  --warning-border: rgb(229 180 84 / 35%);
+
+  --info: #8fc2ff;
+  --info-soft: rgb(143 194 255 / 12%);
+  --info-border: rgb(143 194 255 / 32%);
+
+  --ring: rgb(77 143 240 / 45%);
+  --focus: #8fc2ff;
+  --backdrop: rgb(2 5 14 / 70%);
+  --skeleton: #16244a;
+  --skeleton-shine: #1d2e5a;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 35%);
+  --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 10px 28px rgb(0 0 0 / 30%);
+  --shadow-lg: 0 6px 16px rgb(0 0 0 / 35%), 0 28px 64px rgb(0 0 0 / 45%);
+}
+
+:root {
+  @include palette-light;
+
+  // Theme-independent: the night sky of the sign-in pages is night in both
+  // themes, and the text on it is always light.
+  --night-0: #030815;
+  --night-1: #07122a;
+  --night-2: #0c1f47;
+  --night-3: #16326f;
+  --night-glow: rgb(77 143 240 / 30%);
+  --night-text: #e8eefb;
+  --night-muted: #b3c2de;
+  --star: #ffffff;
+  --star-blue: #cfe3ff;
+
+  --font-sans: "Manrope Variable", "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --control-height: 44px;
+  --control-height-sm: 34px;
+
+  --duration: 160ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    @include palette-dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  @include palette-dark;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Base
+// ─────────────────────────────────────────────────────────────────────────────
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-padding-top: 80px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  font-feature-settings: "cv11", "ss01";
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  line-height: 1.25;
+  letter-spacing: -0.012em;
+  font-weight: 700;
+  color: var(--text);
+}
+
+h1 {
+  font-size: 1.625rem;
+}
+
+h2 {
+  font-size: 1.0625rem;
+}
+
+h3 {
+  font-size: 0.9375rem;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+
+  &:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+code {
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  overflow-wrap: anywhere;
+}
+
+pre {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  line-height: 1.5;
+
+  code {
+    padding: 0;
+    background: none;
+  }
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+// One focus style everywhere a keyboard can land. Inputs draw their own ring
+// on the border instead (see .field-control), so they are left out here.
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+// Motion is decoration here, never information: with reduced motion asked for,
+// it goes. Spinners keep turning on their own terms (see SpinnerComponent).
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Buttons (ButtonComponent puts these on real <button>s and <a>s)
+// ─────────────────────────────────────────────────────────────────────────────
+
+.btn {
+  --btn-bg: var(--surface);
+  --btn-fg: var(--text);
+  --btn-border: var(--border-strong);
+  --btn-hover-bg: var(--surface-3);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--control-height);
+  padding: 0 1.05rem;
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-weight: 650;
+  font-size: 0.9375rem;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+
+  &:hover {
+    background: var(--btn-hover-bg);
+    text-decoration: none;
+  }
+
+  &:active {
+    transform: translateY(0.5px);
+  }
+
+  &[disabled],
+  &.btn-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  &.btn-loading {
+    opacity: 0.85;
+    cursor: progress;
+  }
+
+  .btn-spinner {
+    --spinner-color: currentColor;
+  }
+}
+
+.btn-primary {
+  --btn-bg: var(--primary);
+  --btn-fg: var(--primary-contrast);
+  --btn-border: var(--primary);
+  --btn-hover-bg: var(--primary-hover);
+  box-shadow: var(--shadow-sm);
+
+  &:hover {
+    border-color: var(--primary-hover);
+  }
+}
+
+.btn-secondary {
+  --btn-bg: var(--surface);
+  --btn-fg: var(--text);
+}
+
+.btn-ghost {
+  --btn-bg: transparent;
+  --btn-fg: var(--text);
+  --btn-border: transparent;
+  --btn-hover-bg: var(--surface-3);
+}
+
+.btn-danger {
+  --btn-bg: var(--danger);
+  --btn-fg: var(--danger-contrast);
+  --btn-border: var(--danger);
+  --btn-hover-bg: var(--danger-hover);
+
+  &:hover {
+    border-color: var(--danger-hover);
+  }
+}
+
+// A button that reads as a link: for "Forgot password?" and the like, where a
+// full button would shout.
+.btn-link {
+  --btn-bg: transparent;
+  --btn-fg: var(--link);
+  --btn-border: transparent;
+  --btn-hover-bg: transparent;
+  min-height: auto;
+  padding: 0.125rem 0.125rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+}
+
+.btn-sm {
+  min-height: var(--control-height-sm);
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 8px;
+  gap: 0.375rem;
+}
+
+.btn-sm.btn-link {
+  min-height: auto;
+  padding: 0.125rem;
+}
+
+.btn-lg {
+  min-height: 50px;
+  padding: 0 1.4rem;
+  font-size: 1rem;
+}
+
+.btn-block {
+  display: flex;
+  width: 100%;
+}
+
+.btn-icon {
+  padding: 0;
+  width: var(--control-height);
+
+  &.btn-sm {
+    width: var(--control-height-sm);
+  }
+}
+
+// The wrappers pages project into a component's slots (<div dialogFooter>,
+// <div cardActions>) take no box of their own, so their buttons become items
+// of the slot's own flex row and get its spacing.
+[dialogFooter],
+[cardActions],
+[alertActions] {
+  display: contents;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Form fields (TextField, PasswordField, Select, Textarea share these)
+// ─────────────────────────────────────────────────────────────────────────────
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-weight: 650;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.field-optional {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.field-control {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition:
+    border-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--border-strong) 60%, var(--text) 40%);
+  }
+
+  &:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--ring);
+  }
+
+  &.field-invalid {
+    border-color: var(--danger);
+
+    &:focus-within {
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 28%, transparent);
+    }
+  }
+
+  &.field-disabled {
+    background: var(--surface-2);
+    opacity: 0.7;
+  }
+}
+
+.field-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: calc(var(--control-height) - 2px);
+  padding: 0 0.8rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  // 16px, not 15: iOS zooms the page into any field smaller than that.
+  font-size: 1rem;
+  outline: none;
+
+  &::placeholder {
+    color: var(--subtle);
+    opacity: 1;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  &[type="date"] {
+    min-width: 9rem;
+  }
+}
+
+textarea.field-input {
+  height: auto;
+  min-height: 5.5rem;
+  padding: 0.6rem 0.8rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+select.field-input {
+  appearance: none;
+  padding-right: 2.25rem;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.05rem) 52%,
+    calc(100% - 0.75rem) 52%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+
+  option {
+    background: var(--surface);
+    color: var(--text);
+  }
+}
+
+.field-affix {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--muted);
+
+  &:first-child {
+    padding-left: 0.75rem;
+  }
+
+  &:last-child {
+    padding-right: 0.25rem;
+  }
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap, 1rem);
+}
+
+.stack-sm {
+  --stack-gap: 0.5rem;
+}
+
+.stack-lg {
+  --stack-gap: 1.5rem;
+}
+
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cluster-gap, 0.625rem);
+}
+
+.cluster-end {
+  justify-content: flex-end;
+}
+
+.cluster-between {
+  justify-content: space-between;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem 1.25rem;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 0.25rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.8125rem;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.break {
+  overflow-wrap: anywhere;
+}
+
+.lead {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.divider-text {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  text-transform: lowercase;
+
+  &::before,
+  &::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Facts: <dl class="facts"> for "label - value" pairs on detail pages
+// ─────────────────────────────────────────────────────────────────────────────
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(9rem, max-content) 1fr;
+  gap: 0.55rem 1.25rem;
+  margin: 0;
+
+  dt {
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+
+    dd {
+      margin-bottom: 0.6rem;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tables
+//
+// `.table` for dense lists. Inside `.table-scroll` a wide table scrolls on its
+// own instead of widening the page. `.table-stack` turns each row into a small
+// card on phones, labelled from each cell's data-label - for the lists a
+// person reads on their phone (their own sessions and tokens).
+// ─────────────────────────────────────────────────────────────────────────────
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+
+  th,
+  td {
+    padding: 0.65rem 0.8rem;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    transition: background-color var(--duration) var(--ease);
+  }
+
+  tbody tr:hover {
+    background: var(--surface-2);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .row-muted td {
+    color: var(--muted);
+  }
+
+  .cell-actions {
+    text-align: right;
+    white-space: nowrap;
+    width: 1%;
+  }
+
+  .cell-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tr.row-link {
+    cursor: pointer;
+  }
+}
+
+@media (max-width: 720px) {
+  .table-stack {
+    thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+    }
+
+    tr {
+      display: block;
+      padding: 0.75rem 0.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr:last-child {
+      border-bottom: 0;
+    }
+
+    td {
+      display: grid;
+      grid-template-columns: 8.5rem 1fr;
+      gap: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border: 0;
+
+      &::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 0.8125rem;
+      }
+
+      &.cell-actions {
+        display: flex;
+        justify-content: flex-start;
+        width: auto;
+        padding-top: 0.5rem;
+
+        &::before {
+          content: none;
+        }
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Skeletons, for the moment between "asked" and "answered"
+// ─────────────────────────────────────────────────────────────────────────────
+
+.skeleton {
+  display: block;
+  height: 0.9rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--skeleton) 0%, var(--skeleton-shine) 50%, var(--skeleton) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shine 1.4s ease-in-out infinite;
+}
+
+.skeleton-block {
+  height: 4.5rem;
+  border-radius: var(--radius);
+}
+
+@keyframes skeleton-shine {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page chrome shared by the account and admin areas
+// ─────────────────────────────────────────────────────────────────────────────
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.section-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+
+  &.is-on {
+    background: var(--success);
+    box-shadow: 0 0 0 3px var(--success-soft);
+  }
+
+  &.is-off {
+    background: var(--border-strong);
+  }
+
+  &.is-warn {
+    background: var(--warning);
+    box-shadow: 0 0 0 3px var(--warning-soft);
+  }
+}

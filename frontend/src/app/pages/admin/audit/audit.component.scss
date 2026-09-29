@@ -1,0 +1,31 @@
+@use "../admin-list";
+
+.details-cell {
+  min-width: 16rem;
+  max-width: 34rem;
+}
+
+summary {
+  cursor: pointer;
+  list-style-position: outside;
+
+  code {
+    background: none;
+    padding: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+details[open] summary code {
+  color: var(--text);
+}
+
+pre {
+  margin-top: 0.5rem;
+  max-height: 18rem;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

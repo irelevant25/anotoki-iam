@@ -1,0 +1,17 @@
+<div class="segmented" role="radiogroup" [attr.aria-label]="'lang.label' | t" (keydown)="onKeydown($event)">
+    @for (language of languages; track language) {
+        <button
+            #option
+            type="button"
+            role="radio"
+            class="segment"
+            [attr.lang]="language"
+            [attr.aria-checked]="i18n.language() === language"
+            [attr.aria-label]="names[language] | t"
+            [attr.title]="names[language] | t"
+            [tabIndex]="i18n.language() === language ? 0 : -1"
+            (click)="choose(language)">
+            {{ language.toUpperCase() }}
+        </button>
+    }
+</div>

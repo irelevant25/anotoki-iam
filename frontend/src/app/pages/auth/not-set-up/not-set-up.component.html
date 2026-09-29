@@ -1,0 +1,21 @@
+<app-auth-card>
+    <header class="auth-head">
+        <span class="auth-icon is-warning"><app-icon name="database" [size]="22" /></span>
+        <h1 tabindex="-1" appAutofocus>{{ "notSetUp.title" | t }}</h1>
+        <p>{{ "notSetUp.text" | t }}</p>
+    </header>
+    <div class="actions">
+        <a appButton variant="primary" [block]="true" href="/setup.php">
+            <app-icon name="sliders" [size]="16" />
+            {{ "notSetUp.open" | t }}
+        </a>
+        <button appButton variant="secondary" [block]="true" (click)="checkAgain()">
+            <app-icon name="refresh" [size]="16" />
+            {{ "notSetUp.check" | t }}
+        </button>
+    </div>
+    <div class="developer">
+        <p class="small muted">{{ "notSetUp.developer" | t }}</p>
+        <code class="command">cd backend &amp;&amp; php -S localhost:8100 router.php</code>
+    </div>
+</app-auth-card>

@@ -1,0 +1,109 @@
+.tiles,
+.links {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tiles {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
+}
+
+.links {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+}
+
+.tile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.75rem;
+  row-gap: 0.15rem;
+  align-items: center;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--duration) var(--ease);
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  }
+
+  &[data-tone="warning"] .tile-icon {
+    background: var(--warning-soft);
+    color: var(--warning);
+  }
+}
+
+.tile-icon {
+  grid-row: span 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-text);
+}
+
+.tile-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-skeleton {
+  width: 3rem;
+  height: 1.5rem;
+}
+
+.tile-label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.link-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  height: 100%;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  }
+
+  app-icon {
+    color: var(--primary);
+    margin-top: 0.1rem;
+  }
+
+  > span {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+}
+
+.link-title {
+  font-weight: 700;
+}
+
+.link-text {
+  color: var(--muted);
+  font-size: 0.875rem;
+}

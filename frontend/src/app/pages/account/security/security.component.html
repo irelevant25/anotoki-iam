@@ -1,0 +1,165 @@
+@if (user(); as me) {
+    <div class="page">
+        <app-page-header [heading]="'security.title' | t" [lead]="'security.lead' | t" />
+
+        @if (me.force_password_change) {
+            <app-alert tone="warning">
+                {{ "overview.mustChange" | t }}
+                <div alertActions>
+                    <button appButton size="sm" variant="secondary" (click)="open(me.has_password ? 'change-password' : 'set-password')">{{ "overview.mustChangeAction" | t }}</button>
+                </div>
+            </app-alert>
+        }
+
+        <app-card [heading]="'security.methods' | t" [subheading]="'security.keepOne' | t">
+            <div class="methods">
+                @if (methodsError()) {
+                    <app-alert tone="danger" [announce]="true">{{ methodsError() }}</app-alert>
+                }
+
+                <!-- Password -->
+                <section class="method" aria-labelledby="method-password">
+                    <span class="method-icon"><app-icon name="lock" [size]="20" /></span>
+                    <div class="method-text">
+                        <h3 id="method-password">{{ "security.password.title" | t }}</h3>
+                        <p class="method-status">
+                            @if (!me.has_password) {
+                                <span class="status-dot is-off"></span>
+                                {{ "security.password.none" | t }}
+                            } @else if (me.force_password_change) {
+                                <span class="status-dot is-warn"></span>
+                                {{ "security.password.mustChange" | t }}
+                            } @else if (me.password_login_enabled) {
+                                <span class="status-dot is-on"></span>
+                                {{ "security.password.on" | t }}
+                            } @else {
+                                <span class="status-dot is-off"></span>
+                                {{ "security.password.off" | t }}
+                            }
+                        </p>
+                        @if (me.has_password) {
+                            <app-switch [(checked)]="passwordEnabled" (checkedChange)="setPasswordEnabled($event)" [busy]="savingPasswordEnabled()" [hint]="'security.password.acceptHint' | t">
+                                {{ "security.password.accept" | t }}
+                            </app-switch>
+                        }
+                    </div>
+                    <div class="method-actions">
+                        @if (me.has_password) {
+                            <button appButton variant="secondary" size="sm" (click)="open('change-password')">{{ "security.password.change" | t }}</button>
+                        } @else {
+                            <button appButton variant="primary" size="sm" (click)="open('set-password')">{{ "security.password.set" | t }}</button>
+                        }
+                    </div>
+                </section>
+
+                <!-- Google -->
+                <section class="method" aria-labelledby="method-google">
+                    <span class="method-icon"><app-icon name="globe" [size]="20" /></span>
+                    <div class="method-text">
+                        <h3 id="method-google">{{ "security.google.title" | t }}</h3>
+                        <p class="method-status">
+                            @if (me.google_connected) {
+                                <span class="status-dot is-on"></span>
+                                @if (me.google_email) {
+                                    <span class="break">{{ "security.google.connectedAs" | t: { email: me.google_email } }}</span>
+                                } @else {
+                                    {{ "security.google.connected" | t }}
+                                }
+                            } @else {
+                                <span class="status-dot is-off"></span>
+                                {{ (googleAvailable() ? "security.google.off" : "security.google.unavailable") | t }}
+                            }
+                        </p>
+                    </div>
+                    <div class="method-actions">
+                        @if (me.google_connected) {
+                            <button appButton variant="secondary" size="sm" [loading]="googleBusy()" (click)="disconnectGoogle()">{{ "security.google.disconnect" | t }}</button>
+                        } @else if (googleAvailable()) {
+                            <app-google-button class="google" text="continue_with" (credential)="connectGoogle($event)" />
+                        }
+                    </div>
+                </section>
+            </div>
+        </app-card>
+
+        <!-- Two-factor -->
+        <app-card [heading]="'security.twoFactor.title' | t">
+            <div cardActions>
+                @if (me.totp_enabled) {
+                    <app-badge tone="success" [dot]="true">{{ "overview.twoFactorOn" | t }}</app-badge>
+                } @else {
+                    <app-badge [dot]="true">{{ "overview.twoFactorOff" | t }}</app-badge>
+                }
+            </div>
+            <div class="stack">
+                <p class="method-status">
+                    @if (me.totp_enabled) {
+                        <span class="status-dot" [class.is-on]="me.recovery_codes_remaining > lowCodes" [class.is-warn]="me.recovery_codes_remaining <= lowCodes"></span>
+                        {{ "security.twoFactor.on" | t: { count: me.recovery_codes_remaining } }}
+                    } @else {
+                        <span class="status-dot is-off"></span>
+                        {{ "security.twoFactor.off" | t }}
+                    }
+                </p>
+
+                @if (me.totp_enabled && me.recovery_codes_remaining === 0) {
+                    <app-alert tone="danger">{{ "security.twoFactor.noCodes" | t }}</app-alert>
+                } @else if (me.totp_enabled && me.recovery_codes_remaining <= lowCodes) {
+                    <app-alert tone="warning">{{ "security.twoFactor.lowCodes" | t }}</app-alert>
+                }
+
+                <div class="cluster">
+                    @if (me.totp_enabled) {
+                        <button appButton variant="secondary" (click)="open('regenerate-2fa')">
+                            <app-icon name="refresh" [size]="16" />
+                            {{ "security.twoFactor.regenerate" | t }}
+                        </button>
+                        <button appButton variant="ghost" (click)="open('disable-2fa')">{{ "security.twoFactor.disable" | t }}</button>
+                    } @else {
+                        <button appButton variant="primary" (click)="open('setup-2fa')">
+                            <app-icon name="shieldCheck" [size]="16" />
+                            {{ "security.twoFactor.enable" | t }}
+                        </button>
+                    }
+                </div>
+            </div>
+        </app-card>
+
+        <!-- Remembered devices: only a thing while there is a code to skip -->
+        @if (me.totp_enabled) {
+            <app-card [heading]="'security.devices.title' | t">
+                <div class="devices">
+                    <p class="method-status">
+                        @if (me.trusted_devices > 0) {
+                            <app-icon name="laptop" [size]="18" />
+                            {{ "security.devices.count" | t: { count: me.trusted_devices } }}
+                        } @else {
+                            {{ "security.devices.none" | t }}
+                        }
+                    </p>
+                    <button appButton variant="secondary" size="sm" [disabled]="me.trusted_devices === 0" [loading]="devicesBusy()" (click)="forgetDevices()">
+                        {{ "security.devices.forget" | t }}
+                    </button>
+                </div>
+            </app-card>
+        }
+    </div>
+
+    @switch (dialog()) {
+        @case ("change-password") {
+            <app-password-dialog mode="change" (closed)="dialogClosed($event)" />
+        }
+        @case ("set-password") {
+            <app-password-dialog mode="set" (closed)="dialogClosed($event)" />
+        }
+        @case ("setup-2fa") {
+            <app-two-factor-setup-dialog (closed)="dialogClosed($event)" />
+        }
+        @case ("disable-2fa") {
+            <app-two-factor-code-dialog mode="disable" (closed)="dialogClosed($event)" />
+        }
+        @case ("regenerate-2fa") {
+            <app-two-factor-code-dialog mode="regenerate" (closed)="dialogClosed($event)" />
+        }
+    }
+}

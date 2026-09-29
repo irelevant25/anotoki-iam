@@ -1,0 +1,14 @@
+<button
+    appButton
+    [variant]="variant()"
+    [size]="size()"
+    [iconOnly]="iconOnly()"
+    [attr.aria-label]="iconOnly() ? label() || ('ui.copyToClipboard' | t) : null"
+    [attr.title]="iconOnly() ? label() || ('ui.copyToClipboard' | t) : null"
+    (click)="copy()">
+    <app-icon [name]="copied() ? 'check' : 'copy'" [size]="16" />
+    @if (!iconOnly()) {
+        <span>{{ copied() ? ("common.copied" | t) : label() || ("common.copy" | t) }}</span>
+    }
+</button>
+<span class="visually-hidden" aria-live="polite">{{ copied() ? ("ui.copiedToClipboard" | t) : "" }}</span>

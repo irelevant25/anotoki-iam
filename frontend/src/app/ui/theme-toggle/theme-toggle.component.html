@@ -1,0 +1,20 @@
+<div class="segmented" role="radiogroup" [attr.aria-label]="'theme.label' | t" (keydown)="onKeydown($event)">
+    @for (option of options; track option.mode) {
+        <button
+            #option
+            type="button"
+            role="radio"
+            class="segment"
+            [class.segment-compact]="compact()"
+            [attr.aria-checked]="theme.mode() === option.mode"
+            [attr.aria-label]="compact() ? (option.label | t) : null"
+            [attr.title]="option.mode === 'auto' ? ('theme.autoHint' | t) : (option.label | t)"
+            [tabIndex]="theme.mode() === option.mode ? 0 : -1"
+            (click)="theme.set(option.mode)">
+            <app-icon [name]="option.icon" [size]="16" />
+            @if (!compact()) {
+                <span>{{ option.label | t }}</span>
+            }
+        </button>
+    }
+</div>

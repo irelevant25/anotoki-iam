@@ -1,0 +1,15 @@
+<section class="card">
+    @if (application(); as app) {
+        <div class="app">
+            <app-app-avatar [name]="app.name" [logoUrl]="app.logo_url" [size]="44" />
+            <span class="app-name">{{ app.name }}</span>
+        </div>
+    }
+    <div class="body">
+        <ng-content />
+    </div>
+    <ng-content select="[authFooter]" />
+</section>
+<div class="below">
+    <ng-content select="[authBelow]" />
+</div>

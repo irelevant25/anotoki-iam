@@ -1,0 +1,21 @@
+<div class="groups">
+    @for (application of applications(); track application.client_id) {
+        <fieldset class="group" [disabled]="disabled()">
+            <legend>
+                <span class="app-name">{{ application.name }}</span>
+                <code class="app-id">{{ application.client_id }}</code>
+            </legend>
+            @if (application.roles.length) {
+                <div class="roles">
+                    @for (role of application.roles; track role) {
+                        <app-checkbox [checked]="isSelected(application.client_id, role)" [disabled]="disabled()" (checkedChange)="toggle(application.client_id, role, $event)">
+                            <span class="role">{{ role }}</span>
+                        </app-checkbox>
+                    }
+                </div>
+            } @else {
+                <p class="none">No roles defined.</p>
+            }
+        </fieldset>
+    }
+</div>

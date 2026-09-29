@@ -1,0 +1,74 @@
+<div class="page">
+    <app-page-header heading="Applications" lead="The sites that sign people in through the IAM, and the roles each one has.">
+        <a appButton variant="primary" routerLink="/admin/applications/new">
+            <app-icon name="plus" [size]="16" />
+            Add application
+        </a>
+    </app-page-header>
+
+    <app-card [flush]="true">
+        @if (loadError()) {
+            <div class="padded">
+                <app-error-state heading="The applications could not be loaded" [message]="loadError()!" (retry)="load()" />
+            </div>
+        } @else if (loading()) {
+            <div class="skeletons" aria-hidden="true">
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+            </div>
+        } @else if (applications().length === 0) {
+            <app-empty-state icon="appWindow" heading="No applications yet">
+                <a appButton variant="primary" routerLink="/admin/applications/new">Add application</a>
+            </app-empty-state>
+        } @else {
+            <div class="table-scroll">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Application</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Access</th>
+                            <th scope="col">State</th>
+                            <th scope="col" class="cell-num">Roles</th>
+                            <th scope="col">Landing page</th>
+                            <th scope="col" class="cell-num">Order</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (app of applications(); track app.id) {
+                            <tr class="row-link" [class.row-muted]="!app.enabled" (click)="open(app)">
+                                <td>
+                                    <div class="app">
+                                        <app-app-avatar [name]="app.name" [logoUrl]="app.logo_url" [size]="34" />
+                                        <div class="who">
+                                            <a class="who-name" [routerLink]="['/admin/applications', app.id]" (click)="$event.stopPropagation()">{{ app.name }}</a>
+                                            <code class="client-id">{{ app.client_id }}</code>
+                                        </div>
+                                        @if (app.system) {
+                                            <app-badge tone="primary">System</app-badge>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <app-badge [mono]="true">{{ app.type }}</app-badge>
+                                </td>
+                                <td>{{ app.access === "members" ? "Members only" : "Everyone" }}</td>
+                                <td>
+                                    @if (app.enabled) {
+                                        <app-badge tone="success" [dot]="true">On</app-badge>
+                                    } @else {
+                                        <app-badge tone="danger" [dot]="true">Off</app-badge>
+                                    }
+                                </td>
+                                <td class="cell-num">{{ app.roles.length }}</td>
+                                <td>{{ app.show_on_landing ? "Shown" : "-" }}</td>
+                                <td class="cell-num">{{ app.sort_order }}</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </app-card>
+</div>

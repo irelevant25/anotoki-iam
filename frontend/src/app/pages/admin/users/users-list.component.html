@@ -1,0 +1,145 @@
+<div class="page">
+    <app-page-header heading="Users" lead="Every account in the IAM, newest first.">
+        @if (filters(); as counts) {
+            <p pageMeta class="counts">
+                <span>
+                    <strong>{{ counts.total }}</strong>
+                    active
+                </span>
+                <span>
+                    <strong>{{ counts.disabled }}</strong>
+                    switched off
+                </span>
+                <span>
+                    <strong>{{ counts.admins }}</strong>
+                    IAM admins
+                </span>
+            </p>
+        }
+        <button appButton variant="primary" [disabled]="!filters()" (click)="creating.set(true)">
+            <app-icon name="userPlus" [size]="16" />
+            Create user
+        </button>
+    </app-page-header>
+
+    <app-card [flush]="true">
+        <div class="filters" role="search" aria-label="Filter users">
+            <app-text-field class="filter-search" label="Search" type="search" name="user-search" placeholder="Username or email" [(value)]="searchText">
+                <span fieldPrefix class="field-affix"><app-icon name="search" [size]="16" /></span>
+            </app-text-field>
+            <app-select label="Status" placeholder="Any" [options]="statusOptions" [value]="status() ?? ''" (valueChange)="setFilter('status', $event)" />
+            <app-select label="Confirmed" placeholder="Any" [options]="yesNo" [value]="confirmed() ?? ''" (valueChange)="setFilter('confirmed', $event)" />
+            <app-select label="Two-factor" placeholder="Any" [options]="yesNo" [value]="twoFactor() ?? ''" (valueChange)="setFilter('twoFactor', $event)" />
+            <app-select label="Google" placeholder="Any" [options]="yesNo" [value]="google() ?? ''" (valueChange)="setFilter('google', $event)" />
+            <app-select label="Must change password" placeholder="Any" [options]="yesNo" [value]="mustChange() ?? ''" (valueChange)="setFilter('mustChange', $event)" />
+            <app-select label="Language" placeholder="Any" [options]="languageOptions()" [value]="language() ?? ''" (valueChange)="setFilter('language', $event)" />
+            <app-select label="Application" placeholder="Any" [options]="applicationOptions()" [value]="application() ?? ''" (valueChange)="setFilter('application', $event)" />
+            <app-select
+                label="Role"
+                [placeholder]="application() ? 'Any role' : 'Pick an application'"
+                [options]="roleOptions()"
+                [disabled]="!application()"
+                [value]="role() ?? ''"
+                (valueChange)="setFilter('role', $event)" />
+            @if (filtered()) {
+                <div class="filter-reset">
+                    <button appButton variant="ghost" size="sm" (click)="clearFilters()">
+                        <app-icon name="x" [size]="15" />
+                        Clear filters
+                    </button>
+                </div>
+            }
+        </div>
+
+        @if (loadError()) {
+            <div class="padded">
+                <app-error-state heading="The users could not be loaded" [message]="loadError()!" (retry)="reload()" />
+            </div>
+        } @else if (loading() && users().length === 0) {
+            <div class="skeletons" aria-hidden="true">
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+            </div>
+        } @else if (users().length === 0) {
+            <app-empty-state icon="users" heading="No users match" [text]="filtered() ? 'Try fewer filters.' : 'Nobody has an account yet.'">
+                @if (filtered()) {
+                    <button appButton variant="secondary" (click)="clearFilters()">Clear filters</button>
+                }
+            </app-empty-state>
+        } @else {
+            <div class="table-scroll" [class.is-refreshing]="loading()">
+                <table class="table">
+                    <caption class="visually-hidden">Users</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">User</th>
+                            <th scope="col">State</th>
+                            <th scope="col">Roles</th>
+                            <th scope="col">Last sign-in</th>
+                            <th scope="col">Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (user of users(); track user.id) {
+                            <tr class="row-link" [class.row-muted]="user.disabled" (click)="open(user)">
+                                <td>
+                                    <div class="who">
+                                        <a class="who-name" [routerLink]="['/admin/users', user.id]" (click)="$event.stopPropagation()">{{ user.username }}</a>
+                                        <span class="who-email break">{{ user.email }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badges">
+                                        @if (user.disabled) {
+                                            <app-badge tone="danger">Switched off</app-badge>
+                                        }
+                                        @if (!user.email_confirmed) {
+                                            <app-badge tone="warning">Unconfirmed</app-badge>
+                                        }
+                                        @if (isIamAdmin(user)) {
+                                            <app-badge tone="primary">IAM admin</app-badge>
+                                        }
+                                        @if (user.totp_enabled) {
+                                            <app-badge tone="success">2FA</app-badge>
+                                        }
+                                        @if (user.google_connected) {
+                                            <app-badge>Google</app-badge>
+                                        }
+                                        @if (user.force_password_change) {
+                                            <app-badge tone="warning">Must change password</app-badge>
+                                        }
+                                        @if (!user.has_password) {
+                                            <app-badge>No password</app-badge>
+                                        }
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (user.roles.length) {
+                                        <span class="badges">
+                                            @for (grant of user.roles; track grant.client_id + grant.role) {
+                                                <app-badge [mono]="true">{{ grantLabel(grant) }}</app-badge>
+                                            }
+                                        </span>
+                                    } @else {
+                                        <span class="muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="nowrap" [attr.title]="user.last_login_at | appDate">{{ user.last_login_at | appDate: "relative" : "Never" }}</span>
+                                </td>
+                                <td>
+                                    <span class="nowrap">{{ user.created_at | appDate: "date" }}</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </app-card>
+</div>
+
+@if (creating() && filters(); as available) {
+    <app-create-user-dialog [applications]="available.applications" [passwordMin]="available.passwordMinLength" (closed)="created($event)" />
+}

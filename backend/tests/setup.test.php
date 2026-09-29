@@ -1,0 +1,250 @@
+<?php
+
+/**
+ * The installer on a development machine, and the IAM before it has run.
+ *
+ * Starts from an empty configuration folder - an IAM nobody has set up - and
+ * checks that the API says so and nothing more; then drives setup.php the way
+ * a browser on this computer would: the nonce instead of a token, the "Test
+ * connection" answers, a save that writes every file and builds the database,
+ * and a second run that shows what is saved but never a password or the key,
+ * keeps a blank password, and leaves the installer where it is.
+ */
+
+declare(strict_types=1);
+
+require __DIR__ . '/lib.php';
+require __DIR__ . '/setup_lib.php';
+
+bootTests(configured: false);
+
+$server = testServer();
+$database = throwawayDatabase(testEnvironment()['db']);
+
+// An old genshin accounts database with an admin and a player, to bring over.
+$legacy = makeLegacyDatabase();
+$legacyName = testEnvironment()['db'] . '_legacy';
+$legacy->prepare("INSERT INTO users (id, role, username, email, email_confirmed, password) VALUES
+    (3, 'ADMIN', 'owner', 'owner@example.test', TRUE, ?), (8, 'USER', 'player', 'player@example.test', TRUE, ?)")
+    ->execute([password_hash('owner password', PASSWORD_DEFAULT), password_hash('player password', PASSWORD_DEFAULT)]);
+
+/** The form as a developer fills it in, over the prefilled values. */
+function localForm(string $nonce, array $overrides = []): array
+{
+    $server = testServer();
+
+    return $overrides + [
+        'nonce' => $nonce,
+        'public_url' => 'http://localhost:4300',
+        'db_host' => (string) $server['host'],
+        'db_port' => (string) $server['port'],
+        'db_user' => (string) $server['username'],
+        'db_pass' => (string) $server['password'],
+        'db_name' => $GLOBALS['database'],
+        'legacy' => $GLOBALS['legacyName'],
+        'accounts' => 'import',
+        'mail_noreply' => 'noreply@localhost',
+        'mail_support' => 'support@localhost',
+        'mail_from_name' => 'anotoki',
+        'google_client_id' => '',
+    ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('with no configuration the API answers not_set_up to everything, and points at the installer', function () {
+    $browser = new Browser();
+
+    foreach (['/api/public/config', '/.well-known/openid-configuration', '/.well-known/jwks.json', '/api/account'] as $path) {
+        $answer = $browser->get($path);
+        same(503, $answer->status, "GET {$path}");
+        same('not_set_up', $answer->json()['code'] ?? null, "GET {$path} code");
+        same('/setup.php', $answer->json()['setup_url'] ?? null, "GET {$path} points at the installer");
+    }
+
+    same(503, $browser->post('/api/login/password', ['email' => 'a@b.test', 'password' => 'whatever'])->status, 'a sign-in');
+    same(503, $browser->request('OPTIONS', '/api/oidc/token', ['headers' => ['Origin' => 'http://localhost:4200']])->status, 'a preflight');
+    check(!str_contains($browser->get('/api/public/config')->body, 'local.php'), 'the answer names no file');
+    same(4, count(iamSetUpProblems()), 'four files missing, Google optional');
+});
+
+test('the development setup is this computer, straight: anything else is a real host', function () {
+    check(setupIsLocal(LOCAL_SERVER), '127.0.0.1 to localhost');
+    check(setupIsLocal(['REMOTE_ADDR' => '::1', 'HTTP_HOST' => '[::1]:8100']), '::1 to [::1]');
+    check(setupIsLocal(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => '127.0.0.1:4300']), 'through the Angular dev server');
+    check(!setupIsLocal(['REMOTE_ADDR' => '203.0.113.9', 'HTTP_HOST' => 'localhost']), 'Host: localhost from elsewhere');
+    check(!setupIsLocal(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => 'iam.example.test']), 'a name rebound to 127.0.0.1');
+    check(!setupIsLocal(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => 'localhost', 'HTTP_X_FORWARDED_FOR' => '203.0.113.9']), 'a proxy on the server');
+    check(!setupIsLocal(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => 'localhost', 'HTTP_FORWARDED' => 'for=127.0.0.1']), 'any forwarding header');
+    check(!setupIsLocal(['REMOTE_ADDR' => '127.0.0.1']), 'no Host at all');
+});
+
+test('on this computer the form is prefilled with development values and asks for no token', function () {
+    $page = setupRequest('GET', LOCAL_SERVER);
+    same(200, $page['status'], 'the form');
+    check(nonceFrom($page) !== '', 'a nonce');
+    check(!str_contains($page['body'], 'name="token"'), 'no setup token');
+    check(!is_file(IAM_CONFIG_DIR . '/setup.local.php'), 'and no token file');
+    foreach (['http://localhost:4300', '127.0.0.1', '5432', 'postgres', 'noreply@localhost', 'admin@localhost'] as $value) {
+        check(str_contains($page['body'], 'value="' . $value . '"'), "prefilled with {$value}");
+    }
+    check(!str_contains($page['body'], 'value="https://'), 'no production address as a value');
+    check(str_contains($page['body'], 'src="setup.php?asset=js"') && !preg_match('/<script(?![^>]*\bsrc=)[^>]*>/i', $page['body']), 'the script is a file, nothing inline');
+    same(200, setupRequest('GET', LOCAL_SERVER, query: ['asset' => 'js'])['status'], 'which it serves');
+    // Under no-referrer a browser's form post says `Origin: null`, which the check below refuses.
+    same('same-origin', $page['headers']['Referrer-Policy'], 'a referrer policy under which a form post names its origin');
+});
+
+test('a post without the nonce, with a wrong one, or from another page is refused', function () {
+    $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
+
+    same(403, setupRequest('POST', LOCAL_SERVER, localForm(''))['status'], 'no nonce');
+    same(403, setupRequest('POST', LOCAL_SERVER, localForm(str_repeat('0', 64)))['status'], 'a wrong nonce');
+    same(403, setupRequest('POST', LOCAL_SERVER + ['HTTP_ORIGIN' => 'http://localhost:3000'], localForm($nonce))['status'], 'another port on this computer');
+    same(403, setupRequest('POST', LOCAL_SERVER + ['HTTP_ORIGIN' => 'null'], localForm($nonce))['status'], 'a sandboxed page, which has no origin to name');
+    same(403, setupRequest('POST', LOCAL_SERVER + ['HTTP_SEC_FETCH_SITE' => 'cross-site'], localForm($nonce))['status'], 'a cross-site request');
+    same(403, setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm(''))['status'], 'a test without the nonce');
+    check(!is_file(IAM_CONFIG_DIR . '/database.local.php'), 'and nothing was written');
+});
+
+test('"Test connection" answers in place: a login that works, one that does not, a database not there yet', function () use ($server) {
+    $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
+
+    $missing = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER + ['HTTP_ORIGIN' => 'http://localhost:8100'], json: ['action' => 'test_database'] + localForm($nonce)));
+    same('warn', $missing['tone'], 'the server answers, the database is still to be made: ' . $missing['message']);
+
+    $wrong = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_pass' => 'certainly not the password', 'db_user' => 'iam_test_nobody'])));
+    same('bad', $wrong['tone'], 'a wrong login: ' . $wrong['message']);
+
+    $old = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_legacy'] + localForm($nonce)));
+    same('good', $old['tone'], 'the old accounts: ' . $old['message']);
+    check(str_contains($old['message'], '2 accounts') && str_contains($old['message'], '1 of them admin'), 'counted: ' . $old['message']);
+
+    $unsafe = setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_name' => 'iam;host=elsewhere']));
+    same(422, $unsafe['status'], 'a database name that would reach into the DSN');
+
+    if ((string) $server['password'] !== '') {
+        foreach ([$missing, $wrong, $old] as $answer) {
+            check(!str_contains($answer['message'], (string) $server['password']), 'no answer repeats the password');
+        }
+    }
+    check(!is_file(IAM_CONFIG_DIR . '/database.local.php'), 'testing writes nothing');
+});
+
+test('saving writes every file, builds the database, brings the accounts over, and the API comes up', function () use ($legacy) {
+    $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
+    $saved = setupRequest('POST', LOCAL_SERVER, localForm($nonce));
+    same(200, $saved['status'], 'saved: ' . strip_tags($saved['body']));
+
+    foreach (['database', 'secret', 'iam', 'mail'] as $name) {
+        check(is_file(IAM_CONFIG_DIR . "/{$name}.local.php"), "config/{$name}.local.php written");
+    }
+    check(!is_file(IAM_CONFIG_DIR . '/google.local.php'), 'no Google without a client id');
+    same([], iamSetUpProblems(), 'set up');
+    same('file', localConfig('mail')['driver'], 'mail goes to files on this computer');
+    same($GLOBALS['legacyName'], localConfig('database')['databases']['legacy'] ?? null, 'the old database is remembered for import-legacy.php');
+    check(is_file(setupTestContext()['self']), 'the installer stays');
+    check(!is_file(IAM_STORAGE_DIR . '/installed.lock'), 'and is not locked');
+
+    $browser = new Browser();
+    same(200, $browser->get('/api/public/config')->status, 'the API answers');
+    same(TEST_ISSUER, $browser->get('/.well-known/openid-configuration')->json()['issuer'] ?? null, 'as the issuer entered');
+    same(200, $browser->signIn('owner@example.test', 'owner password')->status, 'the imported admin signs in with the old password');
+    same(true, $browser->get('/api/account')->json()['is_admin'] ?? null, 'and administers the IAM');
+    same(2, (int) $legacy->query('SELECT accounts FROM iam_handover')->fetchColumn(), 'the marker for the genshin site is written');
+    same('http://localhost:4300', iamDb()->query("SELECT home_url FROM applications WHERE client_id = 'iam'")->fetchColumn(), 'the IAM\'s own home is its address');
+});
+
+test('run again: the saved values show, never a password or the key; a blank password keeps the saved one', function () use ($server) {
+    $page = setupRequest('GET', LOCAL_SERVER);
+    same(200, $page['status'], 'the form again');
+    check(str_contains($page['body'], 'value="' . $GLOBALS['database'] . '"'), 'the saved database');
+    check(!str_contains($page['body'], (string) localConfig('secret')), 'the master key is never shown');
+    if ((string) $server['password'] !== '') {
+        check(!str_contains($page['body'], (string) $server['password']), 'nor the database password');
+        check(str_contains($page['body'], 'placeholder="saved - blank keeps it"'), 'which is said to be saved');
+    }
+    check(str_contains($page['body'], 'account'), 'the accounts already there are named');
+
+    // Something added by hand stays through a save.
+    writeTestConfig('iam', ['public_url' => 'http://localhost:4300', 'trusted_proxies' => ['10.0.0.0/8']]);
+    forgetLocalConfig();
+    $key = localConfig('secret');
+
+    $answer = setupRequest('POST', LOCAL_SERVER, localForm(nonceFrom($page), ['db_pass' => '', 'accounts' => 'later', 'mail_from_name' => 'anotoki dev']));
+    same(200, $answer['status'], 'saved again: ' . strip_tags($answer['body']));
+    check(str_contains($answer['body'], 'left as they are'), 'the accounts are left alone');
+    // Compared, never printed: same() would show both values when it fails.
+    check((string) localConfig('database')['password'] === (string) $server['password'], 'the blank password kept the saved one');
+    check(localConfig('secret') === $key, 'the master key is kept');
+    same('anotoki dev', localConfig('mail')['from_name'], 'the change is saved');
+    same(['10.0.0.0/8'], localConfig('iam')['trusted_proxies'] ?? null, 'and what setup.php does not manage is kept');
+    check(is_file(setupTestContext()['self']), 'the installer is still there');
+
+    $kept = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm(nonceFrom($page), ['db_pass' => ''])));
+    same('good', $kept['tone'], 'a test with a blank password uses the saved one: ' . $kept['message']);
+});
+
+test('a blank password is the saved one only for the server and user it was saved for', function () {
+    $saved = ['host' => 'db.example.test', 'port' => '5432', 'username' => 'iam', 'password' => 'the saved one'];
+    $values = ['db_host' => 'db.example.test', 'db_port' => '5432', 'db_user' => 'iam'];
+
+    same('the saved one', setupConnection($values, '', $saved)['password'], 'same server, same user');
+    same('typed', setupConnection($values, 'typed', $saved)['password'], 'a typed one wins');
+    same('', setupConnection(['db_host' => 'elsewhere.example.test'] + $values, '', $saved)['password'], 'never sent to another host');
+    same('', setupConnection(['db_user' => 'someone'] + $values, '', $saved)['password'], 'nor for another user');
+});
+
+test('a new administrator instead, into a database of its own; Google comes and goes with its client id', function () {
+    $fresh = throwawayDatabase($GLOBALS['database'] . '_fresh');
+    $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
+
+    $short = setupRequest('POST', LOCAL_SERVER, localForm($nonce, ['db_name' => $fresh, 'accounts' => 'fresh', 'email' => 'admin@localhost', 'password' => 'short', 'confirm' => 'short']));
+    same(422, $short['status'], 'a short password is refused');
+
+    $answer = setupRequest('POST', LOCAL_SERVER, localForm($nonce, [
+        'db_name' => $fresh, 'accounts' => 'fresh', 'email' => 'admin@localhost', 'password' => 'a long enough one', 'confirm' => 'a long enough one',
+        'google_client_id' => '1234-abc.apps.googleusercontent.com',
+    ]));
+    same(200, $answer['status'], 'saved: ' . strip_tags($answer['body']));
+    same(200, (new Browser())->signIn('admin@localhost', 'a long enough one')->status, 'the administrator signs in');
+    same('1234-abc.apps.googleusercontent.com', localConfig('google')['client_id'] ?? null, 'Google is on');
+    same(true, (new Browser())->get('/api/public/config')->json()['google_enabled'] ?? null, 'and the pages know');
+
+    $off = setupRequest('POST', LOCAL_SERVER, localForm($nonce, ['db_name' => $fresh, 'accounts' => 'later', 'google_client_id' => '']));
+    same(200, $off['status'], 'saved without it');
+    check(!is_file(IAM_CONFIG_DIR . '/google.local.php'), 'Google is off again');
+});
+
+test('a fresh database arrives with the sites\' development addresses, as in the port table', function () {
+    $table = ['genshin' => 'http://localhost:4200', 'japanese-academy' => 'http://localhost:4400', 'piano-academy' => 'http://localhost:4500', 'build-analyzer' => 'http://localhost:4600'];
+    $pdo = iamDb();
+
+    foreach ($table as $clientId => $frontend) {
+        $application = $pdo->prepare('SELECT id, home_url FROM applications WHERE client_id = ?');
+        $application->execute([$clientId]);
+        $row = $application->fetch();
+        same($frontend, $row['home_url'], "{$clientId} home");
+
+        $uris = $pdo->prepare('SELECT kind, uri FROM application_redirect_uris WHERE application_id = ? ORDER BY kind');
+        $uris->execute([$row['id']]);
+        same([['kind' => 'login', 'uri' => $frontend . '/auth/callback'], ['kind' => 'logout', 'uri' => $frontend . '/']], $uris->fetchAll(), "{$clientId} redirects");
+
+        $origins = $pdo->prepare('SELECT origin FROM application_origins WHERE application_id = ?');
+        $origins->execute([$row['id']]);
+        same([$frontend], $origins->fetchAll(PDO::FETCH_COLUMN), "{$clientId} origin");
+    }
+    same('Build Analyzer', $pdo->query("SELECT name FROM applications WHERE client_id = 'build-analyzer'")->fetchColumn(), 'the analyzer is called what it is');
+});
+
+test('a copy locked as a real host stays locked on this computer too', function () {
+    file_put_contents(IAM_STORAGE_DIR . '/installed.lock', '{}');
+    $page = setupRequest('GET', LOCAL_SERVER);
+    same(409, $page['status'], 'locked');
+    check(str_contains($page['body'], 'installed.lock'), 'and says which file');
+    same(409, setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'])['status'], 'the tests too');
+    check(is_file(setupTestContext()['self']), 'nothing deleted on this computer');
+    unlink(IAM_STORAGE_DIR . '/installed.lock');
+});
+
+finishTests();

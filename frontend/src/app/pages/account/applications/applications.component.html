@@ -1,0 +1,63 @@
+<div class="page">
+    <app-page-header [heading]="'apps.title' | t" [lead]="'apps.lead' | t" />
+
+    @if (loading()) {
+        <ul class="apps" aria-hidden="true">
+            @for (placeholder of [1, 2, 3]; track placeholder) {
+                <li class="app skeleton skeleton-block"></li>
+            }
+        </ul>
+    } @else if (loadError()) {
+        <app-error-state [heading]="'apps.failed' | t" [message]="loadError()!" (retry)="load()" />
+    } @else if (applications().length === 0) {
+        <app-empty-state icon="grid" [heading]="'apps.none' | t" />
+    } @else {
+        <ul class="apps">
+            @for (app of applications(); track app.client_id) {
+                <li class="app" [class.app-locked]="!app.can_use">
+                    <div class="app-head">
+                        <app-app-avatar [name]="app.name" [logoUrl]="app.logo_url" [size]="44" />
+                        <div class="app-titles">
+                            <h2 class="app-name">{{ app.name }}</h2>
+                            @if (app.home_url) {
+                                <span class="app-host">{{ host(app.home_url) }}</span>
+                            }
+                        </div>
+                    </div>
+                    @if (app.description) {
+                        <p class="app-description">{{ app.description }}</p>
+                    }
+                    <div class="app-roles">
+                        <span class="small muted">{{ "apps.roles" | t }}</span>
+                        @if (app.roles.length) {
+                            <span class="roles">
+                                @for (role of app.roles; track role) {
+                                    <app-badge tone="primary" [mono]="true">{{ role }}</app-badge>
+                                }
+                            </span>
+                        } @else {
+                            <span class="small">{{ "apps.noRoles" | t }}</span>
+                        }
+                    </div>
+                    <div class="app-foot">
+                        <span class="small muted">
+                            @if (app.last_used_at) {
+                                {{ "apps.lastUsed" | t }}: {{ app.last_used_at | appDate: "relative" }}
+                            } @else {
+                                {{ "apps.neverUsed" | t }}
+                            }
+                        </span>
+                        @if (app.can_use && app.home_url) {
+                            <a appButton variant="primary" size="sm" [href]="app.home_url" rel="noopener">
+                                {{ "apps.open" | t }}
+                                <app-icon name="externalLink" [size]="15" />
+                            </a>
+                        } @else if (!app.can_use) {
+                            <app-badge tone="warning" [dot]="true" [attr.title]="'apps.noAccessHint' | t">{{ "apps.noAccess" | t }}</app-badge>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>

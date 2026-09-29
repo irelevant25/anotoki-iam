@@ -1,0 +1,4 @@
+@if (divider() && ready()) {
+    <p class="divider-text">{{ "common.or" | t }}</p>
+}
+<div class="google-button" [class.google-button-ready]="ready()" #host></div>

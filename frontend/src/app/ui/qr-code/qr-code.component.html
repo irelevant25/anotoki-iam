@@ -1,0 +1,10 @@
+@if (symbol(); as qr) {
+    <svg xmlns="http://www.w3.org/2000/svg" [attr.viewBox]="'0 0 ' + qr.size + ' ' + qr.size" shape-rendering="crispEdges" role="img" [attr.aria-label]="label()">
+        <rect [attr.width]="qr.size" [attr.height]="qr.size" fill="#ffffff" />
+        <g fill="#000000">
+            @for (run of qr.runs; track $index) {
+                <rect [attr.x]="run.x" [attr.y]="run.y" [attr.width]="run.width" height="1" />
+            }
+        </g>
+    </svg>
+}

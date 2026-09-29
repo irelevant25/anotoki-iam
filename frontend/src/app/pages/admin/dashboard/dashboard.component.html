@@ -1,0 +1,43 @@
+<div class="page">
+    <app-page-header heading="Dashboard" lead="The anotoki IAM at a glance." />
+
+    @if (loadError()) {
+        <app-error-state heading="The numbers could not be loaded" [message]="loadError()!" (retry)="load()" />
+    } @else {
+        <ul class="tiles">
+            @for (tile of tiles; track tile.key) {
+                <li>
+                    <a class="tile" [routerLink]="tile.link" [queryParams]="tile.query ?? {}" [attr.data-tone]="tile.tone && stats() && stats()![tile.key] > 0 ? tile.tone : null">
+                        <span class="tile-icon"><app-icon [name]="tile.icon" [size]="18" /></span>
+                        <span class="tile-value">
+                            @if (stats(); as s) {
+                                {{ s[tile.key] }}
+                            } @else {
+                                <span class="skeleton tile-skeleton" aria-hidden="true"></span>
+                                <span class="visually-hidden">Loading</span>
+                            }
+                        </span>
+                        <span class="tile-label">{{ tile.label }}</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+
+    <section class="stack" aria-labelledby="dashboard-links">
+        <h2 id="dashboard-links" class="section-title">Manage</h2>
+        <ul class="links">
+            @for (item of links; track item.link) {
+                <li>
+                    <a class="link-card" [routerLink]="item.link">
+                        <app-icon [name]="item.icon" [size]="20" />
+                        <span>
+                            <span class="link-title">{{ item.label }}</span>
+                            <span class="link-text">{{ item.text }}</span>
+                        </span>
+                    </a>
+                </li>
+            }
+        </ul>
+    </section>
+</div>

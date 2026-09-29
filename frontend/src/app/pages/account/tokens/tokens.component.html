@@ -1,0 +1,139 @@
+<div class="page">
+    <app-page-header [heading]="'tokens.title' | t" [lead]="'tokens.lead' | t">
+        <button appButton variant="primary" [disabled]="loading() || !!loadError()" (click)="openCreate()">
+            <app-icon name="plus" [size]="16" />
+            {{ "tokens.create" | t }}
+        </button>
+    </app-page-header>
+
+    <app-card [flush]="true">
+        @if (loading()) {
+            <div class="skeletons" aria-hidden="true">
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+            </div>
+        } @else if (loadError()) {
+            <div class="padded">
+                <app-error-state [heading]="'tokens.failed' | t" [message]="loadError()!" (retry)="load()" />
+            </div>
+        } @else if (tokens().length === 0) {
+            <app-empty-state icon="terminal" [heading]="'tokens.none' | t" [text]="'tokens.noneText' | t">
+                <button appButton variant="primary" (click)="openCreate()">
+                    <app-icon name="plus" [size]="16" />
+                    {{ "tokens.create" | t }}
+                </button>
+            </app-empty-state>
+        } @else {
+            <div class="table-scroll">
+                <table class="table table-stack">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ "tokens.column.name" | t }}</th>
+                            <th scope="col">{{ "tokens.column.app" | t }}</th>
+                            <th scope="col">{{ "tokens.column.created" | t }}</th>
+                            <th scope="col">{{ "tokens.column.expires" | t }}</th>
+                            <th scope="col">{{ "tokens.column.lastUsed" | t }}</th>
+                            <th scope="col">{{ "tokens.column.state" | t }}</th>
+                            <th scope="col">
+                                <span class="visually-hidden">{{ "tokens.revoke" | t }}</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (token of tokens(); track token.id) {
+                            <tr [class.row-muted]="state(token) !== 'active'">
+                                <td [attr.data-label]="'tokens.column.name' | t">
+                                    <strong class="break">{{ token.name }}</strong>
+                                </td>
+                                <td [attr.data-label]="'tokens.column.app' | t">{{ token.application_name }}</td>
+                                <td [attr.data-label]="'tokens.column.created' | t">
+                                    <span class="nowrap">{{ token.created_at | appDate: "date" }}</span>
+                                </td>
+                                <td [attr.data-label]="'tokens.column.expires' | t">
+                                    <span class="nowrap">{{ token.expires_at | appDate: "date" }}</span>
+                                </td>
+                                <td [attr.data-label]="'tokens.column.lastUsed' | t">
+                                    <span class="nowrap">{{ token.last_used_at | appDate: "relative" : ("common.never" | t) }}</span>
+                                </td>
+                                <td [attr.data-label]="'tokens.column.state' | t">
+                                    @switch (state(token)) {
+                                        @case ("active") {
+                                            <app-badge tone="success" [dot]="true">{{ "tokens.state.active" | t }}</app-badge>
+                                        }
+                                        @case ("expired") {
+                                            <app-badge>{{ "tokens.state.expired" | t }}</app-badge>
+                                        }
+                                        @case ("revoked") {
+                                            <app-badge tone="danger">{{ "tokens.state.revoked" | t }}</app-badge>
+                                        }
+                                    }
+                                </td>
+                                <td class="cell-actions">
+                                    @if (state(token) === "active") {
+                                        <button appButton size="sm" variant="secondary" [loading]="revokingId() === token.id" (click)="revoke(token)">
+                                            {{ "tokens.revoke" | t }}
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </app-card>
+</div>
+
+@if (creating()) {
+    <app-dialog [heading]="'tokens.new.title' | t" [busy]="saving()" (dismiss)="creating.set(false)">
+        @if (appOptions().length === 0) {
+            <app-alert tone="info">{{ "tokens.new.noApps" | t }}</app-alert>
+        } @else {
+            <form id="token-form" class="stack" novalidate (submit)="$event.preventDefault(); create()">
+                @if (createError()) {
+                    <app-alert tone="danger" [announce]="true">{{ createError() }}</app-alert>
+                }
+                <app-text-field
+                    [label]="'tokens.new.name' | t"
+                    name="token-name"
+                    autocomplete="off"
+                    [maxlength]="100"
+                    [hint]="'tokens.new.nameHint' | t"
+                    [(value)]="name"
+                    [error]="nameError()"
+                    [autofocus]="true" />
+                <app-select [label]="'tokens.new.app' | t" [options]="appOptions()" [hint]="'tokens.new.appHint' | t" [(value)]="clientId" [error]="appError()" />
+                <app-select [label]="'tokens.new.expiry' | t" [options]="expiryOptions()" [(value)]="days" />
+            </form>
+        }
+        <div dialogFooter>
+            <button appButton variant="secondary" [disabled]="saving()" (click)="creating.set(false)">{{ "common.cancel" | t }}</button>
+            @if (appOptions().length > 0) {
+                <button appButton type="submit" form="token-form" variant="primary" [loading]="saving()">{{ "tokens.new.submit" | t }}</button>
+            }
+        </div>
+    </app-dialog>
+}
+
+@if (created(); as fresh) {
+    <app-dialog size="lg" [heading]="'tokens.created.title' | t" [dismissible]="false">
+        <div class="stack">
+            <app-alert tone="warning">{{ "tokens.created.lead" | t }}</app-alert>
+            <div class="secret-row">
+                <code class="secret">{{ fresh.token }}</code>
+                <app-copy-button [text]="fresh.token" variant="primary" />
+            </div>
+            <div class="stack stack-sm">
+                <h3>{{ "tokens.created.howTitle" | t }}</h3>
+                <p class="muted">{{ "tokens.created.how" | t }}</p>
+                <div class="example">
+                    <pre><code>{{ curlExample() }}</code></pre>
+                    <app-copy-button class="example-copy" [text]="curlExample()" [iconOnly]="true" variant="ghost" />
+                </div>
+            </div>
+        </div>
+        <div dialogFooter>
+            <button appButton variant="primary" (click)="created.set(null)">{{ "tokens.created.done" | t }}</button>
+        </div>
+    </app-dialog>
+}

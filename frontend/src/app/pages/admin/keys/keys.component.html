@@ -1,0 +1,69 @@
+<div class="page">
+    <app-page-header heading="Signing keys" lead="Access and ID tokens are signed with the active key; applications verify them against the published JWKS.">
+        <button appButton variant="primary" [loading]="rotating()" (click)="rotate()">
+            <app-icon name="refresh" [size]="16" />
+            Rotate now
+        </button>
+    </app-page-header>
+
+    <app-card [flush]="true">
+        @if (loadError()) {
+            <div class="padded">
+                <app-error-state heading="The keys could not be loaded" [message]="loadError()!" (retry)="load()" />
+            </div>
+        } @else if (keys() === null) {
+            <div class="skeletons" aria-hidden="true">
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+            </div>
+        } @else if (keys()!.length === 0) {
+            <app-empty-state icon="key" heading="No keys yet" text="The first one is made the first time a token is signed." />
+        } @else {
+            <div class="table-scroll">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Key id</th>
+                            <th scope="col">Algorithm</th>
+                            <th scope="col">State</th>
+                            <th scope="col">Created</th>
+                            <th scope="col">Retired</th>
+                            <th scope="col"><span class="visually-hidden">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (key of keys(); track key.kid) {
+                            <tr [class.row-muted]="key.status === 'retired'">
+                                <td>
+                                    <code class="kid">{{ key.kid }}</code>
+                                </td>
+                                <td class="mono">{{ key.alg }}</td>
+                                <td>
+                                    @if (key.status === "active") {
+                                        <app-badge tone="success" [dot]="true">Active</app-badge>
+                                    } @else {
+                                        <app-badge>Retired</app-badge>
+                                    }
+                                </td>
+                                <td class="nowrap">{{ key.created_at | appDate }}</td>
+                                <td>
+                                    @if (key.retired_at) {
+                                        <span class="nowrap">{{ key.retired_at | appDate }}</span>
+                                        <span class="small muted block">{{ publishedUntil(key) }}</span>
+                                    } @else {
+                                        <span class="muted">-</span>
+                                    }
+                                </td>
+                                <td class="cell-actions">
+                                    @if (key.status === "retired") {
+                                        <button appButton size="sm" variant="secondary" [loading]="removing() === key.kid" (click)="remove(key)">Remove</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </app-card>
+</div>

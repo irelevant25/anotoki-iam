@@ -1,0 +1,19 @@
+<app-auth-card>
+    <header class="auth-head">
+        <span class="auth-icon is-danger"><app-icon name="alert" [size]="22" /></span>
+        <h1 tabindex="-1" appAutofocus>{{ copy().title | t }}</h1>
+        <p>{{ copy().text | t }}</p>
+        @if (code()) {
+            <p class="small muted">{{ "errorPage.code" | t: { code: code() } }}</p>
+        }
+    </header>
+    <div class="actions">
+        @if (copy().retryable && next()) {
+            <button appButton variant="primary" [block]="true" (click)="retry()">
+                <app-icon name="refresh" [size]="16" />
+                {{ "common.retry" | t }}
+            </button>
+        }
+        <a appButton [variant]="copy().retryable && next() ? 'secondary' : 'primary'" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+    </div>
+</app-auth-card>

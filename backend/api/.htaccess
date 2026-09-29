@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# Everything goes through index.php. No other file under api/ is meant to be
+# requested: the route and helper files, called on their own, die with a fatal
+# error that names server paths. The first rule stops the rewrite looping on
+# index.php itself.
+RewriteRule ^index\.php$ - [L]
+RewriteRule ^ index.php [QSA,L]

@@ -1,0 +1,135 @@
+<app-auth-card [application]="application()">
+    @switch (step()) {
+        @case ("loading") {
+            <h1 class="visually-hidden">{{ "register.title" | t }}</h1>
+            <div class="centered">
+                <app-spinner size="lg" [label]="'common.loading' | t" [showLabel]="true" />
+            </div>
+        }
+
+        @case ("load-error") {
+            <header class="auth-head">
+                <h1 tabindex="-1" appAutofocus>{{ "register.title" | t }}</h1>
+            </header>
+            <app-alert tone="danger" [announce]="true">{{ loadError() }}</app-alert>
+            <button appButton variant="primary" [block]="true" (click)="load()">
+                <app-icon name="refresh" [size]="16" />
+                {{ "common.retry" | t }}
+            </button>
+        }
+
+        @case ("form") {
+            <header class="auth-head">
+                @if (application(); as app) {
+                    <h1>
+                        {{ forAppParts()[0] }}
+                        <strong>{{ app.name }}</strong>
+                        {{ forAppParts()[1] }}
+                    </h1>
+                } @else {
+                    <h1>{{ "register.title" | t }}</h1>
+                    <p>{{ "register.subtitle" | t }}</p>
+                }
+            </header>
+
+            @if (config() && !config()!.registration_enabled) {
+                <app-alert tone="warning">{{ "register.disabled" | t }}</app-alert>
+                <a appButton variant="primary" [block]="true" routerLink="/login" [queryParams]="requestParams()">{{ "register.signIn" | t }}</a>
+            } @else {
+                <form class="form" novalidate (submit)="$event.preventDefault(); submit()">
+                    @if (formError()) {
+                        <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+                    }
+
+                    <app-text-field
+                        [label]="'register.username' | t"
+                        name="nickname"
+                        autocomplete="nickname"
+                        autocapitalize="off"
+                        [maxlength]="100"
+                        [required]="true"
+                        [hint]="'register.usernameHint' | t"
+                        [(value)]="username"
+                        [error]="errors().username ?? null"
+                        [autofocus]="true" />
+
+                    <app-text-field
+                        [label]="'register.email' | t"
+                        type="email"
+                        name="email"
+                        autocomplete="email"
+                        inputmode="email"
+                        [required]="true"
+                        [(value)]="email"
+                        [error]="errors().email ?? null" />
+
+                    <app-password-field
+                        [label]="'register.password' | t"
+                        name="new-password"
+                        autocomplete="new-password"
+                        [required]="true"
+                        [hint]="'common.passwordHint' | t: { count: passwordMin() }"
+                        [(value)]="password"
+                        [error]="errors().password ?? null" />
+
+                    <app-password-field
+                        [label]="'register.passwordAgain' | t"
+                        name="new-password-again"
+                        autocomplete="new-password"
+                        [required]="true"
+                        [(value)]="passwordAgain"
+                        [error]="errors().again ?? null" />
+
+                    <button appButton type="submit" variant="primary" size="lg" [block]="true" [loading]="busy()">{{ "register.submit" | t }}</button>
+                </form>
+
+                <app-google-button text="signup_with" [divider]="true" (credential)="signUpWithGoogle($event)" />
+            }
+        }
+
+        @case ("sent") {
+            <header class="auth-head">
+                <span class="auth-icon is-success"><app-icon name="mail" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "register.sentTitle" | t }}</h1>
+                <p>{{ "register.sent" | t: { email: sentTo() } }}</p>
+                <p>{{ "register.sentNote" | t }}</p>
+            </header>
+            @if (info()) {
+                <app-alert tone="success" [announce]="true">{{ info() }}</app-alert>
+            }
+            @if (formError()) {
+                <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+            }
+            <button appButton variant="secondary" [block]="true" [loading]="busy()" (click)="resend()">
+                <app-icon name="send" [size]="16" />
+                {{ "register.resend" | t }}
+            </button>
+        }
+
+        @case ("not-sent") {
+            <header class="auth-head">
+                <span class="auth-icon is-warning"><app-icon name="alert" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "register.notSentTitle" | t }}</h1>
+                <p>{{ "register.notSent" | t: { email: sentTo() } }}</p>
+                <p>{{ "register.notSentNote" | t }}</p>
+            </header>
+            @if (info()) {
+                <app-alert tone="success" [announce]="true">{{ info() }}</app-alert>
+            }
+            @if (formError()) {
+                <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+            }
+            <button appButton variant="primary" [block]="true" [loading]="busy()" (click)="resend()">
+                <app-icon name="send" [size]="16" />
+                {{ "register.resend" | t }}
+            </button>
+        }
+    }
+
+    @if (step() !== "loading") {
+        <p authFooter class="footer-line">
+            {{ "register.haveAccount" | t }}
+            <a routerLink="/login" [queryParams]="requestParams()">{{ "register.signIn" | t }}</a>
+        </p>
+    }
+</app-auth-card>

@@ -1,0 +1,80 @@
+.apps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.app.skeleton {
+  height: 12rem;
+  border: 0;
+}
+
+.app-locked {
+  background: var(--surface-2);
+}
+
+.app-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.app-titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app-name {
+  font-size: 1.05rem;
+}
+
+.app-host {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-description {
+  color: var(--muted);
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.app-roles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+}
+
+.roles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.app-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}

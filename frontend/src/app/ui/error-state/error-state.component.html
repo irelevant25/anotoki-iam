@@ -1,0 +1,9 @@
+<app-alert tone="danger" [heading]="heading()" [announce]="true">
+    {{ message() }}
+    <div alertActions>
+        <button appButton size="sm" variant="secondary" (click)="retry.emit()">
+            <app-icon name="refresh" [size]="15" />
+            {{ retryLabel() || ("common.retry" | t) }}
+        </button>
+    </div>
+</app-alert>

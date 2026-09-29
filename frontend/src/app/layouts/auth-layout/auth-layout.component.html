@@ -1,0 +1,52 @@
+<!-- Focus is moved by hand: with <base href="/">, a bare #main would resolve to /#main and leave the page. -->
+<a class="skip-link" href="#main" (click)="$event.preventDefault(); main.focus()">{{ "shell.skipToContent" | t }}</a>
+
+<div class="auth">
+    <section class="sky">
+        <div class="stars stars-far" aria-hidden="true"></div>
+        <div class="stars stars-near" aria-hidden="true"></div>
+        <div class="stars stars-bright" aria-hidden="true"></div>
+        <div class="orbit orbit-one" aria-hidden="true"></div>
+        <div class="orbit orbit-two" aria-hidden="true"></div>
+        <span class="sparkle sparkle-1" aria-hidden="true"><app-icon name="sparkle" [filled]="true" [size]="22" /></span>
+        <span class="sparkle sparkle-2" aria-hidden="true"><app-icon name="sparkle" [filled]="true" [size]="14" /></span>
+        <span class="sparkle sparkle-3" aria-hidden="true"><app-icon name="sparkle" [filled]="true" [size]="10" /></span>
+        <span class="sparkle sparkle-4" aria-hidden="true"><app-icon name="sparkle" [filled]="true" [size]="16" /></span>
+
+        <div class="sky-content">
+            <div class="sky-brand">
+                <img class="logo" src="anotoki.png" alt="" width="84" height="70" />
+                <span class="wordmark">anotoki</span>
+            </div>
+            <div class="sky-copy">
+                <p class="tagline">{{ "brand.tagline" | t }}</p>
+                <p class="sky-lead">{{ "brand.lead" | t }}</p>
+                <ul class="points">
+                    <li>
+                        <app-icon name="sparkle" [filled]="true" [size]="12" />
+                        <span>{{ "brand.point1" | t }}</span>
+                    </li>
+                    <li>
+                        <app-icon name="sparkle" [filled]="true" [size]="12" />
+                        <span>{{ "brand.point2" | t }}</span>
+                    </li>
+                    <li>
+                        <app-icon name="sparkle" [filled]="true" [size]="12" />
+                        <span>{{ "brand.point3" | t }}</span>
+                    </li>
+                </ul>
+            </div>
+            <p class="sky-foot">© {{ year }} anotoki</p>
+        </div>
+    </section>
+
+    <div class="side">
+        <div class="controls">
+            <app-language-switcher />
+            <app-theme-toggle [compact]="true" />
+        </div>
+        <main #main id="main" class="main" tabindex="-1">
+            <router-outlet />
+        </main>
+    </div>
+</div>

@@ -1,0 +1,286 @@
+<div class="page">
+    <app-page-header
+        [heading]="creating() ? 'New application' : (application()?.name ?? 'Application')"
+        [lead]="creating() ? 'A site that will sign people in through the IAM.' : (application()?.description ?? null)">
+        <a pageEyebrow class="back" routerLink="/admin/applications">
+            <app-icon name="arrowLeft" [size]="15" />
+            Applications
+        </a>
+        <!-- One node per @if: a block with several would all land in the default slot. -->
+        @if (application(); as app) {
+            <span pageMeta class="badges">
+                <app-badge [mono]="true">{{ app.client_id }}</app-badge>
+                <app-badge [mono]="true">{{ app.type }}</app-badge>
+                @if (app.system) {
+                    <app-badge tone="primary">System</app-badge>
+                }
+                @if (!app.enabled) {
+                    <app-badge tone="danger" [dot]="true">Off</app-badge>
+                }
+            </span>
+        }
+        @if (application()?.type === "confidential") {
+            <button appButton variant="secondary" [loading]="secretBusy()" (click)="newSecret()">
+                <app-icon name="key" [size]="15" />
+                {{ application()?.has_secret ? "Generate new secret" : "Generate secret" }}
+            </button>
+        }
+        @if (application() && !system()) {
+            <button appButton variant="danger" [loading]="deleting()" (click)="remove()">
+                <app-icon name="trash" [size]="15" />
+                Delete
+            </button>
+        }
+    </app-page-header>
+
+    @if (loading()) {
+        <div class="loading"><app-spinner size="lg" label="Loading the application" [showLabel]="true" /></div>
+    } @else if (loadError()) {
+        <app-error-state heading="The application could not be loaded" [message]="loadError()!" (retry)="reload()" />
+    } @else {
+        @if (!creating()) {
+            <app-tabs [tabs]="tabs()" [active]="tab()" (activeChange)="showTab($event)" label="Application" idPrefix="app" />
+        }
+
+        @if (creating() || tab() === "settings") {
+            <form
+                class="form"
+                novalidate
+                [attr.role]="creating() ? null : 'tabpanel'"
+                [attr.id]="creating() ? null : 'app-panel-settings'"
+                [attr.aria-labelledby]="creating() ? null : 'app-tab-settings'"
+                (submit)="$event.preventDefault(); save()">
+                @if (application()?.type === "confidential" && !application()?.has_secret) {
+                    <app-alert tone="warning">This application is confidential but has no secret yet. Generate one before it tries to sign anybody in.</app-alert>
+                }
+
+                <app-card heading="Identity" subheading="How the application is known - to the IAM, and to people signing in.">
+                    <div class="form-grid">
+                        @if (creating()) {
+                            <app-text-field
+                                label="Client id"
+                                name="client-id"
+                                autocomplete="off"
+                                placeholder="piano-academy"
+                                hint="Short and fixed: it cannot be changed later."
+                                [maxlength]="64"
+                                [(value)]="clientId"
+                                [error]="errors().client_id ?? null"
+                                [autofocus]="true" />
+                        } @else {
+                            <app-text-field label="Client id" name="client-id" [value]="clientId()" [readonly]="true" hint="Fixed after creation." />
+                        }
+                        <app-text-field label="Name" name="app-name" autocomplete="off" [maxlength]="100" [(value)]="name" [error]="errors().name ?? null" />
+                        <app-text-field
+                            label="Home page"
+                            type="url"
+                            name="home-url"
+                            autocomplete="off"
+                            placeholder="https://"
+                            [optional]="true"
+                            [(value)]="homeUrl"
+                            [error]="errors().home_url ?? null" />
+                        <app-text-field
+                            label="Logo"
+                            type="url"
+                            name="logo-url"
+                            autocomplete="off"
+                            placeholder="https://"
+                            [optional]="true"
+                            hint="Shown on the sign-in page. Square works best."
+                            [(value)]="logoUrl"
+                            [error]="errors().logo_url ?? null" />
+                    </div>
+                    <app-textarea
+                        class="description"
+                        label="Description"
+                        name="description"
+                        [optional]="true"
+                        [rows]="2"
+                        [maxlength]="2000"
+                        [(value)]="description"
+                        [error]="errors().description ?? null" />
+                </app-card>
+
+                <app-card heading="Signing in">
+                    <div class="stack stack-lg">
+                        <app-radio-group label="Type" [options]="typeOptions" [(value)]="type" />
+                        <app-radio-group label="Who may use it" [options]="accessOptions" [(value)]="access" />
+                        <div class="form-grid">
+                            <app-text-field
+                                label="Access token lifetime"
+                                type="number"
+                                name="ttl"
+                                inputmode="numeric"
+                                [min]="60"
+                                [max]="3600"
+                                hint="Seconds, 60-3600. Signing out stops the next refresh, so this is how long a revoked account can still act."
+                                [(value)]="ttl"
+                                [error]="errors().ttl ?? null">
+                                <span fieldSuffix class="field-affix unit">s</span>
+                            </app-text-field>
+                        </div>
+                        @if (!system()) {
+                            <app-switch [(checked)]="enabled" hint="Off: nobody can sign in to it, and its refresh tokens stop working.">Enabled</app-switch>
+                        }
+                    </div>
+                </app-card>
+
+                <app-card heading="Addresses" subheading="Matched exactly, character for character.">
+                    <div class="stack stack-lg">
+                        @if (errors().lists) {
+                            <app-alert tone="danger">{{ errors().lists }}</app-alert>
+                        }
+                        <app-url-list-editor
+                            label="Redirect URIs"
+                            hint="Where the sign-in comes back to, e.g. https://piano.anotoki.eu/auth/callback."
+                            placeholder="https://site.anotoki.eu/auth/callback"
+                            [(items)]="redirectUris" />
+                        <app-url-list-editor label="Logout redirect URIs" hint="Where signing out may land." placeholder="https://site.anotoki.eu/" [(items)]="logoutUris" />
+                        <app-url-list-editor
+                            label="Web origins"
+                            hint="Origins allowed to call the token endpoint from a browser - scheme and host only."
+                            placeholder="https://site.anotoki.eu"
+                            kind="origin"
+                            [(items)]="origins" />
+                    </div>
+                </app-card>
+
+                <app-card heading="Roles" subheading="The application's own roles. One still held by somebody cannot be removed - take it from them first.">
+                    <div class="stack">
+                        @if (errors().roles) {
+                            <app-alert tone="danger">{{ errors().roles }}</app-alert>
+                        }
+                        @if (roles().length) {
+                            <div class="roles" role="list">
+                                @for (role of roles(); track role.key; let index = $index) {
+                                    <div class="role" role="listitem">
+                                        <div class="field-control" [class.field-invalid]="roleInvalid(role)">
+                                            <input
+                                                class="field-input role-name"
+                                                [attr.aria-label]="'Role ' + (index + 1) + ' name'"
+                                                placeholder="MEMBER"
+                                                autocomplete="off"
+                                                spellcheck="false"
+                                                maxlength="50"
+                                                [value]="role.name"
+                                                (input)="setRoleName(role.key, $any($event.target).value)" />
+                                        </div>
+                                        <div class="field-control">
+                                            <input
+                                                class="field-input"
+                                                [attr.aria-label]="'Role ' + (index + 1) + ' description'"
+                                                placeholder="What it lets somebody do"
+                                                autocomplete="off"
+                                                maxlength="255"
+                                                [value]="role.description"
+                                                (input)="setRoleDescription(role.key, $any($event.target).value)" />
+                                        </div>
+                                        <span class="role-members" [attr.title]="role.members + ' account(s) hold this role'">
+                                            @if (role.members > 0) {
+                                                <app-badge tone="primary">{{ role.members }} held</app-badge>
+                                            }
+                                        </span>
+                                        <button appButton variant="ghost" [iconOnly]="true" [attr.aria-label]="'Remove role ' + (role.name || index + 1)" (click)="removeRole(role.key)">
+                                            <app-icon name="trash" [size]="16" />
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        } @else {
+                            <p class="muted small">No roles: every signed-in account is simply a user of it.</p>
+                        }
+                        <div>
+                            <button appButton variant="secondary" size="sm" (click)="addRole()">
+                                <app-icon name="plus" [size]="15" />
+                                Add role
+                            </button>
+                        </div>
+                    </div>
+                </app-card>
+
+                <app-card heading="Landing page" subheading="The list on anotoki.eu of the sites people can go to.">
+                    <div class="form-grid">
+                        <app-switch [(checked)]="showOnLanding" hint="Listed only while it is also enabled.">Show on the landing page</app-switch>
+                        <app-text-field label="Order" type="number" name="sort-order" inputmode="numeric" hint="Lower comes first." [(value)]="sortOrder" [error]="errors().sort_order ?? null" />
+                    </div>
+                </app-card>
+
+                <div class="save-bar">
+                    @if (formError()) {
+                        <app-alert class="save-error" tone="danger" [announce]="true">{{ formError() }}</app-alert>
+                    }
+                    <div class="save-actions">
+                        <a appButton variant="secondary" routerLink="/admin/applications">Cancel</a>
+                        <button appButton type="submit" variant="primary" [loading]="saving()">
+                            <app-icon name="check" [size]="16" />
+                            {{ creating() ? "Add application" : "Save changes" }}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        } @else {
+            <div role="tabpanel" id="app-panel-members" aria-labelledby="app-tab-members">
+                <app-card [flush]="true">
+                    @if (membersError()) {
+                        <div class="padded">
+                            <app-error-state heading="The members could not be loaded" [message]="membersError()!" (retry)="loadMembers()" />
+                        </div>
+                    } @else if (members() === null) {
+                        <div class="loading"><app-spinner label="Loading the members" /></div>
+                    } @else if (members()!.length === 0) {
+                        <app-empty-state icon="users" heading="Nobody holds a role here" text="Give accounts roles from their page under Users." />
+                    } @else {
+                        <div class="table-scroll">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">User</th>
+                                        <th scope="col">Email</th>
+                                        <th scope="col">Roles</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (member of members(); track member.user_id) {
+                                        <tr>
+                                            <td>
+                                                <a [routerLink]="['/admin/users', member.user_id]">{{ member.username }}</a>
+                                            </td>
+                                            <td class="break">{{ member.email }}</td>
+                                            <td>
+                                                <span class="badges">
+                                                    @for (role of member.roles; track role) {
+                                                        <app-badge tone="primary" [mono]="true">{{ role }}</app-badge>
+                                                    }
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </app-card>
+            </div>
+        }
+    }
+</div>
+
+@if (secret(); as shown) {
+    <app-dialog heading="The client secret" description="Shown this once. Put it in the application's configuration now - it cannot be shown again." [dismissible]="false">
+        <div class="stack">
+            <div class="secret-row">
+                <code class="secret">{{ shown.value }}</code>
+                <app-copy-button [text]="shown.value" variant="primary" />
+            </div>
+            <app-alert tone="info">
+                The application sends it with its client id to the token endpoint, as HTTP Basic or as
+                <code>client_secret</code>
+                .
+            </app-alert>
+        </div>
+        <div dialogFooter>
+            <button appButton variant="primary" (click)="secretClosed()">I have saved it</button>
+        </div>
+    </app-dialog>
+}

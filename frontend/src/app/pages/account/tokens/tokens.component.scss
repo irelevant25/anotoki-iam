@@ -1,0 +1,47 @@
+.skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem 1.25rem 1.25rem;
+
+  .skeleton:nth-child(2) {
+    width: 75%;
+  }
+}
+
+.padded {
+  padding: 0.5rem 1.25rem 1.25rem;
+}
+
+.secret-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.secret {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  font-size: 0.9rem;
+  word-break: break-all;
+}
+
+.example {
+  position: relative;
+
+  pre {
+    padding-right: 3rem;
+  }
+}
+
+.example-copy {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+}

@@ -1,0 +1,43 @@
+.centered {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.scan {
+  display: grid;
+  grid-template-columns: 11rem 1fr;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+}
+
+.qr {
+  width: 11rem;
+}
+
+.scan-text {
+  min-width: 0;
+}
+
+.key {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.secret {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}

@@ -1,0 +1,119 @@
+@if (user(); as me) {
+    <div class="page">
+        <app-page-header [heading]="'overview.greeting' | t: { username: me.username }" [lead]="'overview.lead' | t" />
+
+        @if (me.force_password_change) {
+            <app-alert tone="warning">
+                {{ "overview.mustChange" | t }}
+                <div alertActions>
+                    <a appButton size="sm" variant="secondary" routerLink="/account/security">{{ "overview.mustChangeAction" | t }}</a>
+                </div>
+            </app-alert>
+        }
+        @if (!me.email_confirmed) {
+            <app-alert tone="info">{{ "overview.unconfirmedNotice" | t }}</app-alert>
+        }
+
+        <div class="grid">
+            <app-card [heading]="'overview.profile' | t">
+                <dl class="facts">
+                    <dt>{{ "overview.username" | t }}</dt>
+                    <dd>
+                        @if (editingUsername()) {
+                            <form class="inline-form" novalidate (submit)="$event.preventDefault(); saveUsername()">
+                                <app-text-field
+                                    [label]="'overview.changeUsername' | t"
+                                    name="nickname"
+                                    autocomplete="nickname"
+                                    [maxlength]="100"
+                                    [(value)]="username"
+                                    [error]="usernameError()"
+                                    [autofocus]="true" />
+                                <div class="inline-actions">
+                                    <button appButton type="submit" variant="primary" size="sm" [loading]="savingUsername()">{{ "common.save" | t }}</button>
+                                    <button appButton variant="ghost" size="sm" (click)="cancelUsername()">{{ "common.cancel" | t }}</button>
+                                </div>
+                            </form>
+                        } @else {
+                            <span class="value-row">
+                                <strong>{{ me.username }}</strong>
+                                <button appButton variant="ghost" size="sm" [attr.aria-label]="'overview.changeUsername' | t" (click)="editUsername()">
+                                    <app-icon name="pencil" [size]="15" />
+                                    {{ "common.edit" | t }}
+                                </button>
+                            </span>
+                        }
+                    </dd>
+
+                    <dt>{{ "overview.email" | t }}</dt>
+                    <dd>
+                        <span class="value-row">
+                            <span class="break">{{ me.email }}</span>
+                            @if (me.email_confirmed) {
+                                <app-badge tone="success" [dot]="true">{{ "overview.confirmed" | t }}</app-badge>
+                            } @else {
+                                <app-badge tone="warning" [dot]="true">{{ "overview.unconfirmed" | t }}</app-badge>
+                            }
+                        </span>
+                    </dd>
+
+                    <dt>{{ "overview.memberSince" | t }}</dt>
+                    <dd>{{ me.created_at | appDate: "date" }}</dd>
+                </dl>
+            </app-card>
+
+            <app-card [heading]="'overview.language' | t">
+                <div class="stack">
+                    <app-select
+                        [label]="'overview.language' | t"
+                        [hideLabel]="true"
+                        [options]="languageOptions()"
+                        [disabled]="savingLanguage()"
+                        [hint]="'overview.languageHint' | t"
+                        [(value)]="language"
+                        (valueChange)="changeLanguage($event)" />
+                    <div class="stack stack-sm">
+                        <p class="setting-label">{{ "overview.appearance" | t }}</p>
+                        <app-theme-toggle />
+                        <p class="small muted">{{ "overview.appearanceHint" | t }}</p>
+                    </div>
+                </div>
+            </app-card>
+        </div>
+
+        <section class="stack" aria-labelledby="quick-title">
+            <h2 id="quick-title" class="section-title">{{ "overview.quickTitle" | t }}</h2>
+            <ul class="quick">
+                @for (item of quickLinks; track item.link) {
+                    <li>
+                        <a class="quick-link" [routerLink]="item.link">
+                            <span class="quick-icon"><app-icon [name]="item.icon" [size]="20" /></span>
+                            <span class="quick-text">
+                                <span class="quick-title">{{ item.title | t }}</span>
+                                <span class="quick-lead">{{ item.text | t }}</span>
+                                @if (item.link === "/account/security") {
+                                    <app-badge [tone]="me.totp_enabled ? 'success' : 'neutral'" [dot]="true">
+                                        {{ (me.totp_enabled ? "overview.twoFactorOn" : "overview.twoFactorOff") | t }}
+                                    </app-badge>
+                                }
+                            </span>
+                            <app-icon class="quick-arrow" name="chevronRight" [size]="18" />
+                        </a>
+                    </li>
+                }
+                @if (me.is_admin) {
+                    <li>
+                        <a class="quick-link quick-admin" routerLink="/admin">
+                            <span class="quick-icon"><app-icon name="sliders" [size]="20" /></span>
+                            <span class="quick-text">
+                                <span class="quick-title">{{ "overview.adminTitle" | t }}</span>
+                                <span class="quick-lead">{{ "overview.adminText" | t }}</span>
+                            </span>
+                            <app-icon class="quick-arrow" name="chevronRight" [size]="18" />
+                        </a>
+                    </li>
+                }
+            </ul>
+        </section>
+    </div>
+}

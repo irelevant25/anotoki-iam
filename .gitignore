@@ -1,0 +1,22 @@
+# Per-installation configuration: the database connection, the master key, the
+# public address, mail and Google. backend/setup.php writes them - on a
+# development machine as on a server - and the IAM does not start without them.
+# Never commit one: secret.local.php in particular is the key the signing keys
+# and two-factor secrets are encrypted with.
+backend/config/*.local.php
+
+# Written at run time: the installer's lock and nonce, the development mail
+# folder, the key-set cache, database backups.
+backend/storage/*
+!backend/storage/.gitkeep
+
+# Assembled for upload by `php build-dist.php`.
+backend/dist/
+
+# The Angular app's own build output and dependencies.
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# Claude Code's personal settings (the rest of .claude/ is shared).
+.claude/settings.local.json

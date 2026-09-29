@@ -1,0 +1,99 @@
+// Shared by the admin list pages: the filter bar above a table, the counts in
+// the page header, and the loading and empty states inside the card.
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+
+  strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+  gap: 0.75rem 0.9rem;
+  align-items: end;
+  padding: 0.5rem 1.25rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-search {
+  grid-column: span 2;
+
+  @media (max-width: 520px) {
+    grid-column: auto;
+  }
+}
+
+.filter-reset {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height);
+}
+
+.padded {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+
+  .skeleton:nth-child(2) {
+    width: 85%;
+  }
+
+  .skeleton:nth-child(3) {
+    width: 65%;
+  }
+}
+
+.is-refreshing {
+  opacity: 0.6;
+  transition: opacity var(--duration) var(--ease);
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 12rem;
+}
+
+.who-name {
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.who-email {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1.25rem 1rem;
+}

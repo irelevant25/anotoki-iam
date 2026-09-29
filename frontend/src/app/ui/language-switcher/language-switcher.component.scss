@@ -1,0 +1,32 @@
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--segment-border, var(--border));
+  border-radius: 999px;
+  background: var(--segment-bg, var(--surface-2));
+}
+
+.segment {
+  height: 30px;
+  min-width: 2.5rem;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--segment-fg, var(--muted));
+  font-size: 0.8125rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--segment-fg-hover, var(--text));
+  }
+
+  &[aria-checked="true"] {
+    background: var(--segment-active-bg, var(--surface));
+    color: var(--segment-active-fg, var(--text));
+    box-shadow: var(--shadow-sm);
+  }
+}

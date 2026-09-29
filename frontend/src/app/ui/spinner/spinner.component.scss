@@ -1,0 +1,42 @@
+:host {
+  display: inline-flex;
+}
+
+.spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--muted);
+}
+
+svg {
+  animation: spin 0.9s linear infinite;
+}
+
+.track {
+  stroke: currentColor;
+  opacity: 0.2;
+}
+
+.arc {
+  stroke: var(--spinner-color, var(--primary));
+  stroke-dasharray: 60 200;
+  stroke-dashoffset: 0;
+}
+
+.spinner-label {
+  font-size: 0.9375rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  svg {
+    animation-duration: 2.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

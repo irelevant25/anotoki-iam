@@ -1,0 +1,57 @@
+<app-auth-card>
+    @switch (step()) {
+        @case ("working") {
+            <h1 class="visually-hidden">{{ "confirm.pageTitle" | t }}</h1>
+            <div class="centered">
+                <app-spinner size="lg" [label]="'confirm.working' | t" [showLabel]="true" />
+            </div>
+        }
+
+        @case ("done") {
+            <header class="auth-head">
+                <span class="auth-icon is-success"><app-icon name="checkCircle" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "confirm.doneTitle" | t }}</h1>
+                <p>{{ "confirm.doneText" | t }}</p>
+            </header>
+            <div class="actions">
+                @if (continueTo(); as target) {
+                    <button appButton variant="primary" size="lg" [block]="true" (click)="go(target.url)">
+                        {{ "confirm.continueTo" | t: { app: target.name } }}
+                        <app-icon name="arrowRight" [size]="16" />
+                    </button>
+                    <a appButton variant="secondary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+                } @else {
+                    <a appButton variant="primary" size="lg" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+                }
+            </div>
+        }
+
+        @case ("failed") {
+            <header class="auth-head">
+                <span class="auth-icon is-danger"><app-icon name="xCircle" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "confirm.failedTitle" | t }}</h1>
+                <p>{{ failure() }}</p>
+            </header>
+            <form class="form" novalidate (submit)="$event.preventDefault(); resend()">
+                <p class="muted">{{ "confirm.resendLead" | t }}</p>
+                @if (info()) {
+                    <app-alert tone="success" [announce]="true">{{ info() }}</app-alert>
+                }
+                <app-text-field [label]="'common.email' | t" type="email" name="email" autocomplete="email" inputmode="email" [(value)]="email" [error]="emailError()" />
+                <button appButton type="submit" variant="primary" [block]="true" [loading]="busy()">
+                    <app-icon name="send" [size]="16" />
+                    {{ "confirm.resend" | t }}
+                </button>
+            </form>
+        }
+
+        @case ("missing") {
+            <header class="auth-head">
+                <span class="auth-icon"><app-icon name="link" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "confirm.missingTitle" | t }}</h1>
+                <p>{{ "confirm.missingText" | t }}</p>
+            </header>
+            <a appButton variant="primary" [block]="true" routerLink="/login">{{ "common.signIn" | t }}</a>
+        }
+    }
+</app-auth-card>

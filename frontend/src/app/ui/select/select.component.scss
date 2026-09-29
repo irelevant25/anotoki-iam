@@ -1,0 +1,8 @@
+.field-inline .field-control {
+  min-height: var(--control-height-sm);
+}
+
+.field-inline .field-input {
+  height: calc(var(--control-height-sm) - 2px);
+  font-size: 0.875rem;
+}

@@ -1,0 +1,113 @@
+<div class="page">
+    <app-page-header [heading]="'sessions.title' | t" [lead]="'sessions.lead' | t">
+        <button appButton variant="secondary" [disabled]="othersActive() === 0" [loading]="endingOthers()" (click)="endOthers()">
+            <app-icon name="logOut" [size]="16" />
+            {{ "sessions.endOthers" | t }}
+        </button>
+    </app-page-header>
+
+    @if (failedAttempts() > 0) {
+        <app-alert tone="warning">{{ "sessions.failedAttempts" | t: { count: failedAttempts() } }}</app-alert>
+    }
+
+    <app-card [flush]="true">
+        @if (loading()) {
+            <div class="skeletons" aria-hidden="true">
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+            </div>
+        } @else if (loadError()) {
+            <div class="padded">
+                <app-error-state [message]="loadError()!" [heading]="'sessions.failed' | t" (retry)="load()" />
+            </div>
+        } @else if (sessions().length === 0) {
+            <app-empty-state icon="laptop" [heading]="'sessions.none' | t" />
+        } @else {
+            @if (hasEnded()) {
+                <div class="toolbar">
+                    <app-switch [(checked)]="showEnded">{{ "sessions.showEnded" | t }}</app-switch>
+                </div>
+            }
+            <div class="table-scroll">
+                <table class="table table-stack">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ "sessions.column.device" | t }}</th>
+                            <th scope="col">{{ "sessions.column.how" | t }}</th>
+                            <th scope="col">{{ "sessions.column.apps" | t }}</th>
+                            <th scope="col">{{ "sessions.column.where" | t }}</th>
+                            <th scope="col">{{ "sessions.column.started" | t }}</th>
+                            <th scope="col">{{ "sessions.column.lastSeen" | t }}</th>
+                            <th scope="col">{{ "sessions.column.state" | t }}</th>
+                            <th scope="col">
+                                <span class="visually-hidden">{{ "sessions.end" | t }}</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (session of visible(); track session.id) {
+                            <tr [class.row-muted]="!session.active" [class.row-current]="session.current">
+                                <td [attr.data-label]="'sessions.column.device' | t">
+                                    <span class="device">
+                                        <app-icon [name]="mobile(session) ? 'smartphone' : 'laptop'" [size]="16" />
+                                        <span>{{ device(session) }}</span>
+                                    </span>
+                                </td>
+                                <td [attr.data-label]="'sessions.column.how' | t">
+                                    <span class="how">
+                                        {{ methodKey(session.method) | t }}
+                                        @if (session.mfa) {
+                                            <app-badge tone="success" [attr.title]="'sessions.twoFactorTitle' | t">{{ "sessions.twoFactor" | t }}</app-badge>
+                                        }
+                                    </span>
+                                </td>
+                                <td [attr.data-label]="'sessions.column.apps' | t">
+                                    @if (session.applications.length) {
+                                        <span class="apps">
+                                            @for (app of session.applications; track app) {
+                                                <app-badge>{{ app }}</app-badge>
+                                            }
+                                        </span>
+                                    } @else {
+                                        <span class="muted">-</span>
+                                    }
+                                </td>
+                                <td [attr.data-label]="'sessions.column.where' | t">
+                                    <span class="mono">{{ session.ip ?? "-" }}</span>
+                                </td>
+                                <td [attr.data-label]="'sessions.column.started' | t">
+                                    <span class="nowrap">{{ session.created_at | appDate }}</span>
+                                </td>
+                                <td [attr.data-label]="'sessions.column.lastSeen' | t">
+                                    <span class="nowrap" [attr.title]="session.last_seen_at | appDate">{{ session.last_seen_at | appDate: "relative" : "-" }}</span>
+                                </td>
+                                <td [attr.data-label]="'sessions.column.state' | t">
+                                    @if (session.current) {
+                                        <app-badge tone="primary" [dot]="true">{{ stateKey(session) | t }}</app-badge>
+                                    } @else if (session.active) {
+                                        <app-badge tone="success" [dot]="true">{{ stateKey(session) | t }}</app-badge>
+                                    } @else {
+                                        <span class="ended" [attr.title]="session.revoked_reason">
+                                            {{ stateKey(session) | t }}
+                                            @if (session.revoked_at) {
+                                                <span class="small muted">{{ session.revoked_at | appDate }}</span>
+                                            }
+                                        </span>
+                                    }
+                                </td>
+                                <td class="cell-actions">
+                                    @if (session.active && !session.current) {
+                                        <button appButton size="sm" variant="secondary" [loading]="endingId() === session.id" (click)="end(session)">
+                                            {{ "sessions.end" | t }}
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </app-card>
+</div>

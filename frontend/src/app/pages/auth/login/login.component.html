@@ -1,0 +1,288 @@
+<app-auth-card [application]="application()">
+    @switch (step()) {
+        @case ("loading") {
+            <h1 class="visually-hidden">{{ "login.title" | t }}</h1>
+            <div class="centered">
+                <app-spinner size="lg" [label]="'login.checking' | t" [showLabel]="true" />
+            </div>
+        }
+
+        @case ("load-error") {
+            <header class="auth-head">
+                <h1 tabindex="-1" appAutofocus>{{ "login.loadFailed" | t }}</h1>
+            </header>
+            <app-alert tone="danger" [announce]="true">{{ loadError() }}</app-alert>
+            <button appButton variant="primary" [block]="true" (click)="retry()">
+                <app-icon name="refresh" [size]="16" />
+                {{ "common.retry" | t }}
+            </button>
+        }
+
+        @case ("expired") {
+            <header class="auth-head">
+                <span class="auth-icon is-warning"><app-icon name="clock" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "login.expiredTitle" | t }}</h1>
+                <p>{{ "login.expiredText" | t }}</p>
+            </header>
+            <div class="actions">
+                @if (application()?.home_url) {
+                    <button appButton variant="primary" [block]="true" (click)="goHome()">{{ "login.backTo" | t: { app: application()?.name } }}</button>
+                }
+                <a appButton variant="secondary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+            </div>
+        }
+
+        @case ("form") {
+            <header class="auth-head">
+                @if (application(); as app) {
+                    <h1>
+                        {{ continueParts()[0] }}
+                        <strong>{{ app.name }}</strong>
+                        {{ continueParts()[1] }}
+                    </h1>
+                } @else {
+                    <h1>{{ "login.title" | t }}</h1>
+                    <p>{{ "login.subtitle" | t }}</p>
+                }
+            </header>
+
+            <form class="form" novalidate (submit)="$event.preventDefault(); submitPassword()">
+                @if (config() && !config()!.login_enabled) {
+                    <app-alert tone="warning">{{ "login.pausedNotice" | t }}</app-alert>
+                }
+                @if (notice()) {
+                    <app-alert tone="info" [announce]="true">{{ notice() }}</app-alert>
+                }
+                @if (formError()) {
+                    <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+                }
+
+                <app-text-field
+                    [label]="'login.email' | t"
+                    type="email"
+                    name="email"
+                    autocomplete="username"
+                    inputmode="email"
+                    [required]="true"
+                    [(value)]="email"
+                    [error]="emailError()"
+                    [autofocus]="!email()" />
+
+                <app-password-field
+                    [label]="'login.password' | t"
+                    name="password"
+                    autocomplete="current-password"
+                    [required]="true"
+                    [(value)]="password"
+                    [error]="passwordError()"
+                    [autofocus]="!!email()">
+                    <a labelAside class="aside-link" routerLink="/forgot-password" [queryParams]="requestParams()">{{ "login.forgot" | t }}</a>
+                </app-password-field>
+
+                <app-checkbox [(checked)]="remember">{{ "login.keepSignedIn" | t }}</app-checkbox>
+
+                <button appButton type="submit" variant="primary" size="lg" [block]="true" [loading]="busy()">{{ "login.submit" | t }}</button>
+                <button appButton variant="link" class="center-link" [disabled]="busy()" (click)="sendCode()">
+                    <app-icon name="mail" [size]="16" />
+                    {{ "login.useCode" | t }}
+                </button>
+            </form>
+
+            <app-google-button text="signin_with" [divider]="true" (credential)="signInWithGoogle($event)" />
+        }
+
+        @case ("code") {
+            <header class="auth-head">
+                <span class="auth-icon"><app-icon name="mail" [size]="22" /></span>
+                <h1>{{ "login.code.title" | t }}</h1>
+                <p>{{ "login.code.lead" | t: { email: email() } }}</p>
+            </header>
+
+            <form class="form" novalidate (submit)="$event.preventDefault(); submitCode()">
+                @if (info()) {
+                    <app-alert tone="success" [announce]="true">{{ info() }}</app-alert>
+                }
+                <app-code-input [label]="'login.code.label' | t" name="code" [(value)]="code" [error]="codeError()" [autofocus]="true" (complete)="submitCode()" />
+                <button appButton type="submit" variant="primary" size="lg" [block]="true" [loading]="busy()">{{ "login.code.submit" | t }}</button>
+                <div class="link-row">
+                    <button appButton variant="link" [disabled]="resendIn() > 0 || busy()" (click)="resendCode()">
+                        @if (resendIn() > 0) {
+                            {{ "login.code.resendIn" | t: { seconds: resendIn() } }}
+                        } @else {
+                            {{ "login.code.resend" | t }}
+                        }
+                    </button>
+                    <button appButton variant="link" (click)="startOver()">{{ "login.code.usePassword" | t }}</button>
+                </div>
+            </form>
+        }
+
+        @case ("totp") {
+            <header class="auth-head">
+                <span class="auth-icon"><app-icon name="shieldCheck" [size]="22" /></span>
+                <h1>{{ (recoveryMode() ? "login.totp.recoveryTitle" : "login.totp.title") | t }}</h1>
+                <p>{{ (recoveryMode() ? "login.totp.recoveryLead" : "login.totp.lead") | t }}</p>
+            </header>
+
+            <form class="form" novalidate (submit)="$event.preventDefault(); submitTotp()">
+                @if (recoveryMode()) {
+                    <app-text-field
+                        [label]="'login.totp.recoveryLabel' | t"
+                        name="recovery-code"
+                        autocomplete="one-time-code"
+                        autocapitalize="off"
+                        [(value)]="totp"
+                        [error]="totpError()"
+                        [autofocus]="true" />
+                } @else {
+                    <app-code-input [label]="'login.totp.label' | t" name="totp" [(value)]="totp" [error]="totpError()" [autofocus]="true" />
+                }
+
+                <app-checkbox [(checked)]="rememberDevice" [hint]="'login.totp.rememberDeviceNote' | t">{{ "login.totp.rememberDevice" | t }}</app-checkbox>
+
+                <button appButton type="submit" variant="primary" size="lg" [block]="true" [loading]="busy()">{{ "login.totp.submit" | t }}</button>
+                <div class="link-row">
+                    <button appButton variant="link" (click)="toggleRecovery()">{{ (recoveryMode() ? "login.totp.useApp" : "login.totp.useRecovery") | t }}</button>
+                    <button appButton variant="link" (click)="startOver()">{{ "login.startOver" | t }}</button>
+                </div>
+            </form>
+        }
+
+        @case ("unconfirmed") {
+            <header class="auth-head">
+                <span class="auth-icon is-warning"><app-icon name="mail" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "login.unconfirmed.title" | t }}</h1>
+                <p>
+                    @if (unconfirmedEmail()) {
+                        {{ "login.unconfirmed.text" | t: { email: unconfirmedEmail() } }}
+                    } @else {
+                        {{ "login.unconfirmed.textNoEmail" | t }}
+                    }
+                </p>
+            </header>
+            @if (info()) {
+                <app-alert tone="success" [announce]="true">{{ info() }}</app-alert>
+            }
+            @if (formError()) {
+                <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+            }
+            <div class="actions">
+                @if (unconfirmedEmail()) {
+                    <button appButton variant="primary" [block]="true" [loading]="busy()" (click)="resendConfirmation()">
+                        <app-icon name="send" [size]="16" />
+                        {{ "login.unconfirmed.resend" | t }}
+                    </button>
+                }
+                <button appButton variant="secondary" [block]="true" (click)="startOver()">{{ "login.startOver" | t }}</button>
+            </div>
+        }
+
+        @case ("other-way") {
+            <header class="auth-head">
+                <span class="auth-icon"><app-icon name="key" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "login.otherWay.title" | t }}</h1>
+                <p>{{ "login.otherWay.text" | t }}</p>
+            </header>
+            @if (formError()) {
+                <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+            }
+            <button appButton variant="primary" size="lg" [block]="true" [loading]="busy()" (click)="sendCode()">
+                <app-icon name="mail" [size]="16" />
+                {{ "login.otherWay.sendCode" | t }}
+            </button>
+            <app-google-button text="continue_with" [divider]="true" (credential)="signInWithGoogle($event)" />
+            <button appButton variant="link" class="center-link" (click)="startOver()">{{ "login.startOver" | t }}</button>
+        }
+
+        @case ("change-password") {
+            <header class="auth-head">
+                <span class="auth-icon is-warning"><app-icon name="lock" [size]="22" /></span>
+                <h1>{{ "login.change.title" | t }}</h1>
+                <p>{{ "login.change.lead" | t }}</p>
+            </header>
+
+            <form class="form" novalidate (submit)="$event.preventDefault(); submitPasswordChange()">
+                @if (formError()) {
+                    <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+                }
+                <!-- The account's address, so a password manager files the new password under it. -->
+                <input class="visually-hidden" type="email" name="username" autocomplete="username" [value]="user()?.email ?? ''" tabindex="-1" aria-hidden="true" readonly />
+                @if (showCurrentPassword()) {
+                    <app-password-field
+                        [label]="'login.change.current' | t"
+                        name="current-password"
+                        autocomplete="current-password"
+                        [(value)]="currentPassword"
+                        [error]="changeErrors().current ?? null"
+                        [autofocus]="true" />
+                }
+                <app-password-field
+                    [label]="'login.change.new' | t"
+                    name="new-password"
+                    autocomplete="new-password"
+                    [hint]="'common.passwordHint' | t: { count: config()?.password_min ?? 8 }"
+                    [(value)]="newPassword"
+                    [error]="changeErrors().next ?? null"
+                    [autofocus]="!showCurrentPassword()" />
+                <app-password-field [label]="'login.change.again' | t" name="new-password-again" autocomplete="new-password" [(value)]="newPasswordAgain" [error]="changeErrors().again ?? null" />
+                <button appButton type="submit" variant="primary" size="lg" [block]="true" [loading]="busy()">{{ "login.change.submit" | t }}</button>
+            </form>
+        }
+
+        @case ("denied") {
+            <header class="auth-head">
+                <span class="auth-icon is-danger"><app-icon name="ban" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "login.denied.title" | t }}</h1>
+                <p>{{ "login.denied.text" | t: { username: user()?.username ?? "", app: application()?.name ?? "" } }}</p>
+                <p>{{ "login.denied.note" | t }}</p>
+            </header>
+            @if (formError()) {
+                <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+            }
+            <div class="actions">
+                <button appButton variant="primary" [block]="true" [loading]="busy()" (click)="useAnotherAccount()">
+                    <app-icon name="users" [size]="16" />
+                    {{ "login.denied.otherAccount" | t }}
+                </button>
+                <button appButton variant="secondary" [block]="true" [disabled]="busy()" (click)="cancel()">
+                    <app-icon name="arrowLeft" [size]="16" />
+                    {{ "login.backTo" | t: { app: application()?.name ?? "" } }}
+                </button>
+            </div>
+        }
+
+        @case ("app-disabled") {
+            <header class="auth-head">
+                <span class="auth-icon is-warning"><app-icon name="ban" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "login.appDisabled.title" | t: { app: application()?.name ?? "" } }}</h1>
+                <p>{{ "login.appDisabled.text" | t }}</p>
+            </header>
+            <button appButton variant="primary" [block]="true" [loading]="busy()" (click)="cancel()">
+                <app-icon name="arrowLeft" [size]="16" />
+                {{ "common.back" | t }}
+            </button>
+        }
+
+        @case ("continuing") {
+            <header class="auth-head">
+                <h1 tabindex="-1" appAutofocus>{{ "login.continuing" | t: { app: application()?.name ?? "" } }}</h1>
+            </header>
+            <div class="centered">
+                <app-spinner size="lg" [label]="'login.continuingSoon' | t" [showLabel]="true" />
+            </div>
+        }
+    }
+
+    @if (step() === "form" && config()?.registration_enabled) {
+        <p authFooter class="footer-line">
+            {{ "login.newHere" | t }}
+            <a routerLink="/register" [queryParams]="requestParams()">{{ "login.createAccount" | t }}</a>
+        </p>
+    }
+
+    @if (request() && application() && step() !== "continuing" && step() !== "expired" && step() !== "loading") {
+        <div authBelow>
+            <button appButton variant="link" [disabled]="busy()" (click)="cancel()">{{ "login.cancelTo" | t: { app: application()?.name ?? "" } }}</button>
+        </div>
+    }
+</app-auth-card>

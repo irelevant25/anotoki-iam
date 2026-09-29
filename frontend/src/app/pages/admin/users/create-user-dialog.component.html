@@ -1,0 +1,32 @@
+<app-dialog heading="Create a user" description="The account is confirmed straight away. Hand the password over and ask them to change it." size="lg" [busy]="busy()" (dismiss)="closed.emit(null)">
+    <form id="create-user-form" class="stack" novalidate (submit)="$event.preventDefault(); submit()">
+        @if (formError()) {
+            <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+        }
+        <div class="form-grid">
+            <app-text-field label="Username" name="new-username" autocomplete="off" [maxlength]="100" [(value)]="username" [error]="usernameError()" [autofocus]="true" />
+            <app-text-field label="Email" type="email" name="new-email" autocomplete="off" [(value)]="email" [error]="emailError()" />
+            <app-text-field label="Password" name="new-password" autocomplete="off" [(value)]="password" [error]="passwordError()" [hint]="'At least ' + passwordMin() + ' characters.'">
+                <span fieldSuffix class="field-affix">
+                    <button appButton type="button" variant="ghost" size="sm" (click)="generate()">
+                        <app-icon name="dice" [size]="15" />
+                        Generate
+                    </button>
+                </span>
+            </app-text-field>
+            <app-select label="Language" [options]="languageOptions" [(value)]="language" />
+        </div>
+        <app-checkbox [(checked)]="forceChange" hint="They sign in with this password once, then have to pick their own.">Require a new password at the first sign-in</app-checkbox>
+        <div class="stack stack-sm">
+            <p class="roles-label">Roles</p>
+            <app-role-picker [applications]="applications()" [(selected)]="roles" />
+        </div>
+    </form>
+    <div dialogFooter>
+        <button appButton variant="secondary" [disabled]="busy()" (click)="closed.emit(null)">Cancel</button>
+        <button appButton type="submit" form="create-user-form" variant="primary" [loading]="busy()">
+            <app-icon name="userPlus" [size]="16" />
+            Create user
+        </button>
+    </div>
+</app-dialog>

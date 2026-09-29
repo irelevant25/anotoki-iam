@@ -1,0 +1,40 @@
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1rem 0;
+
+  & + & {
+    border-top: 1px solid var(--border);
+  }
+
+  &:first-child {
+    padding-top: 0.25rem;
+  }
+}
+
+.meta {
+  code {
+    font-size: 0.75rem;
+  }
+}
+
+// Under a switch's label rather than under the switch itself.
+.meta.indented {
+  padding-left: 3.25rem;
+}
+
+.unsaved {
+  color: var(--warning);
+}

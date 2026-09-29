@@ -1,0 +1,16 @@
+@if (heading()) {
+    <header class="card-header">
+        <div class="card-titles">
+            <h2 class="card-title" [id]="headingId() || null">{{ heading() }}</h2>
+            @if (subheading()) {
+                <p class="card-subtitle">{{ subheading() }}</p>
+            }
+        </div>
+        <div class="card-actions">
+            <ng-content select="[cardActions]" />
+        </div>
+    </header>
+}
+<div class="card-body">
+    <ng-content />
+</div>

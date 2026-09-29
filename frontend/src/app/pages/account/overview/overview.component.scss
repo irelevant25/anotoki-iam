@@ -1,0 +1,112 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 1.25rem;
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.value-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 22rem;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.setting-label {
+  font-weight: 650;
+  font-size: 0.875rem;
+}
+
+.quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quick-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  height: 100%;
+  padding: 1.1rem 1.1rem 1.1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    transform: translateY(-1px);
+
+    .quick-arrow {
+      color: var(--primary);
+      transform: translateX(2px);
+    }
+  }
+}
+
+.quick-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-text);
+}
+
+.quick-admin .quick-icon {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.quick-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.quick-title {
+  font-weight: 700;
+}
+
+.quick-lead {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.quick-arrow {
+  align-self: center;
+  color: var(--muted);
+  transition:
+    color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}

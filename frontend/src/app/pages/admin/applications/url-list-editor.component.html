@@ -1,0 +1,40 @@
+<fieldset class="list">
+    <legend class="field-label">{{ label() }}</legend>
+    @if (hint()) {
+        <p class="field-hint" [id]="hintId">{{ hint() }}</p>
+    }
+    @for (item of items(); track $index; let index = $index) {
+        <div class="row">
+            <div class="field-control" [class.field-invalid]="invalid()[index]">
+                <input
+                    class="field-input mono-input"
+                    type="url"
+                    [attr.aria-label]="label() + ', row ' + (index + 1)"
+                    [attr.aria-describedby]="invalid()[index] ? errorId + '-' + index : hint() ? hintId : null"
+                    [attr.aria-invalid]="invalid()[index] ? 'true' : null"
+                    [attr.placeholder]="placeholder()"
+                    spellcheck="false"
+                    autocapitalize="off"
+                    autocomplete="off"
+                    [value]="item"
+                    (input)="update(index, $any($event.target).value)" />
+            </div>
+            <button appButton variant="ghost" [iconOnly]="true" [attr.aria-label]="'Remove row ' + (index + 1)" (click)="remove(index)">
+                <app-icon name="trash" [size]="16" />
+            </button>
+            @if (invalid()[index]) {
+                <p class="field-error row-error" [id]="errorId + '-' + index" role="alert">
+                    {{ kind() === "origin" ? "An origin is scheme://host[:port] - no path, no trailing slash." : "An absolute http(s) address, without a # part." }}
+                </p>
+            }
+        </div>
+    } @empty {
+        <p class="empty">None yet.</p>
+    }
+    <div>
+        <button appButton variant="secondary" size="sm" (click)="add()">
+            <app-icon name="plus" [size]="15" />
+            Add
+        </button>
+    </div>
+</fieldset>

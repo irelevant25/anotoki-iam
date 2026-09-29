@@ -1,0 +1,34 @@
+<app-dialog [heading]="heading() | t" [description]="codes().length ? null : (lead() | t)" [dismissible]="codes().length === 0" [busy]="busy()" (dismiss)="closed.emit(false)">
+    @if (codes().length) {
+        <app-recovery-codes [codes]="codes()" [username]="username()" [(saved)]="saved" />
+    } @else {
+        <form id="totp-code-form" class="stack" novalidate (submit)="$event.preventDefault(); submit()">
+            @if (formError()) {
+                <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+            }
+            @if (mode() === "disable") {
+                <app-text-field
+                    [label]="'security.twoFactor.codeOrRecovery' | t"
+                    name="totp"
+                    autocomplete="one-time-code"
+                    autocapitalize="off"
+                    [(value)]="code"
+                    [error]="codeError()"
+                    [autofocus]="true" />
+            } @else {
+                <app-code-input [label]="'security.twoFactor.code' | t" name="totp" [(value)]="code" [error]="codeError()" [autofocus]="true" />
+            }
+        </form>
+    }
+
+    <div dialogFooter>
+        @if (codes().length) {
+            <button appButton variant="primary" [disabled]="!saved()" (click)="closed.emit(true)">{{ "common.done" | t }}</button>
+        } @else {
+            <button appButton variant="secondary" [disabled]="busy()" (click)="closed.emit(false)">{{ "common.cancel" | t }}</button>
+            <button appButton type="submit" form="totp-code-form" [variant]="mode() === 'disable' ? 'danger' : 'primary'" [loading]="busy()">
+                {{ action() | t }}
+            </button>
+        }
+    </div>
+</app-dialog>

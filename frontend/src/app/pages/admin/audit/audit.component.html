@@ -1,0 +1,101 @@
+<div class="page">
+    <app-page-header heading="Audit log" lead="Who changed what, and from where. Newest first.">
+        @if (result(); as r) {
+            <p pageMeta class="counts">
+                <span>
+                    <strong>{{ r.total }}</strong>
+                    matching
+                </span>
+            </p>
+        }
+    </app-page-header>
+
+    <app-card [flush]="true">
+        <div class="filters" role="search" aria-label="Filter the audit log">
+            <app-text-field label="Actor" type="search" name="actor" placeholder="Username" [(value)]="actorText" />
+            <app-text-field label="Action" type="search" name="action" placeholder="user.roles_set, or just user." hint="Matches the start." [(value)]="actionText" />
+            <app-select label="Target" placeholder="Any" [options]="targetTypes" [value]="target_type() ?? ''" (valueChange)="setFilter('target_type', $event)" />
+            @if (filtered()) {
+                <div class="filter-reset">
+                    <button appButton variant="ghost" size="sm" (click)="clearFilters()">
+                        <app-icon name="x" [size]="15" />
+                        Clear filters
+                    </button>
+                </div>
+            }
+        </div>
+
+        @if (loadError()) {
+            <div class="padded">
+                <app-error-state heading="The audit log could not be loaded" [message]="loadError()!" (retry)="reload()" />
+            </div>
+        } @else if (loading() && !result()) {
+            <div class="skeletons" aria-hidden="true">
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+            </div>
+        } @else if (result(); as r) {
+            @if (r.items.length === 0) {
+                <app-empty-state icon="history" heading="Nothing matches" [text]="filtered() ? 'Try fewer filters.' : 'Nothing has been recorded yet.'" />
+            } @else {
+                <div class="table-scroll" [class.is-refreshing]="loading()">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th scope="col">When</th>
+                                <th scope="col">Actor</th>
+                                <th scope="col">Action</th>
+                                <th scope="col">Target</th>
+                                <th scope="col">Details</th>
+                                <th scope="col">From</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (entry of r.items; track entry.id) {
+                                <tr>
+                                    <td class="nowrap">{{ entry.created_at | appDate }}</td>
+                                    <td>
+                                        @if (entry.actor_id) {
+                                            <a [routerLink]="['/admin/users', entry.actor_id]">{{ entry.actor_username ?? "#" + entry.actor_id }}</a>
+                                        } @else {
+                                            <span class="muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <app-badge [mono]="true">{{ entry.action }}</app-badge>
+                                    </td>
+                                    <td>
+                                        @if (entry.target_type) {
+                                            @if (entry.target_type === "user" && entry.target_id) {
+                                                <a [routerLink]="['/admin/users', entry.target_id]">user #{{ entry.target_id }}</a>
+                                            } @else {
+                                                <span class="mono">{{ entry.target_type }}{{ entry.target_id !== null && entry.target_id !== undefined ? " " + entry.target_id : "" }}</span>
+                                            }
+                                        } @else {
+                                            <span class="muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="details-cell">
+                                        @if (hasDetails(entry)) {
+                                            <details>
+                                                <summary>
+                                                    <code>{{ summary(entry) }}</code>
+                                                </summary>
+                                                <pre><code>{{ pretty(entry) }}</code></pre>
+                                            </details>
+                                        } @else {
+                                            <span class="muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="mono">{{ entry.ip ?? "-" }}</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <app-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="loading()" (pageChange)="setPage($event)" />
+            }
+        }
+    </app-card>
+</div>
