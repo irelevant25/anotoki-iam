@@ -20,7 +20,9 @@
  * Not shipped: setup.php (uploaded by hand for the first install only), the CLI
  * tools (migration.php, import-legacy.php, create-admin.php, reset-password.php,
  * clients.php), tests/, and config/*.local.php - which setup.php writes on the
- * server itself.
+ * server itself. Nor composer.json and composer.lock: vendor/ loads itself, and
+ * in the web root they would hand anybody the list of every dependency and its
+ * version.
  */
 
 $root = __DIR__;
@@ -91,8 +93,6 @@ copyTree($root . '/config', $dist . '/config', static function (string $relative
 
 copyTree($root . '/vendor', $dist . '/vendor');
 copyTree($root . '/migrations', $dist . '/migrations');
-copy($root . '/composer.json', $dist . '/composer.json');
-copy($root . '/composer.lock', $dist . '/composer.lock');
 
 foreach (['storage/cache', 'storage/mail'] as $folder) {
     @mkdir($dist . '/' . $folder, 0775, true);
