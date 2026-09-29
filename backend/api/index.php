@@ -13,6 +13,14 @@
  * 503 `not_set_up` (setUpRequiredMiddleware()) and nothing else runs.
  */
 
+// The hosting prints PHP's warnings into the page (display_errors is on there),
+// which puts the server's paths in front of an answer's JSON and breaks it for
+// the apps. Served by a web server, they go to the error log only; the command
+// line and the development server keep showing them.
+if (!in_array(PHP_SAPI, ['cli', 'cli-server'], true)) {
+    ini_set('display_errors', '0');
+}
+
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/db.php';
