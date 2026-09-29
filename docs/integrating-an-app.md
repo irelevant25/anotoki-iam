@@ -45,6 +45,7 @@ port each one's dev server uses:
 | Japanese Academy | `japanese-academy` | `http://localhost:4400` | `:8200` |
 | Piano Academy | `piano-academy` | `http://localhost:4500` | `:8300` |
 | Build Analyzer | `build-analyzer` | `http://localhost:4600` | `:8400` |
+| Surveys | `survey` | `http://localhost:4700` | `:8500` |
 
 On a real host the installer asks for each site's production address and puts
 it in place of these; the admin console changes them later. `php clients.php --dev`

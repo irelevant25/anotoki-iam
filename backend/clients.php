@@ -35,6 +35,7 @@ const DEV_CLIENTS = [
     'japanese-academy' => 'http://localhost:4400',
     'piano-academy' => 'http://localhost:4500',
     'build-analyzer' => 'http://localhost:4600',
+    'survey' => 'http://localhost:4700',
 ];
 
 requireSetUpOnCli();

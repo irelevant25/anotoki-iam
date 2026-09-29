@@ -81,6 +81,7 @@ const SETUP_SITES = [
     'japanese-academy' => ['name' => 'Japanese Academy', 'example' => 'https://japanese.anotoki.eu'],
     'piano-academy' => ['name' => 'Piano Academy', 'example' => 'https://piano.anotoki.eu'],
     'build-analyzer' => ['name' => 'Build Analyzer', 'example' => 'https://builder.anotoki.eu'],
+    'survey' => ['name' => 'Surveys', 'example' => 'https://survey.anotoki.eu'],
 ];
 
 /** What a development machine starts from: the port table's IAM, a local PostgreSQL, mail into storage/mail. */

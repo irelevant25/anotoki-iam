@@ -34,7 +34,7 @@ function remoteForm(string $token, array $overrides = []): array
         'email' => 'owner@example.test',
         'password' => 'the owners password',
         'confirm' => 'the owners password',
-        'site' => ['genshin' => 'https://genshin.example.test', 'japanese-academy' => '', 'piano-academy' => '', 'build-analyzer' => ''],
+        'site' => ['genshin' => 'https://genshin.example.test', 'japanese-academy' => '', 'piano-academy' => '', 'build-analyzer' => '', 'survey' => ''],
         'mail_send' => 'on',
         'mail_noreply' => 'noreply@example.test',
         'mail_support' => 'support@example.test',

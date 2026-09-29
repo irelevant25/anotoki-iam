@@ -217,7 +217,7 @@ test('a new administrator instead, into a database of its own; Google comes and 
 });
 
 test('a fresh database arrives with the sites\' development addresses, as in the port table', function () {
-    $table = ['genshin' => 'http://localhost:4200', 'japanese-academy' => 'http://localhost:4400', 'piano-academy' => 'http://localhost:4500', 'build-analyzer' => 'http://localhost:4600'];
+    $table = ['genshin' => 'http://localhost:4200', 'japanese-academy' => 'http://localhost:4400', 'piano-academy' => 'http://localhost:4500', 'build-analyzer' => 'http://localhost:4600', 'survey' => 'http://localhost:4700'];
     $pdo = iamDb();
 
     foreach ($table as $clientId => $frontend) {

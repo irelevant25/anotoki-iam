@@ -26,8 +26,8 @@ carries in `iss` - is that public address: `http://localhost:4300` in
 development, the subdomain's https address on the hosting.
 
 The sites that sign in through it are **applications** (OIDC clients):
-`genshin`, `japanese-academy`, `piano-academy`, `build-analyzer`, and `iam`
-itself, which is not an OIDC client at all but owns the role that makes somebody
+`genshin`, `japanese-academy`, `piano-academy`, `build-analyzer`, `survey`, and
+`iam` itself, which is not an OIDC client at all but owns the role that makes somebody
 an administrator of this installation. A fresh database registers each site
 with its development addresses - every anotoki project's dev server has a fixed
 port, and every one lands its sign-in on `/auth/callback`:
@@ -39,6 +39,7 @@ port, and every one lands its sign-in on `/auth/callback`:
 | Japanese Academy | `japanese-academy` | `http://localhost:4400` | `:8200` |
 | Piano Academy | `piano-academy` | `http://localhost:4500` | `:8300` |
 | Build Analyzer | `build-analyzer` | `http://localhost:4600` | `:8400` |
+| Surveys | `survey` | `http://localhost:4700` | `:8500` |
 
 A real host's install replaces them with the production addresses typed into
 the installer (see "Configuration and the installer" below).

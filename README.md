@@ -39,6 +39,7 @@ fixed port it is registered with:
 | Japanese Academy | `japanese-academy` | `http://localhost:4400` | `:8200` |
 | Piano Academy | `piano-academy` | `http://localhost:4500` | `:8300` |
 | Build Analyzer | `build-analyzer` | `http://localhost:4600` | `:8400` |
+| Surveys | `survey` | `http://localhost:4700` | `:8500` |
 
 - Getting it running: [DEV.md](DEV.md).
 - How it works: [docs/architecture.md](docs/architecture.md), then
