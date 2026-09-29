@@ -40,7 +40,7 @@ fixed port it is registered with:
 | Piano Academy | `piano-academy` | `http://localhost:4500` | `:8300` |
 | Build Analyzer | `build-analyzer` | `http://localhost:4600` | `:8400` |
 
-- Getting it running: [DEVELOPING.md](DEVELOPING.md).
+- Getting it running: [DEV.md](DEV.md).
 - How it works: [docs/architecture.md](docs/architecture.md), then
   [docs/api.md](docs/api.md) for the endpoints.
 - Making a site sign in through it: [docs/integrating-an-app.md](docs/integrating-an-app.md)

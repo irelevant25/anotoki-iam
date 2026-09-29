@@ -171,7 +171,7 @@ hosted deployment always runs with the IAM.
 
 It is a choice per application, not a requirement. The genshin site has no such
 mode: it is one public site with an admin panel, and locally it signs in through
-a locally running IAM like it does in production (its `DEVELOPING.md`).
+a locally running IAM like it does in production (its `DEV.md`).
 
 ## 5. Scripts
 

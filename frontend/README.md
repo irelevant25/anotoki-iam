@@ -21,10 +21,10 @@ npm run format          # prettier over src/
 ```
 
 `npm start` needs the backend beside it, set up once through its installer
-(`../DEVELOPING.md`):
+(`../DEV.md`):
 
 ```bash
-cd ../backend && php -S localhost:8100 router.php
+cd ../backend && composer start
 ```
 
 Until the backend is set up, every API call answers 503 `not_set_up` and every

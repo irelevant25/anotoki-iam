@@ -59,7 +59,7 @@ function testServer(): array
 
         if (!is_array($config) || !isset($config['host'], $config['username'])) {
             fwrite(STDERR, "The tests make throwaway databases on this machine's PostgreSQL and find it in config/database.local.php.\n"
-                . "Run setup.php first (DEVELOPING.md).\n");
+                . "Run setup.php first (DEV.md).\n");
             exit(1);
         }
 

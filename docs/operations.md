@@ -2,7 +2,7 @@
 
 Installing it on the hosting, moving the genshin site's accounts over, the day
 to day, and what to do when something goes wrong. Setting it up on a
-development machine is [../DEVELOPING.md](../DEVELOPING.md); the installer is
+development machine is [../DEV.md](../DEV.md); the installer is
 the same page in both places.
 
 ## Production: the hosting
@@ -156,7 +156,7 @@ person's current roles, never rotates, and stops when revoked or expired.
 
 ```bash
 cd backend
-php -S localhost:8100 router.php           # the API, and the installer at http://localhost:8100/setup.php
+composer start                             # the API, and the installer at http://localhost:8100/setup.php
 php migration.php                          # apply pending migrations
 php import-legacy.php --dry-run            # rehearse the account import (from the configured 'legacy' database)
 php import-legacy.php                      # the import itself (writes the marker)

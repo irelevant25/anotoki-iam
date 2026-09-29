@@ -46,7 +46,7 @@ call exactly those endpoints and must handle exactly those refusal codes.
    worded. The admin console is English only.
 6. `npx ng build` (production) and `npx ng build --configuration development`
    must pass, and `npx prettier --check "src/**/*.{ts,html,scss}"` be clean.
-   To see a page, run `php -S localhost:8100 router.php` in `backend/` (set up
+   To see a page, run `composer start` in `backend/` (set up
    once through its `/setup.php`) and `npm start` here; stop both afterwards.
 
 ## Never

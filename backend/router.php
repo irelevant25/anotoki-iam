@@ -3,7 +3,7 @@
 /**
  * PHP's built-in server, made to behave like the Apache the IAM runs on:
  *
- *     php -S localhost:8100 router.php
+ *     composer start          (php -S localhost:8100 router.php)
  *
  * /setup.php is the installer, as it is in the web root on a server; every
  * other request goes to the API's front controller. Without this, `php -S`

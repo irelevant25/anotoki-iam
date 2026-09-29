@@ -26,7 +26,7 @@ installer writes them.
 
 ```bash
 cd backend
-php -S localhost:8100 router.php
+composer start          # php -S localhost:8100 router.php
 ```
 
 Open **http://localhost:8100/setup.php**. On this computer it is the development
@@ -68,7 +68,7 @@ pages are served from - and every site's development configuration names it.
 
 | | Command | Address |
 | --- | --- | --- |
-| API and installer | `cd backend && php -S localhost:8100 router.php` | `http://localhost:8100` |
+| API and installer | `cd backend && composer start` | `http://localhost:8100` |
 | Pages | `cd frontend && npm start` | `http://localhost:4300` |
 
 Mail goes to `backend/storage/mail/` as `.eml` files - the confirmation link or

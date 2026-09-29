@@ -15,13 +15,13 @@ FTP-only PHP + PostgreSQL hosting, where it is a subdomain of its own.
 
 Read `docs/architecture.md` before changing anything; `docs/api.md` is the
 contract the frontend and every site depend on. `README.md` says what it is,
-`DEVELOPING.md` how to get it running.
+`DEV.md` how to get it running.
 
 ## Commands
 
 ```
 # Backend (from backend/)
-php -S localhost:8100 router.php          # dev API, and the installer at /setup.php
+composer start                            # dev API (php -S localhost:8100 router.php), and the installer at /setup.php
 php tests/run.php                         # every test, each file against a throwaway iam_test_ database
 php migration.php [--status|--dry-run]    # apply migrations (setup.php does too)
 php clients.php [--dev]                   # list the applications; --dev restores their development addresses

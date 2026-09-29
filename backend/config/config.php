@@ -35,7 +35,7 @@ final class IamNotSetUp extends RuntimeException
 {
     public function __construct(string $problem)
     {
-        parent::__construct("The IAM is not set up yet: {$problem}. Open setup.php to set it up (see DEVELOPING.md).");
+        parent::__construct("The IAM is not set up yet: {$problem}. Open setup.php to set it up (see DEV.md).");
     }
 }
 
@@ -175,8 +175,8 @@ function requireSetUpOnCli(): void
 
     if ($problems !== []) {
         fwrite(STDERR, "The IAM is not set up yet:\n  - " . implode("\n  - ", $problems) . "\n\n"
-            . "Run the installer: `php -S localhost:8100 router.php` here, then open http://localhost:8100/setup.php\n"
-            . "(DEVELOPING.md walks through it).\n");
+            . "Run the installer: `composer start` here, then open http://localhost:8100/setup.php\n"
+            . "(DEV.md walks through it).\n");
         exit(1);
     }
 }
