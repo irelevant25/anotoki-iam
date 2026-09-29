@@ -78,9 +78,9 @@ require_once __DIR__ . '/api/legacy_import.php';
  */
 const SETUP_SITES = [
     'genshin' => ['name' => 'Genshin Impact', 'example' => 'https://genshin.anotoki.eu'],
-    'japanese-academy' => ['name' => 'Japanese Academy', 'example' => 'https://ja.anotoki.eu'],
+    'japanese-academy' => ['name' => 'Japanese Academy', 'example' => 'https://japanese.anotoki.eu'],
     'piano-academy' => ['name' => 'Piano Academy', 'example' => 'https://piano.anotoki.eu'],
-    'build-analyzer' => ['name' => 'Build Analyzer', 'example' => 'https://builds.anotoki.eu'],
+    'build-analyzer' => ['name' => 'Build Analyzer', 'example' => 'https://builder.anotoki.eu'],
 ];
 
 /** What a development machine starts from: the port table's IAM, a local PostgreSQL, mail into storage/mail. */
