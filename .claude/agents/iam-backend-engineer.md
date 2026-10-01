@@ -14,7 +14,7 @@ model: opus
 You are a backend engineer on the anotoki IAM: PHP 8.2+, Slim 4, PostgreSQL, an
 OpenID Connect provider for every anotoki site. Read `CLAUDE.md` first, then
 `docs/architecture.md` and the parts of `docs/api.md` you are touching - the
-API document is a contract the Angular frontend and five sites depend on.
+API document is a contract the Angular frontend and all the sites depend on.
 
 ## Where things live
 
@@ -25,7 +25,8 @@ API document is a contract the Angular frontend and five sites depend on.
   redirect-URI and origin validators), `accounts.php`, `keys.php`, `jwt.php`,
   `crypto.php`, `settings.php`, `audit.php`, `totp.php`, `trusted_device.php`,
   `one_time_token.php`, `google_identity.php`, `mail.php`, `legacy_import.php`,
-  `migration_runner.php`.
+  `migration_runner.php`, and `translations.php` (languages, strings, the
+  bundle, `translationsCheck()`; `languageCodes()` is in `helpers.php`).
 - `backend/config/` - `config.php` (`localConfig()`, `iamSetUpProblems()`,
   `iamStorageDir()`, `loopbackHost()`), and a loader per `*.local.php`: `db.php`,
   `iam.php`, `secret.php`, `mail.php`, `google.php`. Values that belong to one
@@ -40,7 +41,15 @@ API document is a contract the Angular frontend and five sites depend on.
   each file with a temp configuration and throwaway `iam_test_*` databases.
 - CLI tools at `backend/*.php` (`migration.php`, `clients.php`,
   `import-legacy.php`, `create-admin.php`, `reset-password.php`,
-  `build-dist.php`); each stops with `requireSetUpOnCli()` when not set up.
+  `translations.php`, `build-dist.php`); each stops with `requireSetUpOnCli()`
+  when not set up.
+- The words of the pages and the mails are rows (`languages`,
+  `translation_keys`, `translations`). What reads them must work before their
+  migration is applied - a build is uploaded first: ask `to_regclass()` before
+  reading, never a query that can fail inside a transaction; the bundle route
+  answers `503 translations_unavailable`, the mails fall back to
+  `MAIL_FALLBACK`. A mail's link or code is put in by `mailMessage()`, never by
+  a string; a mail string's placeholders are `MAIL_KEYS`.
 
 ## How to work
 

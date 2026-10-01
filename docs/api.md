@@ -95,6 +95,12 @@ Discovery. Public, cacheable (`Cache-Control: max-age=3600`).
 }
 ```
 
+`ui_locales_supported` is the languages the IAM offers - the ones switched on
+in the admin console (Languages), in its order: codes of the shape `xx` or
+`xx-yy`, lower case. A fresh install offers `en` and `sk`. Before migration
+006 is applied, or while the database cannot be reached, it answers
+`["en", "sk"]` - and such an answer, like any other, may be cached for the hour.
+
 ### `GET /.well-known/jwks.json`
 
 The public halves of the signing keys: the active one and any retired ones still
@@ -118,7 +124,7 @@ A top-level browser navigation, never an XHR.
 | `prompt` | optional: `none` (never show a page), `login` (ask again even if signed in), `create` (open on the registration form) |
 | `login_hint` | optional: an email to prefill |
 | `max_age` | optional: seconds; an older sign-in is asked again |
-| `ui_locales` | optional: `sk` or `en`, for the pages shown |
+| `ui_locales` | optional: space-separated language tags, the site's first choice first, for the pages shown. The first one the IAM offers is used - by its lower-cased whole (`pt-BR` for `pt-br`), else by its first subtag (`sk-SK` for `sk`); the rest are ignored |
 
 What happens:
 
@@ -135,7 +141,8 @@ What happens:
    (or `consent_required` never - first-party applications need no consent).
 5. Otherwise the request is stored for 30 minutes and the browser goes to
    `{issuer}/login?request={id}` (or `/register?request={id}` for
-   `prompt=create`), with `&lang=sk|en` when `ui_locales` named one. The IAM
+   `prompt=create`), with `&lang={code}` when `ui_locales` named an offered
+   language. The IAM
    frontend finishes it with `POST /api/login/request/{id}/accept`.
 
 The IAM's own pages, opened directly rather than by an application, take
@@ -227,6 +234,13 @@ nothing else. An empty list means an ordinary signed-in person. `sid` names the
 IAM session; it is not a secret. Lifetime is the application's
 `access_token_ttl` (600 seconds unless changed).
 
+`locale` (with the `profile` scope, in both tokens and in userinfo) is the
+account's language while the IAM offers it, else `en`. The account keeps a
+language that was switched off, and `locale` says it again once it is back on.
+A token minted before a language was switched off or deleted carries it for
+that token's lifetime - a site checks `locale` against its own languages and
+treats anything else as its default.
+
 **ID token** - header `{"alg":"RS256","typ":"JWT","kid":"..."}`. For the
 application's frontend to learn who signed in.
 
@@ -304,6 +318,60 @@ What the sign-in pages need before they can draw themselves.
   "languages": ["en", "sk"]
 }
 ```
+
+`languages` is the codes on offer, in the admin console's order - the same list
+as discovery's `ui_locales_supported`, and like it `["en", "sk"]` before
+migration 006 or while the database cannot be reached. The pages give a new
+account the reader's language settled against this list, even while they are
+still showing the compiled English.
+
+### `GET /api/translations/{code}`
+
+The pages' words in one language. The same for everybody: no cookie is read or
+set, a page whose session has ended still reads in its language, and it is in
+neither CORS list - only the IAM's own pages read it. Nothing else lives under
+`/api/translations` (`/api/translations` alone is a 404, a write a 405).
+
+```json
+{
+  "language": "sk",
+  "languages": [
+    { "code": "en", "name": "English", "native_name": "English" },
+    { "code": "sk", "name": "Slovak", "native_name": "Slovenčina" }
+  ],
+  "values": { "common.save": "Uložiť", "...": "..." },
+  "english": { "common.save": "Save", "...": "..." }
+}
+```
+
+- `language` is the language the answer is in, which need not be the code
+  asked for. An offered code is itself (`pt-br` when `pt-br` is on). A code with
+  a region that is not offered itself is answered by its base language when that
+  is offered - `sk-sk`, a Slovak browser's first wish, gets the very bytes and
+  ETag of `sk`, so a first visit is one request. Anything the IAM does not have,
+  or has switched off, is answered in English (`language: "en"`). Only this
+  route reads a region this way; discovery and `ui_locales` match whole codes
+  and first subtags as described above.
+- `languages` is the offered languages, in order, with both names.
+- `values` is every page key: the language's own strings with English under
+  them, so a key it has no string for reads in English.
+- `english` is English's own strings, for the admin console, which is English
+  whatever the reader chose. Left out when `language` is `en`.
+- No `mail.` key is in either map: the mails' words are the server's.
+
+`404 not_found` for a code that is not `xx` or `xx-yy` in small letters (`EN`,
+`en-GB`, `en_gb` are no codes), before any query. `503 translations_unavailable`
+while migration 006 is pending, or English has no strings at all: not
+`not_set_up`, which would send the pages to the installer's notice - they keep
+the English compiled into the build meanwhile.
+
+Caching: `ETag` (an MD5 of the body, in quotes) and `Cache-Control: no-cache`,
+so the browser asks every time and is told `304` (empty, with the same two
+headers) when nothing changed. `If-None-Match` is compared the weak way: any
+tag of its list, or `*`, with or without `W/` in front, and with or without
+`-gzip`, `-br` or `-zstd` just inside the closing quote - what a compressing
+Apache (mod_deflate, mod_brotli) or proxy does to the tag on the way out.
+Without that, behind such a server no browser would ever get the 304.
 
 ### `GET /api/login/request/{id}`
 
@@ -426,6 +494,8 @@ No session: the account works once the emailed link is opened. `request`, when
 the registration started from an application, is remembered so the confirmation
 can offer the way back. `409` for a taken username or address (named),
 `422` for invalid input, `403 registration_disabled`, `429 too_many_attempts`.
+`language` (here and on `POST /api/login/google`) is lower-cased and trimmed; one
+the IAM does not offer makes an English account rather than a refusal.
 
 ### `POST /api/register/confirm`
 
@@ -481,7 +551,7 @@ interface AccountUser {
   username: string;
   email: string;
   email_confirmed: boolean;
-  language: 'en' | 'sk';
+  language: string;               // a language code, xx or xx-yy
   created_at: string;
   has_password: boolean;
   password_login_enabled: boolean;
@@ -498,7 +568,7 @@ interface AccountUser {
 | Method + path | Body | Answer |
 | --- | --- | --- |
 | `GET /api/account` | | `AccountUser` |
-| `PUT /api/account/profile` | `{ username?, language? }` | `AccountUser` (409 username taken) |
+| `PUT /api/account/profile` | `{ username?, language? }` | `AccountUser` (409 username taken; `422 invalid_language` for a language not on offer) |
 | `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; `422` wrong current password |
 | `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change |
 | `PUT /api/account/password/enabled` | `{ enabled }` | `AccountUser` - `409 would_lock_account` / `no_password` |
@@ -581,6 +651,12 @@ application `iam`; otherwise `401 no_session` / `403 { code: "forbidden" }`.
 
 Self-lockout rules carry over: an admin cannot disable themselves or take the
 IAM `ADMIN` role from themselves, and the last IAM admin cannot be removed.
+
+`language` on `POST` and `PUT` is lower-cased and trimmed; a language the IAM
+does not offer is `422 invalid_language`, not turned into English. `POST`
+without one makes an English account. On `PUT` the account's own current
+language passes as no change, even when it is no longer offered, so renaming
+somebody who still has a switched-off language works.
 
 ```ts
 interface RoleGrant { client_id: string; role: string; }
@@ -673,6 +749,91 @@ interface AdminApplication {
 `access_token_ttl`, `redirect_uris`, `post_logout_redirect_uris`, `web_origins`,
 `roles` (the complete list of `{ name, description }`; a role still granted to
 somebody cannot be removed), `show_on_landing`, `sort_order`.
+
+### Languages and strings
+
+The IAM's own words (`api/translations.php`): the languages it offers and the
+strings of its pages and its three mails. Keys are the code's - migrations
+write them, these routes only change strings. English is what every other
+language falls back to, key by key.
+
+All eight answer `503 translations_unavailable` until migration 006 is applied
+(from this same console, Migrations). Their bodies are read as parsed: no body,
+or a JSON list where an object belongs, is a refusal, not an empty object.
+
+| Method + path | |
+| --- | --- |
+| `GET /api/admin/languages` | `{ languages: AdminLanguage[] }` - every language, the switched-off ones too, in order |
+| `POST /api/admin/languages` | `{ code, name, native_name, enabled? }` → `201 { language: AdminLanguage }`, placed after the others. `enabled` left out means offered at once; the console always sends it (a new language starts hidden there). |
+| `PUT /api/admin/languages/{code}` | `{ name?, native_name?, enabled?, sort_order? }` - what is left out stays → `{ language: AdminLanguage }` |
+| `DELETE /api/admin/languages/{code}` | the language and its strings go; its accounts go back to English (the foreign key's `ON DELETE SET DEFAULT`) → `{ accounts }`, how many |
+| `GET /api/admin/translations` | `TranslationGrid` - every key, the `mail.` ones among them, with every language's string |
+| `PUT /api/admin/translations` | `{ values: { key: { language: text } } }`, only what changed → `TranslationGrid` |
+| `GET /api/admin/translations/{code}/export` | the language's own strings as a flat `{ key: text }`, not merged with English, `mail.` keys included; `{}` when it has none |
+| `PUT /api/admin/translations/{code}/import` | a flat `{ key: text }` → `TranslationGrid`. The same checks as a save; an empty string is a key not translated yet and is passed over, so an import deletes nothing |
+
+```ts
+interface AdminLanguage {
+  code: string;          // xx or xx-yy, small letters; fixed once made
+  name: string;          // in English: "Slovak"
+  native_name: string;   // as its speakers write it: "Slovenčina"
+  enabled: boolean;      // offered: on the switcher, in discovery, a language an account can have
+  sort_order: number;    // 0-1000, lowest first
+  seeded: boolean;       // the migrations write strings for it (en, sk): cannot be deleted
+  accounts: number;      // how many accounts have it
+}
+
+interface TranslationGrid {
+  languages: AdminLanguage[];
+  keys: { name: string; description: string; values: Record<string, string> }[];  // by name; description '' when none
+}
+```
+
+A save is checked whole before anything is written, and written in one
+transaction or not at all. A string sent as it already is stays as it was,
+with who wrote it and when; of two people saving the same string, the last
+save is kept. A blank string in another language deletes that language's
+string (the key then reads in English). Blank is whatever has nothing to read:
+spaces, or only characters of no width. Control characters other than tabs and
+line breaks are dropped, and spaces around a string are trimmed.
+
+Refusals of the language routes:
+
+| Status | `code` | |
+| --- | --- | --- |
+| 404 | `not_found` | no such language, or not a code at all |
+| 422 | `invalid_language` | a code not `xx` / `xx-yy`; a name that is not one line of 1-50 characters; `enabled` not a boolean; `sort_order` not a whole number from 0 to 1000; a body that is not an object |
+| 409 | `language_exists` | `POST` of a code there is already |
+| 422 | `too_many_languages` | the IAM keeps at most 20 |
+| 409 | `fallback_language` | switching English off, or deleting it |
+| 409 | `seeded_language` | deleting a language the migrations write strings for (Slovak): switch it off instead |
+
+Refusals of a save and an import - `413 too_large` for a body over 1 MB, and
+otherwise `422`, the first thing wrong, with `key` and `language` beside `code`
+and `error` (and `placeholder` where it is about one, `keys` for unknown keys):
+
+| `code` | |
+| --- | --- |
+| `invalid_value` | not `{ key: { language: text } }` (an import: not a flat object); a value that is not text; a page's string over 2,000 characters; a mail's string with a line break or a tab, a mail subject over 150 characters or another mail string over 400; a mail string of more bytes than one line of mail may have - 900, less 400 for every `{username}` in a greeting (the longest name there can be, kept for each: 500 with one, 100 with two, none with three) |
+| `unknown_key` | a key the IAM does not have, empty or not (with `keys`: every such key sent) |
+| `unknown_language` | a language the IAM does not have |
+| `fallback_required` | a blank English string: every other language falls back to it |
+| `invalid_placeholder` | a `{` or `}` that is not part of a `{placeholder}`, in any string: `{ count }`, `{počet}`, `{count`, `{{count}}` |
+| `placeholder_changed` | an English page string whose placeholders are not exactly the stored English string's |
+| `unknown_placeholder` | a page string in another language with a placeholder its English string does not have; a mail string, in any language, with one the code does not fill for that key |
+| `placeholder_missing` | `login.continueTo` or `register.forApp` without `{app}`; a mail string, in any language, without a placeholder the code fills for that key |
+| `address_in_mail` | a mail string with something that reads as an address - `://`, `www.` or `@`. A mail's only link is the one the server puts in. |
+
+A mail's placeholders are the code's (`MAIL_KEYS` in `api/mail.php`), not the
+stored English: greetings take `{username}`, validity lines `{hours}` or
+`{minutes}`, the sign-in code's subject `{code}`. There is no placeholder for a
+mail's link or code - that line is never part of a string.
+
+The audit log records `language.created` (`name`, `native_name`, `enabled`),
+`language.updated` (what changed), `language.deleted` (`name`, `accounts`,
+`strings`), `translations.saved` and `translations.imported` (the languages,
+how many strings changed, the first hundred keys, and every changed `mail.`
+string's old and new text whole).
 
 ### Settings, keys, migrations
 

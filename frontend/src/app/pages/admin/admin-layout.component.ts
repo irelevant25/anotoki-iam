@@ -13,6 +13,8 @@ const NAV: NavItem[] = [
   { link: '/admin/emails', label: 'Email log', icon: 'mail' },
   { link: '/admin/audit', label: 'Audit log', icon: 'history' },
   { link: '/admin/settings', label: 'Settings', icon: 'sliders' },
+  { link: '/admin/translations', label: 'Translations', icon: 'languages' },
+  { link: '/admin/languages', label: 'Languages', icon: 'globe' },
   { link: '/admin/keys', label: 'Signing keys', icon: 'key' },
   { link: '/admin/migrations', label: 'Migrations', icon: 'database' },
 ];

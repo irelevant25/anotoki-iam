@@ -150,7 +150,10 @@ export class RegisterComponent implements OnInit {
     }
 
     this.busy.set(true);
-    this._loginApi.register({ username, email, password, language: this._i18n.language(), ...(this.request() ? { request: this.request() } : {}) }).subscribe({
+    // The language that was asked for, not the one on the page: that is the
+    // compiled English while no words have come from the database.
+    const language = this._i18n.preferred(this.config()?.languages ?? []);
+    this._loginApi.register({ username, email, password, language, ...(this.request() ? { request: this.request() } : {}) }).subscribe({
       next: (response) => {
         this.busy.set(false);
         this.sentTo.set(response.email);

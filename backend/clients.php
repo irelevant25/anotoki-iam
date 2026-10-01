@@ -6,13 +6,14 @@
  *   php clients.php            list them, with their addresses
  *   php clients.php --dev      give the anotoki sites their development addresses back
  *
- * A database built from the migrations already has them (migration 002); --dev
- * is for one that has drifted - an address removed in the admin console, a
- * database from before a site moved to its port in the table below. It makes
- * each site's addresses on this computer exactly these: what is missing is
- * added, any other localhost address is taken out, and anything that is not on
- * this computer is left alone. The home address follows while it is empty or
- * on this computer too.
+ * A database built from the migrations already has them (migrations 002 and
+ * 005); --dev is for one that has drifted - an address removed in the admin
+ * console, a database from before a site moved to its port in the table below.
+ * It makes each site's addresses on this computer exactly these: what is
+ * missing is added, any other localhost address is taken out, and anything
+ * that is not on this computer is left alone. The home address follows while
+ * it is empty or on this computer too. A site the database does not have yet
+ * is skipped - `php migration.php` brings it.
  *
  * It refuses when the IAM's public URL is not itself on this computer: on a
  * live IAM a localhost redirect URI would hand a code to whatever happens to be
@@ -35,6 +36,7 @@ const DEV_CLIENTS = [
     'japanese-academy' => 'http://localhost:4400',
     'piano-academy' => 'http://localhost:4500',
     'build-analyzer' => 'http://localhost:4600',
+    'survey' => 'http://localhost:4700',
 ];
 
 requireSetUpOnCli();

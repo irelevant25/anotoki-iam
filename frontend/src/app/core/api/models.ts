@@ -5,9 +5,10 @@
 // follow. Field names stay snake_case exactly as they arrive, so a value can be
 // traced from the network tab to the template without translating names.
 
-export type Language = 'en' | 'sk';
-
-export const LANGUAGES: readonly Language[] = ['en', 'sk'];
+// A language is its code, as the `languages` table keeps it: `xx` or `xx-yy`,
+// lower case. Which ones exist is the admin console's business and arrives with
+// the words themselves (TranslationBundle below), so it is a plain string here -
+// there is no fixed list for the compiler to hold anybody to.
 
 /** Every error the first-party endpoints send: a sentence for people and a code for pages. */
 export interface ApiErrorBody {
@@ -20,12 +21,40 @@ export interface ApiErrorBody {
 // Signing in
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** A language the pages are offered in. */
+export interface SiteLanguage {
+  code: string;
+  /** In English ("Slovak") - what the admin console lists it as. */
+  name: string;
+  /** As its speakers write it ("Slovenčina") - what a person choosing it reads. */
+  native_name: string;
+}
+
+/**
+ * `GET /api/translations/{code}`: the site's words in one language, with
+ * English merged underneath so a string nobody translated yet is still a
+ * sentence, the languages on offer, and English itself beside it (left out
+ * when `language` is `en`) for the admin console, which is English whatever
+ * the person reads.
+ *
+ * `language` is the one that answered: the code asked for; its language for a
+ * code with a region that is not offered itself (`sk` for `sk-sk`); `en` when
+ * what was asked for is unknown or switched off.
+ */
+export interface TranslationBundle {
+  language: string;
+  languages: SiteLanguage[];
+  values: Record<string, string>;
+  english?: Record<string, string>;
+}
+
 export interface PublicConfig {
   login_enabled: boolean;
   registration_enabled: boolean;
   google_enabled: boolean;
   google_client_id: string | null;
   password_min: number;
+  /** The codes of the offered languages. */
   languages: string[];
 }
 
@@ -79,7 +108,7 @@ export interface CodeSignInBody extends SignInOptions {
 
 export interface GoogleSignInBody extends SignInOptions {
   credential: string;
-  language?: Language;
+  language?: string;
 }
 
 export interface SignInResponse {
@@ -97,7 +126,7 @@ export interface RegisterBody {
   username: string;
   email: string;
   password: string;
-  language: Language;
+  language: string;
   request?: string;
 }
 
@@ -131,7 +160,7 @@ export interface AccountUser {
   username: string;
   email: string;
   email_confirmed: boolean;
-  language: Language;
+  language: string;
   created_at: string;
   has_password: boolean;
   password_login_enabled: boolean;
@@ -205,7 +234,7 @@ export interface CreatedToken {
 
 export interface ProfileBody {
   username?: string;
-  language?: Language;
+  language?: string;
 }
 
 export interface TwoFactorSetup {
@@ -315,7 +344,7 @@ export interface CreateUserBody {
   username: string;
   email: string;
   password: string;
-  language?: Language;
+  language?: string;
   force_password_change?: boolean;
   roles?: RoleGrant[];
 }
@@ -323,7 +352,7 @@ export interface CreateUserBody {
 export interface UpdateUserBody {
   username?: string;
   email?: string;
-  language?: Language;
+  language?: string;
   email_confirmed?: boolean;
   force_password_change?: boolean;
 }
@@ -515,6 +544,66 @@ export interface Setting {
 export interface SettingsResponse {
   settings: Setting[];
 }
+
+/** A language as the admin console sees it: the hidden ones too. */
+export interface AdminLanguage extends SiteLanguage {
+  /** Offered: on the switcher, in discovery, and a language an account can have. */
+  enabled: boolean;
+  /** Its place among the others; the lowest comes first. */
+  sort_order: number;
+  /** The migrations write strings for it, so it cannot be deleted. */
+  seeded: boolean;
+  /** How many accounts have it as their language. */
+  accounts: number;
+}
+
+/**
+ * `POST /api/admin/languages`. It goes after the ones there are. `enabled`
+ * left out would mean offered at once; the console always says which.
+ */
+export interface NewLanguage {
+  code: string;
+  name: string;
+  native_name: string;
+  enabled: boolean;
+}
+
+/** What `PUT /api/admin/languages/{code}` may change; what is left out stays. */
+export interface LanguageChanges {
+  name?: string;
+  native_name?: string;
+  enabled?: boolean;
+  sort_order?: number;
+}
+
+/** `DELETE /api/admin/languages/{code}`: how many accounts had it, and went back to English. */
+export interface LanguageDeleted {
+  accounts: number;
+}
+
+/** One key of the IAM's words - a page's or a mail's - with its string in every language that has one. */
+export interface TranslationKeyRow {
+  name: string;
+  /** Where it is shown, and what its {placeholders} are; empty when nothing was written about it. */
+  description: string | null;
+  values: Record<string, string>;
+}
+
+/** `GET` and `PUT /api/admin/translations`, and an import's answer: every language and every key, ordered by name. */
+export interface TranslationGrid {
+  languages: AdminLanguage[];
+  keys: TranslationKeyRow[];
+}
+
+/**
+ * The cells a save changes: key -> language code -> text. A blank one deletes
+ * that language's string (the key then reads in English) - except English's,
+ * which is refused.
+ *
+ * A refusal about one string says which in `ApiError.details`: `key`,
+ * `language`, and `placeholder` or `keys` where it is about those.
+ */
+export type TranslationChanges = Record<string, Record<string, string>>;
 
 export interface SigningKey {
   kid: string;

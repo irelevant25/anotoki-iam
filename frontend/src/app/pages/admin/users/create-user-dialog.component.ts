@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
-import { AdminUser, FilterApplication, Language } from '../../../core/api/models';
+import { AdminUser, FilterApplication } from '../../../core/api/models';
+import { TranslationService } from '../../../core/i18n/translation.service';
 import { GENERATED_PASSWORD_LENGTH, randomPassword } from '../../../core/util/random-password';
 import { AlertComponent } from '../../../ui/alert/alert.component';
 import { ButtonComponent } from '../../../ui/button/button.component';
@@ -11,6 +12,7 @@ import { IconComponent } from '../../../ui/icon/icon.component';
 import { SelectComponent } from '../../../ui/select/select.component';
 import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { adminErrorText } from '../admin-errors';
+import { languageOptions } from './language-options';
 import { RolePickerComponent, grantFromKey } from './role-picker.component';
 
 /**
@@ -34,11 +36,10 @@ export class CreateUserDialogComponent {
   readonly closed = output<AdminUser | null>();
 
   private readonly _adminApi = inject(AdminApi);
+  private readonly _i18n = inject(TranslationService);
 
-  protected readonly languageOptions = [
-    { value: 'en', label: 'English' },
-    { value: 'sk', label: 'Slovenčina' },
-  ];
+  /** The languages on offer - the ones the server accepts for a new account. */
+  protected readonly languageOptions = computed(() => languageOptions(this._i18n.languages()));
 
   protected readonly username = signal('');
   protected readonly email = signal('');
@@ -87,7 +88,7 @@ export class CreateUserDialogComponent {
         username,
         email,
         password,
-        language: this.language() as Language,
+        language: this.language(),
         force_password_change: this.forceChange(),
         roles: this.roles().map(grantFromKey),
       })

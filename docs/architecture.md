@@ -26,11 +26,11 @@ carries in `iss` - is that public address: `http://localhost:4300` in
 development, the subdomain's https address on the hosting.
 
 The sites that sign in through it are **applications** (OIDC clients):
-`genshin`, `japanese-academy`, `piano-academy`, `build-analyzer`, and `iam`
-itself, which is not an OIDC client at all but owns the role that makes somebody
-an administrator of this installation. A fresh database registers each site
-with its development addresses - every anotoki project's dev server has a fixed
-port, and every one lands its sign-in on `/auth/callback`:
+`genshin`, `japanese-academy`, `piano-academy`, `build-analyzer`, `survey`, and
+`iam` itself, which is not an OIDC client at all but owns the role that makes
+somebody an administrator of this installation. A fresh database registers each
+site with its development addresses - every anotoki project's dev server has a
+fixed port, and every one lands its sign-in on `/auth/callback`:
 
 | Application | client_id | Frontend (ng serve) | Backend (php -S) |
 | --- | --- | --- | --- |
@@ -39,9 +39,15 @@ port, and every one lands its sign-in on `/auth/callback`:
 | Japanese Academy | `japanese-academy` | `http://localhost:4400` | `:8200` |
 | Piano Academy | `piano-academy` | `http://localhost:4500` | `:8300` |
 | Build Analyzer | `build-analyzer` | `http://localhost:4600` | `:8400` |
+| Surveys | `survey` | `http://localhost:4700` | `:8500` |
 
 A real host's install replaces them with the production addresses typed into
-the installer (see "Configuration and the installer" below).
+the installer (see "Configuration and the installer" below). The survey site
+came later, in migration 005, which also reaches IAMs installed already: it
+brings its development addresses and a card on the landing page only while the
+IAM itself is served from this computer - its own `iam` entry's home, which the
+installer sets to the IAM's address. On a live IAM it arrives with neither, and
+the admin console gives it its https address.
 
 ## Configuration and the installer
 
@@ -124,6 +130,9 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `auth_codes`, `refresh_tokens` | Codes and refresh / personal tokens - hashes only; refresh tokens grouped into families for reuse detection. |
 | `signing_keys` | RSA key pairs; the private half **encrypted**. One active, retired ones published for a day. |
 | `settings`, `audit_log` | The switches, and every change made from the admin console. |
+| `languages` | The languages the IAM speaks: `code` (`xx` or `xx-yy`, small letters), `name` in English, `native_name`, `enabled` (offered), `sort_order`. English and Slovak are seeded. |
+| `translation_keys` | Every key the pages and the mails ask for, with a description for the translator. Written by migrations only. |
+| `translations` | One string per key and language, who reworded it last (`updated_by`, null for a migration) and when. No empty string: a language without one has no row and reads the English. |
 
 "Encrypted" means AES-256-GCM under the **master key** in
 `config/secret.local.php`, which the installer makes once and never replaces. A
@@ -153,6 +162,73 @@ origin. Every non-GET must carry `X-IAM-Request: 1`, which a page on another
 origin cannot send without a CORS preflight those endpoints never answer, and an
 `Origin` other than the IAM's own is refused. The admin console needs the
 `ADMIN` role of the application `iam`.
+
+## The IAM's own words
+
+What the sign-in pages, the account page and the three mails say lives in the
+database (migration 006), so a word can be reworded and a language added in the
+admin console with no build and no upload. The admin console itself is English,
+written in its templates.
+
+- **The tables.** `languages`, `translation_keys`, `translations` (above). A key
+  is the code's: a migration writes it with its English and its Slovak, and the
+  console only ever changes a string. `users.language` references
+  `languages (code)` - `ON UPDATE CASCADE ON DELETE SET DEFAULT`, so deleting a
+  language sends its accounts back to English, which cannot be deleted or
+  switched off. The CHECK that allowed only `en` and `sk` is gone.
+- **Offered.** `languageCodes()` (`api/helpers.php`) is the list the rest of the
+  IAM reads - discovery's `ui_locales_supported`, `/api/public/config`,
+  `ui_locales`, the `locale` claim, an account's language. It works on a
+  database that has no `languages` table yet, and answers `en`, `sk` then; it
+  answers the same, unremembered, when the database cannot be reached, so the
+  two routes that read nothing else from it still answer. A language switched
+  off keeps its strings and its accounts; its readers get English pages, English
+  mails and `locale: "en"` until it is back.
+- **How the pages get their words.** One request, `GET /api/translations/{code}`
+  (the bundle): the language's strings with English under them, the offered
+  languages, and English on its own for the admin console. `TranslationService`
+  (`frontend/src/app/core/i18n/`) picks the language - `?lang=` (which the
+  backend adds from an application's `ui_locales`) or the switcher, then the
+  account's, this device's last choice, the browser's, English - and fetches its
+  bundle before the page switches: a page is never in a language it has no words
+  for. The first page waits up to three seconds for its words; a returning
+  reader starts from the bundle cached in `localStorage` and checks it (a 304,
+  usually) within a second. A Slovak browser's first wish, `sk-sk`, is answered
+  by `sk`, so a first visit is one request. The ETag and `no-cache` make every
+  load after the first a few bytes.
+- **The last resort, on both sides.** Between an upload and "Apply pending" the
+  bundle route answers `503 translations_unavailable`, and the sign-in page must
+  still be readable or nobody could sign in to press Apply. The frontend then
+  reads the English compiled from `core/i18n/en.ts`; the mails read
+  `MAIL_FALLBACK` in `api/mail.php`, key by key, whenever the database has
+  nothing to say. Only then: once a bundle is in memory, a key it lacks shows as
+  the key itself (and warns once), so a missing string is seen, not papered over.
+  `en.ts` is also the list of keys - `TranslationKey` comes from it, so an
+  unknown key is a compile error - and a backend test holds it to the database:
+  its keys are exactly the seeded page keys and its English each seeded English
+  string, as `MAIL_FALLBACK` is the seeded mail English. There is no Slovak in the
+  build.
+- **Changes reach open pages.** After a save, the admin pages call
+  `TranslationService.reload()`, which asks for the wanted language again and
+  settles against the languages that come with it (the one on the page may have
+  just been switched off). A failed load is asked again on the next navigation.
+- **The mails.** A mail is put together by the server - greeting, intro, then a
+  line that is the link or the code, validity, ignore - in the recipient's
+  language while it is offered. The link and the code are never part of a
+  string and have no placeholder; which placeholders a mail string has is
+  `MAIL_KEYS`, the code, not the stored English. The console refuses an address
+  in a mail's words, a line break, and a line longer than a mail line may be.
+- **The admin pages.** Translations (`/admin/translations`: the grid, a search,
+  export and import of one language as JSON) and Languages (`/admin/languages`:
+  add, rename, order, offer or hide, delete), in
+  `frontend/src/app/pages/admin/localization/`. What is typed and not saved is
+  kept by `LocalizationDrafts` (`core/i18n/localization-drafts.service.ts`),
+  mirrored to `sessionStorage` for the tab: a session that ends, or Sign out,
+  leaves the page without asking, and the same administrator finds the drafts
+  in their boxes after signing in again; only another person signing in drops
+  them. `unsavedChangesGuard` asks before a link or Back leaves a page with
+  drafts - not once nobody is signed in - and closing the tab is the browser's
+  `beforeunload` question.
 
 ## The rules that carry the weight
 
@@ -190,7 +266,9 @@ written down, not a refactor.
     completely** - sessions, personal tokens, devices, outside identities.
 14. **Plain http only for this computer** in redirect URIs and web origins, and
     **no loopback address survives a real host's install**: the development
-    addresses a fresh database is seeded with go as the production ones arrive.
+    addresses a fresh database is seeded with go as the production ones arrive,
+    and a migration that seeds a site on an IAM installed already adds them only
+    while the IAM's own entry has its home on this computer.
 15. **The installer proves who is at the keyboard**: a token read from the
     server's own files on a real host; on this computer a nonce, and only when
     the connection, the Host header and the absence of forwarding headers all
@@ -213,5 +291,8 @@ written down, not a refactor.
 | `backend/api/applications.php`, `accounts.php`, `settings.php` | The rules about who may use what. |
 | `backend/api/totp.php`, `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php` | Carried over from the genshin site, rules intact. |
 | `backend/api/legacy_import.php` | The one-time move of the genshin site's accounts. |
+| `backend/api/translations.php` | The languages, the strings, the bundle, the admin console's grid and every check of a string (`translationsCheck()`). |
+| `backend/translations.php` | The strings from the command line: `--status`, `--export`, `--import`. Never uploaded. |
+| `frontend/src/app/core/i18n/` | `translation.service.ts` (which language, the bundle, the `t` pipe's strings), `en.ts` (the keys and the English of last resort), `localization-drafts.service.ts`. |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, at most hourly, from the busy endpoints - the host has no cron. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

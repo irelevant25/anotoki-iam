@@ -1,0 +1,216 @@
+<div class="page">
+    <app-page-header heading="Translations" lead="What the IAM itself says - on the sign-in pages, on the account pages and in its mails - in every language. This console stays English.">
+        @if (loaded()) {
+            <p pageMeta class="counts">
+                <span>
+                    <strong>{{ total() }}</strong>
+                    {{ total() === 1 ? "key" : "keys" }}
+                </span>
+                <span>
+                    <strong>{{ languages().length }}</strong>
+                    {{ languages().length === 1 ? "language" : "languages" }}
+                </span>
+            </p>
+        }
+        <a appButton routerLink="/admin/languages">
+            <app-icon name="globe" [size]="16" />
+            Languages
+        </a>
+    </app-page-header>
+
+    @if (unavailable()) {
+        <app-alert tone="warning" heading="Apply the pending database update first">
+            The IAM's words move into the database with an update that is uploaded and not applied yet. Until it is, the pages read the English built into them, the mails go out in English, and there
+            is nothing here to edit.
+            <div alertActions>
+                <a appButton size="sm" variant="primary" routerLink="/admin/migrations">
+                    <app-icon name="database" [size]="15" />
+                    Open Migrations
+                </a>
+                <button appButton size="sm" (click)="load()">
+                    <app-icon name="refresh" [size]="15" />
+                    Look again
+                </button>
+            </div>
+        </app-alert>
+    } @else if (loadError(); as message) {
+        <app-error-state heading="The translations could not be loaded" [message]="message" (retry)="load()" />
+    } @else if (!loaded()) {
+        <div class="loading"><app-spinner size="lg" label="Loading the translations" [showLabel]="true" /></div>
+    } @else {
+        <ul class="languages" aria-label="Languages">
+            @for (item of coverage(); track item.language.code) {
+                <li class="language">
+                    <div class="language-name">
+                        <strong>{{ item.language.name }}</strong>
+                        <app-badge [mono]="true">{{ item.language.code }}</app-badge>
+                        @if (item.language.code === fallback) {
+                            <app-badge tone="primary">Fallback</app-badge>
+                        }
+                        @if (!item.language.enabled) {
+                            <app-badge>Hidden</app-badge>
+                        }
+                    </div>
+                    <div class="coverage">
+                        <span class="bar" aria-hidden="true"><span class="bar-fill" [style.width.%]="item.percent"></span></span>
+                        <span class="coverage-count" [attr.aria-label]="item.done + ' of ' + item.total + ' keys have a string in ' + item.language.name">{{ item.done }} / {{ item.total }}</span>
+                    </div>
+                    <div class="language-actions">
+                        <button appButton size="sm" [loading]="exporting() === item.language.code" (click)="exportLanguage(item.language)">
+                            <app-icon name="download" [size]="15" />
+                            Export
+                        </button>
+                        <button appButton size="sm" [loading]="importing() === item.language.code" (click)="file.click()">
+                            <app-icon name="arrowUp" [size]="15" />
+                            Import
+                        </button>
+                        <input
+                            #file
+                            class="visually-hidden"
+                            type="file"
+                            tabindex="-1"
+                            accept=".json,application/json"
+                            [attr.aria-label]="'A JSON file of strings to import into ' + item.language.name"
+                            (change)="importLanguage(item.language, $event)" />
+                    </div>
+                </li>
+            }
+        </ul>
+
+        <div class="tools">
+            <div class="field-control search">
+                <span class="field-affix"><app-icon name="search" [size]="16" /></span>
+                <input class="field-input" type="search" placeholder="Find a key or a text" aria-label="Find a key or a text" [value]="search()" (input)="onSearch($event)" />
+            </div>
+            @if (missingOptions().length) {
+                <app-select class="missing" label="Show" placeholder="Every key" [hideLabel]="true" [inline]="true" [options]="missingOptions()" [(value)]="missingIn" />
+            }
+            <p class="muted small shown" role="status">{{ visibleKeys() }} of {{ total() }} {{ total() === 1 ? "key" : "keys" }}</p>
+        </div>
+
+        <p class="muted small kept">
+            What you type is kept in this tab until it is saved or discarded - through a reload, and through signing out and in again as the same administrator. Signing out does not ask about it;
+            closing the tab loses it, and the browser asks first.
+        </p>
+
+        @if (notice(); as problem) {
+            <app-alert tone="danger" [heading]="problem.heading" [announce]="true">
+                {{ problem.message }}
+                <div alertActions>
+                    <button appButton size="sm" (click)="notice.set(null)">Dismiss</button>
+                </div>
+            </app-alert>
+        }
+
+        <div class="grid" [class.is-stacked]="stacked()" [style.--languages]="languages().length">
+            <div class="grid-head" aria-hidden="true">
+                <span>Key</span>
+                @for (language of languages(); track language.code) {
+                    <span>{{ language.name }}</span>
+                }
+            </div>
+
+            @for (part of parts(); track part.id) {
+                <section class="part" [attr.aria-labelledby]="'part-' + part.id">
+                    <header class="part-head">
+                        <h2 class="section-title" [id]="'part-' + part.id">{{ part.heading }}</h2>
+                        <p class="part-lead">{{ part.lead }}</p>
+                    </header>
+                    <ul class="blocks">
+                        @for (block of part.blocks; track block.name) {
+                            <li class="block" [class.is-mail]="block.mail">
+                                @if (block.mail) {
+                                    <div class="mail">
+                                        <app-icon name="mail" [size]="17" />
+                                        @if (mailAbout(block); as about) {
+                                            <strong class="mail-title">{{ about.title }}</strong>
+                                            <code>{{ block.name }}</code>
+                                            <span class="mail-sent">{{ about.sent }}</span>
+                                        } @else {
+                                            <code>{{ block.name }}</code>
+                                        }
+                                    </div>
+                                }
+
+                                @for (row of block.rows; track row.key.name) {
+                                    <div class="row" [id]="rowId(row.key.name)">
+                                        <div class="key">
+                                            <code class="key-name">{{ row.key.name }}</code>
+                                            @if (row.key.description) {
+                                                <p class="description">{{ row.key.description }}</p>
+                                            }
+                                            @if (refusal(); as refused) {
+                                                @if (refused.key === row.key.name) {
+                                                    <p class="field-error" role="alert">
+                                                        <app-icon name="alert" [size]="15" />
+                                                        <span>Nothing was saved. {{ refused.message }}</span>
+                                                    </p>
+                                                }
+                                            }
+                                        </div>
+                                        @for (language of languages(); track language.code) {
+                                            <div class="cell">
+                                                <p class="cell-head">{{ language.name }}</p>
+                                                <app-translation-cell
+                                                    [value]="valueOf(row.key, language.code)"
+                                                    [label]="language.name + ': ' + row.key.name"
+                                                    [language]="language.code"
+                                                    [placeholder]="placeholderFor(language)"
+                                                    [changed]="isChanged(row.key, language.code)"
+                                                    [invalid]="isRefused(row.key, language.code)"
+                                                    (valueChange)="setValue(row.key, language.code, $event)" />
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            @if (!visible().length) {
+                <div class="empty">
+                    @if (missingIn() && !search().trim()) {
+                        <app-empty-state icon="checkCircle" [heading]="'Nothing is missing in ' + missingName()" text="Every key has a string of its own in it.">
+                            <button appButton (click)="showEverything()">Show every key</button>
+                        </app-empty-state>
+                    } @else {
+                        <app-empty-state icon="search" heading="No key matches" text="Neither a key's name, nor its description, nor its text in any language.">
+                            <button appButton (click)="showEverything()">Show every key</button>
+                        </app-empty-state>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="save-bar" [class.is-changed]="changed() > 0">
+            <p class="save-state" role="status">
+                @if (saveFailure(); as message) {
+                    <span class="save-refused">
+                        <app-icon name="alert" [size]="15" />
+                        <span>Nothing was saved. {{ message }}</span>
+                    </span>
+                } @else if (refusal(); as refused) {
+                    <span class="save-refused">
+                        <app-icon name="alert" [size]="15" />
+                        <span>Nothing was saved: see {{ refused.key }}</span>
+                    </span>
+                } @else if (changed()) {
+                    {{ changed() }} {{ changed() === 1 ? "string" : "strings" }} changed, not saved yet
+                } @else {
+                    Everything is saved
+                }
+            </p>
+            <div class="save-actions">
+                @if (changed()) {
+                    <button appButton [disabled]="saving()" (click)="discard()">Discard</button>
+                }
+                <button appButton variant="primary" [loading]="saving()" [disabled]="!changed()" (click)="save()">
+                    <app-icon name="check" [size]="16" />
+                    Save
+                </button>
+            </div>
+        </div>
+    }
+</div>

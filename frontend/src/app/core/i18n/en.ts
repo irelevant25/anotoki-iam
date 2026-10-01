@@ -1,16 +1,36 @@
 /**
- * English: the source of every key.
+ * The list of keys, and the English of last resort.
  *
- * `TranslationKey` is derived from this object, and the Slovak dictionary is
- * typed as a record of exactly those keys - so a string added here without a
- * Slovak counterpart, or a Slovak string for a key that no longer exists, is a
- * compile error rather than a gap somebody finds on the page.
+ * The words the pages show live in the database - the `translations` table,
+ * edited in the admin console - and arrive as a bundle (TranslationService).
+ * This file is no longer where they are read from. It is kept for two things:
+ *
+ * 1. The keys. `TranslationKey` is derived from this object, so a key that
+ *    does not exist is still a compile error in every template and class.
+ *
+ * 2. The English shown while no bundle is in memory - and only then. A new
+ *    build runs on the old database until "Apply pending" is pressed in the
+ *    admin console; the bundle route answers 503 meanwhile, and the sign-in
+ *    page has to be readable or nobody could sign in to press it. Once a
+ *    bundle has arrived, the bundle is what is shown: a key it has no string
+ *    for appears on the page as the key itself. These strings never paper over
+ *    a single missing one.
+ *
+ * So the two are kept in step, and a backend test holds them to it: the keys
+ * here are exactly the seeded keys (without the server's own `mail.` ones), and
+ * each seeded English string equals the one here. Adding a string is the key
+ * and its English here, plus a migration with the key, its English and its
+ * Slovak. There is no Slovak in the build at all.
  *
  * `{name}` placeholders are filled in by the `t` pipe. Counts are written as
  * "label: {count}" wherever a plural would otherwise be needed, which reads
- * naturally in both languages without a plural engine.
+ * naturally in both languages without a plural engine. No key is built at run
+ * time: a key nobody names in full would look unused to that same test.
  *
- * The admin console is English only and does not use these at all.
+ * A language's own name is not here: it comes from the `languages` table, with
+ * the bundle. The admin console's own pages are written in English in their
+ * templates; the pieces it shares with the rest (the shell, the UI kit) read
+ * these keys in English.
  */
 export const en = {
   // ── Brand ──────────────────────────────────────────────────────────────────
@@ -66,8 +86,6 @@ export const en = {
   'theme.autoHint': 'Follows your system setting',
 
   'lang.label': 'Language',
-  'lang.en': 'English',
-  'lang.sk': 'Slovenčina',
 
   // ── Errors, by the contract's codes ────────────────────────────────────────
   'error.generic': 'Something went wrong. Please try again.',

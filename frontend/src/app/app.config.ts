@@ -16,11 +16,15 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: "enabled" })),
     provideHttpClient(withFetch(), withInterceptors([iamInterceptor])),
     { provide: TitleStrategy, useClass: IamTitleStrategy },
-    // Theme and language apply themselves on construction; asking for them
-    // here makes that happen before the first page renders, not on first use.
+    // The theme applies itself on construction; asking for it here makes that
+    // happen before the first page renders, not on first use. The words are
+    // waited for: the first page is drawn once its language's strings are in
+    // memory - or, after three seconds at most, in the compiled English.
+    // init() never rejects, so a server that cannot be reached still leaves a
+    // site that starts and says so.
     provideAppInitializer(() => {
       inject(ThemeService);
-      inject(TranslationService);
+      return inject(TranslationService).init();
     }),
   ],
 };

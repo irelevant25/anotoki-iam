@@ -482,12 +482,16 @@ export class LoginComponent implements OnInit {
       }
     }
 
+    // For an account Google makes here: the language that was asked for, not
+    // the one on the page - that is the compiled English while no words have
+    // come from the database.
+    const language = this._i18n.preferred(this.config()?.languages ?? []);
     const call$: Observable<SignInResponse> =
       pending.kind === 'password'
         ? this._loginApi.password({ email: pending.email, password: pending.password, ...options })
         : pending.kind === 'code'
           ? this._loginApi.verifyCode({ email: pending.email, code: pending.code, ...options })
-          : this._loginApi.google({ credential: pending.credential, language: this._i18n.language(), ...options });
+          : this._loginApi.google({ credential: pending.credential, language, ...options });
 
     this.busy.set(true);
     call$.subscribe({

@@ -62,18 +62,22 @@
                 </dl>
             </app-card>
 
-            <app-card [heading]="'overview.language' | t">
+            <app-card [heading]="(canChooseLanguage() ? 'overview.language' : 'overview.appearance') | t">
                 <div class="stack">
-                    <app-select
-                        [label]="'overview.language' | t"
-                        [hideLabel]="true"
-                        [options]="languageOptions()"
-                        [disabled]="savingLanguage()"
-                        [hint]="'overview.languageHint' | t"
-                        [(value)]="language"
-                        (valueChange)="changeLanguage($event)" />
+                    @if (canChooseLanguage()) {
+                        <app-select
+                            [label]="'overview.language' | t"
+                            [hideLabel]="true"
+                            [options]="languageOptions()"
+                            [disabled]="savingLanguage()"
+                            [hint]="'overview.languageHint' | t"
+                            [(value)]="language"
+                            (valueChange)="changeLanguage($event)" />
+                    }
                     <div class="stack stack-sm">
-                        <p class="setting-label">{{ "overview.appearance" | t }}</p>
+                        @if (canChooseLanguage()) {
+                            <p class="setting-label">{{ "overview.appearance" | t }}</p>
+                        }
                         <app-theme-toggle />
                         <p class="small muted">{{ "overview.appearanceHint" | t }}</p>
                     </div>

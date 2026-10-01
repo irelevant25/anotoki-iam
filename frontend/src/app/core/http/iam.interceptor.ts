@@ -5,7 +5,7 @@ import { catchError, throwError } from 'rxjs';
 import { toApiError } from '../api/api-error';
 import { isSessionArea } from '../auth/next-path';
 import { SessionService } from '../auth/session.service';
-import { SESSION_PROBE } from './http-context';
+import { SESSION_PROBE, TRANSLATION_BUNDLE } from './http-context';
 
 /**
  * Endpoints whose 401 is an answer, not an expired session.
@@ -16,7 +16,7 @@ import { SESSION_PROBE } from './http-context';
 const OWN_401_PREFIXES = ['/api/login/', '/api/register', '/api/password/', '/api/public/', '/api/logout'];
 
 /**
- * The three things every request to the IAM's own API needs.
+ * The four things every request to the IAM's own API needs.
  *
  * 1. `X-IAM-Request: 1` on anything that is not a GET. It is the CSRF guard: a
  *    page on another origin cannot add a custom header without a preflight,
@@ -36,6 +36,10 @@ const OWN_401_PREFIXES = ['/api/login/', '/api/register', '/api/password/', '/ap
  *
  * 4. Every failure is reshaped into `{ status, code, message }` (ApiError), so
  *    pages decide on the contract's `code` and nothing else.
+ *
+ * The request for the site's words (TRANSLATION_BUNDLE) gets only the last of
+ * these: whatever it fails with, the page stays where it is and reads in the
+ * compiled English.
  */
 export const iamInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionService);
@@ -47,6 +51,10 @@ export const iamInterceptor: HttpInterceptorFn = (request, next) => {
   return next(outgoing).pipe(
     catchError((error: unknown) => {
       const apiError = toApiError(error);
+
+      if (request.context.get(TRANSLATION_BUNDLE)) {
+        return throwError(() => apiError);
+      }
 
       const sessionExpired = apiError.status === 401 && ownApi && !request.context.get(SESSION_PROBE) && !OWN_401_PREFIXES.some((prefix) => request.url.startsWith(prefix));
 

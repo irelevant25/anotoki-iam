@@ -230,11 +230,107 @@ function usernameRefusal(string $username): ?string
     return null;
 }
 
-const LANGUAGES = ['en', 'sk'];
-
-function languageOrDefault(?string $language): string
+/**
+ * Whether a text has nothing in it a reader could see: no character at all,
+ * or only spaces and the characters that are drawn as nothing - a zero-width
+ * space or joiner, a soft hyphen, a byte-order mark, a direction mark.
+ *
+ * A string pasted from a web page can be exactly that, and it looks like an
+ * empty field. Kept as a string it would be one: an English string nobody can
+ * read, a mail with a subject of nothing, a translation that hides the English
+ * it was meant to fall back to. So what counts as "empty" is asked here, in
+ * one place, and not with === ''.
+ *
+ * Only the question is widened, never the text: a string with a letter in it
+ * keeps the joiner inside a word and the direction mark at its end. Bytes that
+ * are not UTF-8 are nothing to read either.
+ *
+ * It lives here rather than in api/translations.php because api/mail.php asks
+ * it too, inside the try that keeps a mail from ever failing - a function that
+ * was not loaded there would quietly turn every mail into English.
+ */
+function textBlank(string $text): bool
 {
-    $language = strtolower(trim((string) $language));
+    return preg_match('/[^\s\p{Z}\p{Cf}]/u', $text) !== 1;
+}
 
-    return in_array($language, LANGUAGES, true) ? $language : 'en';
+/**
+ * The codes of the languages on offer, in the order a chooser shows them.
+ *
+ * They are rows of `languages` (migration 006), kept in the admin console. But
+ * a build is uploaded before its migrations are applied - from the console,
+ * by somebody who has to sign in first - so this must answer on a database
+ * that has no such table yet. It asks whether the table is there before
+ * reading it: a query that cannot fail, so it is safe inside a transaction,
+ * where a failed one would end everything after it. Without the table, or
+ * with nothing on offer in it, the answer is the two languages of before -
+ * which is exactly what the CHECK on users.language still allows then.
+ *
+ * A connection that is handed in is read every time and never remembered:
+ * the installer and the import work on databases of their own, before any
+ * configuration exists. Only the IAM's own database is remembered for the
+ * request (as settingsAll() is); whatever changes the languages - the admin
+ * console, or applying migrations - asks again with $reload.
+ *
+ * The IAM's own database that cannot be reached, or cannot be asked, is
+ * answered like one without the table - and that answer is not remembered, so
+ * the next call asks again. Discovery and the pages' first request
+ * (/api/public/config) read nothing else from the database, and answered
+ * without it before the languages moved there: they still must, not fail on
+ * the one thing they now ask it. Nothing is let through by it: whatever then
+ * writes a language runs its own queries on that connection and fails there.
+ * A connection that is handed in is not covered - the installer and the
+ * import must see their own errors.
+ *
+ * It lives here rather than in api/translations.php because setup.php and
+ * the command-line tools load this file and not that one.
+ *
+ * @return string[]
+ */
+function languageCodes(?PDO $pdo = null, bool $reload = false): array
+{
+    static $offered = null;
+
+    $read = static function (PDO $pdo): array {
+        if (!asBool($pdo->query("SELECT to_regclass('public.languages') IS NOT NULL")->fetchColumn())) {
+            return ['en', 'sk'];
+        }
+
+        $codes = $pdo->query('SELECT code FROM languages WHERE enabled ORDER BY sort_order, name, code')->fetchAll(PDO::FETCH_COLUMN);
+
+        return $codes === [] ? ['en', 'sk'] : array_map('strval', $codes);
+    };
+
+    if ($pdo !== null) {
+        return $read($pdo);
+    }
+
+    if ($offered === null || $reload) {
+        try {
+            $offered = $read(iamDb());
+        } catch (\PDOException) {
+            // Forgotten as well as not remembered: what was read before a
+            // reload that failed is no longer known to be true.
+            $offered = null;
+
+            return ['en', 'sk'];
+        }
+    }
+
+    return $offered;
+}
+
+/**
+ * A language somebody sent, when it is one on offer - else English. What is
+ * not text at all (a number, a list, nothing) is English too.
+ */
+function languageOrDefault(mixed $language, ?PDO $pdo = null): string
+{
+    if (!is_string($language)) {
+        return 'en';
+    }
+
+    $language = strtolower(trim($language));
+
+    return in_array($language, languageCodes($pdo), true) ? $language : 'en';
 }

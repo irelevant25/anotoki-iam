@@ -5,7 +5,7 @@
         }
         <app-text-field label="Username" name="edit-username" autocomplete="off" [maxlength]="100" [(value)]="username" [error]="usernameError()" [autofocus]="true" />
         <app-text-field label="Email" type="email" name="edit-email" autocomplete="off" [(value)]="email" [error]="emailError()" />
-        <app-select label="Language" [options]="languageOptions" [(value)]="language" />
+        <app-select label="Language" [options]="languageOptions()" [(value)]="language" />
         <app-checkbox [(checked)]="emailConfirmed" hint="An unconfirmed account cannot sign in until the address is confirmed.">Email address confirmed</app-checkbox>
         <app-checkbox [(checked)]="forceChange" hint="They will have to choose a new password before they can continue to any site.">Require a new password at the next sign-in</app-checkbox>
     </form>

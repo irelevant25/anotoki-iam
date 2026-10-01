@@ -39,6 +39,45 @@ must work unattended on a host with no shell.
   loopback address of the seeded sites out and registers the production ones it
   is given; a new first-party site seeded here goes into `SETUP_SITES` in
   `setup.php` and `DEV_CLIENTS` in `clients.php` too, and the installer's tests.
+- **A seeding migration reaches installed IAMs too** - through the Migrations
+  page, one of them live - where no install follows to take a loopback address
+  out. So it adds the development addresses and the landing card only while the
+  IAM's own `iam` entry has its home on this computer (the installer sets that
+  home to the IAM's address), and leaves an entry of the same client id that is
+  there already as it is: model it on `005_survey_application.sql`. On a live
+  IAM the admin console gives the site its https address.
+
+## Strings
+
+The pages' and mails' words are rows (`languages`, `translation_keys`,
+`translations`, from `006_languages_and_translations.sql`); the admin console
+changes strings, never keys.
+
+- **A new page string** is its key and English in
+  `frontend/src/app/core/i18n/en.ts` plus a migration that inserts the key (with
+  a description: where it shows, what its `{placeholders}` stand for), its
+  English - the same text as `en.ts` - and its Slovak, informal ("ty"), as 006
+  writes it. There is no `sk.ts`. A new mail string is a `MAIL_KEYS` entry and a
+  `MAIL_FALLBACK` English in `api/mail.php` plus the same migration rows.
+  `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
+  English together, and `php translations.php --status` names a key a page uses
+  that no migration wrote.
+- **`ON CONFLICT DO NOTHING` never overwrites**: a string reworded in the
+  console is the owner's and a re-seed steps aside for it. A rewording that must
+  reach live IAMs is an `UPDATE` of that row, and says in the header that it
+  replaces whatever the console made of it (the owner exports first -
+  `docs/operations.md`). A removed key is a `DELETE FROM translation_keys`; its
+  strings go with it.
+- **The gate names its own keys.** Prove that every key this file writes has
+  its English and Slovak row. Do not copy 006's form ("every key has en and sk,
+  total = 456"): the console deletes a Slovak string by blanking it and makes no
+  keys, so a later gate that checks every key, or a total, fails on a live IAM
+  for something the owner did on purpose.
+- **One string on a line**, an apostrophe written twice and nothing else
+  escaped: that is all the statement splitter (`api/migration_runner.php`)
+  knows of a string. A mail string is one line, no address, within its length
+  (`translationsCheck()` is the rule; a migration is not checked by it, so keep
+  to it by hand).
 
 ## Apply and check
 

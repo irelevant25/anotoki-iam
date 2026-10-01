@@ -19,8 +19,8 @@
  *
  * Not shipped: setup.php (uploaded by hand for the first install only), the CLI
  * tools (migration.php, import-legacy.php, create-admin.php, reset-password.php,
- * clients.php), tests/, and config/*.local.php - which setup.php writes on the
- * server itself. Nor composer.json and composer.lock: vendor/ loads itself, and
+ * clients.php, translations.php), tests/, and config/*.local.php - which
+ * setup.php writes on the server itself. Nor composer.json and composer.lock: vendor/ loads itself, and
  * in the web root they would hand anybody the list of every dependency and its
  * version.
  */

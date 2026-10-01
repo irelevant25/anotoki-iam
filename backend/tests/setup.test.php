@@ -85,7 +85,7 @@ test('on this computer the form is prefilled with development values and asks fo
     check(nonceFrom($page) !== '', 'a nonce');
     check(!str_contains($page['body'], 'name="token"'), 'no setup token');
     check(!is_file(IAM_CONFIG_DIR . '/setup.local.php'), 'and no token file');
-    foreach (['http://localhost:4300', '127.0.0.1', '5432', 'postgres', 'noreply@localhost', 'admin@localhost'] as $value) {
+    foreach (['http://localhost:4300', '127.0.0.1', '5432', 'postgres', 'anotoki_iam', 'noreply@localhost', 'admin@localhost'] as $value) {
         check(str_contains($page['body'], 'value="' . $value . '"'), "prefilled with {$value}");
     }
     check(!str_contains($page['body'], 'value="https://'), 'no production address as a value');
@@ -120,7 +120,7 @@ test('"Test connection" answers in place: a login that works, one that does not,
     same('good', $old['tone'], 'the old accounts: ' . $old['message']);
     check(str_contains($old['message'], '2 accounts') && str_contains($old['message'], '1 of them admin'), 'counted: ' . $old['message']);
 
-    $unsafe = setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_name' => 'iam;host=elsewhere']));
+    $unsafe = setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_name' => 'anotoki_iam;host=elsewhere']));
     same(422, $unsafe['status'], 'a database name that would reach into the DSN');
 
     if ((string) $server['password'] !== '') {
@@ -217,7 +217,10 @@ test('a new administrator instead, into a database of its own; Google comes and 
 });
 
 test('a fresh database arrives with the sites\' development addresses, as in the port table', function () {
-    $table = ['genshin' => 'http://localhost:4200', 'japanese-academy' => 'http://localhost:4400', 'piano-academy' => 'http://localhost:4500', 'build-analyzer' => 'http://localhost:4600'];
+    $table = [
+        'genshin' => 'http://localhost:4200', 'japanese-academy' => 'http://localhost:4400', 'piano-academy' => 'http://localhost:4500',
+        'build-analyzer' => 'http://localhost:4600', 'survey' => 'http://localhost:4700',
+    ];
     $pdo = iamDb();
 
     foreach ($table as $clientId => $frontend) {
@@ -235,6 +238,16 @@ test('a fresh database arrives with the sites\' development addresses, as in the
         same([$frontend], $origins->fetchAll(PDO::FETCH_COLUMN), "{$clientId} origin");
     }
     same('Build Analyzer', $pdo->query("SELECT name FROM applications WHERE client_id = 'build-analyzer'")->fetchColumn(), 'the analyzer is called what it is');
+
+    // The survey site arrives by a later migration than the others, and on a
+    // database built on this computer it gets what they got: a card, and roles.
+    $survey = $pdo->query("SELECT id, name, access, show_on_landing FROM applications WHERE client_id = 'survey'")->fetch();
+    same('Surveys', $survey['name'], 'the survey site is called what it is');
+    same('everyone', $survey['access'], 'anybody signed in takes surveys');
+    same(true, asBool($survey['show_on_landing']), 'and it has a card on the landing page');
+    $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? ORDER BY name');
+    $roles->execute([$survey['id']]);
+    same(['ADMIN', 'EDITOR'], $roles->fetchAll(PDO::FETCH_COLUMN), 'the roles the survey site asks for');
 });
 
 test('a copy locked as a real host stays locked on this computer too', function () {

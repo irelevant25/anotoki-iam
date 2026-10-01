@@ -277,6 +277,16 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         if ($refusal = passwordRefusal($password)) {
             return respondError($response, 422, 'invalid_password', $refusal);
         }
+        // English when none is named. One that is named must be on offer: it
+        // used to be turned into English without a word, and the admin who
+        // picked it found out from the account's first mail.
+        $language = 'en';
+        if (($body['language'] ?? null) !== null) {
+            $language = is_string($body['language']) ? strtolower(trim($body['language'])) : '';
+            if (!in_array($language, languageCodes(), true)) {
+                return respondError($response, 422, 'invalid_language', 'That is not a language the IAM offers');
+            }
+        }
         if (emailTaken($pdo, $email)) {
             return respondError($response, 409, 'email_taken', 'That email address is already taken');
         }
@@ -299,7 +309,7 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
                 'INSERT INTO users (username, email, password, email_confirmed, language, force_password_change)
                  VALUES (?, ?, ?, TRUE, ?, ?) RETURNING id'
             );
-            $insert->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), languageOrDefault($body['language'] ?? null), pgBool(!empty($body['force_password_change']))]);
+            $insert->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $language, pgBool(!empty($body['force_password_change']))]);
             $id = (int) $insert->fetchColumn();
 
             $grant = $pdo->prepare('INSERT INTO user_roles (user_id, role_id, granted_by) VALUES (?, ?, ?)');
@@ -353,7 +363,16 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
 
         if (array_key_exists('language', $body)) {
-            $changes['language'] = languageOrDefault($body['language']);
+            $language = is_string($body['language']) ? strtolower(trim($body['language'])) : '';
+            if (in_array($language, languageCodes(), true)) {
+                $changes['language'] = $language;
+            } elseif ($language !== $target['language']) {
+                // Refused rather than turned into English. The one the account
+                // already has is let through as no change at all: a language
+                // switched off since must not stand in the way of renaming
+                // somebody who still has it.
+                return respondError($response, 422, 'invalid_language', 'That is not a language the IAM offers');
+            }
         }
         if (array_key_exists('email_confirmed', $body)) {
             $changes['email_confirmed'] = pgBool(!empty($body['email_confirmed']));
@@ -891,6 +910,117 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         return respondJson($response, ['message' => 'Key removed']);
     });
 
+    // ── Languages and strings ────────────────────────────────────────────────
+    //
+    // The IAM's own words (api/translations.php): the languages it offers, and
+    // the strings of the pages and the mails. A group of their own, because
+    // they answer 503 `translations_unavailable` until migration 006 has been
+    // applied - which is done from this console, a few lines below.
+    //
+    // A body here is read as it was parsed, not through requestBody(): "no
+    // body" and "a list" are refusals of their own, not an empty object.
+
+    $group->group('', function (\Slim\Routing\RouteCollectorProxy $words) {
+
+        $words->get('/languages', function (Request $request, Response $response) {
+            return respondJson($response, ['languages' => languagesAll(iamDb())]);
+        });
+
+        // {code, name, native_name, enabled?}: offered at once unless `enabled`
+        // says false. The log says which it was - a language that appeared on
+        // every sign-in page, or one that was only made ready.
+        $words->post('/languages', function (Request $request, Response $response) {
+            $result = languageCreate(iamDb(), $request->getParsedBody());
+            if (translationRefused($result)) {
+                return translationRefuse($response, $result);
+            }
+
+            $language = $result['language'];
+            audit($request, (int) actor($request)['id'], 'language.created', 'language', $language['code'], ['name' => $language['name'], 'native_name' => $language['native_name'], 'enabled' => $language['enabled']]);
+
+            return respondJson($response, ['language' => $language], 201);
+        });
+
+        $words->put('/languages/{code}', function (Request $request, Response $response, array $args) {
+            $result = languageUpdate(iamDb(), (string) $args['code'], $request->getParsedBody());
+            if (translationRefused($result)) {
+                return translationRefuse($response, $result);
+            }
+
+            if ($result['changed'] !== []) {
+                audit($request, (int) actor($request)['id'], 'language.updated', 'language', $result['language']['code'], $result['changed']);
+            }
+
+            return respondJson($response, ['language' => $result['language']]);
+        });
+
+        // The language goes with its strings; the accounts that had it go back
+        // to English, and the answer says how many.
+        $words->delete('/languages/{code}', function (Request $request, Response $response, array $args) {
+            $result = languageDelete(iamDb(), (string) $args['code']);
+            if (translationRefused($result)) {
+                return translationRefuse($response, $result);
+            }
+
+            audit($request, (int) actor($request)['id'], 'language.deleted', 'language', $result['language']['code'], [
+                'name' => $result['language']['name'],
+                'accounts' => $result['accounts'],
+                'strings' => $result['strings'],
+            ]);
+
+            return respondJson($response, ['accounts' => $result['accounts']]);
+        });
+
+        $words->get('/translations', function (Request $request, Response $response) {
+            return respondJson($response, translationGrid(iamDb()));
+        });
+
+        // Who saved a string is the session's account, and nothing a body says.
+        $words->put('/translations', function (Request $request, Response $response) {
+            if (translationsBodyTooLarge($request)) {
+                return respondError($response, 413, 'too_large', 'That is more than a save of strings may be (1 MB)');
+            }
+
+            $pdo = iamDb();
+            $body = $request->getParsedBody();
+            $result = translationsSave($pdo, is_array($body) ? ($body['values'] ?? null) : null, (int) actor($request)['id']);
+            if (translationRefused($result)) {
+                return translationRefuse($response, $result);
+            }
+
+            if ($result['count'] > 0) {
+                audit($request, (int) actor($request)['id'], 'translations.saved', null, null, $result);
+            }
+
+            return respondJson($response, translationGrid($pdo));
+        });
+
+        $words->get('/translations/{code}/export', function (Request $request, Response $response, array $args) {
+            $result = translationsExport(iamDb(), (string) $args['code']);
+
+            return translationRefused($result) ? translationRefuse($response, $result) : respondJson($response, $result['values']);
+        });
+
+        $words->put('/translations/{code}/import', function (Request $request, Response $response, array $args) {
+            if (translationsBodyTooLarge($request)) {
+                return respondError($response, 413, 'too_large', 'That is more than an import of strings may be (1 MB)');
+            }
+
+            $pdo = iamDb();
+            $code = (string) $args['code'];
+            $result = translationsImport($pdo, $code, $request->getParsedBody(), (int) actor($request)['id']);
+            if (translationRefused($result)) {
+                return translationRefuse($response, $result);
+            }
+
+            if ($result['count'] > 0) {
+                audit($request, (int) actor($request)['id'], 'translations.imported', 'language', $code, $result);
+            }
+
+            return respondJson($response, translationGrid($pdo));
+        });
+    })->add(requireTranslations());
+
     // ── Migrations ───────────────────────────────────────────────────────────
 
     $group->get('/migrations', function (Request $request, Response $response) {
@@ -906,6 +1036,8 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
     $group->post('/migrations/apply', function (Request $request, Response $response) {
         $result = applyPendingMigrations(iamDb(), 'iam');
+        // A migration may have brought the languages table, or a language.
+        languageCodes(null, true);
         audit($request, (int) actor($request)['id'], 'migrations.applied', null, null, $result);
 
         return respondJson($response, $result, $result['failed'] === null ? 200 : 500);

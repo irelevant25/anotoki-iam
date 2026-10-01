@@ -23,7 +23,8 @@ contract; [api.md](api.md) has the endpoint details.
 ## 1. Register the application
 
 In the IAM admin console → **Applications** → **Add**, or in a migration (the
-first-party ones are seeded by `backend/migrations/iam/002_first_party_applications.sql`):
+first-party ones are seeded by `backend/migrations/iam/002_first_party_applications.sql`,
+and the survey site by `005_survey_application.sql` beside it):
 
 | Field | For a browser app |
 | --- | --- |
@@ -45,11 +46,14 @@ port each one's dev server uses:
 | Japanese Academy | `japanese-academy` | `http://localhost:4400` | `:8200` |
 | Piano Academy | `piano-academy` | `http://localhost:4500` | `:8300` |
 | Build Analyzer | `build-analyzer` | `http://localhost:4600` | `:8400` |
+| Surveys | `survey` | `http://localhost:4700` | `:8500` |
 
 On a real host the installer asks for each site's production address and puts
-it in place of these; the admin console changes them later. `php clients.php --dev`
-(in the IAM's `backend/`) puts the development ones back on a development
-database that has drifted.
+it in place of these; the admin console changes them later. A site seeded after
+an IAM was installed - the survey site, by 005 - gets these on it only while
+that IAM is itself on this computer; on a live IAM the admin console gives it
+its https addresses instead. `php clients.php --dev` (in the IAM's `backend/`)
+puts the development ones back on a development database that has drifted.
 
 ## 2. The frontend: the JavaScript SDK
 
@@ -100,6 +104,20 @@ What it does for you:
 
 Angular applications import the `.mjs` beside its `.d.ts` from a core service and
 wrap it in signals; the functional HTTP interceptor awaits `getAccessToken()`.
+
+### Languages
+
+`login({ uiLocales })` and `register({ uiLocales })` pass `ui_locales` - the
+site's language first, space-separated tags - so the IAM's pages open in it
+when the IAM offers it (by the whole code, else its first subtag; see
+[api.md](api.md)). The IAM's languages are kept in its admin console, and can be
+added, switched off or deleted there at any time.
+
+`user().locale` is the account's language while the IAM offers it, else `en`.
+It is **not** a promise that the site speaks it: the IAM may offer a language
+the site does not have, and a token minted before a language was switched off
+carries it for that token's lifetime. A site checks `locale` against its own
+languages and starts a newcomer in its default when it is not one of them.
 
 ### The callback route
 
@@ -171,7 +189,8 @@ hosted deployment always runs with the IAM.
 
 It is a choice per application, not a requirement. The genshin site has no such
 mode: it is one public site with an admin panel, and locally it signs in through
-a locally running IAM like it does in production (its `DEV.md`).
+a locally running IAM like it does in production (its `DEV.md`). Nor has the
+survey site, where who answered is the point.
 
 ## 5. Scripts
 

@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { AdminLayoutComponent } from './admin-layout.component';
+import { unsavedChangesGuard } from './localization/unsaved-changes.guard';
 
 /** /admin - behind the session guard; the layout itself shuts out anybody who is not an IAM admin. */
 export const ADMIN_ROUTES: Routes = [
@@ -29,6 +30,19 @@ export const ADMIN_ROUTES: Routes = [
       { path: 'emails', title: 'Email log', loadComponent: () => import('./emails/emails.component').then((m) => m.EmailsComponent) },
       { path: 'audit', title: 'Audit log', loadComponent: () => import('./audit/audit.component').then((m) => m.AuditComponent) },
       { path: 'settings', title: 'Settings', loadComponent: () => import('./settings/settings.component').then((m) => m.SettingsComponent) },
+      // The two pages hold what is typed until it is saved: leaving one with something unsaved asks first.
+      {
+        path: 'translations',
+        title: 'Translations',
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./localization/translations/translations.component').then((m) => m.TranslationsComponent),
+      },
+      {
+        path: 'languages',
+        title: 'Languages',
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./localization/languages/languages.component').then((m) => m.LanguagesComponent),
+      },
       { path: 'keys', title: 'Signing keys', loadComponent: () => import('./keys/keys.component').then((m) => m.KeysComponent) },
       { path: 'migrations', title: 'Migrations', loadComponent: () => import('./migrations/migrations.component').then((m) => m.MigrationsComponent) },
     ],

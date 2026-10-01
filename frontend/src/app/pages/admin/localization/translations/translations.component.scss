@@ -1,0 +1,374 @@
+@use "../../admin-list";
+
+// The shell's top bar (layouts/shell): what sticks under it starts here.
+$topbar: 64px;
+// Where the languages go under one another. The console's side navigation
+// takes 15rem of the window, so side by side needs a wider window than the
+// grid alone would.
+$stacked-below: 1100px;
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+// ── The languages: how much of each is written, and the way out and in ──────
+
+.languages {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.language {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.language-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+
+  strong {
+    font-weight: 750;
+    overflow-wrap: anywhere;
+  }
+}
+
+.coverage {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.bar {
+  flex: 1;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.coverage-count {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.language-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+// ── Search and filter ───────────────────────────────────────────────────────
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.75rem;
+}
+
+.search {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+}
+
+.missing {
+  flex: 0 1 15rem;
+  min-width: 11rem;
+}
+
+.shown {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+// What becomes of what is typed and not saved: one line, close under the tools.
+.kept {
+  max-width: 52rem;
+  margin-top: -0.75rem;
+}
+
+// ── The grid: a key a row, a language a column ──────────────────────────────
+
+.grid {
+  --columns: minmax(13rem, 0.85fr) repeat(var(--languages, 2), minmax(0, 1fr));
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.grid-head,
+.row {
+  display: grid;
+  grid-template-columns: var(--columns);
+  gap: 0.6rem 1rem;
+}
+
+// Under the top bar while the keys scroll: which column is which language.
+.grid-head {
+  position: sticky;
+  top: $topbar;
+  z-index: 2;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+// The grid's two parts - the mails, then the pages - each under its name and
+// the line that says what its strings may hold.
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+
+  & + & {
+    margin-top: 0.9rem;
+  }
+}
+
+.part-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.35rem 0.15rem 0;
+}
+
+.part-lead {
+  max-width: 60rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+// A mail: its subject and its paragraphs, held together in the order the
+// message has them.
+.block.is-mail {
+  border-color: var(--info-border);
+
+  .row + .row {
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+}
+
+.mail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+
+  app-icon {
+    color: var(--info);
+  }
+}
+
+.mail-title {
+  font-weight: 750;
+}
+
+.mail-sent {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.row {
+  align-items: start;
+  // Brought into view by a refusal: clear of the top bar and the column names.
+  scroll-margin-top: calc($topbar + 3.5rem);
+}
+
+.key {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.key-name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.description {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+// The column's name stands over the column; a box needs its own only when the
+// languages are under one another.
+.cell-head {
+  display: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.empty {
+  padding: 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+// The languages under one another: in a narrow window, and whenever there are
+// more of them than fit side by side.
+@mixin stacked {
+  .grid-head {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    // Clear of the top bar and, on a phone, of the strip of links under it.
+    scroll-margin-top: calc($topbar + 4.5rem);
+  }
+
+  .cell-head {
+    display: block;
+  }
+
+  .row + .row {
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+}
+
+.grid.is-stacked {
+  @include stacked;
+}
+
+@media (max-width: $stacked-below) {
+  .grid {
+    @include stacked;
+  }
+}
+
+// ── Save: one button for every changed box, in reach wherever the page is ───
+
+.save-bar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0.75rem 0.6rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+
+  &.is-changed {
+    border-color: var(--warning-border);
+  }
+
+  // The strip between the bar and the window's edge: the page's colour, so no
+  // line of a row shows through under the bar.
+  &::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: -1px;
+    left: -1px;
+    height: 0.8rem;
+    margin-top: 1px;
+    background: var(--bg);
+  }
+}
+
+.save-state {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 650;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.is-changed .save-state {
+  color: var(--text);
+}
+
+// What became of the last save, when it saved nothing: said here, where Save
+// is - a whole sentence, which wraps beside its icon on a narrow screen.
+.save-refused {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  color: var(--danger);
+
+  app-icon {
+    flex: none;
+    margin-top: 0.15rem;
+  }
+}
+
+.save-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}

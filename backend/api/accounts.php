@@ -152,7 +152,10 @@ function profileClaims(array $user, string $scope): array
 
     if (in_array('profile', $scopes, true)) {
         $claims['preferred_username'] = $user['username'];
-        $claims['locale'] = $user['language'];
+        // The account's language while the IAM offers it, else English: a
+        // language switched off in the admin console is one no site is told
+        // about any more, though the account keeps it for when it is back.
+        $claims['locale'] = languageOrDefault($user['language']);
     }
 
     if (in_array('email', $scopes, true)) {

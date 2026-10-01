@@ -1,0 +1,15 @@
+<div class="grow" [class.is-changed]="changed()" [class.is-invalid]="invalid()" [attr.data-value]="value()">
+    <textarea
+        class="box"
+        rows="1"
+        spellcheck="true"
+        [value]="value()"
+        [attr.lang]="language()"
+        [attr.aria-label]="label()"
+        [attr.placeholder]="placeholder() || null"
+        [attr.aria-invalid]="invalid() ? 'true' : null"
+        (input)="onInput($event)"></textarea>
+    @if (changed()) {
+        <span class="mark">Changed</span>
+    }
+</div>

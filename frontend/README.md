@@ -50,8 +50,10 @@ src/
                            { status, code, message }
       auth/                the session signal, the guard, `next` validation,
                            the remembered-device token
-      i18n/                en.ts / sk.ts, the `t` and `appDate` pipes, error texts,
-                           the page-title strategy
+      i18n/                translation.service.ts (the language, its bundle from
+                           the database), en.ts (the keys, the last-resort English),
+                           localization-drafts.service.ts, the `t` and `appDate`
+                           pipes, error texts, the page-title strategy
       theme/               light / dark / automatic
       google/              Google Identity Services, loaded on demand
     ui/                    the UI kit (buttons, fields, dialog, toasts, QR code, …)
@@ -61,7 +63,8 @@ src/
                            /reset-password /logout /error /not-set-up, and not-found
       account/             /account and its four sub-pages
       admin/               /admin: users, sessions, applications, logs, settings,
-                           keys, migrations
+                           translations and languages (localization/), keys,
+                           migrations
 public/
   anotoki.png, favicon.png
   theme-boot.js            applies the stored theme before first paint (no inline scripts)
@@ -82,10 +85,16 @@ scripts/
 - **No generated client.** The API shapes are written out in
   `core/api/models.ts`; when the backend changes, change them and let the
   compiler find every page that has to follow.
-- **Two languages, typed.** The sign-in and account pages are English and
-  Slovak. `TranslationKey` comes from `en.ts`, and `sk.ts` is typed as a record
-  of exactly those keys, so a missing translation is a compile error. The admin
-  console is English only and does not use the dictionaries.
+- **Words from the database, keys typed.** The sign-in and account pages read
+  their strings from the database, in whatever languages the admin console
+  offers (English and Slovak to start with): one bundle,
+  `GET /api/translations/{code}`, fetched before the page switches language.
+  `TranslationKey` comes from `en.ts`, so an unknown key is a compile error;
+  a key the bundle has no string for shows as the key itself, so it is seen.
+  `en.ts`'s English is shown only while no bundle is in memory (between an
+  upload and "Apply pending", or when the server cannot be reached). There is no
+  Slovak in the build. The admin console is English only, written in its
+  templates.
 - **Theming** is custom properties only: both palettes in `styles.scss` define
   the same names. Components never contain a raw colour that works in one
   theme only.

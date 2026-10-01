@@ -155,8 +155,47 @@ $app->get('/api/public/config', function (Request $request, Response $response) 
         'google_enabled' => $google,
         'google_client_id' => $google ? googleClientId() : null,
         'password_min' => PASSWORD_MIN,
-        'languages' => LANGUAGES,
+        'languages' => languageCodes(),
     ]);
+});
+
+// The pages' words in one language, with English under them and the languages
+// on offer (translationBundle()). The same for everybody, so nobody is asked
+// who they are: no cookie is read and none is set, and a page whose session
+// has run out still reads in its language. Only the IAM's own pages read it -
+// it is in neither CORS list.
+//
+// `language` in the answer is the language it is in, which need not be the
+// code asked for: "sk-sk" is answered by "sk" when only that is offered - the
+// same bytes under the same tag - and what the IAM does not offer by English.
+$app->get('/api/translations/{code}', function (Request $request, Response $response, array $args) {
+    // Before any query: only a code is looked up. A wrong address is a 404,
+    // not a database refusing bytes that are not text.
+    $code = (string) $args['code'];
+    if (!languageCodeOk($code)) {
+        return respondError($response, 404, 'not_found', 'There is no such language');
+    }
+
+    $bundle = translationBundle(iamDb(), $code);
+    if (translationRefused($bundle)) {
+        return translationRefuse($response, $bundle);
+    }
+
+    // The strings change when somebody saves one in the admin console, or with
+    // a release: the browser asks every time (no-cache) and is told "the same
+    // as you have" in a few bytes. Both headers are set before that answer, so
+    // it carries them too - without them it would go out as no-store.
+    $body = (string) json_encode($bundle, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $etag = '"' . md5($body) . '"';
+    $response = $response->withHeader('ETag', $etag)->withHeader('Cache-Control', 'no-cache');
+
+    if (translationsNotModified($request->getHeaderLine('If-None-Match'), $etag)) {
+        return $response->withStatus(304);
+    }
+
+    $response->getBody()->write($body);
+
+    return $response->withHeader('Content-Type', 'application/json');
 });
 
 // ── The pending authorization request ────────────────────────────────────────

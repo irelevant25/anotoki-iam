@@ -104,7 +104,7 @@ $app->get('/.well-known/openid-configuration', function (Request $request, Respo
         'claims_supported' => ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'sid', 'amr',
             'preferred_username', 'email', 'email_verified', 'locale', 'roles'],
         'prompt_values_supported' => ['none', 'login', 'create'],
-        'ui_locales_supported' => LANGUAGES,
+        'ui_locales_supported' => languageCodes(),
         'authorization_response_iss_parameter_supported' => true,
     ])->withHeader('Cache-Control', 'public, max-age=3600');
 });
@@ -163,12 +163,18 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
         return redirectTo($response, errorRedirect($back, $invalid[0], $invalid[1]));
     }
 
+    // The first tag the IAM offers: as a whole ("pt-BR" for pt-br), else by
+    // its first subtag ("sk-SK" for sk). The site's order of preference is
+    // kept - a later tag is only looked at when an earlier one is no language here.
     $language = null;
+    $offered = languageCodes();
     foreach (explode(' ', field($query, 'ui_locales')) as $locale) {
-        $candidate = strtolower(substr($locale, 0, 2));
-        if (in_array($candidate, LANGUAGES, true)) {
-            $language = $candidate;
-            break;
+        $whole = strtolower($locale);
+        foreach ([$whole, explode('-', $whole, 2)[0]] as $candidate) {
+            if (in_array($candidate, $offered, true)) {
+                $language = $candidate;
+                break 2;
+            }
         }
     }
 

@@ -11,7 +11,7 @@
 //       'host' => '127.0.0.1',
 //       'port' => '5432',
 //       'databases' => [
-//           'iam' => 'iam',          // the IAM's own database
+//           'iam' => 'anotoki_iam',  // the IAM's own database
 //           'legacy' => 'users',     // optional: the genshin site's old accounts,
 //                                    // on the same server, for the one-time import
 //       ],

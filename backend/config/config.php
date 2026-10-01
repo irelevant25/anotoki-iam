@@ -21,9 +21,9 @@
 //
 // Without the required ones the IAM does not run. The API answers every
 // request with 503 `not_set_up`, the pages say so, and both point at
-// setup.php. An identity provider that guessed the rest - a database called iam
-// on 127.0.0.1, a sender at localhost, an issuer nobody chose - would be
-// signing tokens for an address nobody configured.
+// setup.php. An identity provider that guessed the rest - a database called
+// anotoki_iam on 127.0.0.1, a sender at localhost, an issuer nobody chose -
+// would be signing tokens for an address nobody configured.
 // ---------------------------------------------------------------------------
 
 /**

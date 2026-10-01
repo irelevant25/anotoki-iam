@@ -1,10 +1,11 @@
 # anotoki IAM
 
 One account for every anotoki site. The IAM is where people sign up, sign in
-and manage their account; the genshin site, Japanese Academy, Piano Academy and
-the build analyzer send them here and get them back signed in. It is a small
-OpenID Connect provider - the protocol Keycloak speaks - built for the owner's
-FTP-only PHP + PostgreSQL hosting, where it runs as its own subdomain.
+and manage their account; the genshin site, Japanese Academy, Piano Academy,
+the build analyzer and the survey site send them here and get them back
+signed in. It is a small OpenID Connect provider - the protocol Keycloak
+speaks - built for the owner's FTP-only PHP + PostgreSQL hosting, where it
+runs as its own subdomain.
 
 - **Sign-in**: password, a six-digit code by email, or Google; two-factor with
   an authenticator app and recovery codes; remembered devices; "keep me signed
@@ -15,7 +16,10 @@ FTP-only PHP + PostgreSQL hosting, where it runs as its own subdomain.
   sessions, the sites you can use, tokens for scripts.
 - **Admin console**: accounts, per-site roles, sessions, the mail log, the sites
   themselves (redirect URIs, origins, access policy), switches, signing keys,
-  migrations, an audit log of every change.
+  migrations, an audit log of every change - and the words: every sentence of
+  the sign-in and account pages and of the three mails is a string in the
+  database, reworded there, and a new language is added there, with no build.
+  English and Slovak come with it.
 - **Installer**: `backend/setup.php` writes the configuration, builds the
   database and makes the first administrator - on a development machine as on
   a server. Until it has run, the IAM says it is not set up and does nothing
@@ -39,6 +43,7 @@ fixed port it is registered with:
 | Japanese Academy | `japanese-academy` | `http://localhost:4400` | `:8200` |
 | Piano Academy | `piano-academy` | `http://localhost:4500` | `:8300` |
 | Build Analyzer | `build-analyzer` | `http://localhost:4600` | `:8400` |
+| Surveys | `survey` | `http://localhost:4700` | `:8500` |
 
 - Getting it running: [DEV.md](DEV.md).
 - How it works: [docs/architecture.md](docs/architecture.md), then

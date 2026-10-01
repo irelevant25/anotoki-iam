@@ -32,8 +32,9 @@ composer start          # php -S localhost:8100 router.php
 Open **http://localhost:8100/setup.php**. On this computer it is the development
 setup: no setup token, and every field prefilled with development values -
 issuer `http://localhost:4300`, PostgreSQL on `127.0.0.1:5432` as `postgres`,
-the database `iam`, mail written to files. Fill in the database password, press
-**Test connection** to see that it works, choose how the accounts start -
+the database `anotoki_iam`, mail written to files. Fill in the database
+password, press **Test connection** to see that it works, choose how the
+accounts start -
 
 - **a new administrator** (email and password) - for an IAM of your own, or
 - **the genshin site's accounts**, from its old `users` database on the same
@@ -82,7 +83,16 @@ php clients.php [--dev]                        # list the applications; --dev pu
 php import-legacy.php [--from=users] [--dry-run]   # the one-time move of the genshin site's accounts
 php create-admin.php you@example.com           # a first administrator on an empty IAM
 php reset-password.php <email> [pw] [--clear-2fa]
+php translations.php --status                  # the keys the pages use against the database's; how much of each language there is
+php translations.php --export sk [file]        # a language's own strings as flat JSON
+php translations.php --import sk file          # and back in, checked as a save in the admin console is
 ```
+
+The pages' and mails' words are in the database (Admin → Translations and
+Languages). A new string is its key and English in
+`frontend/src/app/core/i18n/en.ts` plus a migration with the key, English and
+Slovak - the iam-migration skill says how; `tests/translations.test.php` holds
+the two together.
 
 ## Tests
 
@@ -139,3 +149,4 @@ move from the genshin site are in [docs/operations.md](docs/operations.md).
 | A site bounces to `/error?code=invalid_redirect_uri` | The site's dev server is not on its port in the table, or its addresses were changed - `php clients.php --dev` puts them back. |
 | Signing in works, the site says "invalid token" | The site's issuer is not `http://localhost:4300` exactly, or it cannot reach `/.well-known/jwks.json` there (the Angular dev server must be running - it serves the issuer's URLs). |
 | `tests/run.php` stops before any test | No `config/database.local.php` to borrow the PostgreSQL server from: run the installer first. |
+| A page shows a key (`login.title`) where a word should be | The key has no string in the database - a migration is pending (`php migration.php`), or it was never written: `php translations.php --status` names it. |

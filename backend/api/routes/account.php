@@ -59,7 +59,7 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
 
         if (array_key_exists('language', $body)) {
             $language = strtolower(field($body, 'language'));
-            if (!in_array($language, LANGUAGES, true)) {
+            if (!in_array($language, languageCodes(), true)) {
                 return respondError($response, 422, 'invalid_language', 'Unknown language');
             }
             $changes['language'] = $language;

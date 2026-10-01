@@ -53,8 +53,22 @@ the files you were given). You do not edit anything.
   Sec-Fetch-Site; the real-host token on every POST; the lock honoured in both
   modes. Never a password or the master key in a page or an answer; a blank
   password keeps the saved one only for the same host and user. A real host's
-  install leaves no loopback redirect URI or origin, and requires https.
+  install leaves no loopback redirect URI or origin, and requires https; a
+  migration that seeds a site adds loopback addresses only while the IAM's own
+  `iam` entry has its home on this computer (as 005 does), since it reaches
+  live IAMs too.
   Database names and hosts cannot reach into the DSN.
+- **Words and mails** (`api/translations.php`, `api/mail.php`, the admin
+  Translations and Languages pages): whoever can edit strings must not be able
+  to make the IAM send a phishing mail - a mail's link and code are put in by
+  `mailMessage()`, never by a string; a mail string's placeholders are
+  `MAIL_KEYS`'s; no address (`://`, `www.`, `@`), no line break, a subject that
+  stays one header line, a body line within 998 bytes with room kept for every
+  `{username}`; a changed mail string's old and new text whole in the audit
+  log. A string is text, never HTML, on every page. The bundle route reads and
+  sets no cookie and is in no CORS list; the eight admin routes are behind
+  `requireAdmin()` and answer 503 until migration 006 is applied; a code from an
+  address passes `languageCodeOk()` before any query.
 - **Tests**: the change has them, including the attack a rule stops; `php
   tests/run.php` passes (you may run it - it uses throwaway databases).
 

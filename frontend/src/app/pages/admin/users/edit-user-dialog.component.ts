@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
-import { AdminUser, Language, UpdateUserBody } from '../../../core/api/models';
+import { AdminUser, UpdateUserBody } from '../../../core/api/models';
+import { TranslationService } from '../../../core/i18n/translation.service';
 import { AlertComponent } from '../../../ui/alert/alert.component';
 import { ButtonComponent } from '../../../ui/button/button.component';
 import { CheckboxComponent } from '../../../ui/checkbox/checkbox.component';
@@ -9,6 +10,7 @@ import { DialogComponent } from '../../../ui/dialog/dialog.component';
 import { SelectComponent } from '../../../ui/select/select.component';
 import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { adminErrorText } from '../admin-errors';
+import { languageOptions } from './language-options';
 
 /**
  * The account's own fields. Only what changed is sent: the backend refuses an
@@ -27,11 +29,10 @@ export class EditUserDialogComponent implements OnInit {
   readonly closed = output<AdminUser | null>();
 
   private readonly _adminApi = inject(AdminApi);
+  private readonly _i18n = inject(TranslationService);
 
-  protected readonly languageOptions = [
-    { value: 'en', label: 'English' },
-    { value: 'sk', label: 'Slovenčina' },
-  ];
+  /** The languages on offer, and the account's own when it is no longer one of them. */
+  protected readonly languageOptions = computed(() => languageOptions(this._i18n.languages(), this.user().language));
 
   protected readonly username = signal('');
   protected readonly email = signal('');
@@ -78,7 +79,7 @@ export class EditUserDialogComponent implements OnInit {
       body.email = email;
     }
     if (this.language() !== user.language) {
-      body.language = this.language() as Language;
+      body.language = this.language();
     }
     if (this.emailConfirmed() !== user.email_confirmed) {
       body.email_confirmed = this.emailConfirmed();

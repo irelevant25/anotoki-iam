@@ -151,6 +151,11 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
     $summary = ['accounts' => 0, 'identities' => 0, 'recovery_codes' => 0, 'sessions' => 0, 'login_attempts' => 0, 'emails' => 0,
         'roles' => [], 'time_zone' => $zone, 'dry_run' => $dryRun];
 
+    // The languages an account may have here, read once and before the
+    // transaction, through this connection: the installer runs the import
+    // before any config file is written, so nothing may reach for iamDb().
+    $languages = languageCodes($iam);
+
     $iam->beginTransaction();
 
     try {
@@ -162,6 +167,8 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
 
         foreach ($users as $user) {
             $secret = $user['totp_secret'] !== null && $user['totp_secret'] !== '' ? encryptSecret((string) $user['totp_secret']) : null;
+            // A language the IAM does not offer becomes English, as languageOrDefault() would make it.
+            $language = strtolower(trim((string) $user['language']));
 
             $insertUser->execute([
                 (int) $user['id'],
@@ -173,7 +180,7 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
                 $secret,
                 pgBool(asBool($user['totp_enabled']) && $secret !== null),
                 pgBool(asBool($user['force_password_change'])),
-                languageOrDefault($user['language']),
+                in_array($language, $languages, true) ? $language : 'en',
                 pgBool(asBool($user['deleted'])),
                 epochOrNull($lastLogin[(int) $user['id']] ?? null),
                 epochOrNull($user['created_at']),

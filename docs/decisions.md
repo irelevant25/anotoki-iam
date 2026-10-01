@@ -207,3 +207,86 @@ Group styles became partials each page's own stylesheet `@use`s. The move was
 checked by parsing every template before and after with Angular's own template
 parser: the same trees, apart from two trailing spaces at the end of a line,
 which the browser does not draw.
+
+## 2026-09-30 - A site seeded after installs gets development addresses only on this computer
+
+Migration 002 seeded the first sites before any IAM was installed, so every
+installation met them in a fresh database, and a real host's install took their
+loopback addresses out. The survey site came later: its migration (005) also
+reaches IAMs that are installed already - through the Migrations page, one of
+them live - with no install after it to take anything out. So it decides by
+where the IAM itself is served from: its own `iam` entry's home, which the
+installer sets to the IAM's public address every time it runs. On this computer
+the site gets its development addresses and a card on the landing page, as 002
+gave the others; anywhere else it gets neither, and the admin console gives it
+its https address. It is the rule the installer keeps - never a loopback
+address on a live IAM, where a localhost redirect URI would hand a code to
+whatever listens on the visitor's own machine. A fresh database counts as this
+computer (002 has just seeded the IAM at `localhost:4300`), so a real host's
+install then treats the survey site like the others.
+
+005 also gives the site's ADMIN to the IAM's administrators of the moment - the
+survey site's own decision (its `docs/decisions.md`): they could give it to
+themselves in the admin console anyway. It is the one migration that gives
+anybody a role, and on a fresh install it gives none either: there the
+migrations run before the accounts exist, and the admin console gives the role.
+
+## 2026-09-30 - The IAM's words and mails live in the database
+
+The sign-in and account pages were two dictionaries compiled into the build
+(`en.ts`, `sk.ts`), and the mails were English and Slovak written in
+`api/mail.php`. Rewording a sentence meant a build and an upload, and a third
+language meant code. Like the other anotoki sites, the words became rows
+(migration 006: `languages`, `translation_keys`, `translations`), edited on the
+admin console's Translations and Languages pages. `sk.ts` is gone; the admin
+console stays English, written in its templates. Slovak speaks to the reader
+informally ("ty"), as the IAM always has.
+
+- **A last resort, and only that.** A build is uploaded before its migrations
+  are applied, from the console, by somebody who has to sign in first - so the
+  sign-in page must read without the tables. `en.ts` keeps the English the
+  pages show while no bundle is in memory, and `MAIL_FALLBACK` the mails'
+  English whenever the database has nothing to give. Once a bundle has arrived,
+  a key it lacks shows as the key: the owner wants to see a missing string, not
+  have English hide it. `en.ts` stays the list of keys, so an unknown key is
+  still a compile error, and a test holds both files to the seeded English.
+- **A mail's link and code are put in by the code.** A message is always
+  greeting, intro, the link or the code on a line of its own, validity, ignore;
+  no string holds the link, and there is no placeholder for it, so no rewording
+  can drop it or move it. Which placeholders a mail string has is `MAIL_KEYS`,
+  not the stored English.
+- **No address in a mail's words.** Whoever can edit strings could otherwise
+  make the IAM send its own phishing mail: a scheme, `www.` or an `@` is
+  refused. A bare domain is not caught; the audit log is.
+- **The audit log keeps a changed mail string whole**, old and new, up to the
+  400 characters the console lets a mail string be - a sentence added at the
+  end of a reset mail must not be the part it leaves out. Page strings are
+  logged by key.
+- **A mail string is bounded in bytes as well** (900, less 400 for every
+  `{username}` in a greeting): it goes out as one line, and a line of mail may
+  be at most 998 bytes, which 400 characters of Japanese or Thai would pass.
+- **Discovery and `/api/public/config` answer `en`, `sk` when the database is
+  out of reach**, and do not remember it. They read nothing else from the
+  database and answered without it before; they must not fail now on the one
+  thing they ask it.
+- **A regional code is answered by its base language**, in the bundle only:
+  `sk-sk` gets `sk`'s very answer, so a Slovak browser's first visit is one
+  request. What discovery offers and what `ui_locales` picks stay whole codes
+  and first subtags.
+- **Registration sends the preferred language**, not the one on the page:
+  `preferred(config.languages)`, the reader's wish settled against what the
+  server offers. Between an upload and "Apply pending" the page reads English,
+  and an account made then would otherwise be English for good.
+- **A new language starts hidden.** The Languages page adds it switched off,
+  so nobody is offered a language that reads all in English; its strings are
+  written, then it is offered. (The API offers it at once when `enabled` is left
+  out, as before there was a choice.) A switched-off language keeps its strings
+  and its accounts; its readers get English, and `locale: "en"`, until it is
+  back. English cannot be switched off or deleted, and a language the
+  migrations write strings for cannot be deleted - the next migration would
+  fail on it.
+- **The account page's Overview card stays** when there is no language to
+  choose (one on offer, or none known yet): it also holds the appearance
+  setting, and is then headed "Appearance". A language chosen there is fetched
+  before the page switches, English too; when the account refuses it the page
+  goes back to the language it was shown in, from memory, with no request.

@@ -1,0 +1,151 @@
+<div class="page">
+    <app-page-header heading="Languages" lead="The languages the IAM's pages and mails can be read in. A new one reads in English until its strings are written, key by key.">
+        @if (loaded()) {
+            <p pageMeta class="counts">
+                <span>
+                    <strong>{{ languages().length }}</strong>
+                    {{ languages().length === 1 ? "language" : "languages" }}
+                </span>
+                <span>
+                    <strong>{{ offered() }}</strong>
+                    offered
+                </span>
+            </p>
+        }
+        <a appButton routerLink="/admin/translations">
+            <app-icon name="languages" [size]="16" />
+            Translations
+        </a>
+    </app-page-header>
+
+    @if (unavailable()) {
+        <app-alert tone="warning" heading="Apply the pending database update first">
+            The languages move into the database with an update that is uploaded and not applied yet. Until it is, the IAM speaks English and Slovak as before, and there is nothing here to change.
+            <div alertActions>
+                <a appButton size="sm" variant="primary" routerLink="/admin/migrations">
+                    <app-icon name="database" [size]="15" />
+                    Open Migrations
+                </a>
+                <button appButton size="sm" (click)="load()">
+                    <app-icon name="refresh" [size]="15" />
+                    Look again
+                </button>
+            </div>
+        </app-alert>
+    } @else if (loadError(); as message) {
+        <app-error-state heading="The languages could not be loaded" [message]="message" (retry)="load()" />
+    } @else if (!loaded()) {
+        <div class="loading"><app-spinner size="lg" label="Loading the languages" [showLabel]="true" /></div>
+    } @else {
+        <ul class="list">
+            @for (language of languages(); track language.code) {
+                <li class="language" [class.is-hidden]="!language.enabled">
+                    <div class="head">
+                        <app-badge [mono]="true">{{ language.code }}</app-badge>
+                        <strong class="name">{{ language.name }}</strong>
+                        <span class="native" [attr.lang]="language.code">{{ language.native_name }}</span>
+                        @if (language.code === fallback) {
+                            <app-badge tone="primary">Fallback</app-badge>
+                        } @else if (language.seeded) {
+                            <app-badge>Released with the site</app-badge>
+                        }
+                        <span class="accounts">{{ accountsText(language) }}</span>
+                    </div>
+
+                    <div class="fields">
+                        <app-text-field label="Name in English" autocomplete="off" [maxlength]="50" [value]="draft(language).name" (valueChange)="edit(language, { name: $event })" />
+                        <app-text-field
+                            label="Name as its speakers write it"
+                            autocomplete="off"
+                            hint="What the switcher shows"
+                            [maxlength]="50"
+                            [value]="draft(language).native_name"
+                            (valueChange)="edit(language, { native_name: $event })" />
+                        <app-text-field
+                            class="order"
+                            label="Order"
+                            type="number"
+                            inputmode="numeric"
+                            hint="The lowest comes first"
+                            [min]="0"
+                            [max]="1000"
+                            [value]="draft(language).sort_order"
+                            (valueChange)="edit(language, { sort_order: $event })" />
+                    </div>
+
+                    <div class="foot">
+                        <app-switch
+                            [checked]="language.enabled"
+                            [disabled]="language.code === fallback || (switching() !== null && switching() !== language.code)"
+                            [busy]="switching() === language.code"
+                            [hint]="offeredHint(language)"
+                            (checkedChange)="setOffered(language, $event)">
+                            {{ language.enabled ? "Offered" : "Hidden" }}
+                        </app-switch>
+
+                        <div class="actions">
+                            @if (isChanged(language)) {
+                                <button appButton size="sm" variant="ghost" [disabled]="saving() === language.code" (click)="undo(language)">Undo</button>
+                            }
+                            <button
+                                appButton
+                                size="sm"
+                                variant="primary"
+                                [disabled]="!isChanged(language) || (saving() !== null && saving() !== language.code)"
+                                [loading]="saving() === language.code"
+                                (click)="save(language)">
+                                <app-icon name="check" [size]="15" />
+                                Save
+                            </button>
+                            @if (!language.seeded) {
+                                <button appButton size="sm" variant="ghost" [loading]="deleting() === language.code" (click)="remove(language)">
+                                    <app-icon name="trash" [size]="15" />
+                                    Delete
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    @if (errorOf(language); as message) {
+                        <p class="field-error" role="alert">
+                            <app-icon name="alert" [size]="15" />
+                            <span>{{ message }}</span>
+                        </p>
+                    }
+                </li>
+            }
+        </ul>
+
+        <app-card heading="Add a language" subheading="It goes after the ones there are, and reads in English until its strings are written on the Translations page.">
+            <form class="add" (submit)="$event.preventDefault(); add()">
+                <app-text-field
+                    class="code"
+                    label="Code"
+                    autocomplete="off"
+                    autocapitalize="none"
+                    placeholder="cs"
+                    hint="Two small letters: cs, de, pt-br"
+                    [maxlength]="5"
+                    [error]="newCodeError()"
+                    [(value)]="newCode" />
+                <app-text-field label="Name in English" autocomplete="off" placeholder="Czech" [maxlength]="50" [(value)]="newName" />
+                <app-text-field label="Name as its speakers write it" autocomplete="off" placeholder="Čeština" [maxlength]="50" [(value)]="newNativeName" />
+                <app-switch class="add-offered" hint="A new language starts hidden - write its strings, then offer it." [disabled]="adding()" [(checked)]="newOffered">
+                    Offer it to readers right away
+                </app-switch>
+                <div class="add-actions">
+                    <button appButton variant="primary" type="submit" [loading]="adding()" [disabled]="!canAdd() || newCodeError() !== null">
+                        <app-icon name="plus" [size]="17" />
+                        Add the language
+                    </button>
+                </div>
+            </form>
+            @if (addError(); as message) {
+                <p class="field-error add-error" role="alert">
+                    <app-icon name="alert" [size]="15" />
+                    <span>{{ message }}</span>
+                </p>
+            }
+        </app-card>
+    }
+</div>

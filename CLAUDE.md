@@ -1,10 +1,11 @@
 # anotoki · IAM
 
 The identity provider for every anotoki site: one account, signed in once, used
-on the genshin site, Japanese Academy, Piano Academy and the build analyzer. A
-small OpenID Connect provider (authorization code + PKCE, RS256 tokens) plus the
-sign-in pages, the account page, the admin console and an installer, built for
-FTP-only PHP + PostgreSQL hosting, where it is a subdomain of its own.
+on the genshin site, Japanese Academy, Piano Academy, the build analyzer and the
+survey site. A small OpenID Connect provider (authorization code + PKCE, RS256
+tokens) plus the sign-in pages, the account page, the admin console and an
+installer, built for FTP-only PHP + PostgreSQL hosting, where it is a subdomain
+of its own.
 
 | Part | Folder | Stack |
 | --- | --- | --- |
@@ -28,6 +29,8 @@ php clients.php [--dev]                   # list the applications; --dev restore
 php import-legacy.php [--from=users] [--dry-run]   # the one-time move of the genshin site's accounts
 php create-admin.php you@example.com      # first admin on an empty IAM
 php reset-password.php <email> [pw] [--clear-2fa]
+php translations.php --status             # the pages' keys against the database's; each language's coverage
+php translations.php --export sk [file]   # a language's own strings as flat JSON; --import sk file puts them back
 php build-dist.php                        # -> backend/dist/ for upload
 
 # Frontend (from frontend/)
@@ -66,8 +69,10 @@ php sdk/php/test.php                      # the token verifier's cases
   `tests/setup*.test.php` drive it in-process.
 - **Defaults are development.** The issuer on a development machine is
   `http://localhost:4300`; migration 002 seeds the sites with the port table's
-  addresses (`README.md`); the installer prefills development values; docs and
-  SDK examples use them. Production addresses are typed into the installer on
+  addresses (`README.md`), and 005 the survey site - which reaches installed
+  IAMs too, so it adds them only while the IAM's own `iam` entry has its home
+  on this computer; the installer prefills development values; docs and SDK
+  examples use them. Production addresses are typed into the installer on
   the real host or the admin console - an example like
   `https://genshin.anotoki.eu` is only ever a placeholder.
 
@@ -84,8 +89,10 @@ php sdk/php/test.php                      # the token verifier's cases
   refresh tokens, minting), `session.php` (cookie, sliding expiry, revocation,
   the limiter), `applications.php` (clients, redirect/origin checks and
   validation, roles, access policy), `accounts.php`, `keys.php` / `jwt.php` /
-  `crypto.php`, `settings.php`, `audit.php`, and the carried-over `totp.php`,
-  `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php`.
+  `crypto.php`, `settings.php`, `audit.php`, `translations.php` (languages,
+  strings, the bundle, every check of a string), and the carried-over `totp.php`,
+  `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php`
+  (whose words now come from the database, `MAIL_FALLBACK` the last resort).
 - Files under `storage/` go through `iamStorageDir()`, config through
   `localConfig()` - the tests point both at temp folders (`IAM_CONFIG_DIR`,
   `IAM_STORAGE_DIR`, constants only code can define). No environment variables.
@@ -119,9 +126,9 @@ master-key ciphertext for TOTP secrets and signing keys; identical answers for
 known and unknown addresses; the limiter on every mail-sending and sign-in
 endpoint; the same switches on every way in; no self-lockout, no removing the
 last admin; the CSRF header on every first-party write; no loopback address
-left on a real host's install; the installer's proof (token, or nonce on this
-computer only). Changing one is a decision for `docs/decisions.md`, not a
-refactor.
+left on a real host's install, nor seeded into a live IAM by a later migration;
+the installer's proof (token, or nonce on this computer only). Changing one is
+a decision for `docs/decisions.md`, not a refactor.
 
 ## Frontend layout & conventions
 
@@ -133,7 +140,9 @@ refactor.
   (`core/api/`, mirroring `docs/api.md`), the session state, the HTTP
   interceptor (adds `X-IAM-Request: 1` to every write; sends a 401 outside the
   sign-in endpoints to `/login?next=…`; sends a 503 `not_set_up` to
-  `/not-set-up`), translations (en/sk dictionaries, the `t` pipe), theme.
+  `/not-set-up`), translations (`i18n/translation.service.ts`: the language
+  and its bundle from `GET /api/translations/{code}`; `i18n/en.ts`: the keys
+  and the English shown only while no bundle is in memory; the `t` pipe), theme.
 - `frontend/src/app/ui/` - the app's own small UI kit; build on it.
 - Pages: the sign-in flow (`/login`, `/register`, `/confirm-email`,
   `/forgot-password`, `/reset-password`, `/logout`, `/error`, `/not-set-up`),
@@ -142,8 +151,14 @@ refactor.
 - Zoneless and signals-first; OnPush everywhere; no UI library. Colours only
   from the CSS custom properties in `styles.scss`, defined for light and dark.
   Every page works at 390 px.
-- The auth and account pages are bilingual (English, Slovak); a missing key is
-  a compile error.
+- The auth and account pages' words, and the three mails', are rows in the
+  database (`languages`, `translation_keys`, `translations`, migration 006),
+  reworded and added to on the admin console's Translations and Languages
+  pages; English and Slovak (informal, "ty") are seeded. An unknown key is a
+  compile error (`TranslationKey` comes from `en.ts`); a key with no string
+  shows as the key. A new string is its key and English in `en.ts` plus a
+  migration with English and Slovak - there is no `sk.ts` (skill
+  iam-migration).
 
 ## Deployment
 

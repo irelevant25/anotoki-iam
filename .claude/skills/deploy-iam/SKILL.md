@@ -50,6 +50,9 @@ them out and the server writes its own. Until it has, the IAM answers
    seeded with are gone, the sites' production ones in place - locks itself
    (`storage/installed.lock`) and deletes itself. The owner downloads
    `config/secret.local.php` and keeps it safe.
+5. The migrations ran before the accounts arrived, so nobody holds the survey
+   site's ADMIN yet - 005 gives it only to administrators an IAM already has.
+   Admin → Users gives it, and EDITOR, to whom they belong.
 
 ## Then the genshin site
 
@@ -62,6 +65,26 @@ in its `users` database.
 
 Upload the new build over the old; admin console → Migrations → Apply pending.
 
+A migration that seeds a site (005, the survey site) leaves it on the live IAM
+with no address and no landing card - never a `localhost` one there. Admin →
+Applications → the site, `{site}` being its https address: redirect URI
+`{site}/auth/callback`, logout redirect URI `{site}/`, web origin and home page
+`{site}`, and "Show on the landing page". Then tell the owner to give its roles
+(the survey site's EDITOR, ADMIN) to whom they belong; 005 gives ADMIN to the
+IAM's administrators already. A site made by hand before its migration keeps
+what it has.
+
+The pages' and mails' words are rows in the database (migration 006 and every
+later migration with strings). Between the upload and Apply pending the pages
+read the English compiled into the build, the mails go out in English, there
+is no language switcher, and `GET /api/translations/{code}` answers
+`503 translations_unavailable` - expected in that window, not a fault; the
+first navigation after Apply brings the words back. Before a release that
+changes strings, have the owner export the live strings (Admin → Translations
+→ Export, per language) and keep the files: a migration never writes over a
+string reworded in the console, and the export is the owner's wording to put
+back if a release's rewording is not wanted.
+
 ## Check afterwards
 
 - `/.well-known/openid-configuration` at the IAM's address names that address as the issuer.
@@ -69,3 +92,5 @@ Upload the new build over the old; admin console → Migrations → Apply pendin
 - Admin → Applications: every site has its https addresses and no `localhost` one.
 - Sign in at `/login`; the admin console at `/admin` shows the accounts and roles.
 - Each site's sign-in button reaches the IAM and comes back signed in.
+- After Apply pending: `/api/translations/sk` answers 200, the sign-in page has
+  its language switcher, and Admin → Translations shows the strings.

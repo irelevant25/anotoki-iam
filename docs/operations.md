@@ -64,7 +64,10 @@ the files the installer writes.
 5. It runs the migrations, imports the accounts (or makes the admin), puts the
    sites' addresses in place, writes `database.local.php`, `secret.local.php`,
    `iam.local.php`, `mail.local.php` and `google.local.php`, writes
-   `storage/installed.lock`, and deletes itself and its token.
+   `storage/installed.lock`, and deletes itself and its token. The migrations
+   run before the accounts arrive, so the survey site's ADMIN - which 005 gives
+   to the administrators an IAM already has - is nobody's yet: give it in the
+   admin console (Users → the person → Roles).
 6. **Download `config/secret.local.php` and keep it somewhere safe.** It is the
    master key; without it the signing keys and two-factor secrets cannot be read.
 
@@ -119,6 +122,16 @@ Upload the new build over the old one (never `config/*.local.php` - the build
 leaves them out), then **admin console → Migrations → Apply pending**. There is
 no shell; the button runs the same engine as `php migration.php`.
 
+A migration that seeds a site (005, the survey site) leaves it on the live IAM
+without an address or a card on the landing page: a `localhost` address there
+would hand codes to whatever listens on the visitor's machine. So in
+**Admin → Applications → the site**, with `{site}` its https address, add the
+redirect URI `{site}/auth/callback`, the logout redirect URI `{site}/`, the web
+origin and the home page `{site}`, and switch on **Show on the landing page**;
+then give its roles to whom they belong (Users → the person → Roles) - 005
+itself gives the survey site's ADMIN to the IAM's administrators. A site made
+by hand before its migration arrived keeps what it has.
+
 ### The sites' addresses
 
 A fresh database registers the first-party applications with their development
@@ -126,10 +139,33 @@ addresses (the port table in [architecture.md](architecture.md)). On a real host
 the installer replaces them with the production ones it is given, and removes
 every loopback address either way - on a live IAM a `localhost` redirect URI
 would hand a code to whatever listens on the visitor's own machine. Anything
-after that - a new site, a renamed domain, a site left blank at install - is the
-admin console's **Applications** page: exact redirect URIs, post-logout URIs,
-web origins, roles, the access policy (`everyone` or `members`) and the access
-token lifetime.
+after that - a new site, one a later migration seeded (above), a renamed
+domain, a site left blank at install - is the admin console's **Applications**
+page: exact redirect URIs, post-logout URIs, web origins, roles, the access
+policy (`everyone` or `members`) and the access token lifetime.
+
+### The words across an update
+
+The pages' and the mails' words are rows in the database (migration 006 and
+every migration with strings after it), so an update is still **upload, then
+Apply pending** - and between the two:
+
+- The pages read the English compiled into the build, and the mails go out in
+  English: `GET /api/translations/{code}` answers `503 translations_unavailable`
+  until the tables are there. That 503 is expected in that window, not a fault
+  (and not `not_set_up`: the site is not sent to the installer's notice).
+- Discovery and `/api/public/config` offer `en` and `sk`, and accounts keep
+  their language.
+- The admin console's Translations and Languages pages say to apply the pending
+  update first. The first navigation after Apply brings the words in, with no
+  page load.
+
+A migration never writes over a string reworded in the console. Before a
+release that changes strings, **export the live strings** (Admin → Translations
+→ Export, one JSON file per language) and keep them: they are the owner's
+wording, and the export is what puts it back if a release's rewording is not
+wanted. On a computer with the repository, `php translations.php --import`
+checks and loads such a file into a development database.
 
 ## Day to day
 
@@ -143,6 +179,9 @@ token lifetime.
 | Switch signing in off for everybody but IAM admins | Admin → Settings → Signing in |
 | Rotate the signing key | Admin → Keys → Rotate. Tokens signed by the old key keep working until they expire; sites refetch the key set by themselves. Remove the retired key after a day. |
 | A script needs to call a site's API | The account page → Tokens for scripts |
+| Reword a sentence of the pages or a mail | Admin → Translations: edit, Save. Readers get it at their next page load; the change is in the audit log |
+| Add a language | Admin → Languages → Add (it starts hidden), write its strings on Translations (or import a JSON file), then switch it on. Until a string is written the language reads it in English |
+| Stop offering a language | Admin → Languages → switch it off: its strings and accounts stay, its readers get English. Deleting it sends its accounts to English and removes its strings; English and Slovak cannot be deleted |
 
 ## Scripts: personal access tokens
 
@@ -163,6 +202,9 @@ php import-legacy.php                      # the import itself (writes the marke
 php create-admin.php you@example.com       # a first admin on an empty IAM, instead
 php clients.php --dev                      # put the sites' development addresses back
 php reset-password.php <email> [password] [--clear-2fa]
+php translations.php --status              # the frontend's keys against the database's, and how much of each language there is
+php translations.php --export sk [file]    # a language's own strings as flat JSON
+php translations.php --import sk file      # and back in, checked as the admin console checks a save
 php tests/run.php                          # every test, against throwaway databases
 ```
 
@@ -179,3 +221,5 @@ php tests/run.php                          # every test, against throwaway datab
 | "access_denied" for somebody who should get in | The application is members-only and they hold none of its roles. |
 | Sign-in mail never arrives | `mail.local.php` still has the `file` driver (mail is in `storage/mail/`), or the sender is not a real mailbox on the hosted domain. |
 | Google button missing | No `google.local.php`, the switch is off, or the page's origin is not an authorised JavaScript origin of the client. |
+| The pages are English only, with no language switcher, after an upload | A migration with the words is pending: `/api/translations/...` answers 503 `translations_unavailable`. Admin → Migrations → Apply pending. |
+| A page shows a key (`login.title`) where a word should be | The key has no string in the database: a migration that adds it is pending, or its English row was removed by hand. `php translations.php --status` on a copy names it. |

@@ -34,7 +34,7 @@ function remoteForm(string $token, array $overrides = []): array
         'email' => 'owner@example.test',
         'password' => 'the owners password',
         'confirm' => 'the owners password',
-        'site' => ['genshin' => 'https://genshin.example.test', 'japanese-academy' => '', 'piano-academy' => '', 'build-analyzer' => ''],
+        'site' => ['genshin' => 'https://genshin.example.test', 'japanese-academy' => '', 'piano-academy' => '', 'build-analyzer' => '', 'survey' => 'https://survey.example.test'],
         'mail_send' => 'on',
         'mail_noreply' => 'noreply@example.test',
         'mail_support' => 'support@example.test',
@@ -63,6 +63,7 @@ test('on a real host the first view writes a token only the server\'s owner can 
     check(str_contains($page['body'], 'name="token"') && !str_contains($page['body'], 'name="nonce"'), 'the form asks for it, and carries no nonce');
     check(str_contains($page['body'], 'value="https://iam.example.test"'), 'the address it is opened at is the suggestion');
     check(str_contains($page['body'], 'value="noreply@example.test"'), 'and mail from its domain');
+    check(str_contains($page['body'], 'value="anotoki_iam"'), 'and the database the installer suggests');
     check(str_contains($page['body'], 'placeholder="https://genshin.anotoki.eu"') && !str_contains($page['body'], 'value="https://genshin.anotoki.eu"'), 'the sites\' addresses are placeholders, never values');
 
     setupRequest('GET', REMOTE_SERVER);
@@ -116,6 +117,14 @@ test('the install: files, database, administrator, the sites\' production addres
     same(['https://genshin.example.test/'], applicationRedirectUris($genshin, 'logout'), 'and lands there after signing out');
     same(['https://genshin.example.test'], applicationOrigins($genshin), 'its origin');
     same('https://genshin.example.test', $pdo->query("SELECT home_url FROM applications WHERE id = {$genshin}")->fetchColumn(), 'its home');
+
+    // The survey site's migration came after the others' and seeded it on the
+    // same terms; the install puts its production address in all the same.
+    $survey = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'survey'")->fetchColumn();
+    same(['https://survey.example.test/auth/callback'], applicationRedirectUris($survey, 'login'), 'the survey site signs in at its own address');
+    same(['https://survey.example.test/'], applicationRedirectUris($survey, 'logout'), 'and lands there after signing out');
+    same(['https://survey.example.test'], applicationOrigins($survey), 'its origin');
+    same('https://survey.example.test', $pdo->query("SELECT home_url FROM applications WHERE id = {$survey}")->fetchColumn(), 'its home');
 
     same(0, (int) $pdo->query("SELECT count(*) FROM application_redirect_uris WHERE uri LIKE 'http://localhost%' OR uri LIKE 'http://127.0.0.1%'")->fetchColumn(), 'no development redirect URI is left');
     same(0, (int) $pdo->query("SELECT count(*) FROM application_origins WHERE origin LIKE 'http://localhost%' OR origin LIKE 'http://127.0.0.1%'")->fetchColumn(), 'nor a development origin');

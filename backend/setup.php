@@ -81,6 +81,7 @@ const SETUP_SITES = [
     'japanese-academy' => ['name' => 'Japanese Academy', 'example' => 'https://japanese.anotoki.eu'],
     'piano-academy' => ['name' => 'Piano Academy', 'example' => 'https://piano.anotoki.eu'],
     'build-analyzer' => ['name' => 'Build Analyzer', 'example' => 'https://builder.anotoki.eu'],
+    'survey' => ['name' => 'Surveys', 'example' => 'https://survey.anotoki.eu'],
 ];
 
 /** What a development machine starts from: the port table's IAM, a local PostgreSQL, mail into storage/mail. */
@@ -89,7 +90,7 @@ const SETUP_DEVELOPMENT = [
     'db_host' => '127.0.0.1',
     'db_port' => '5432',
     'db_user' => 'postgres',
-    'db_name' => 'iam',
+    'db_name' => 'anotoki_iam',
     'legacy' => '',
     'accounts' => 'fresh',
     'email' => 'admin@localhost',
@@ -490,7 +491,7 @@ function setupValues(bool $local, array $server, array $saved): array
             'db_host' => '127.0.0.1',
             'db_port' => '5432',
             'db_user' => '',
-            'db_name' => 'iam',
+            'db_name' => 'anotoki_iam',
             'legacy' => 'users',
             'accounts' => 'import',
             'email' => '',

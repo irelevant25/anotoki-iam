@@ -37,21 +37,30 @@ gets its row.
 **For a first-party site that belongs in every installation**, write a
 migration (see the iam-migration skill) inserting the application, its
 development URIs, origin and home, and its roles - model it on
-`backend/migrations/iam/002_first_party_applications.sql` and give it the same
-`DO $$` check. Then add it to `SETUP_SITES` in `backend/setup.php` (a real
-host's install asks for its production address; the example there is only a
-placeholder), to `DEV_CLIENTS` in `backend/clients.php`, and to the port-table
-test in `backend/tests/setup.test.php`.
+`backend/migrations/iam/005_survey_application.sql`, `DO $$` check included.
+Unlike 002, which seeded the first sites before any IAM was installed, it also
+reaches IAMs that are installed already (the Migrations page), one of them
+live: so, like 005, it adds the development addresses and the landing card
+only while the IAM's own `iam` entry has its home on this computer, and leaves
+an entry that is there already as it is. Then add it to
+`SETUP_SITES` in `backend/setup.php` (a real host's install asks for its
+production address; the example there is only a placeholder), to `DEV_CLIENTS`
+in `backend/clients.php`, and to the installer's tests: the port-table test in
+`backend/tests/setup.test.php`, the real-host install in
+`backend/tests/setup-remote.test.php`. On the live IAM the admin console then
+gives it its https addresses (the deploy-iam skill, "Later updates").
 
 **For anything else** - and for production addresses on an installed IAM - the
 admin console → Applications → Add or the application's page does it.
 
 ## 2. Development addresses
 
-A database built from the migrations already has them. On one that has drifted,
-`php clients.php --dev` (in `backend/`) makes every seeded site's loopback
-addresses exactly the port table's again and leaves anything else alone; it
-refuses on an IAM whose own address is not on this computer.
+A database built from the migrations already has them; one set up before a
+site's migration gets the site, addresses and all, once the migration is
+applied (saving `setup.php` again, or `php migration.php`). On one that has
+drifted, `php clients.php --dev` (in `backend/`) makes every seeded site's
+loopback addresses exactly the port table's again and leaves anything else
+alone; it refuses on an IAM whose own address is not on this computer.
 
 ## 3. The site's side
 
@@ -76,4 +85,7 @@ The site vendors `sdk/js/anotoki-auth.mjs` (or `.js` for classic scripts) and
   lets it in; taking the role away stops the next refresh.
 
 Tell the owner which roles to grant to whom - the IAM starts with nobody holding
-a new application's roles.
+a new application's roles. The exception is the survey site: its migration
+(005) gives its ADMIN to the IAM's administrators of the moment, the owner's
+decision for that site. A fresh install has no accounts yet when its migrations
+run, so there nobody gets it.

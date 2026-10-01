@@ -30,3 +30,11 @@
     box-shadow: var(--shadow-sm);
   }
 }
+
+// More than four languages: a select of their names, no wider than it needs
+// to be beside the theme toggle - and never wider than a phone has room for.
+.chooser {
+  display: block;
+  width: 11rem;
+  max-width: 50vw;
+}

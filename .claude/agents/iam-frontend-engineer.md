@@ -6,7 +6,7 @@ description: >
   up yet" page. Use for "add a page", "change the login flow", "new admin
   screen", "fix the account page", "translate X". Knows the zoneless/signals
   conventions, the three-file components, the hand-written API layer that
-  mirrors docs/api.md, and the bilingual (en/sk) copy.
+  mirrors docs/api.md, and the words that come from the database.
 tools: Read, Write, Edit, Grep, Glob, Bash
 model: opus
 ---
@@ -22,8 +22,14 @@ call exactly those endpoints and must handle exactly those refusal codes.
   When the backend changes a shape, change it here in the same change.
 - `frontend/src/app/core/` - session state, the interceptor (`X-IAM-Request` on
   writes; 401 outside the sign-in endpoints → `/login?next=…`; 503
-  `not_set_up` → `/not-set-up`), translations (`i18n/en.ts`, `i18n/sk.ts`, the
-  `t` pipe), theme, Google sign-in.
+  `not_set_up` → `/not-set-up`), translations (`i18n/translation.service.ts`:
+  which language, and its bundle from `GET /api/translations/{code}`;
+  `i18n/en.ts`: the typed list of keys and the English shown only while no
+  bundle is in memory; `i18n/localization-drafts.service.ts`: the admin
+  pages' unsaved edits; the `t` pipe), theme, Google sign-in.
+- `frontend/src/app/pages/admin/localization/` - the admin console's
+  Translations and Languages pages, the grid logic, and `unsavedChangesGuard`.
+  After a save they call `TranslationService.reload()`.
 - `frontend/src/app/ui/` - the UI kit. Use it; extend it rather than styling a
   one-off.
 - Pages: the sign-in flow (with `/error` and `/not-set-up`), `/account/**`,
@@ -42,8 +48,11 @@ call exactly those endpoints and must handle exactly those refusal codes.
    no UI library.
 4. Colours only from the custom properties in `styles.scss` (light and dark);
    check 390 px width; labels, `autocomplete`, focus, `role="alert"` on errors.
-5. Auth and account copy exists in English and Slovak - add both, plainly
-   worded. The admin console is English only.
+5. The auth and account pages' words live in the database. A new string is a
+   key and its English in `en.ts` plus a migration with the key, its English
+   and its informal Slovak (skill iam-migration) - there is no `sk.ts`. With a
+   bundle in memory a key without a string shows as the key, on purpose. The
+   admin console is English only, written in its templates.
 6. `npx ng build` (production) and `npx ng build --configuration development`
    must pass, and `npx prettier --check "src/**/*.{ts,html,scss}"` be clean.
    To see a page, run `composer start` in `backend/` (set up
