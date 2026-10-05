@@ -13,7 +13,7 @@ import { IconComponent } from '../../../ui/icon/icon.component';
 import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
 import { adminErrorText } from '../admin-errors';
 
-/** /admin/applications - every site that signs in here, in the order the landing page shows them. */
+/** /admin/applications - every site that signs in here, in the order they were added; whether each requires signing in, and which roles may. */
 @Component({
   selector: 'app-applications-list',
   imports: [RouterLink, AppAvatarComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],

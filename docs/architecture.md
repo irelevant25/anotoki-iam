@@ -12,8 +12,8 @@ running it is [operations.md](operations.md); why it is built this way is
 | Part | Where | What it is |
 | --- | --- | --- |
 | Backend | `backend/` | PHP 8.2+ + Slim 4 + PostgreSQL. The OpenID Connect provider, the JSON API the IAM's own pages use, and the installer. |
-| Frontend | `frontend/` | Angular 21. The sign-in pages, the account page, the admin console. |
-| SDKs | `sdk/js`, `sdk/php` | The small first-party clients every site copies in: a browser client for the sign-in and a PHP verifier for access tokens. |
+| Frontend | `frontend/` | Angular 21. The sign-in pages, the account page, the admin panel. |
+| SDKs | `sdk/js`, `sdk/php` | The small first-party clients every site copies in: a browser client for the sign-in, and a PHP verifier for access tokens and reader of the site's sign-in switch. |
 | Docs | `docs/` | This. |
 
 On a development machine the Angular dev server on `:4300` proxies `/api`,
@@ -47,7 +47,15 @@ came later, in migration 005, which also reaches IAMs installed already: it
 brings its development addresses and a card on the landing page only while the
 IAM itself is served from this computer - its own `iam` entry's home, which the
 installer sets to the IAM's address. On a live IAM it arrives with neither, and
-the admin console gives it its https address.
+the admin panel gives it its https address.
+
+Every one of these sites is open to every account and has the roles ADMIN and
+EDITOR, nothing else (migration 007, the owner's decision): signing in never
+asks for a role, and each site keeps its admin area for the two, checked on
+its own server against the token's `roles`. An administrator of the IAM holds
+ADMIN in every application that has one - the installer's and
+`create-admin.php`'s (`createFirstAdmin()`), an ADMIN brought over from the
+genshin site, and every administrator there when 007 ran.
 
 ## Configuration and the installer
 
@@ -71,14 +79,18 @@ as much as on a server:
 | When | loopback `REMOTE_ADDR`, a `localhost` / `127.0.0.1` / `[::1]` Host, no forwarding headers | anything else |
 | Proof | a nonce in the form (a page elsewhere cannot read it), plus the `Origin` and `Sec-Fetch-Site` headers | a token written to `config/setup.local.php`, read back from the server's files |
 | Prefilled | development values: issuer `http://localhost:4300`, PostgreSQL on `127.0.0.1`, mail to files | what the address it is opened at suggests |
-| The sites | keep their development addresses | their production addresses replace the loopback ones; a blank one waits for the admin console |
+| The sites | keep their development addresses | their production addresses replace the loopback ones; a blank one waits for the admin panel |
 | Afterwards | stays, re-runnable: shows what is saved, never a password or the key; a blank password keeps the saved one | `storage/installed.lock`, then it deletes itself and its token |
 
 Both build the database with the shared migration engine, keep an existing
 master key, keep whatever else the files hold, and either bring the genshin
 site's accounts over or make the first administrator. "Test connection" beside
 the database fields is a small JSON request to the same page, under the same
-nonce or token.
+nonce or token, and answers in the words every anotoki setup page uses
+(`setupTestDatabase()`): connected and empty, updates to apply, or up to date;
+a database that does not exist yet, which Save creates when the user may
+create databases (`ensureDatabase()`) or which is to be made in the hosting
+panel first; a database there but closed to this user; no connection at all.
 
 ## A sign-in, end to end
 
@@ -124,12 +136,12 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
 | `sessions` | A signed-in browser at the IAM: the cookie's hash, a public `sid`, how it signed in, sliding expiry with an absolute cap. |
 | `login_attempts`, `email_log` | The limiter's memory and the history; the mail log keeps no bodies. |
-| `applications` (+ `application_redirect_uris`, `application_origins`, `application_roles`) | The sites: exact redirect URIs, the origins allowed to call the token endpoint, access policy, token lifetime, their roles. |
+| `applications` (+ `application_redirect_uris`, `application_origins`, `application_roles`) | The sites: exact redirect URIs, the origins allowed to call the token endpoint, whether the site requires signing in (`login_required`, published to the sites' backends at `GET /api/public/applications/{client_id}`), token lifetime, their roles and which of them may sign in (`may_sign_in`). Every application is a public client and has the same roles - ADMIN, EDITOR, MEMBER (the IAM's own entry ADMIN, MEMBER) - and every account holds MEMBER everywhere: triggers of migrations 010 and 011 keep it so for every account and application made later. `type`, `secret_hash`, `show_on_landing` and `access` stay, unread (`access` only while 010 is pending), until a later migration drops them - not a way back: once 010 is applied no build from before it goes on the host (`decisions.md`). `sort_order` is the order of the public list. |
 | `user_roles` | Who holds which application role, and who granted it. |
 | `auth_requests` | What an application asked for while the person signs in (and logouts waiting for confirmation). |
 | `auth_codes`, `refresh_tokens` | Codes and refresh / personal tokens - hashes only; refresh tokens grouped into families for reuse detection. |
 | `signing_keys` | RSA key pairs; the private half **encrypted**. One active, retired ones published for a day. |
-| `settings`, `audit_log` | The switches, and every change made from the admin console. |
+| `settings`, `audit_log` | The switches, and every change made from the admin panel. |
 | `languages` | The languages the IAM speaks: `code` (`xx` or `xx-yy`, small letters), `name` in English, `native_name`, `enabled` (offered), `sort_order`. English and Slovak are seeded. |
 | `translation_keys` | Every key the pages and the mails ask for, with a description for the translator. Written by migrations only. |
 | `translations` | One string per key and language, who reworded it last (`updated_by`, null for a migration) and when. No empty string: a language without one has no row and reads the English. |
@@ -160,19 +172,19 @@ secret, so a copy of the table opens nothing.
 The IAM's own pages talk to its own API with the session cookie, from the same
 origin. Every non-GET must carry `X-IAM-Request: 1`, which a page on another
 origin cannot send without a CORS preflight those endpoints never answer, and an
-`Origin` other than the IAM's own is refused. The admin console needs the
+`Origin` other than the IAM's own is refused. The admin panel needs the
 `ADMIN` role of the application `iam`.
 
 ## The IAM's own words
 
 What the sign-in pages, the account page and the three mails say lives in the
 database (migration 006), so a word can be reworded and a language added in the
-admin console with no build and no upload. The admin console itself is English,
+admin panel with no build and no upload. The admin panel itself is English,
 written in its templates.
 
 - **The tables.** `languages`, `translation_keys`, `translations` (above). A key
   is the code's: a migration writes it with its English and its Slovak, and the
-  console only ever changes a string. `users.language` references
+  panel only ever changes a string. `users.language` references
   `languages (code)` - `ON UPDATE CASCADE ON DELETE SET DEFAULT`, so deleting a
   language sends its accounts back to English, which cannot be deleted or
   switched off. The CHECK that allowed only `en` and `sk` is gone.
@@ -186,7 +198,7 @@ written in its templates.
   mails and `locale: "en"` until it is back.
 - **How the pages get their words.** One request, `GET /api/translations/{code}`
   (the bundle): the language's strings with English under them, the offered
-  languages, and English on its own for the admin console. `TranslationService`
+  languages, and English on its own for the admin panel. `TranslationService`
   (`frontend/src/app/core/i18n/`) picks the language - `?lang=` (which the
   backend adds from an application's `ui_locales`) or the switcher, then the
   account's, this device's last choice, the browser's, English - and fetches its
@@ -216,7 +228,7 @@ written in its templates.
   line that is the link or the code, validity, ignore - in the recipient's
   language while it is offered. The link and the code are never part of a
   string and have no placeholder; which placeholders a mail string has is
-  `MAIL_KEYS`, the code, not the stored English. The console refuses an address
+  `MAIL_KEYS`, the code, not the stored English. The panel refuses an address
   in a mail's words, a line break, and a line longer than a mail line may be.
 - **The admin pages.** Translations (`/admin/translations`: the grid, a search,
   export and import of one language as JSON) and Languages (`/admin/languages`:
@@ -237,8 +249,9 @@ written down, not a refactor.
 
 1. **Redirect URIs match byte for byte.** No prefix, no pattern. An unknown
    client or URI is never redirected to; the IAM shows its own error page.
-2. **PKCE (S256) is required** of public clients, and the verifier is checked at
-   the token endpoint against the stored challenge.
+2. **PKCE (S256) is required** of every client - all are public since
+   migration 011, and a request carrying a client secret is refused - and the
+   verifier is checked at the token endpoint against the stored challenge.
 3. **A code is good once, for 60 seconds**, for the client, redirect URI and
    challenge it was issued with. Used twice, it revokes what it produced.
 4. **The algorithm is pinned** (RS256) wherever a token is read - here and in
@@ -251,7 +264,7 @@ written down, not a refactor.
    endpoint mails an address; failures are **rate-limited** per address-and-source
    and per source.
 8. **Every way in checks the same switches** (login enabled, account disabled,
-   access policy) - a switch on one door is a lock on one of five.
+   a role that may sign in) - a switch on one door is a lock on one of five.
 9. **An account always keeps a way in**, and an admin cannot lock themselves out
    or remove the last admin.
 10. **Revocation is at the refresh.** Signing out, disabling an account or taking
@@ -281,18 +294,19 @@ written down, not a refactor.
 | `backend/setup.php` | The installer: writes `config/*.local.php`, builds the database, the accounts, the sites' production addresses. |
 | `backend/config/` | `config.php` (reading `*.local.php`, whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`. |
 | `backend/api/index.php` | Front controller: requires, middleware order, error handler. |
-| `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, logout, revoke, the landing-page list. |
+| `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, logout, revoke, the public list of sites, the public "is sign-in required here?" answer. |
 | `backend/api/routes/login.php` | Sign-in (password, emailed code, Google), registration, confirmation, resets, the pending request (accept/cancel), sign-out. |
 | `backend/api/routes/account.php` | The account page. |
-| `backend/api/routes/admin.php` | The admin console. |
+| `backend/api/routes/admin.php` | The admin panel. |
 | `backend/api/oidc.php` | Requests, codes, refresh tokens, minting tokens. |
 | `backend/api/session.php` | The session cookie, sliding expiry, revocation, the limiter. |
 | `backend/api/keys.php`, `jwt.php`, `crypto.php` | Keys (made on first use), signing, encryption. |
 | `backend/api/applications.php`, `accounts.php`, `settings.php` | The rules about who may use what. |
 | `backend/api/totp.php`, `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php` | Carried over from the genshin site, rules intact. |
 | `backend/api/legacy_import.php` | The one-time move of the genshin site's accounts. |
-| `backend/api/translations.php` | The languages, the strings, the bundle, the admin console's grid and every check of a string (`translationsCheck()`). |
+| `backend/api/translations.php` | The languages, the strings, the bundle, the admin panel's grid and every check of a string (`translationsCheck()`). |
 | `backend/translations.php` | The strings from the command line: `--status`, `--export`, `--import`. Never uploaded. |
 | `frontend/src/app/core/i18n/` | `translation.service.ts` (which language, the bundle, the `t` pipe's strings), `en.ts` (the keys and the English of last resort), `localization-drafts.service.ts`. |
+| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `shell` (the account pages and the admin panel: the top bar, the panel's side navigation, the page), `top-bar` (the anotoki family's one bar: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, at most hourly, from the busy endpoints - the host has no cron. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

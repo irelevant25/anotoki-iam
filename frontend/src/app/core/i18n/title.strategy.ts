@@ -13,7 +13,7 @@ function isTranslationKey(value: string): value is TranslationKey {
  * The browser tab's title: "Security · anotoki account".
  *
  * A route's `title` is a translation key on the translated pages and plain
- * English in the admin console; either works here. The title follows the
+ * English in the admin panel; either works here. The title follows the
  * language too - switching to Slovak renames the tab without a navigation.
  */
 @Injectable({ providedIn: 'root' })
@@ -28,7 +28,7 @@ export class IamTitleStrategy extends TitleStrategy {
     super();
     effect(() => {
       const raw = this._page();
-      const brand = this._admin() ? 'anotoki admin' : this._i18n.t('brand.account');
+      const brand = this._admin() ? 'anotoki admin panel' : this._i18n.t('brand.account');
       const page = raw ? (isTranslationKey(raw) ? this._i18n.t(raw) : raw) : null;
       this._title.setTitle(page ? `${page} · ${brand}` : brand);
     });

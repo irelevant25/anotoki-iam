@@ -1,7 +1,8 @@
 # Developing the anotoki IAM
 
 From a fresh clone to signing in, then the day to day, the tests, and the
-builds for the hosting.
+builds for the hosting. What is where inside each half, and its entry points:
+[backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md).
 
 ## Prerequisites
 
@@ -42,7 +43,8 @@ accounts start -
   owner's own IAM started -
 
 and **Save**. It writes the config files, creates the database, applies the
-migrations and makes the accounts. The applications arrive registered with
+migrations and makes the accounts - the administrator, or each old ADMIN,
+holding ADMIN in the IAM and in every site. The applications arrive registered with
 their development addresses (the port table in [README.md](README.md)).
 
 The page stays: open it again whenever a setting changes. It shows what is
@@ -62,7 +64,7 @@ npm start          # http://localhost:4300, proxying /api, /.well-known and /set
 ```
 
 Sign in at `http://localhost:4300/login`. The account page is `/account`, the
-admin console `/admin`. The issuer is `http://localhost:4300` - the address the
+admin panel `/admin`. The issuer is `http://localhost:4300` - the address the
 pages are served from - and every site's development configuration names it.
 
 ## Day to day
@@ -81,14 +83,14 @@ Command-line tools in `backend/`, all reading the same configuration:
 php migration.php [--status|--dry-run]         # apply pending migrations (the installer does too)
 php clients.php [--dev]                        # list the applications; --dev puts their development addresses back
 php import-legacy.php [--from=users] [--dry-run]   # the one-time move of the genshin site's accounts
-php create-admin.php you@example.com           # a first administrator on an empty IAM
+php create-admin.php you@example.com           # a first administrator on an empty IAM (ADMIN in every site too)
 php reset-password.php <email> [pw] [--clear-2fa]
 php translations.php --status                  # the keys the pages use against the database's; how much of each language there is
 php translations.php --export sk [file]        # a language's own strings as flat JSON
-php translations.php --import sk file          # and back in, checked as a save in the admin console is
+php translations.php --import sk file          # and back in, checked as a save in the admin panel is
 ```
 
-The pages' and mails' words are in the database (Admin → Translations and
+The pages' and mails' words are in the database (Admin panel → Translations and
 Languages). A new string is its key and English in
 `frontend/src/app/core/i18n/en.ts` plus a migration with the key, English and
 Slovak - the iam-migration skill says how; `tests/translations.test.php` holds
@@ -99,7 +101,7 @@ the two together.
 ```bash
 cd backend
 php tests/run.php            # every tests/*.test.php, each in its own process
-php ../sdk/php/test.php      # the token verifier's own cases
+php ../sdk/php/test.php      # the PHP SDK's own cases: the token verifier and the sign-in reader
 ```
 
 The tests drive the real Slim app and the installer in-process - no server -
@@ -118,14 +120,19 @@ Frontend checks:
 ```bash
 cd frontend
 npx ng build                 # production; add --configuration development for a debug build
-npx prettier --check "src/**/*.{ts,html,scss}"
+npx ng test --watch=false    # the unit tests: needs vitest and jsdom in devDependencies (frontend/README.md)
+npx prettier --check "src/**/*.{ts,html,scss}"   # a checkout with CRLF line endings: add --end-of-line crlf
 ```
 
 ## The SDKs
 
 `sdk/js/anotoki-auth.mjs` is the source; after editing it, `node sdk/js/build.mjs`
 regenerates the classic-script `anotoki-auth.js`, and the version goes up in the
-headers of all three files. Sites vendor copies: tell them about a new version.
+headers of all three files. `sdk/php/anotoki_iam.php` carries its version in its
+header and in `ANOTOKI_IAM_SDK_VERSION`; it must still parse under PHP 7.4
+(`php -l` with a 7.4 binary), and `sdk/php/test.php` runs on 7.4 and the newest
+(it starts a stand-in IAM of its own with PHP's built-in server on a free local
+port, and stops it). Sites vendor copies: tell them about a new version.
 
 ## Building for production
 

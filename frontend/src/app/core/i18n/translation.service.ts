@@ -7,7 +7,7 @@ import { SessionService } from '../auth/session.service';
 import { readStorage, writeStorage } from '../util/storage';
 import { TranslationKey, en } from './en';
 
-/** What everything falls back to: the server merges English underneath every bundle, and the admin console is English. */
+/** What everything falls back to: the server merges English underneath every bundle, and the admin panel is English. */
 export const FALLBACK_LANGUAGE = 'en';
 
 /** The language chosen on this device - the switcher, or the account page's select. */
@@ -75,7 +75,7 @@ export function pickLanguage(candidates: readonly string[], offered: readonly st
   return candidates.find((candidate) => offered.includes(candidate)) ?? FALLBACK_LANGUAGE;
 }
 
-/** The words in memory: the language on the translated pages, and English for the admin console. */
+/** The words in memory: the language on the translated pages, and English for the admin panel. */
 interface Words {
   values: ReadonlyMap<string, string>;
   english: ReadonlyMap<string, string>;
@@ -86,7 +86,7 @@ const COMPILED: ReadonlyMap<string, string> = new Map(Object.entries(en));
 
 /**
  * The site's own words: which language the pages are read in, and the strings
- * for it. They live in the database (the admin console edits them) and arrive
+ * for it. They live in the database (the admin panel edits them) and arrive
  * as one bundle - `GET /api/translations/{code}`.
  *
  * Which language, strongest first:
@@ -112,7 +112,7 @@ const COMPILED: ReadonlyMap<string, string> = new Map(Object.entries(en));
  * database has no `languages` table yet and the route answers 503, and the
  * sign-in page must still be readable or nobody could sign in to press Apply.
  *
- * The admin console is English whatever is chosen - `effectiveLanguage` says
+ * The admin panel is English whatever is chosen - `effectiveLanguage` says
  * so while the address is under /admin, which also keeps `<html lang>` honest
  * for screen readers.
  *
@@ -146,10 +146,10 @@ export class TranslationService {
    */
   readonly language = this._language.asReadonly();
 
-  /** The languages on offer, in the order the admin console set. Empty while no bundle has arrived. */
+  /** The languages on offer, in the order the admin panel set. Empty while no bundle has arrived. */
   readonly languages = this._languages.asReadonly();
 
-  /** The language actually on screen: English in the admin console. */
+  /** The language actually on screen: English in the admin panel. */
   readonly effectiveLanguage = computed(() => (this._englishOnly() ? FALLBACK_LANGUAGE : this._language()));
 
   /** The `Intl` locale for dates and numbers in the language on screen. */
@@ -177,7 +177,7 @@ export class TranslationService {
       : candidates[0];
   });
 
-  /** The strings on screen: English in the admin console, the compiled English while there is no bundle. */
+  /** The strings on screen: English in the admin panel, the compiled English while there is no bundle. */
   private readonly _strings = computed<ReadonlyMap<string, string>>(() => {
     const words = this._words();
     return words ? (this._englishOnly() ? words.english : words.values) : COMPILED;
@@ -194,7 +194,7 @@ export class TranslationService {
   /**
    * The bundle on the page is an older one - the cached one, or the one from
    * before reload() - and the request that was to refresh it failed: a release
-   * or the admin console may have changed strings since, so it is asked for
+   * or the admin panel may have changed strings since, so it is asked for
    * again on the next navigation. The next answer clears it.
    */
   private _stale = false;
@@ -222,7 +222,7 @@ export class TranslationService {
   private _askAgainOnNavigation = false;
 
   constructor() {
-    // Honest for a screen reader: the admin console says `en` whatever the person reads.
+    // Honest for a screen reader: the admin panel says `en` whatever the person reads.
     effect(() => {
       this._document.documentElement.lang = this.effectiveLanguage();
     });
@@ -325,7 +325,7 @@ export class TranslationService {
 
   /**
    * Called after every navigation, with the URL it arrived at: under /admin the
-   * console is English, and a `?lang=` on the new URL wins for the visit.
+   * panel is English, and a `?lang=` on the new URL wins for the visit.
    *
    * Told rather than listening to the Router itself - see the class comment.
    * The title strategy already runs on every completed navigation, so it
@@ -398,7 +398,7 @@ export class TranslationService {
   }
 
   /**
-   * The words once more, from the server. The admin console calls it after it
+   * The words once more, from the server. The admin panel calls it after it
    * has saved strings or languages, so that its own shell, the sign-in pages
    * and their switcher follow the change without the site being loaded again.
    * Never rejects.

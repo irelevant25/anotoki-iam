@@ -9,7 +9,7 @@ declare(strict_types=1);
  * for the server: tests/ is never uploaded, and tests/run.php runs only
  * *.test.php.
  *
- * The strings live in the database so they can be edited in the admin console.
+ * The strings live in the database so they can be edited in the admin panel.
  * The frontend still names every key in core/i18n/en.ts - a key that is not
  * there is a compile error - so what can drift is the other side: a key the
  * database has and no page asks for any more, or an English string that says

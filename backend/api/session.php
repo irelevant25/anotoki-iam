@@ -268,7 +268,7 @@ function sessionsFor(PDO $pdo, int $userId, int $limit = 50): array
     return $statement->fetchAll();
 }
 
-/** A session as the account page and the admin console show it. The secret never. */
+/** A session as the account page and the admin panel show it. The secret never. */
 function sessionEntry(array $row, ?int $currentSessionId = null): array
 {
     return [

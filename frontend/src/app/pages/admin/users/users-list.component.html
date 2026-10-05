@@ -36,7 +36,7 @@
             <app-select label="Application" placeholder="Any" [options]="applicationOptions()" [value]="application() ?? ''" (valueChange)="setFilter('application', $event)" />
             <app-select
                 label="Role"
-                [placeholder]="application() ? 'Any role' : 'Pick an application'"
+                [placeholder]="application() ? 'Any role but MEMBER' : 'Pick an application'"
                 [options]="roleOptions()"
                 [disabled]="!application()"
                 [value]="role() ?? ''"
@@ -115,15 +115,18 @@
                                     </span>
                                 </td>
                                 <td>
-                                    @if (user.roles.length) {
-                                        <span class="badges">
-                                            @for (grant of user.roles; track grant.client_id + grant.role) {
-                                                <app-badge [mono]="true">{{ grantLabel(grant) }}</app-badge>
-                                            }
-                                        </span>
-                                    } @else {
-                                        <span class="muted">-</span>
-                                    }
+                                    @let shown = roleCells().get(user.id);
+                                    <span class="badges">
+                                        @for (name of shown?.blocked ?? []; track name) {
+                                            <app-badge tone="warning">Cannot sign in: {{ name }}</app-badge>
+                                        }
+                                        @for (grant of shown?.grants ?? []; track grant.client_id + grant.role) {
+                                            <app-badge [mono]="true">{{ grantLabel(grant) }}</app-badge>
+                                        }
+                                        @if (!shown?.grants?.length && !shown?.blocked?.length) {
+                                            <span class="muted">Member</span>
+                                        }
+                                    </span>
                                 </td>
                                 <td>
                                     <span class="nowrap" [attr.title]="user.last_login_at | appDate">{{ user.last_login_at | appDate: "relative" : "Never" }}</span>

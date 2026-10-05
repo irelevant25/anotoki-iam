@@ -6,7 +6,7 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 
 /**
  * Route middleware for the IAM's own pages: a live session, and for the admin
- * console the ADMIN role in the IAM itself.
+ * panel the ADMIN role in the IAM itself.
  *
  * The user is read fresh on every request rather than cached in the session,
  * so a disabled account or a role taken away counts from the next request.
@@ -63,6 +63,32 @@ function requireAdmin(): callable
 
         if (!$user || !isIamAdmin((int) $user['id'])) {
             return respondError(new \Slim\Psr7\Response(), 403, 'forbidden', 'Only IAM administrators can do this');
+        }
+
+        return $handler->handle($request);
+    };
+}
+
+/**
+ * For the admin panel: every /applications* route answers 503
+ * sign_in_rules_unavailable while migration 010 is pending - they read and
+ * write its columns (login_required, each role's may_sign_in), and would
+ * otherwise be a 500. Everything else in the panel works, the Migrations page
+ * that applies it first of all. The /users* routes work too: what they read of
+ * 010 answers as before it while it is pending, so the owner can still make
+ * an account or change somebody's roles in that window. Decided on the
+ * route's own pattern, not the address, so no spelling of a path slips past.
+ * Must come after requireAdmin() in the chain (added before it).
+ */
+function requireSignInRules(): callable
+{
+    return function (Request $request, RequestHandler $handler): Response {
+        $route = \Slim\Routing\RouteContext::fromRequest($request)->getRoute();
+        $pattern = $route !== null ? $route->getPattern() : '';
+
+        if (preg_match('#^/api/admin/applications(/|$)#', $pattern) && !signInRulesReady(iamDb())) {
+            $refusal = signInRulesUnavailable();
+            return respondError(new \Slim\Psr7\Response(), $refusal['status'], $refusal['code'], $refusal['error']);
         }
 
         return $handler->handle($request);

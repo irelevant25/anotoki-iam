@@ -14,8 +14,8 @@
  *
  * What is copied and why is in api/legacy_import.php. The short version: every
  * account with its id, password, Google link, two-factor and recovery codes;
- * roles become per-application roles (ADMIN also becomes an IAM admin); the old
- * sessions become history. People sign in once more, with the same password.
+ * roles become per-application roles (ADMIN becomes ADMIN in the IAM and in
+ * every site); the old sessions become history. People sign in once more, with the same password.
  *
  * Run it before the genshin site's migration that removes the old tables -
  * that migration waits for the marker this writes. On a server with no shell,

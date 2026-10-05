@@ -7,10 +7,10 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 /**
  * The IAM's own words, in the languages it speaks: the languages, the strings
  * a page asks for by key, the words of the mails, and the grid the admin
- * console edits them in.
+ * panel edits them in.
  *
  * A key is the code's: migrations write the keys and their first strings
- * (migrations/iam/006 and after), the console only ever changes a string.
+ * (migrations/iam/006 and after), the panel only ever changes a string.
  * English is what every other language falls back to, key by key, so it cannot
  * be switched off, deleted, or left without a string.
  *
@@ -99,12 +99,12 @@ const LANGUAGE_SORT_MAX = 1000;
 
 /**
  * How much of a save the audit log names: the first keys - and a changed mail
- * string's old and new text whole. "Whole" is as long as the console lets a
+ * string's old and new text whole. "Whole" is as long as the panel lets a
  * mail string be: the log is what says afterwards who made a reset mail say
  * what, and a sentence added at the end of a paragraph must not be the part
  * it leaves out - once the string is put back, the log is the only place that
  * sentence is kept. The clip is for a string that reached the table without
- * the console (SQL), which can be of any length and must not bloat the log.
+ * the panel (SQL), which can be of any length and must not bloat the log.
  */
 const TRANSLATION_AUDIT_KEYS = 100;
 const TRANSLATION_AUDIT_TEXT = TRANSLATION_MAIL_VALUE_MAX;
@@ -199,10 +199,10 @@ function translationsReady(PDO $pdo): bool
  */
 function translationsUnavailable(): array
 {
-    return translationRefusal(503, 'translations_unavailable', 'The strings are not in the database yet. Apply the pending migrations in the admin console.');
+    return translationRefusal(503, 'translations_unavailable', 'The strings are not in the database yet. Apply the pending migrations in the admin panel.');
 }
 
-/** For the admin console's language and string routes: 503 until the tables are there. */
+/** For the admin panel's language and string routes: 503 until the tables are there. */
 function requireTranslations(): callable
 {
     return function (Request $request, RequestHandler $handler): Response {
@@ -258,7 +258,7 @@ const LANGUAGE_SELECT = 'SELECT l.code, l.name, l.native_name, l.enabled, l.sort
         (SELECT count(*) FROM users u WHERE u.language = l.code) AS accounts
    FROM languages l';
 
-/** A language as the admin console reads it; `accounts` is how many accounts have it. */
+/** A language as the admin panel reads it; `accounts` is how many accounts have it. */
 function languageShape(array $row): array
 {
     return [
@@ -557,7 +557,7 @@ function translationsOf(PDO $pdo, string $code, bool $pages = false): array
  * code that is one (languageCodeOk). `values` is the language's strings with
  * English under them, so a key with no string in it reads in English;
  * `languages` the ones offered; `english` the fallback's own strings, for the
- * admin console, which is always English - left out when that is what `values`
+ * admin panel, which is always English - left out when that is what `values`
  * is. No `mail.` key goes out, in either map.
  *
  * `language` says which language it really is. A code with a region that is
@@ -640,7 +640,7 @@ function translationsNotModified(string $ifNoneMatch, string $etag): bool
     return false;
 }
 
-// ── The admin console's grid ─────────────────────────────────────────────────
+// ── The admin panel's grid ─────────────────────────────────────────────────
 
 /**
  * Every key with its strings in every language, and the languages:

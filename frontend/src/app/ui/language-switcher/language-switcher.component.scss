@@ -38,3 +38,106 @@
   width: 11rem;
   max-width: 50vw;
 }
+
+// The top bar's form: forty wide and no wider - beside it, on a 360 px phone,
+// the brand, the theme and the menu button still have to fit.
+:host(.is-compact) {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.switcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-3);
+  }
+
+  &[aria-expanded="true"] {
+    border-color: var(--primary);
+  }
+
+  &[aria-busy="true"] {
+    color: var(--muted);
+  }
+}
+
+// Hung from the button's left edge: it stands left of the theme and the
+// person, so the menu has room to its right and never leaves a narrow screen.
+.menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+  animation: menu-in 140ms var(--ease);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--surface-3);
+  }
+
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+
+  &[aria-checked="true"] {
+    color: var(--primary-soft-text);
+  }
+
+  app-icon {
+    color: var(--primary);
+  }
+}
+
+.menu-label {
+  overflow-wrap: anywhere;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}

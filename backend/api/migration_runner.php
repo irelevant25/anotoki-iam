@@ -5,7 +5,7 @@
  *
  * Reads php/migrations/{alias}/, applies the files a database has not seen,
  * and records each in its `migrations` table. It prints nothing and reads no
- * request, so the CLI (migration.php), the admin console's "Apply pending" and
+ * request, so the CLI (migration.php), the admin panel's "Apply pending" and
  * the first-run installer build a database the same way - which is the point of
  * there being one description of the schema. The same engine as the genshin
  * site's, so a migration reads the same in either repository.
@@ -227,10 +227,13 @@ function applyPendingMigrations(PDO $pdo, string $alias): array
 }
 
 /**
- * The first administrator of a fresh installation, holding the IAM's ADMIN
- * role. Only when there are no accounts at all, so it is a way to start and
- * never a way in. A missing password is generated for the caller to show once;
- * the account is then flagged to choose its own at the first sign-in.
+ * The first administrator of a fresh installation, holding ADMIN in every
+ * application that has one - the IAM's and every site's (the owner's rule: the
+ * setup's administrator administers everything; migration 007 gives the same
+ * to administrators that were there before). Only when there are no accounts
+ * at all, so it is a way to start and never a way in. A missing password is
+ * generated for the caller to show once; the account is then flagged to choose
+ * its own at the first sign-in.
  *
  * @return array{username: string, email: string, password: string, generated: bool}|null
  */
@@ -254,8 +257,7 @@ function createFirstAdmin(PDO $pdo, string $email, ?string $password = null, ?st
 
         $pdo->prepare(
             "INSERT INTO user_roles (user_id, role_id)
-             SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id
-              WHERE a.client_id = 'iam' AND r.name = 'ADMIN'"
+             SELECT ?, r.id FROM application_roles r WHERE r.name = 'ADMIN'"
         )->execute([$userId]);
 
         $pdo->commit();

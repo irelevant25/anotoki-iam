@@ -6,7 +6,10 @@
  * Everything that decides whether a code or a token is issued reads through
  * here, so the rules live in one place: an application must exist and be
  * enabled, a redirect URI must be one of its own byte for byte, and an account
- * may use a 'members' application only while it holds one of its roles.
+ * may sign in to a site only while it holds a role there that may sign in.
+ * Every account holds MEMBER in every application (migration 010's triggers),
+ * so that is everybody until an administrator takes somebody's MEMBER away, or
+ * unticks MEMBER's "may sign in" for the site.
  */
 
 const IAM_CLIENT_ID = 'iam';
@@ -141,7 +144,10 @@ function lockIamAdmins(PDO $pdo): void
     $pdo->query('SELECT pg_advisory_xact_lock(' . IAM_ADMINS_LOCK . ')');
 }
 
-/** The advisory lock key for lockIamAdmins() - any fixed number, the IAM's own. */
+/**
+ * The advisory lock key for lockIamAdmins() - any fixed number, the IAM's own.
+ * 4260918 is taken too: migration 010's MEMBER triggers hold it.
+ */
 const IAM_ADMINS_LOCK = 4260917;
 
 /** How many accounts can administer the IAM and are not switched off. */
@@ -160,11 +166,57 @@ function iamAdminCount(): int
 }
 
 /**
+ * Whether the database has migration 010's sign-in rules (each role's
+ * may_sign_in, each application's login_required).
+ *
+ * A build is uploaded before its migrations are applied, so for the minutes
+ * until "Apply pending" this code runs on a database without them - and every
+ * site's refresh passes through applicationAccessRefusal(). A catalog query
+ * that cannot fail, asked afresh every time like translationsReady(): a memo
+ * would still say "not yet" after the admin panel applied 010 in this very
+ * process.
+ */
+function signInRulesReady(PDO $pdo): bool
+{
+    return asBool($pdo->query(
+        "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('application_roles') AND attname = 'may_sign_in' AND NOT attisdropped)
+            AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('applications') AND attname = 'login_required' AND NOT attisdropped)"
+    )->fetchColumn());
+}
+
+/** The answer of what needs 010 while it is pending: a 503 that points at the Migrations page, not a 500. */
+function signInRulesUnavailable(): array
+{
+    return [
+        'status' => 503,
+        'code' => 'sign_in_rules_unavailable',
+        'error' => 'The sign-in rules are not in the database yet. Apply the pending migrations in the admin panel.',
+    ];
+}
+
+/** Whether the account holds a role in the application that may sign in. Read fresh: a role taken away counts at once. */
+function userMaySignInTo(int $userId, int $applicationId): bool
+{
+    $statement = iamDb()->prepare(
+        'SELECT EXISTS (SELECT 1 FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
+                         WHERE ur.user_id = ? AND r.application_id = ? AND r.may_sign_in)'
+    );
+    $statement->execute([$userId, $applicationId]);
+
+    return asBool($statement->fetchColumn());
+}
+
+/**
  * Why this account may not use this application right now, or null.
  *
- * Checked when a code is issued and again at every refresh, so taking away
- * somebody's last role in a members-only application locks them out within one
- * access token's lifetime rather than whenever their session happens to end.
+ * Checked when a code is issued (authorize, the sign-in page's accept, the
+ * code exchange), for a personal token, and again at every refresh - so
+ * taking somebody's MEMBER away, or unticking a role's "may sign in", locks
+ * them out within one access token's lifetime rather than whenever their
+ * session happens to end.
+ *
+ * The IAM's own entry is not asked about roles: its pages use their own
+ * cookie, and Settings -> Signing in (signInRefusal()) is their only gate.
  *
  * @return array{status: int, code: string, error: string}|null
  */
@@ -182,11 +234,27 @@ function applicationAccessRefusal(array $application, array $user): ?array
         return ['status' => 403, 'code' => 'email_not_confirmed', 'error' => 'Confirm your email address first'];
     }
 
-    if ($application['access'] === 'members' && userRolesIn((int) $user['id'], (int) $application['id']) === []) {
+    if (rolesKeepOut($application, (int) $user['id'])) {
         return ['status' => 403, 'code' => 'access_denied', 'error' => 'This account cannot use ' . $application['name']];
     }
 
     return null;
+}
+
+/**
+ * Whether the account's roles keep it out of the application - whatever else
+ * (the application switched off, the account's own state) would.
+ */
+function rolesKeepOut(array $application, int $userId): bool
+{
+    if (signInRulesReady(iamDb())) {
+        return !asBool($application['system']) && !userMaySignInTo($userId, (int) $application['id']);
+    }
+
+    // Until 010 is applied: the rule before it, on the column it read. Goes,
+    // with the access column, in the migration that drops it once both IAMs
+    // have 010 (docs/decisions.md, 2026-10-05).
+    return ($application['access'] ?? 'everyone') === 'members' && userRolesIn($userId, (int) $application['id']) === [];
 }
 
 /** The public face of an application, as the sign-in pages show it. */
@@ -199,16 +267,4 @@ function applicationSummary(array $application): array
         'home_url' => $application['home_url'],
         'logo_url' => $application['logo_url'],
     ];
-}
-
-/**
- * Whether a client secret is right, for a confidential client.
- *
- * password_verify, because a client secret is a long-lived credential typed
- * into a config file - the kind of thing that ends up somewhere it should not -
- * and a stolen hash of it should be as useless as a stolen password hash.
- */
-function clientSecretValid(array $application, string $secret): bool
-{
-    return $secret !== '' && !empty($application['secret_hash']) && password_verify($secret, $application['secret_hash']);
 }

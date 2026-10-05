@@ -21,6 +21,9 @@ import { RolePickerComponent, grantFromKey } from './role-picker.component';
  * The backend marks it confirmed - an admin typed the address in - and the
  * password is one to hand over, so "choose a new one at the first sign-in" is
  * ticked unless the person is in the room choosing it themselves.
+ *
+ * MEMBER is not offered: the database gives every new account MEMBER in every
+ * application, so the role picker leaves it out and counts it as held.
  */
 @Component({
   selector: 'app-create-user-dialog',

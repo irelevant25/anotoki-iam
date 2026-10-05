@@ -1,8 +1,8 @@
 @use "../../admin-list";
 
-// The shell's top bar (layouts/shell): what sticks under it starts here.
-$topbar: 64px;
-// Where the languages go under one another. The console's side navigation
+// The top bar (layouts/top-bar): what sticks under it starts here.
+$topbar: var(--topbar-height, 60px);
+// Where the languages go under one another. The panel's side navigation
 // takes 15rem of the window, so side by side needs a wider window than the
 // grid alone would.
 $stacked-below: 1100px;

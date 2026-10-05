@@ -512,7 +512,7 @@ export class TranslationsComponent implements HoldsUnsavedChanges {
 
   /**
    * The sign-in and account pages read these strings: this tab gets them again
-   * now, not at the next reload. (The console itself is English, and reads the
+   * now, not at the next reload. (The panel itself is English, and reads the
    * English that comes beside them.)
    */
   private _refreshSite(): void {

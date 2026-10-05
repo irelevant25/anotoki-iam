@@ -19,7 +19,8 @@
         <app-checkbox [(checked)]="forceChange" hint="They sign in with this password once, then have to pick their own.">Require a new password at the first sign-in</app-checkbox>
         <div class="stack stack-sm">
             <p class="roles-label">Roles</p>
-            <app-role-picker [applications]="applications()" [(selected)]="roles" />
+            <p class="muted small">Every new account holds MEMBER in every application; take it away afterwards under Roles.</p>
+            <app-role-picker [applications]="applications()" [excluded]="['MEMBER']" [implied]="['MEMBER']" [(selected)]="roles" />
         </div>
     </form>
     <div dialogFooter>

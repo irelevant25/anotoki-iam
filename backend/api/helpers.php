@@ -257,8 +257,8 @@ function textBlank(string $text): bool
 /**
  * The codes of the languages on offer, in the order a chooser shows them.
  *
- * They are rows of `languages` (migration 006), kept in the admin console. But
- * a build is uploaded before its migrations are applied - from the console,
+ * They are rows of `languages` (migration 006), kept in the admin panel. But
+ * a build is uploaded before its migrations are applied - from the panel,
  * by somebody who has to sign in first - so this must answer on a database
  * that has no such table yet. It asks whether the table is there before
  * reading it: a query that cannot fail, so it is safe inside a transaction,
@@ -270,7 +270,7 @@ function textBlank(string $text): bool
  * the installer and the import work on databases of their own, before any
  * configuration exists. Only the IAM's own database is remembered for the
  * request (as settingsAll() is); whatever changes the languages - the admin
- * console, or applying migrations - asks again with $reload.
+ * panel, or applying migrations - asks again with $reload.
  *
  * The IAM's own database that cannot be reached, or cannot be asked, is
  * answered like one without the table - and that answer is not remembered, so

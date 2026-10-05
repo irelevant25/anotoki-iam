@@ -2,12 +2,12 @@
 
 /**
  * The IAM's own words in the database: the languages, the strings of the pages
- * and the mails, and the admin console's routes for them.
+ * and the mails, and the admin panel's routes for them.
  *
  * Three things are held here that nothing else would catch:
  *
  *   - The window. A build is uploaded before its migrations are applied, from
- *     the admin console, by somebody who has to sign in first. So the first
+ *     the admin panel, by somebody who has to sign in first. So the first
  *     test runs the app on a database that stops before 006: everything a
  *     sign-in needs still works, the mails go out in the English kept in the
  *     code, and the bundle says "not yet" instead of failing.
@@ -15,7 +15,7 @@
  *     messages are compared byte for byte with what the code used to write,
  *     and the ways a string could be turned against the recipient - a header
  *     in a subject, a link in a paragraph, a placeholder that leaks a token -
- *     are tried both through the console and straight into the table.
+ *     are tried both through the panel and straight into the table.
  *   - The catalogue. What the migrations leave is held to the frontend's
  *     compiled English (core/i18n/en.ts) and to MAIL_KEYS / MAIL_FALLBACK, so
  *     the three cannot drift apart.
@@ -474,7 +474,7 @@ test('before 006 is applied the IAM still runs: config, discovery, a site\'s sig
         // A site's sign-in, all the way: the code exchanged for tokens, and the site told the language chosen a moment ago.
         same(['sk', 'sk'], localeOf('known@example.test', '10.8.0.8'), 'a site\'s sign-in completes before 006: the code exchange, and the locale in the access token and from userinfo');
 
-        // The admin console: its string pages say "not yet"; Migrations is where that is mended.
+        // The admin panel: its string pages say "not yet"; Migrations is where that is mended.
         $admin = new Browser('10.8.0.6');
         same(200, $admin->signIn('admin@example.test', 'correct horse')->status, 'the admin can sign in to press Apply');
 
@@ -493,15 +493,18 @@ test('before 006 is applied the IAM still runs: config, discovery, a site\'s sig
         }
         same([503, 'translations_unavailable'], [save($admin, ['common.save' => ['sk' => 'x']])->status, save($admin, ['common.save' => ['sk' => 'x']])->code()], 'nothing to save into');
         same([401, 'no_session'], [(new Browser('10.8.0.6'))->get('/api/admin/languages')->status, (new Browser('10.8.0.6'))->get('/api/admin/languages')->code()], 'to anybody else they say what they always say: sign in first');
-        same([STRINGS_MIGRATION], $admin->get('/api/admin/migrations')->json()['pending'] ?? null, '006 is what is pending');
+        // 006 is pending, and every migration written after it (007 on).
+        $fromStrings = array_values(array_filter(migrationFiles('iam'), static fn(string $file): bool => strnatcmp($file, STRINGS_MIGRATION) >= 0));
+        same(STRINGS_MIGRATION, $fromStrings[0] ?? null, 'the first of what is pending is 006');
+        same($fromStrings, $admin->get('/api/admin/migrations')->json()['pending'] ?? null, '006 and what came after it are what is pending');
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [STRINGS_MIGRATION], null], [$applied->status, $applied->json()['applied'] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same([200, $fromStrings, null], [$applied->status, $applied->json()['applied'] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
 
         // From the next request on: the strings are there, and the mails are in the account's language.
         $bundle = (new Browser('10.8.0.1'))->get('/api/translations/sk');
         same([200, 'sk', 'Uložiť'], [$bundle->status, $bundle->json()['language'] ?? null, $bundle->json()['values']['common.save'] ?? null], 'the bundle, in Slovak');
-        same(2, count($admin->get('/api/admin/languages')->json()['languages'] ?? []), 'the console\'s pages work');
+        same(2, count($admin->get('/api/admin/languages')->json()['languages'] ?? []), 'the panel\'s pages work');
         same('sk', $pdo->query("SELECT language FROM users WHERE email = 'novacik@example.test'")->fetchColumn(), 'the account kept its language through the change of constraint');
         same(200, (new Browser('10.8.0.7'))->post('/api/password/forgot', ['email' => 'known@example.test'])->status, 'a reset');
         same('Nastavenie nového hesla anotoki', lastMailTo('known@example.test')['subject'] ?? null, 'now in Slovak, the language the account chose above');
@@ -533,9 +536,9 @@ test('the two languages the IAM is released in, and every key with an English an
         array_map('array_values', $pdo->query('SELECT code, name, native_name, enabled, sort_order FROM languages ORDER BY sort_order')->fetchAll()),
         'the languages'
     );
-    same(456, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), '441 keys of the pages and 15 of the mails');
-    same(456, count(seeded('en')), 'each has an English string');
-    same(456, count(seeded('sk')), 'and a Slovak one');
+    same(458, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), '443 keys of the pages and 15 of the mails');
+    same(458, count(seeded('en')), 'each has an English string');
+    same(458, count(seeded('sk')), 'and a Slovak one');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE description IS NULL OR description = ''")->fetchColumn(), 'and a description');
     same(0, (int) $pdo->query('SELECT count(*) FROM translations WHERE updated_by IS NOT NULL')->fetchColumn(), 'written by nobody');
     foreach (array_keys(seeded('en')) as $key) {
@@ -578,14 +581,14 @@ test('placeholders: a Slovak string uses none its English lacks; the two the pag
         }
     }
 
-    // Everything the migrations wrote would be accepted by the console as it is.
+    // Everything the migrations wrote would be accepted by the panel as it is.
     $all = [];
     foreach (seeded('en') as $key => $english) {
         $all[$key] = ['en' => $english, 'sk' => seeded('sk')[$key]];
     }
     $result = translationsCheck($all, array_keys($all), ['en' => 'English', 'sk' => 'Slovak'], seeded('en'));
     check(!translationRefused($result), 'every seeded string passes the rules it is edited under: ' . json_encode($result['extra'] ?? null) . ' ' . ($result['code'] ?? ''));
-    same(912, count($result['changes'] ?? []), 'all 912 of them');
+    same(916, count($result['changes'] ?? []), 'all 916 of them');
 });
 
 test('the mails: MAIL_KEYS and MAIL_FALLBACK are exactly what the database has', function () {
@@ -619,7 +622,7 @@ test('the frontend\'s compiled English is the database\'s: the same keys without
     $dictionary = translationKeysDictionary(translationKeysFrontendRoot() . '/' . TRANSLATION_DICTIONARY_FILE);
     $pages = array_filter(seeded('en'), static fn(string $key): bool => !str_starts_with($key, 'mail.'), ARRAY_FILTER_USE_KEY);
 
-    same(441, count($pages), 'the pages have 441 keys');
+    same(443, count($pages), 'the pages have 443 keys');
     foreach (array_keys($dictionary) as $key) {
         check(translationKeyShapeOk((string) $key), "$key in en.ts has the shape of a key, so the scan can find it");
     }
@@ -641,7 +644,7 @@ test('every page key the database has is used by the frontend, and nothing in th
     same([], $scan['problems'], 'what the scan does not let through');
     same([], $scan['unused'], 'in the database, used nowhere - a key built at run time cannot be seen and is forbidden; delete a dead key with a migration');
     same([], array_keys($scan['missing']), 'used by the frontend, not in the database - the page would show the key');
-    same(441, count($scan['used']), 'all 441');
+    same(443, count($scan['used']), 'all 443');
     same([], array_values(array_filter(array_keys($scan['used']), static fn(string $key): bool => str_starts_with($key, 'mail.'))), 'the mail keys are not the frontend\'s');
 
     $files = translationKeySourceFiles(translationKeysFrontendRoot());
@@ -839,7 +842,7 @@ test('a mail\'s words are held to more: exactly the code\'s placeholders, one sh
     same(['invalid_value', ['key' => 'mail.confirm.greeting', 'language' => 'sk']], checked(['mail.confirm.greeting' => ['sk' => str_repeat('あ', 170) . ' {username}']]), 'in any of the three mails');
     same(600, strlen(checked(['mail.reset.subject' => ['sk' => str_repeat("\u{1D11E}", 150)]])[0]['value']), 'a subject is never stopped by it: 150 characters are 600 bytes at most');
 
-    // The longest strings the console takes, filled with the longest username there can be: no line of the message is over 998 bytes.
+    // The longest strings the panel takes, filled with the longest username there can be: no line of the message is over 998 bytes.
     $longest = [
         'mail.reset.greeting' => str_repeat('あ', 163) . ' {username}',
         'mail.reset.intro' => str_repeat('あ', 300),
@@ -870,7 +873,7 @@ test('a mail\'s words are held to more: exactly the code\'s placeholders, one sh
     same(TRANSLATION_MAIL_LINE_OCTETS - 2 * TRANSLATION_MAIL_USERNAME_OCTETS, 100, 'with two, 100 bytes are left for the string');
     $twice = str_repeat('あ', 26) . ' {username} {username}';
     same(100, strlen($twice), 'a greeting of 100 bytes that names the reader twice');
-    same($twice, checked(['mail.reset.greeting' => ['sk' => $twice]])[0]['value'], 'is the longest of its kind the console takes');
+    same($twice, checked(['mail.reset.greeting' => ['sk' => $twice]])[0]['value'], 'is the longest of its kind the panel takes');
     same(['invalid_value', ['key' => 'mail.reset.greeting', 'language' => 'sk']], checked(['mail.reset.greeting' => ['sk' => str_repeat('あ', 27) . ' {username} {username}']]), 'one of 103 bytes is not');
     $message = mailMessage('reset', ['mail.reset.greeting' => $twice] + MAIL_FALLBACK, TEST_ISSUER . '/reset-password?token=' . str_repeat('cd', 32), ['username' => $name, 'minutes' => MAIL_RESET_MINUTES]);
     $lines = array_map('strlen', explode("\n", $message['body']));
@@ -1089,12 +1092,12 @@ test('the bundle: a language\'s strings with English underneath, no mail key, th
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(441, count($english->json()['values']), 'the 441 strings of the pages');
+    same(443, count($english->json()['values']), 'the 443 strings of the pages');
     same('Save', $english->json()['values']['common.save'], 'a string');
     check(str_contains($english->header('Content-Type'), 'application/json'), 'as JSON');
 
     $slovak = $visitor->get('/api/translations/sk');
-    same(['language', 'languages', 'values', 'english'], array_keys($slovak->json()), 'with English itself, for the admin console');
+    same(['language', 'languages', 'values', 'english'], array_keys($slovak->json()), 'with English itself, for the admin panel');
     same(['sk', 'Uložiť', 'Save'], [$slovak->json()['language'], $slovak->json()['values']['common.save'], $slovak->json()['english']['common.save']], 'Slovak over English');
     same($english->json()['values'], $slovak->json()['english'], 'the English is the English');
 
@@ -1339,7 +1342,7 @@ test('a mail never fails and never carries a key: no tables, a broken query, a m
         $pdo->exec("UPDATE translations SET value = '   ' WHERE key_name = 'mail.reset.ignore' AND language_code = 'sk'");
         same(seeded('en')['mail.reset.ignore'], mailWords('sk')['mail.reset.ignore'], 'a string of nothing but spaces is no string');
 
-        // Nor is one of characters nobody can see - written past the console, which refuses them: never a paragraph or a subject of nothing.
+        // Nor is one of characters nobody can see - written past the panel, which refuses them: never a paragraph or a subject of nothing.
         $write = $pdo->prepare('UPDATE translations SET value = ? WHERE key_name = ? AND language_code = ?');
         foreach (["\u{200B}", "\u{2060}\u{00AD}", " \u{FEFF}\u{200D} "] as $nothing) {
             $write->execute([$nothing, 'mail.reset.ignore', 'sk']);
@@ -1421,7 +1424,7 @@ test('a string written straight into the table cannot turn a mail against its re
         check(!str_contains($mail['subject'], $token[1]) && !str_contains((string) $logged[1], $token[1]), 'the token is in neither the subject nor the log');
         same('Reset {link} {code} {token} {username} {minutes}', $logged[1], 'the log has the subject as it went');
 
-        // A link in a paragraph, put there by SQL: it goes out as written (the console would have refused it) - but the real link is still the code's.
+        // A link in a paragraph, put there by SQL: it goes out as written (the panel would have refused it) - but the real link is still the code's.
         $pdo->exec("UPDATE translations SET value = 'Reset {link}:' WHERE key_name = 'mail.reset.intro' AND language_code = 'en'");
         $ask('10.9.3.3');
         check(str_contains(lastMailTo('player@example.test')['body'], "\n\nReset {link}:\n\n" . TEST_ISSUER . '/reset-password?token='), 'no {link} is ever filled; the link is on the line after');
@@ -1448,7 +1451,7 @@ test('the grid: every key with its strings in every language, the mail keys amon
     same(200, $grid->status, 'the grid');
     same(['languages', 'keys'], array_keys($grid->json()), 'its two parts');
     same($admin->get('/api/admin/languages')->json()['languages'], $grid->json()['languages'], 'every language, as the languages page has them');
-    same(456, count($grid->json()['keys']), 'every key');
+    same(458, count($grid->json()['keys']), 'every key');
     same(sorted(array_column($grid->json()['keys'], 'name')), array_column($grid->json()['keys'], 'name'), 'by name');
 
     $byName = array_column($grid->json()['keys'], null, 'name');
@@ -1623,7 +1626,7 @@ test('a save of many strings names the first hundred keys in the audit log, and 
     same(array_intersect_key(seeded('sk'), $pages), array_intersect_key(translationsOf(iamDb(), 'sk'), $pages), 'as they were');
 });
 
-test('a mail\'s words through the console: reworded, refused - and every change recorded with the old and the new text', function () {
+test('a mail\'s words through the panel: reworded, refused - and every change recorded with the old and the new text', function () {
     $admin = admin();
     $adminId = $GLOBALS['adminId'];
     $before = everyString();
@@ -1692,18 +1695,18 @@ test('a mail\'s words through the console: reworded, refused - and every change 
     sendPasswordResetMail(['id' => null, 'username' => 'Anna', 'email' => 'reworded@example.test', 'language' => 'sk'], str_repeat('cd', 32));
     check(str_starts_with(lastMailTo('reworded@example.test')['body'], "Ahoj Anna,\n\n$intro\n\n" . TEST_ISSUER . '/reset-password?token='), 'the next reset says it');
 
-    // The log keeps a mail string whole: what it keeps is as long as the console lets one be.
+    // The log keeps a mail string whole: what it keeps is as long as the panel lets one be.
     $long = str_repeat('ž', 400);
     same(200, save($admin, ['mail.reset.intro' => ['sk' => $long]])->status, 'a paragraph of 400 characters');
     $entry = lastAudit('translations.saved')[3]['mail'][0];
-    same([$intro, $long], [$entry['old'], $entry['new']], 'a mail string of the longest the console takes is in the log whole');
+    same([$intro, $long], [$entry['old'], $entry['new']], 'a mail string of the longest the panel takes is in the log whole');
     same($long, stored('mail.reset.intro', 'sk')[0], 'and whole in the table');
     check(TRANSLATION_AUDIT_TEXT >= TRANSLATION_MAIL_VALUE_MAX, 'whatever the longest becomes, the log\'s bound is not under it');
 
-    // The clip is only for a string that came past the console: of any length, and not the log's to carry.
+    // The clip is only for a string that came past the panel: of any length, and not the log's to carry.
     $outside = str_repeat('š', 450);
     iamDb()->prepare("UPDATE translations SET value = ? WHERE key_name = 'mail.reset.intro' AND language_code = 'sk'")->execute([$outside]);
-    same(200, save($admin, ['mail.reset.intro' => ['sk' => $long]])->status, 'a string written by SQL, 450 characters of it, is replaced in the console');
+    same(200, save($admin, ['mail.reset.intro' => ['sk' => $long]])->status, 'a string written by SQL, 450 characters of it, is replaced in the panel');
     $entry = lastAudit('translations.saved')[3]['mail'][0];
     same([400, str_repeat('š', 400), $long], [textLength($entry['old']), $entry['old'], $entry['new']], 'the log has its first 400 characters');
 
@@ -1720,7 +1723,7 @@ test('a mail\'s words through the console: reworded, refused - and every change 
     $padding = str_repeat('Choose a new password below. ', 10) . 'Be quick. ';
     $added = 'Or go to anotoki-login.test/reset and type your current password there:';
     same(300, textLength($padding), '300 characters of ordinary wording first');
-    same(200, save($admin, ['mail.reset.intro' => ['en' => $padding . $added]])->status, 'the paragraph with a sentence added at its end is saved: the console cannot tell it from a rewording');
+    same(200, save($admin, ['mail.reset.intro' => ['en' => $padding . $added]])->status, 'the paragraph with a sentence added at its end is saved: the panel cannot tell it from a rewording');
     $entry = lastAudit('translations.saved')[3]['mail'][0];
     same(['mail.reset.intro', 'en', seeded('en')['mail.reset.intro'], $padding . $added], [$entry['key'], $entry['language'], $entry['old'], $entry['new']], 'the log has the new text word for word');
     check(str_contains($entry['new'], 'anotoki-login.test') && strpos($entry['new'], 'anotoki-login.test') > 300, 'the added sentence among it, though it begins after the 300th character');
@@ -1731,7 +1734,7 @@ test('a mail\'s words through the console: reworded, refused - and every change 
     same([$padding . $added, seeded('en')['mail.reset.intro']], [$entry['old'], $entry['new']], 'the entry of putting it back has the whole of what it was');
     same(0, (int) iamDb()->query("SELECT count(*) FROM translations WHERE value LIKE '%anotoki-login.test%'")->fetchColumn(), 'which by now is kept nowhere else');
 
-    // What goes out: the longest strings the console takes in a script of three bytes a letter, to the
+    // What goes out: the longest strings the panel takes in a script of three bytes a letter, to the
     // longest username an account can have - no line of the message is over the 998 bytes a mail allows.
     same(200, save($admin, ['mail.reset.ignore' => ['sk' => str_repeat('あ', 300)], 'mail.reset.greeting' => ['sk' => str_repeat('あ', 163) . ' {username}']])->status, 'a Japanese paragraph of 300 characters, and a greeting as long as one may be');
     same(true, sendPasswordResetMail(['id' => null, 'username' => str_repeat("\u{1D11E}", 100), 'email' => 'longest@example.test', 'language' => 'sk'], str_repeat('cd', 32)), 'a reset to a username of 100 four-byte characters');
@@ -1823,7 +1826,7 @@ test('languages: added after the others and offered at once - to the pages, to d
         same($expected, queryOf($start['location'])['lang'] ?? null, "ui_locales=$uiLocales");
     }
 
-    // An account may have it: by registering, on the account page, in the admin console.
+    // An account may have it: by registering, on the account page, in the admin panel.
     $registered = (new Browser('10.9.5.3'))->post('/api/register', ['username' => 'Gretchen', 'email' => 'gretchen@example.test', 'password' => 'a long password', 'language' => 'de']);
     same(201, $registered->status, 'registered in German');
     same('de', iamDb()->query("SELECT language FROM users WHERE email = 'gretchen@example.test'")->fetchColumn(), 'and German is the account\'s language');
@@ -1853,8 +1856,8 @@ test('a new language starts hidden when the body says so: there for its strings,
     );
     same([$adminId, 'language', 'fr', ordered(['name' => 'French', 'native_name' => 'Français', 'enabled' => false])], lastAudit('language.created'), 'and the log says it was made hidden');
 
-    // In the console, and nowhere a reader or a site would meet it.
-    same(false, array_column($admin->get('/api/admin/languages')->json()['languages'], 'enabled', 'code')['fr'] ?? null, 'the admin console has it, switched off');
+    // In the panel, and nowhere a reader or a site would meet it.
+    same(false, array_column($admin->get('/api/admin/languages')->json()['languages'], 'enabled', 'code')['fr'] ?? null, 'the admin panel has it, switched off');
     $visitor = new Browser('10.9.5.8');
     same($offered, $visitor->get('/api/public/config')->json()['languages'], 'the pages are not offered it');
     same($offered, $visitor->get('/.well-known/openid-configuration')->json()['ui_locales_supported'], 'nor is a site told of it');
@@ -2048,7 +2051,7 @@ test('languages: renamed, reordered, switched off - English never; a switched-of
     same(null, queryOf(authorize(new Browser('10.9.6.1'), ['ui_locales' => 'de'])['location'])['lang'] ?? null, 'ui_locales=de opens the page in no language of its own');
     same('en', (new Browser('10.9.6.1'))->get('/api/translations/de')->json()['language'], 'asked for by name it reads in English');
     same('en', (new Browser('10.9.6.1'))->get('/api/translations/de-at')->json()['language'], 'and so does a region of it: a language that is off answers for nobody');
-    same(['en', 'sk', 'pt-br', 'de'], array_column($admin->get('/api/admin/languages')->json()['languages'], 'code'), 'the admin console still sees it');
+    same(['en', 'sk', 'pt-br', 'de'], array_column($admin->get('/api/admin/languages')->json()['languages'], 'code'), 'the admin panel still sees it');
     same('de', iamDb()->query("SELECT language FROM users WHERE email = 'dieter@example.test'")->fetchColumn(), 'the account keeps its language');
     same(['en', 'en'], localeOf('dieter@example.test', '10.9.6.3'), 'but the locale claim is English while it is off');
 
@@ -2144,7 +2147,7 @@ test('two admins adding the last language the IAM keeps, at the same moment: one
         same(LANGUAGES_MAX, $count(), 'twenty languages, not twenty-one');
         same(0, (int) $pdo->query("SELECT count(*) FROM languages WHERE code = 'fr'")->fetchColumn(), 'the one that came second is not among them');
 
-        // And through the console, a moment later: the same answer.
+        // And through the panel, a moment later: the same answer.
         $full = $admin->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']);
         same([422, 'too_many_languages'], [$full->status, $full->code()], 'the twenty-first, asked for again');
     } finally {
@@ -2281,10 +2284,10 @@ test('the command line: --export and --import on the same strings, by nobody and
 
     // --status: the frontend's keys against this database's.
     [$code, $out] = cli('--status');
-    check(preg_match('/the database has\s+456 keys \(441 of the pages, 15 of the mails\)/', $out) === 1, $out);
+    check(preg_match('/the database has\s+458 keys \(443 of the pages, 15 of the mails\)/', $out) === 1, $out);
     check(preg_match('/the frontend uses\s+\d+ of the pages\' keys/', $out) === 1, $out);
-    check(preg_match('/\n\s+sk\s+Slovak\s+456 \/ 456\n/', $out) === 1, 'how much of each language there is: ' . $out);
-    check(preg_match('/\n\s+de\s+German \(Germany\)\s+4 \/ 456\n/', $out) === 1, 'German: ' . $out);
+    check(preg_match('/\n\s+sk\s+Slovak\s+458 \/ 458\n/', $out) === 1, 'how much of each language there is: ' . $out);
+    check(preg_match('/\n\s+de\s+German \(Germany\)\s+4 \/ 458\n/', $out) === 1, 'German: ' . $out);
     same(str_contains($out, 'Not clean.') ? 1 : 0, $code, 'exit 1 exactly when a key is missing or has no English string');
     same(str_contains($out, 'Clean.') ? 0 : 1, $code, 'and 0 when clean');
 
@@ -2321,7 +2324,7 @@ test('deleting a language: never English, never one the IAM is released in; its 
     same([$adminId, 'language', 'de', ordered(['name' => 'German (Germany)', 'accounts' => 3, 'strings' => $strings])], lastAudit('language.deleted'), 'recorded with that number');
     same(['en', 'en', 'en'], iamDb()->query("SELECT language FROM users WHERE email IN ('dieter@example.test', 'gretchen@example.test', 'player@example.test')")->fetchAll(PDO::FETCH_COLUMN), 'the accounts are English now');
     same(0, (int) iamDb()->query("SELECT count(*) FROM translations WHERE language_code = 'de'")->fetchColumn(), 'its strings went with it');
-    same(456, (int) iamDb()->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'the keys are the code\'s, and stay');
+    same(458, (int) iamDb()->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'the keys are the code\'s, and stay');
     same(404, $admin->delete('/api/admin/languages/de')->status, 'it is gone');
 
     same(['en', 'sk', 'pt-br'], (new Browser('10.9.8.1'))->get('/api/public/config')->json()['languages'], 'no longer offered');

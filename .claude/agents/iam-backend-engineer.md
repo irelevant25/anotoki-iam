@@ -35,7 +35,11 @@ API document is a contract the Angular frontend and all the sites depend on.
 - `backend/setup.php` - the installer: `setupHandle()` returns an answer, the
   runner at the bottom prints it. Development mode (this computer: nonce,
   re-runnable) and real-host mode (token, lock, self-delete, production
-  addresses).
+  addresses). Its "Test connection" (`setupTestDatabase()`) answers in the
+  anotoki family's words, the survey's setup page's word for word - never
+  reword them here alone.
+- `backend/README.md` - the backend's layout, entry points, commands and test
+  files; keep it in step with them.
 - `backend/migrations/iam/NNN_*.sql` - the schema (see the iam-migration skill).
 - `backend/tests/*.test.php` + `lib.php` + `setup_lib.php` - in-process tests,
   each file with a temp configuration and throwaway `iam_test_*` databases.

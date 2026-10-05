@@ -47,9 +47,10 @@ same successor again" is impossible - a sibling is the honest version of it.
 
 Keycloak's "client roles". genshin's EDITOR means nothing to the piano site; a
 token lists the roles for the application it is for and no others. The admin
-console grants them. The genshin site's single `role` column became: ADMIN ->
+panel grants them. The genshin site's single `role` column became: ADMIN ->
 genshin ADMIN and IAM ADMIN (those accounts already ran the account pages that
-moved here), EDITOR -> genshin EDITOR, USER -> nothing.
+moved here), EDITOR -> genshin EDITOR, USER -> nothing. (Since 2026-10-01 an
+old ADMIN becomes ADMIN in every application that has one - below.)
 
 ## 2026-09-27 - Preferences stay with the sites
 
@@ -98,7 +99,8 @@ API is small and changes rarely; typed services written by hand next to
 
 The study apps must keep working on the owner's own computer with no IAM
 running. That is each site's configuration (`auth mode none`, acting as the
-owner's id), never something the IAM grants.
+owner's id), never something the IAM grants. (Withdrawn 2026-10-01: the IAM is
+the only way in - below.)
 
 ## 2026-09-28 - The CSRF guard names its exceptions
 
@@ -218,7 +220,7 @@ them live - with no install after it to take anything out. So it decides by
 where the IAM itself is served from: its own `iam` entry's home, which the
 installer sets to the IAM's public address every time it runs. On this computer
 the site gets its development addresses and a card on the landing page, as 002
-gave the others; anywhere else it gets neither, and the admin console gives it
+gave the others; anywhere else it gets neither, and the admin panel gives it
 its https address. It is the rule the installer keeps - never a loopback
 address on a live IAM, where a localhost redirect URI would hand a code to
 whatever listens on the visitor's own machine. A fresh database counts as this
@@ -227,9 +229,11 @@ install then treats the survey site like the others.
 
 005 also gives the site's ADMIN to the IAM's administrators of the moment - the
 survey site's own decision (its `docs/decisions.md`): they could give it to
-themselves in the admin console anyway. It is the one migration that gives
+themselves in the admin panel anyway. It is the one migration that gives
 anybody a role, and on a fresh install it gives none either: there the
-migrations run before the accounts exist, and the admin console gives the role.
+migrations run before the accounts exist, and the admin panel gives the role.
+(Since 2026-10-01 007 does the same for every site, and the installer's
+administrator is made with ADMIN everywhere - below.)
 
 ## 2026-09-30 - The IAM's words and mails live in the database
 
@@ -238,12 +242,12 @@ The sign-in and account pages were two dictionaries compiled into the build
 `api/mail.php`. Rewording a sentence meant a build and an upload, and a third
 language meant code. Like the other anotoki sites, the words became rows
 (migration 006: `languages`, `translation_keys`, `translations`), edited on the
-admin console's Translations and Languages pages. `sk.ts` is gone; the admin
-console stays English, written in its templates. Slovak speaks to the reader
+admin panel's Translations and Languages pages. `sk.ts` is gone; the admin
+panel stays English, written in its templates. Slovak speaks to the reader
 informally ("ty"), as the IAM always has.
 
 - **A last resort, and only that.** A build is uploaded before its migrations
-  are applied, from the console, by somebody who has to sign in first - so the
+  are applied, from the panel, by somebody who has to sign in first - so the
   sign-in page must read without the tables. `en.ts` keeps the English the
   pages show while no bundle is in memory, and `MAIL_FALLBACK` the mails'
   English whenever the database has nothing to give. Once a bundle has arrived,
@@ -259,7 +263,7 @@ informally ("ty"), as the IAM always has.
   make the IAM send its own phishing mail: a scheme, `www.` or an `@` is
   refused. A bare domain is not caught; the audit log is.
 - **The audit log keeps a changed mail string whole**, old and new, up to the
-  400 characters the console lets a mail string be - a sentence added at the
+  400 characters the panel lets a mail string be - a sentence added at the
   end of a reset mail must not be the part it leaves out. Page strings are
   logged by key.
 - **A mail string is bounded in bytes as well** (900, less 400 for every
@@ -290,3 +294,273 @@ informally ("ty"), as the IAM always has.
   setting, and is then headed "Appearance". A language chosen there is fetched
   before the page switches, English too; when the account refuses it the page
   goes back to the language it was shown in, from memory, with no request.
+
+## 2026-10-01 - "Test connection" answers in the family's words
+
+Every anotoki site has a setup page, and the owner saw the IAM's answer a
+database test differently from the survey's: the PostgreSQL version, counts of
+migrations and accounts, a warning where the survey said plainly what Save
+would do. One wording for the family now, the survey's, word for word:
+
+- `Connected to the database "<name>": it is empty - Save makes the tables.` /
+  `... N update(s) to apply - Save applies them.` / `... it is up to date.`
+- `Connected to the server. The database "<name>" does not exist yet - Save creates it.`
+- `Connected to the server, but there is no database "<name>" and this user may not create one. Make it in the hosting panel first.`
+- `The server is there, but "<user>" cannot open the database "<name>": <reason>`
+- `Cannot connect: <reason>`
+
+The database is tried first (hosting often lets a user into its own database
+only), the server's `postgres` database second - to tell a database that is
+missing from one that is closed to this user, and whether the user may create
+it (`rolcreatedb` or `rolsuper`). The IAM could make a missing database before
+(Save calls `ensureDatabase()` and carries on when the user may not), so the
+answer only had to say so truthfully: "Save creates it" is promised only when
+the user may. A missing database is no longer a warning: it is either what
+Save will do (good) or something to do first (bad). The old accounts
+database's own test keeps its counts - nothing else in the family has one.
+
+## 2026-10-01 - Every site open to every account, ADMIN and EDITOR in each
+
+The owner, making the family work one way: "Every project should be available
+for every user not just admin or editor", and "the admin panels only for
+admins and editors with different rights". Japanese Academy, Piano Academy and
+the build analyzer had been `members` sites with a MEMBER role ("may use the
+app") and an ADMIN that was "the owner"; genshin and the survey were already
+open, with ADMIN and EDITOR. Migration 007 makes them all one shape:
+
+- every first-party site's `access` is `everyone` - whether a visitor must sign
+  in at all is the site's own rule, not the IAM's;
+- MEMBER goes from the three sites, and what was granted of it with it - an
+  invitation to use a site that everybody may now use says nothing any more;
+- EDITOR joins ADMIN there, in the split the owner chose: EDITOR rewords the
+  site's strings (the analyzer's also runs the syncs); ADMIN does all that and
+  adds and deletes languages, applies database updates, switches sources on
+  and off and deletes a person's data. Genshin and the survey keep their split
+  and their words.
+
+Only what is there is touched: a site deleted in the admin panel stays
+deleted, and an ADMIN description reworded there keeps its words (002's words
+are the only ones replaced). The `members` rule itself stays in the IAM, for
+an application the admin panel makes members-only.
+
+MEMBER came back, for every account, with migration 010 (2026-10-05, below);
+the `members` rule became "roles that may sign in".
+
+## 2026-10-01 - The IAM's administrator administers every site
+
+The owner: "When IAM is setup, the admin account from setup should have admin
+role to all applications." A freshly installed IAM made its administrator ADMIN
+of the IAM only, so the owner signed in to the survey site and found its admin
+area closed to them; they could have given themselves each role in the admin
+panel, which is exactly why holding them from the start costs nothing. So
+ADMIN in every application that has an ADMIN role goes to:
+
+- the administrator `createFirstAdmin()` makes - setup.php's new
+  administrator and `create-admin.php`'s;
+- an ADMIN brought over from the genshin site (`legacy_import.php`), who used
+  to get genshin's and the IAM's;
+- every administrator of the IAM when 007 runs (005's pattern for the survey,
+  now for every application with an ADMIN role, one registered in the admin
+  panel included).
+
+It is a grant, not a rule: an administrator made later from the admin panel
+gets the IAM's ADMIN only and is given the sites' there, and a site's ADMIN can
+be taken away again like any role. Changing which roles anybody is given was a
+permission decision, so it waited for the owner's explicit approval
+(2026-10-02) before it was written.
+
+## 2026-10-01 - The IAM is the only way in
+
+The owner: "There is no need from project to support no iam alternative/version
+of the projects. The IAM should be the only option." The study apps' local mode
+with sign-in switched off (2026-09-27, above) goes from each of them; a site's
+own tests sign in through a stand-in IAM instead. Nothing in the IAM changes:
+that mode never was the IAM's.
+
+## 2026-10-04 - The family's one top bar, on the account pages and the admin panel
+
+The anotoki sites share one top bar (the survey site's `layouts/top-bar` is
+the reference): brand, the site's sections as links, language, theme, the
+person's menu, in one row that folds into a menu button on a phone. The IAM's
+two rows - a bar with the brand, the theme and the person's menu, and the
+account pages' navigation under it (a side list, a strip on a phone) - become
+that one bar. What the IAM decides for itself:
+
+- **The account pages are the bar's links**, and the family's "Your anotoki
+  account" entry is left out of the person's menu: this site is that account,
+  so the entry would only repeat Overview. In the admin panel the menu's way
+  out is "Back to your account" instead (English, as the panel is).
+- **The admin panel keeps its side navigation** under the bar: eleven
+  sections are a list, not a row of links. Its bar has no links and no
+  language; it reads English.
+- **The sign-in pages keep their own night-sky frame** - nobody signed in,
+  nothing for a bar to hold.
+- **A language chosen in the bar is the account's**, as the overview's select
+  makes it: left to the browser alone, the account's language would take the
+  page back at the next load.
+- **The fold is measured**: 1040 px - the row needs 1010 px in English and
+  1005 in Slovak, plus a desktop scrollbar a media query counts. Above it only
+  the person's name gives way.
+- **Tab leaves a menu from its button.** The old bar let Tab move on by
+  itself; with no zone the menu went only at the next render, so the focus
+  landed on the next item of a menu about to vanish and then on `<body>`.
+  Tab and Shift+Tab now close the menu with the focus on its button, in the
+  bar's menus and the language button's alike.
+- **One language save at a time, the latest choice last.** Each choice in the
+  bar used to start its own save; two in flight (en, sk, en picked quickly)
+  could be handled in either order and leave the account - the next visit,
+  the mails - on a language the page no longer showed. A choice made while a
+  save is on its way now waits for it, only the latest one is saved, and not
+  at all when the account has it by then. Chained rather than cancelled: an
+  abandoned request may still reach the server, last.
+- **The language button's name holds its code**: "Language: Slovenčina (SK)"
+  for a button that shows "SK" (`lang.button`, migration 008). The words on a
+  button belong in its name (WCAG 2.5.3, label in name), or "click SK" finds
+  nothing by voice. A family-wide choice: the survey site's bar, the
+  reference, names its button the same way.
+- **The admin panel's role field suggests EDITOR**, not MEMBER: since 007 no
+  first-party site asks for MEMBER.
+
+## 2026-10-04 - "Admin panel", in every anotoki site
+
+The owner: every anotoki site names its admin area the same - "admin panel",
+not "admin" nor the IAM's "admin console". The IAM's says so everywhere: the
+person's menu and the account overview's card ("Admin panel", Slovak
+"Administrátorský panel"), the bar's brand ("anotoki admin panel", its link
+named "anotoki admin panel - home"), the tab's title ("Users · anotoki admin
+panel"), the side navigation's name and the docs. The two strings were 006's,
+applied on installed IAMs, so migration 009 rewords them - only where they
+still hold 006's words: one reworded on the Translations page is the owner's.
+The Migrations page, the model the other sites' Migrations pages follow, is
+unchanged.
+
+## 2026-10-05 - MEMBER for everyone, roles that may sign in, sign-in required per site
+
+The owner: "I would like to be able to setup if log in is required for a
+specific project and also what roles can log in to a specific project. The
+default role for users should be member. Every user needs to have a role."
+And the sites that do not require signing in let visitors in, with accounts of
+their own on each site (the sites' business, not the IAM's). This takes back
+007's "no MEMBER". Migration 010:
+
+- **MEMBER ("Uses the site") in every application** - the sites, the owner's
+  own, the IAM's entry - **and every account holds it in every one**. Kept by
+  the database, not by PHP: a trigger on `users` gives a new account MEMBER
+  everywhere, one on `applications` gives a new application MEMBER and every
+  account. Six ways make an account or an application (registration, Google,
+  the installer's and create-admin.php's administrator, the legacy import, the
+  admin panel twice), and the tests' own fixtures besides; a missed one would
+  now be a lock-out. Both triggers take one transaction-scoped advisory lock
+  (4260918), so an account and an application made at the same moment still
+  meet. MEMBER is never removed from an application nor renamed (the admin
+  API refuses); taking it from a person is allowed - that is how somebody is
+  blocked from one site.
+- **Roles that may sign in** (`application_roles.may_sign_in`, default yes): a
+  sign-in to a site - authorize, the sign-in page's accept, the code exchange,
+  every refresh, a personal token - is refused (`403 access_denied`, "This
+  account cannot use {name}", the words and pages that were there) unless the
+  account holds a role there that may sign in. The IAM's own entry is never
+  asked: its global Settings -> Signing in stays its pages' only gate. A site
+  switched on keeps at least one role that may sign in; nobody able to is what
+  switching it off is for. A body that leaves `may_sign_in` out keeps what each
+  role has, so a script or an older panel cannot change who signs in by
+  accident. A change of who may sign in, or of the switch below, is audited on
+  its own (`application.sign_in_changed`, before and after); a new
+  application's entry says what it starts with. Two saves of one application
+  run one after the other (the save locks its row first), so together they
+  cannot leave a site switched on with no role that may sign in.
+- **Sign-in required, per application** (`applications.login_required`):
+  genshin and the build analyzer off (visitors welcome, as today), every other
+  site on, a new application on; the IAM's entry has none. The sites read it
+  from the IAM's public contract, `GET /api/public/applications/{client_id}`
+  (`{client_id, name, login_required}`, cacheable for a minute; 404 for an
+  unknown, switched-off or system client id), through the PHP SDK's
+  `anotoki_iam_login_required()` (1.1.0), which fails closed: a 404 is
+  "required", and an IAM out of reach leaves the last answer or "required".
+  The contract confirms to anybody who knows a client id that the site exists
+  and its name - accepted: the sign-in page says as much to anybody who
+  starts a sign-in there.
+- **Nothing changes for anybody on the day it runs.** `access` is carried
+  over: an `everyone` application lets every account in (MEMBER may sign in,
+  and everybody holds it); a non-system `members` one lets in what it did
+  (its MEMBER may not sign in, its other roles may). A MEMBER somebody held
+  there was a way in, so it is renamed INVITED ("Was MEMBER before
+  2026-10-05", INVITED_2 if taken) with its holders, and a fresh MEMBER goes
+  beside it - 010 never stops for it. A `members` application left with no
+  role that may sign in let nobody in, and is switched off. Tested on a
+  database built through 009 by comparing who gets in where, account by
+  account, before and after.
+- **The `access` column stays**, unread once 010 is applied - but it is not
+  a way back. **Once 010 is applied, the build before it must never go on
+  the host again: fix forward.** That build reads `access`, and with every
+  account holding MEMBER everywhere it would let every account into a
+  members-only application and let back in anybody blocked by having MEMBER
+  taken away (it ignores `may_sign_in`) - at authorize, every refresh, the
+  code exchange and personal tokens alike. Holding MEMBER everywhere cannot
+  be said in the old rule, so no change to the data makes that build fail
+  closed. (A way back would first have to switch off every application
+  whose MEMBER may not sign in, and would still let in everybody blocked by
+  having MEMBER taken away.) While 010 is pending, `applicationAccessRefusal()` keeps the rule before it on that
+  column (`signInRulesReady()`, a catalog query asked every time, never
+  memoised: the admin panel's Apply runs in the same process as the requests
+  after it), and the admin panel's application routes answer `503
+  sign_in_rules_unavailable`, pointing at the Migrations page; the users
+  routes keep working. **A later migration drops the column and that
+  fallback, once both IAMs (this computer's and the host's) have run 010.**
+- MEMBER now rides in every token's `roles`. No site needs it or refuses it;
+  a site treats it as an ordinary signed-in person. Taking somebody's MEMBER
+  away makes the IAM refuse their next sign-in and refresh, while the access
+  token they hold verifies until it expires; a site that does not require
+  signing in still lets them in as a visitor - blocking stops signing in, not
+  visiting.
+- **The admin panel lists who is blocked**, by one rule (`blockedFromSql()`,
+  the users list's `blocked_in`, an application's Members tab, the role
+  editor's warning in `sign-in-check.ts`): an account holding no role there
+  that may sign in, whose MEMBER was taken away or which holds another role
+  there. An account holding just MEMBER where MEMBER may not sign in was never
+  invited, and is not "blocked" - or every ordinary account would be, on every
+  members-only site, as the account page already leaves such a site out. The
+  Members tab lists who holds a role beyond MEMBER, and the users filter by an
+  application alone means the same: MEMBER, which everybody holds, would list
+  everybody.
+
+## 2026-10-05 - Public clients only, the same roles everywhere, no landing page settings
+
+The owner, the same day: "Remove Landing page settings in applications of iam
+admin console. Also, delete an option for adding a new role in applications
+of iam admin console. All roles are static. Also remove Signing in Type option
+in applications of iam admin console. It will be public only." Migration 011:
+
+- **Public clients only.** Every application names itself with `client_id`
+  and proves each sign-in with PKCE, which authorize now asks of every client
+  whatever the row says. There are no client secrets: 011 makes every
+  application public and clears `secret_hash`; the token and revocation
+  endpoints refuse a request carrying a secret (`client_secret`, even empty,
+  or HTTP Basic) with `401 invalid_client` "Public clients only - send
+  client_id and the PKCE code_verifier, no secret", rather than reading half
+  of it; discovery says `["none"]`; the admin panel has no Type, no secret
+  and no "Generate secret" (the route is gone). No application on the owner's
+  IAM was confidential; one elsewhere must use PKCE, as every anotoki site does.
+- **Static roles.** Every site has ADMIN, EDITOR and MEMBER, the IAM's own
+  entry ADMIN and MEMBER. 011's trigger (replacing 010's, same name, same
+  lock) gives a new application all three, in the family's generic words
+  (ADMIN "Everything in the site's admin panel", EDITOR "Edits the site's
+  content in its admin panel", MEMBER "Uses the site"), MEMBER to every
+  account and the others to nobody; 011 adds a missing ADMIN or EDITOR to an
+  application the same way. Adding a role gives it to nobody: who holds one
+  stays the owner's decision, made under Users. A role made before 011 (an
+  owner's READER, 010's INVITED) stays, with its holders, read-only; a role
+  reworded before keeps its words. The admin API refuses adding, removing,
+  renaming or rewording a role; a save names each role and may change only
+  whether it may sign in - one list of the roles with their ticks, not a role
+  editor beside a checklist of the same roles.
+- **No landing page settings.** The panel no longer shows or saves "Show on
+  the landing page" and the order; a new application goes last. The public
+  `GET /api/applications` lists every application that is switched on, but
+  the IAM itself - the same five sites today. The anotoki.eu landing page
+  keeps its own list (only its auditor compares).
+- `type`, `secret_hash` and `show_on_landing` stay in the database, unread
+  (not a way back: as with 010, no build from before it goes on the host
+  again); the migration that drops 010's `access` drops them too.
+  `sort_order` stays for good: it is the order of the list (a new
+  application goes last), only no longer set in the panel.

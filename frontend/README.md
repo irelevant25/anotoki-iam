@@ -2,7 +2,7 @@
 
 The pages of the anotoki identity provider: signing in (and finishing an
 application's sign-in request), registering, the mailed-link pages, signing
-out, the account pages, and the admin console. Angular 21, standalone and
+out, the account pages, and the admin panel. Angular 21, standalone and
 zoneless, signals throughout, no UI library.
 
 The contract with the backend is [`../docs/api.md`](../docs/api.md); where the
@@ -18,7 +18,16 @@ npm run build:dev       # development build (unminified, source maps)
 npm run build:deploy    # production build + the web root's .htaccess (see below)
 npm run watch           # development build, rebuilt on change
 npm run format          # prettier over src/
+npx ng test --watch=false   # the unit tests (Vitest, jsdom) - see below
 ```
+
+The unit tests run with Angular's `@angular/build:unit-test` (`angular.json`'s
+`test` target, `tsconfig.spec.json`), which needs `vitest` and `jsdom` in
+`devDependencies` (the survey site's versions: `vitest` ^4, `jsdom` ^28) and,
+once they are, a `"test": "ng test --watch=false"` script for `npm test`.
+The specs: the top bar's (`layouts/top-bar/top-bar.component.spec.ts`), and
+the admin panel's "Cannot sign in" rule (`pages/admin/users/sign-in-check.ts`,
+the same as the server's `blocked_in`; `sign-in-check.spec.ts`).
 
 `npm start` needs the backend beside it, set up once through its installer
 (`../DEV.md`):
@@ -57,11 +66,14 @@ src/
       theme/               light / dark / automatic
       google/              Google Identity Services, loaded on demand
     ui/                    the UI kit (buttons, fields, dialog, toasts, QR code, …)
-    layouts/               the night-sky sign-in layout and the account/admin shell
+    layouts/               auth-layout (the night-sky sign-in pages' own frame),
+                           shell (the account pages and the admin panel: the
+                           top bar, and the panel's side navigation),
+                           top-bar (the anotoki family's one bar, below)
     pages/
       auth/                /login /register /confirm-email /forgot-password
                            /reset-password /logout /error /not-set-up, and not-found
-      account/             /account and its four sub-pages
+      account/             /account and its four sub-pages (the top bar's links)
       admin/               /admin: users, sessions, applications, logs, settings,
                            translations and languages (localization/), keys,
                            migrations
@@ -86,15 +98,37 @@ scripts/
   `core/api/models.ts`; when the backend changes, change them and let the
   compiler find every page that has to follow.
 - **Words from the database, keys typed.** The sign-in and account pages read
-  their strings from the database, in whatever languages the admin console
+  their strings from the database, in whatever languages the admin panel
   offers (English and Slovak to start with): one bundle,
   `GET /api/translations/{code}`, fetched before the page switches language.
   `TranslationKey` comes from `en.ts`, so an unknown key is a compile error;
   a key the bundle has no string for shows as the key itself, so it is seen.
   `en.ts`'s English is shown only while no bundle is in memory (between an
   upload and "Apply pending", or when the server cannot be reached). There is no
-  Slovak in the build. The admin console is English only, written in its
+  Slovak in the build. The admin panel is English only, written in its
   templates.
+- **The top bar** (`layouts/top-bar`) is the anotoki family's one bar - the
+  survey site's `layouts/top-bar` is the reference, and the family's spec says
+  what each site changes. One row: the brand ("anotoki account", or "anotoki
+  admin"), the account pages as links, the language (a 40 px button with a
+  menu - `app-language-switcher [compact]`; not in the admin panel, which is
+  English), the theme, the person's menu (name, email, "Administrator"; the
+  admin panel for the IAM's administrators, or "Back to your account" from
+  it; Sign out). The family's "Your anotoki account" entry is left out: the
+  account pages are the bar's own links. A language chosen there is saved to
+  the account too, as the overview's select does - one save at a time, the
+  latest choice last, so quick choices cannot leave the account on another
+  language than the page. The language button shows the code ("SK") and is
+  named with it ("Language: Slovenčina (SK)", WCAG 2.5.3: the words on a
+  button are part of its name). Up to `PHONE_BAR_MAX`
+  (1040 px - measured with the English and the Slovak labels, plus a desktop
+  scrollbar) the links and the person's menu fold into one menu button; above
+  it only the person's name gives way (hidden up to 1240 px). Both menus: focus
+  in on open, arrow keys, Home / End, Escape and an outside click close them,
+  and Tab / Shift+Tab from any item close the menu with the focus on its
+  button (`preventDefault()` - left to the browser, the focus would fall to
+  `<body>`). The admin panel keeps its own side navigation under it
+  (`layouts/shell`, a strip of links on a narrow screen).
 - **Theming** is custom properties only: both palettes in `styles.scss` define
   the same names. Components never contain a raw colour that works in one
   theme only.

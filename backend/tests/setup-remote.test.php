@@ -83,9 +83,16 @@ test('without the token nothing happens: not the install, not a test, not from 1
     check(!is_file(IAM_CONFIG_DIR . '/database.local.php') && !is_file(IAM_STORAGE_DIR . '/installed.lock'), 'nothing written');
 });
 
-test('with the token, "Test connection" answers', function () {
+test('with the token, "Test connection" answers, in the family\'s words', function () {
     $answer = setupJsonAnswer(setupRequest('POST', REMOTE_SERVER, json: ['action' => 'test_database'] + remoteForm(tokenOnDisk())));
-    check(in_array($answer['tone'], ['good', 'warn'], true), 'the server answers: ' . $answer['message']);
+
+    // The database is not made until the install: what is said of it depends
+    // on whether the tests' login may make one.
+    $mayCreate = (bool) connectDatabase(testServer(), 'postgres', false)->query('SELECT rolcreatedb OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn();
+    same($mayCreate
+        ? ['ok' => true, 'tone' => 'good', 'message' => "Connected to the server. The database \"{$GLOBALS['database']}\" does not exist yet - Save creates it."]
+        : ['ok' => false, 'tone' => 'bad', 'message' => "Connected to the server, but there is no database \"{$GLOBALS['database']}\" and this user may not create one. Make it in the hosting panel first."],
+        $answer, 'the server answers');
 });
 
 test('a real host is https, and each site\'s address is its https origin', function () {
@@ -137,6 +144,9 @@ test('the install: files, database, administrator, the sites\' production addres
     same('https://iam.example.test', $browser->get('/.well-known/openid-configuration')->json()['issuer'] ?? null, 'discovery names the issuer');
     same(200, $browser->signIn('owner@example.test', 'the owners password')->status, 'the administrator signs in');
     same(true, $browser->get('/api/account')->json()['is_admin'] ?? null, 'as an IAM admin');
+    $owner = (int) $pdo->query("SELECT id FROM users WHERE email = 'owner@example.test'")->fetchColumn();
+    same(['build-analyzer', 'genshin', 'iam', 'japanese-academy', 'piano-academy', 'survey'], adminOf($pdo, $owner), 'and holds ADMIN in every site as well, a site left blank included');
+    same(applicationsWithAdmin($pdo), adminOf($pdo, $owner), 'which is every application that has one');
 });
 
 test('once installed it stays installed', function () {

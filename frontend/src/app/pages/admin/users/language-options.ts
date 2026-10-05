@@ -3,7 +3,7 @@ import { SelectOption } from '../../../ui/select/select.component';
 
 /**
  * What the language select of the create-user and edit-user dialogs offers:
- * the languages on offer, under their English names (the console is English).
+ * the languages on offer, under their English names (the panel is English).
  *
  * `stored` is the language the account has now. When it is no longer offered
  * it is listed all the same - last, by its code - so opening the dialog and

@@ -91,7 +91,7 @@ function writeTab(value: string | null): void {
 }
 
 /**
- * What is typed on the admin console's Translations and Languages pages and
+ * What is typed on the admin panel's Translations and Languages pages and
  * not saved yet: the strings' changed cells, and the languages' changed rows.
  *
  * It is kept here, not in the pages, because a page can go with no question
@@ -113,7 +113,7 @@ function writeTab(value: string | null): void {
  * tab loses the drafts, whichever page is showing - or none.
  *
  * It is made with the first of the two pages that is drawn, inside the admin
- * console - so after the session is known: who is signed in is settled when
+ * panel - so after the session is known: who is signed in is settled when
  * it reads what the tab has kept.
  */
 @Injectable({ providedIn: 'root' })

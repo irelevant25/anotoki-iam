@@ -25,7 +25,7 @@ const TARGET_TYPES: SelectOption[] = ['user', 'application', 'session', 'token',
 const SUMMARY_LENGTH = 90;
 
 /**
- * /admin/audit - every change made from the admin console, and the
+ * /admin/audit - every change made from the admin panel, and the
  * security-relevant ones accounts make to themselves.
  *
  * `details` is whatever JSON the backend stored with the row. It is shown on

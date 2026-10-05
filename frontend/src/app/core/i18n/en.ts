@@ -2,7 +2,7 @@
  * The list of keys, and the English of last resort.
  *
  * The words the pages show live in the database - the `translations` table,
- * edited in the admin console - and arrive as a bundle (TranslationService).
+ * edited in the admin panel - and arrive as a bundle (TranslationService).
  * This file is no longer where they are read from. It is kept for two things:
  *
  * 1. The keys. `TranslationKey` is derived from this object, so a key that
@@ -10,7 +10,7 @@
  *
  * 2. The English shown while no bundle is in memory - and only then. A new
  *    build runs on the old database until "Apply pending" is pressed in the
- *    admin console; the bundle route answers 503 meanwhile, and the sign-in
+ *    admin panel; the bundle route answers 503 meanwhile, and the sign-in
  *    page has to be readable or nobody could sign in to press it. Once a
  *    bundle has arrived, the bundle is what is shown: a key it has no string
  *    for appears on the page as the key itself. These strings never paper over
@@ -28,7 +28,7 @@
  * time: a key nobody names in full would look unused to that same test.
  *
  * A language's own name is not here: it comes from the `languages` table, with
- * the bundle. The admin console's own pages are written in English in their
+ * the bundle. The admin panel's own pages are written in English in their
  * templates; the pieces it shares with the rest (the shell, the UI kit) read
  * these keys in English.
  */
@@ -86,6 +86,7 @@ export const en = {
   'theme.autoHint': 'Follows your system setting',
 
   'lang.label': 'Language',
+  'lang.button': 'Language: {name} ({code})',
 
   // ── Errors, by the contract's codes ────────────────────────────────────────
   'error.generic': 'Something went wrong. Please try again.',
@@ -305,10 +306,11 @@ export const en = {
   'shell.skipToContent': 'Skip to content',
   'shell.mainNav': 'Main navigation',
   'shell.userMenu': 'Account menu',
-  'shell.account': 'Account',
-  'shell.admin': 'Admin console',
+  'shell.admin': 'Admin panel',
   'shell.signOut': 'Sign out',
   'shell.signOutFailed': 'Signing out did not work. Please try again.',
+  'shell.menu': 'Menu',
+  'shell.roleAdmin': 'Administrator',
 
   'account.nav.overview': 'Overview',
   'account.nav.security': 'Security',
@@ -343,7 +345,7 @@ export const en = {
   'overview.quickTokens': 'Personal tokens for importers and other scripts.',
   'overview.twoFactorOn': 'Two-factor on',
   'overview.twoFactorOff': 'Two-factor off',
-  'overview.adminTitle': 'Admin console',
+  'overview.adminTitle': 'Admin panel',
   'overview.adminText': 'Accounts, applications, roles, keys and switches.',
 
   // ── Account: security ──────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ import { sessionGuard } from './core/auth/guards';
  * either area that none of its pages match falls through to that same page.
  *
  * Titles are translation keys on the translated pages and plain English in
- * the admin console; IamTitleStrategy takes either.
+ * the admin panel; IamTitleStrategy takes either.
  */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'account' },

@@ -4,7 +4,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 // ---------------------------------------------------------------------------
-// The admin console
+// The admin panel
 //
 // Everything here needs the ADMIN role in the IAM itself. It is the genshin
 // site's Accounts, Sessions and Email Log pages, moved to where the accounts
@@ -34,14 +34,48 @@ function rolesOf(PDO $pdo, int $userId): array
     return $statement->fetchAll();
 }
 
-const ADMIN_USER_SELECT = "SELECT u.id, u.username, u.email, u.email_confirmed, u.language, u.disabled, u.totp_enabled,
+/**
+ * Whether the account `$user` counts as blocked from the application `$application`
+ * (SQL over those two aliases): it holds no role there that may sign in, and
+ * either its MEMBER there was taken away or it holds another role there. An
+ * account holding just MEMBER where MEMBER may not sign in (a members-only
+ * site) was simply never invited - it is not listed, as the account page does
+ * not list such a site to it, or every ordinary account would be "blocked"
+ * there. Reads may_sign_in: only once 010 is applied.
+ */
+function blockedFromSql(string $user, string $application): string
+{
+    return "NOT EXISTS (SELECT 1 FROM user_roles bur JOIN application_roles br ON br.id = bur.role_id
+                         WHERE bur.user_id = {$user}.id AND br.application_id = {$application}.id AND br.may_sign_in)
+            AND (NOT EXISTS (SELECT 1 FROM user_roles bur JOIN application_roles br ON br.id = bur.role_id
+                              WHERE bur.user_id = {$user}.id AND br.application_id = {$application}.id AND br.name = 'MEMBER')
+                 OR EXISTS (SELECT 1 FROM user_roles bur JOIN application_roles br ON br.id = bur.role_id
+                             WHERE bur.user_id = {$user}.id AND br.application_id = {$application}.id AND br.name <> 'MEMBER'))";
+}
+
+/**
+ * The admin panel's account rows. `blocked_in` - the switched-on sites the
+ * account is blocked from (blockedFromSql()) - needs 010's may_sign_in; while
+ * 010 is pending it is empty, so the users pages keep working in the minutes
+ * between an upload and Apply.
+ */
+function adminUserSelect(PDO $pdo): string
+{
+    $blockedIn = signInRulesReady($pdo)
+        ? "COALESCE((SELECT json_agg(a.client_id ORDER BY a.sort_order, a.client_id) FROM applications a
+                      WHERE a.system = FALSE AND a.enabled AND " . blockedFromSql('u', 'a') . "), '[]')"
+        : "'[]'";
+
+    return "SELECT u.id, u.username, u.email, u.email_confirmed, u.language, u.disabled, u.totp_enabled,
         u.force_password_change, (u.password IS NOT NULL) AS has_password, u.last_login_at, u.created_at, u.updated_at,
         EXISTS (SELECT 1 FROM user_identities i WHERE i.user_id = u.id AND i.provider = 'google') AS google_connected,
         (SELECT i.email FROM user_identities i WHERE i.user_id = u.id AND i.provider = 'google' LIMIT 1) AS google_email,
         COALESCE((SELECT json_agg(json_build_object('client_id', a.client_id, 'role', r.name) ORDER BY a.sort_order, r.name)
                     FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
-                    JOIN applications a ON a.id = r.application_id WHERE ur.user_id = u.id), '[]') AS roles
+                    JOIN applications a ON a.id = r.application_id WHERE ur.user_id = u.id), '[]') AS roles,
+        {$blockedIn} AS blocked_in
    FROM users u";
+}
 
 function adminUserShape(array $row): array
 {
@@ -58,6 +92,7 @@ function adminUserShape(array $row): array
         'google_connected' => asBool($row['google_connected']),
         'google_email' => $row['google_email'],
         'roles' => json_decode((string) $row['roles'], true) ?: [],
+        'blocked_in' => json_decode((string) $row['blocked_in'], true) ?: [],
         'last_login_at' => isoTime($row['last_login_at']),
         'created_at' => isoTime($row['created_at']),
         'updated_at' => isoTime($row['updated_at']),
@@ -66,7 +101,7 @@ function adminUserShape(array $row): array
 
 function adminUser(PDO $pdo, int $id): ?array
 {
-    $statement = $pdo->prepare(ADMIN_USER_SELECT . ' WHERE u.id = ?');
+    $statement = $pdo->prepare(adminUserSelect($pdo) . ' WHERE u.id = ?');
     $statement->execute([$id]);
     $row = $statement->fetch();
 
@@ -207,18 +242,21 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             $params[] = $language;
         }
 
+        // An application without a role: a role there beyond MEMBER, which
+        // every account holds (010) - "everybody" would be no filter at all.
+        // With a role, MEMBER included, exactly that role.
         if (($clientId = field($query, 'application')) !== '') {
             $role = strtoupper(field($query, 'role'));
             $where[] = 'EXISTS (SELECT 1 FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
                                  JOIN applications a ON a.id = r.application_id
-                                WHERE ur.user_id = u.id AND a.client_id = ?' . ($role !== '' ? ' AND r.name = ?' : '') . ')';
+                                WHERE ur.user_id = u.id AND a.client_id = ?' . ($role !== '' ? ' AND r.name = ?' : " AND r.name <> 'MEMBER'") . ')';
             $params[] = $clientId;
             if ($role !== '') {
                 $params[] = $role;
             }
         }
 
-        $statement = iamDb()->prepare(ADMIN_USER_SELECT . ' WHERE ' . implode(' AND ', $where) . ' ORDER BY u.created_at DESC, u.id DESC');
+        $statement = iamDb()->prepare(adminUserSelect(iamDb()) . ' WHERE ' . implode(' AND ', $where) . ' ORDER BY u.created_at DESC, u.id DESC');
         $statement->execute($params);
 
         return respondJson($response, array_map('adminUserShape', $statement->fetchAll()));
@@ -227,11 +265,22 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     $group->get('/users/filters', function (Request $request, Response $response) {
         $pdo = iamDb();
         $applications = [];
+        // Which roles let somebody in, for the role editor's "cannot sign in"
+        // warning; every role while 010 is pending (the rule before it had
+        // no such thing).
+        $ready = signInRulesReady($pdo);
 
-        foreach ($pdo->query('SELECT id, client_id, name FROM applications ORDER BY sort_order, name')->fetchAll() as $application) {
-            $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? ORDER BY name');
+        foreach ($pdo->query('SELECT id, client_id, name, system FROM applications ORDER BY sort_order, name')->fetchAll() as $application) {
+            $roles = $pdo->prepare('SELECT name, ' . ($ready ? 'may_sign_in' : 'TRUE') . ' AS may_sign_in FROM application_roles WHERE application_id = ? ORDER BY name');
             $roles->execute([(int) $application['id']]);
-            $applications[] = ['client_id' => $application['client_id'], 'name' => $application['name'], 'roles' => $roles->fetchAll(PDO::FETCH_COLUMN)];
+            $rows = $roles->fetchAll();
+            $applications[] = [
+                'client_id' => $application['client_id'],
+                'name' => $application['name'],
+                'system' => asBool($application['system']),
+                'roles' => array_column($rows, 'name'),
+                'sign_in_roles' => array_values(array_column(array_filter($rows, static fn(array $row): bool => asBool($row['may_sign_in'])), 'name')),
+            ];
         }
 
         return respondJson($response, [
@@ -251,7 +300,7 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     });
 
     // Everything about one account, spread over many tables, gathered so the
-    // console can show a person rather than a row. What it deliberately does
+    // panel can show a person rather than a row. What it deliberately does
     // not carry: the password hash, the TOTP secret, recovery codes, device
     // tokens - not even their hashes.
     $group->get('/users/{id:[0-9]+}/detail', function (Request $request, Response $response, array $args) {
@@ -312,7 +361,9 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             $insert->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $language, pgBool(!empty($body['force_password_change']))]);
             $id = (int) $insert->fetchColumn();
 
-            $grant = $pdo->prepare('INSERT INTO user_roles (user_id, role_id, granted_by) VALUES (?, ?, ?)');
+            // The new account holds MEMBER everywhere already (010's
+            // trigger), so a body naming a MEMBER asks for what is there.
+            $grant = $pdo->prepare('INSERT INTO user_roles (user_id, role_id, granted_by) VALUES (?, ?, ?) ON CONFLICT DO NOTHING');
             foreach ($roles['ids'] as $roleId) {
                 $grant->execute([$id, $roleId, (int) actor($request)['id']]);
             }
@@ -742,9 +793,18 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             return respondError($response, 409, 'client_id_taken', 'That client id is already taken');
         }
 
-        $insert = $pdo->prepare("INSERT INTO applications (client_id, name) VALUES (?, ?) RETURNING id");
+        // Last in the list (there are no landing page settings to place it).
+        // The database gives it ADMIN, EDITOR and MEMBER, and MEMBER to every
+        // account (011's trigger); the insert below covers the minutes between
+        // an upload and Apply, when 010's trigger made MEMBER alone.
+        $insert = $pdo->prepare('INSERT INTO applications (client_id, name, sort_order)
+                                 VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM applications)) RETURNING id');
         $insert->execute([$clientId, field($body, 'name') ?: $clientId]);
         $id = (int) $insert->fetchColumn();
+        $role = $pdo->prepare('INSERT INTO application_roles (application_id, name, description) VALUES (?, ?, ?) ON CONFLICT (application_id, name) DO NOTHING');
+        foreach (SITE_ROLES as $name => $description) {
+            $role->execute([$id, $name, $description]);
+        }
 
         $saved = saveApplication($pdo, $id, $body, true);
         if (isset($saved['error'])) {
@@ -752,15 +812,19 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             return respondError($response, 422, 'invalid_application', $saved['error']);
         }
 
-        $secret = null;
-        if (($body['type'] ?? 'public') === 'confidential') {
-            $secret = randomSecret(32, 'iam_cs_');
-            $pdo->prepare('UPDATE applications SET secret_hash = ? WHERE id = ?')->execute([password_hash($secret, PASSWORD_DEFAULT), $id]);
-        }
+        // Who may sign in from the start - visitors welcome, or MEMBER
+        // unticked - is a security setting like any later change of it.
+        $application = adminApplication($pdo, $id);
+        $signInRoles = array_values(array_map(
+            static fn(array $role): string => $role['name'],
+            array_filter($application['roles'], static fn(array $role): bool => $role['may_sign_in'])
+        ));
+        audit($request, (int) actor($request)['id'], 'application.created', 'application', $clientId, [
+            'login_required' => $application['login_required'],
+            'sign_in_roles' => $signInRoles,
+        ]);
 
-        audit($request, (int) actor($request)['id'], 'application.created', 'application', $clientId);
-
-        return respondJson($response, ['application' => adminApplication($pdo, $id), 'client_secret' => $secret], 201);
+        return respondJson($response, ['application' => $application], 201);
     });
 
     $group->put('/applications/{id:[0-9]+}', function (Request $request, Response $response, array $args) {
@@ -778,6 +842,11 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
 
         audit($request, (int) actor($request)['id'], 'application.updated', 'application', $application['client_id'], $saved['changed']);
+        // Who may sign in, or whether visitors are let in, is a change to
+        // security: a row of its own, with what it was and what it is.
+        if ($saved['sign_in'] !== []) {
+            audit($request, (int) actor($request)['id'], 'application.sign_in_changed', 'application', $application['client_id'], $saved['sign_in']);
+        }
 
         return respondJson($response, adminApplication($pdo, $id));
     });
@@ -801,38 +870,44 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         return respondJson($response, ['message' => 'Application deleted']);
     });
 
-    $group->post('/applications/{id:[0-9]+}/secret', function (Request $request, Response $response, array $args) {
+    // Who holds a role here beyond MEMBER (every account holds MEMBER: listing
+    // it would list everybody), with all their roles here; and who is blocked
+    // from it (blockedFromSql(): MEMBER taken away, or holding only roles that
+    // may not sign in) among the accounts that are switched on. The IAM's own
+    // entry blocks nobody: Settings -> Signing in is its gate.
+    $group->get('/applications/{id:[0-9]+}/members', function (Request $request, Response $response, array $args) {
         $pdo = iamDb();
         $application = applicationById((int) $args['id']);
 
         if ($application === null) {
             return respondError($response, 404, 'not_found', 'Not found');
         }
-        if ($application['type'] !== 'confidential') {
-            return respondError($response, 422, 'public_client', 'A public client has no secret');
-        }
 
-        $secret = randomSecret(32, 'iam_cs_');
-        $pdo->prepare('UPDATE applications SET secret_hash = ? WHERE id = ?')->execute([password_hash($secret, PASSWORD_DEFAULT), (int) $application['id']]);
-        audit($request, (int) actor($request)['id'], 'application.secret_rotated', 'application', $application['client_id']);
-
-        return respondJson($response, ['client_secret' => $secret]);
-    });
-
-    $group->get('/applications/{id:[0-9]+}/members', function (Request $request, Response $response, array $args) {
-        $statement = iamDb()->prepare(
+        $statement = $pdo->prepare(
             "SELECT u.id AS user_id, u.username, u.email, json_agg(r.name ORDER BY r.name) AS roles
                FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN users u ON u.id = ur.user_id
-              WHERE r.application_id = ? GROUP BY u.id, u.username, u.email ORDER BY u.username"
+              WHERE r.application_id = ? GROUP BY u.id, u.username, u.email
+             HAVING bool_or(r.name <> 'MEMBER') ORDER BY u.username"
         );
-        $statement->execute([(int) $args['id']]);
+        $statement->execute([(int) $application['id']]);
 
-        return respondJson($response, ['members' => array_map(static fn(array $row): array => [
-            'user_id' => (int) $row['user_id'],
-            'username' => $row['username'],
-            'email' => $row['email'],
-            'roles' => json_decode((string) $row['roles'], true) ?: [],
-        ], $statement->fetchAll())]);
+        $blocked = [];
+        if (!asBool($application['system'])) {
+            $blockedRows = $pdo->prepare('SELECT u.id AS user_id, u.username, u.email FROM users u, applications a
+                                           WHERE a.id = ? AND NOT u.disabled AND ' . blockedFromSql('u', 'a') . ' ORDER BY u.username');
+            $blockedRows->execute([(int) $application['id']]);
+            $blocked = array_map(static fn(array $row): array => ['user_id' => (int) $row['user_id'], 'username' => $row['username'], 'email' => $row['email']], $blockedRows->fetchAll());
+        }
+
+        return respondJson($response, [
+            'members' => array_map(static fn(array $row): array => [
+                'user_id' => (int) $row['user_id'],
+                'username' => $row['username'],
+                'email' => $row['email'],
+                'roles' => json_decode((string) $row['roles'], true) ?: [],
+            ], $statement->fetchAll()),
+            'blocked' => $blocked,
+        ]);
     });
 
     // ── Settings ─────────────────────────────────────────────────────────────
@@ -915,7 +990,7 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     // The IAM's own words (api/translations.php): the languages it offers, and
     // the strings of the pages and the mails. A group of their own, because
     // they answer 503 `translations_unavailable` until migration 006 has been
-    // applied - which is done from this console, a few lines below.
+    // applied - which is done from this panel, a few lines below.
     //
     // A body here is read as it was parsed, not through requestBody(): "no
     // body" and "a list" are refusals of their own, not an empty object.
@@ -1042,11 +1117,23 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
         return respondJson($response, $result, $result['failed'] === null ? 200 : 500);
     });
-})->add(requireAdmin())->add(requireSession());
+})->add(requireSignInRules())->add(requireAdmin())->add(requireSession());
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Applications, in the admin console's shape
+// Applications, in the admin panel's shape
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The roles every site has, in the words migration 011's trigger gives a new
+ * application (the IAM's own entry: ADMIN and MEMBER). Roles are fixed
+ * (the owner's decision, 2026-10-05): the admin panel says only whether each
+ * may sign in.
+ */
+const SITE_ROLES = [
+    'ADMIN' => "Everything in the site's admin panel",
+    'EDITOR' => "Edits the site's content in its admin panel",
+    'MEMBER' => 'Uses the site',
+];
 
 function adminApplication(PDO $pdo, int $id): ?array
 {
@@ -1057,11 +1144,16 @@ function adminApplication(PDO $pdo, int $id): ?array
     }
 
     $roles = $pdo->prepare(
-        'SELECT r.name, r.description, (SELECT count(*) FROM user_roles ur WHERE ur.role_id = r.id) AS members
+        'SELECT r.name, r.description, r.may_sign_in, (SELECT count(*) FROM user_roles ur WHERE ur.role_id = r.id) AS members
            FROM application_roles r WHERE r.application_id = ? ORDER BY r.name'
     );
     $roles->execute([$id]);
 
+    // The access column is still there (read only while 010 is pending; a
+    // later migration drops it) but means nothing now: login_required and
+    // each role's may_sign_in say who gets in. type, the secret,
+    // show_on_landing and sort_order are there too and mean nothing to the
+    // panel: every client is public, and there are no landing page settings.
     return [
         'id' => $id,
         'client_id' => $application['client_id'],
@@ -1069,17 +1161,18 @@ function adminApplication(PDO $pdo, int $id): ?array
         'description' => $application['description'],
         'home_url' => $application['home_url'],
         'logo_url' => $application['logo_url'],
-        'type' => $application['type'],
         'enabled' => asBool($application['enabled']),
-        'access' => $application['access'],
+        'login_required' => asBool($application['login_required']),
         'access_token_ttl' => (int) $application['access_token_ttl'],
         'redirect_uris' => applicationRedirectUris($id, 'login'),
         'post_logout_redirect_uris' => applicationRedirectUris($id, 'logout'),
         'web_origins' => applicationOrigins($id),
-        'roles' => array_map(static fn(array $row): array => ['name' => $row['name'], 'description' => $row['description'], 'members' => (int) $row['members']], $roles->fetchAll()),
-        'show_on_landing' => asBool($application['show_on_landing']),
-        'sort_order' => (int) $application['sort_order'],
-        'has_secret' => !empty($application['secret_hash']),
+        'roles' => array_map(static fn(array $row): array => [
+            'name' => $row['name'],
+            'description' => $row['description'],
+            'may_sign_in' => asBool($row['may_sign_in']),
+            'members' => (int) $row['members'],
+        ], $roles->fetchAll()),
         'system' => asBool($application['system']),
         'created_at' => isoTime($application['created_at']),
         'updated_at' => isoTime($application['updated_at']),
@@ -1089,11 +1182,19 @@ function adminApplication(PDO $pdo, int $id): ?array
 /**
  * Writes the fields of an application that are present in the body.
  *
- * All of it in one transaction: the URIs, origins and roles are replaced as
- * sets, and an application left with half its redirect URIs is one that fails
- * in a way nobody would guess.
+ * All of it in one transaction: the URIs and origins are replaced as sets,
+ * and an application left with half its redirect URIs is one that fails in a
+ * way nobody would guess.
  *
- * @return array{changed: string[]}|array{error: string}
+ * The roles are fixed (011, the owner's decision): a body names each role the
+ * application has, and may change only whether it may sign in. Adding,
+ * removing, renaming or rewording one is refused. Who may sign in is each
+ * role's may_sign_in, and a site switched on keeps at least one role that
+ * may. Every client is public, and there are no landing page settings:
+ * `type` other than public is refused, `show_on_landing` and `sort_order` are
+ * ignored.
+ *
+ * @return array{changed: string[], sign_in: array}|array{error: string}
  */
 function saveApplication(PDO $pdo, int $id, array $body, bool $creating): array
 {
@@ -1118,18 +1219,27 @@ function saveApplication(PDO $pdo, int $id, array $body, bool $creating): array
         }
     }
 
-    if (array_key_exists('type', $body)) {
-        if (!in_array($body['type'], ['public', 'confidential'], true)) {
-            return ['error' => 'type is public or confidential'];
-        }
-        $changes['type'] = $body['type'];
+    // Public clients only: there is nothing to choose, and a body asking for
+    // anything else is told so rather than quietly made public.
+    if (array_key_exists('type', $body) && $body['type'] !== 'public') {
+        return ['error' => 'Every application is a public client: it names itself and proves each sign-in with PKCE - there are no client secrets'];
     }
 
-    if (array_key_exists('access', $body)) {
-        if (!in_array($body['access'], ['everyone', 'members'], true)) {
-            return ['error' => 'access is everyone or members'];
+    // `access` is not read any more (010): who may sign in is each role's
+    // may_sign_in, below. A body that still sends it - the admin panel from
+    // before 010 - changes nothing by it.
+
+    // The login_required in the database is also an OIDC error code
+    // (routes/oidc.php); here it is the site's own switch, published to the
+    // sites at /api/public/applications/{client_id}.
+    if (array_key_exists('login_required', $body)) {
+        if ($system) {
+            return ['error' => 'The IAM\'s own pages have no sign-in switch - Settings -> Signing in is theirs'];
         }
-        $changes['access'] = $body['access'];
+        if (!is_bool($body['login_required'])) {
+            return ['error' => 'login_required is true or false'];
+        }
+        $changes['login_required'] = pgBool($body['login_required']);
     }
 
     if (array_key_exists('access_token_ttl', $body)) {
@@ -1140,17 +1250,11 @@ function saveApplication(PDO $pdo, int $id, array $body, bool $creating): array
         $changes['access_token_ttl'] = $ttl;
     }
 
-    foreach (['enabled', 'show_on_landing'] as $flag) {
-        if (array_key_exists($flag, $body)) {
-            if ($system && $flag === 'enabled' && empty($body['enabled'])) {
-                return ['error' => 'The IAM itself cannot be switched off'];
-            }
-            $changes[$flag] = pgBool(!empty($body[$flag]));
+    if (array_key_exists('enabled', $body)) {
+        if ($system && empty($body['enabled'])) {
+            return ['error' => 'The IAM itself cannot be switched off'];
         }
-    }
-
-    if (array_key_exists('sort_order', $body)) {
-        $changes['sort_order'] = (int) $body['sort_order'];
+        $changes['enabled'] = pgBool(!empty($body['enabled']));
     }
 
     $lists = [];
@@ -1182,26 +1286,75 @@ function saveApplication(PDO $pdo, int $id, array $body, bool $creating): array
         }
     }
 
-    $roles = null;
+    // The roles are fixed: a body may say, per role the application has,
+    // whether it may sign in - nothing else. may_sign_in left out keeps what
+    // the role has, so a script that knows nothing of it cannot change who
+    // signs in by accident.
+    $maySignIn = null;
     if (array_key_exists('roles', $body)) {
         if (!is_array($body['roles'])) {
-            return ['error' => 'roles must be a list'];
+            return ['error' => 'roles must be a list of { name, may_sign_in }'];
         }
-        $roles = [];
+        $current = $pdo->prepare('SELECT name, description FROM application_roles WHERE application_id = ? ORDER BY name');
+        $current->execute([$id]);
+        $current = $current->fetchAll(PDO::FETCH_KEY_PAIR);
+        $fixed = 'only whether each may sign in can change';
+
+        $maySignIn = [];
         foreach ($body['roles'] as $role) {
-            $name = strtoupper(trim((string) (is_array($role) ? ($role['name'] ?? '') : $role)));
-            if (!preg_match('/^[A-Z][A-Z0-9_]{0,49}$/', $name)) {
-                return ['error' => "'$name' is not a role name (capitals, digits, underscores)"];
+            if (!is_array($role)) {
+                return ['error' => 'roles must be a list of { name, may_sign_in }'];
             }
-            $roles[$name] = is_array($role) ? (trim((string) ($role['description'] ?? '')) ?: null) : null;
+            $name = strtoupper(trim(is_string($role['name'] ?? null) ? $role['name'] : ''));
+            if (!array_key_exists($name, $current)) {
+                return ['error' => "The roles are fixed - '" . mb_substr($name, 0, 50) . "' is not one of this application's (" . implode(', ', array_keys($current)) . "); $fixed"];
+            }
+            if (array_key_exists('description', $role)) {
+                $description = is_string($role['description']) ? (trim($role['description']) ?: null) : $role['description'];
+                if ($description !== $current[$name]) {
+                    return ['error' => "The roles are fixed - $name keeps its description; $fixed"];
+                }
+            }
+            if (array_key_exists('may_sign_in', $role)) {
+                if (!is_bool($role['may_sign_in'])) {
+                    return ['error' => "may_sign_in of $name is true or false"];
+                }
+                $maySignIn[$name] = $role['may_sign_in'];
+            }
         }
-        if ($system && !array_key_exists('ADMIN', $roles)) {
-            return ['error' => 'The IAM must keep its ADMIN role'];
+        // A role left out is a role taken away, which the roles being fixed
+        // rules out - said so rather than read as "unchanged". MEMBER in its
+        // own words: it is how people are blocked, one by one. A new
+        // application may name only the roles whose tick it sets.
+        if (!$creating) {
+            $named = array_map(static fn(array $role): string => strtoupper(trim(is_string($role['name'] ?? null) ? $role['name'] : '')), $body['roles']);
+            foreach (array_keys($current) as $name) {
+                if (!in_array($name, $named, true)) {
+                    return ['error' => $name === 'MEMBER'
+                        ? 'Every application keeps its MEMBER role - take it from people instead (Users -> the person -> Roles)'
+                        : "The roles are fixed - $name cannot be removed; $fixed"];
+                }
+            }
         }
     }
 
     $pdo->beginTransaction();
     try {
+        // Two saves of one application run one after the other: the second
+        // waits here for the first to commit and then reads its roles and
+        // switch, so the check below (a site switched on keeps a role that
+        // may sign in) holds against both together - read without the lock,
+        // one save unticking MEMBER and another ADMIN and EDITOR at the same
+        // moment would each see the other's roles still ticked.
+        $locked = $pdo->prepare('SELECT enabled, login_required FROM applications WHERE id = ? FOR UPDATE');
+        $locked->execute([$id]);
+        $locked = $locked->fetch(PDO::FETCH_ASSOC);
+        if ($locked === false) {
+            throw new DomainException('There is no such application');
+        }
+        $application['enabled'] = $locked['enabled'];
+        $application['login_required'] = $locked['login_required'];
+
         if ($changes !== []) {
             $sets = implode(', ', array_map(static fn(string $column): string => $column . ' = ?', array_keys($changes)));
             $pdo->prepare("UPDATE applications SET $sets WHERE id = ?")->execute([...array_values($changes), $id]);
@@ -1223,28 +1376,32 @@ function saveApplication(PDO $pdo, int $id, array $body, bool $creating): array
             }
         }
 
-        if ($roles !== null) {
-            // A role somebody still holds is not removed from under them: the
-            // grants would cascade away silently. Take it from them first.
-            $existing = $pdo->prepare(
-                'SELECT r.id, r.name, (SELECT count(*) FROM user_roles ur WHERE ur.role_id = r.id) AS members FROM application_roles r WHERE r.application_id = ?'
-            );
-            $existing->execute([$id]);
-            foreach ($existing->fetchAll() as $row) {
-                if (!array_key_exists($row['name'], $roles)) {
-                    if ((int) $row['members'] > 0) {
-                        throw new DomainException("The role {$row['name']} is still held by {$row['members']} account(s) - take it from them first");
-                    }
-                    $pdo->prepare('DELETE FROM application_roles WHERE id = ?')->execute([(int) $row['id']]);
+        $existing = $pdo->prepare('SELECT name, may_sign_in FROM application_roles WHERE application_id = ? ORDER BY name');
+        $existing->execute([$id]);
+        $wasAllowed = array_map('asBool', $existing->fetchAll(PDO::FETCH_KEY_PAIR));
+        $signInBefore = array_keys(array_filter($wasAllowed));
+        $signInAfter = $signInBefore;
+
+        // The IAM's own entry is never asked about roles at sign-in (Settings
+        // -> Signing in is its gate), so its roles keep the true they have and
+        // a body cannot make them mean something.
+        if ($maySignIn !== null && !$system) {
+            $update = $pdo->prepare('UPDATE application_roles SET may_sign_in = ? WHERE application_id = ? AND name = ?');
+            foreach ($maySignIn as $name => $allowed) {
+                if ($allowed !== $wasAllowed[$name]) {
+                    $update->execute([pgBool($allowed), $id, $name]);
                 }
             }
-            $upsert = $pdo->prepare(
-                'INSERT INTO application_roles (application_id, name, description) VALUES (?, ?, ?)
-                 ON CONFLICT (application_id, name) DO UPDATE SET description = EXCLUDED.description'
-            );
-            foreach ($roles as $name => $description) {
-                $upsert->execute([$id, $name, $description]);
-            }
+            $signInAfter = array_keys(array_filter(array_merge($wasAllowed, $maySignIn)));
+            sort($signInAfter);
+        }
+
+        // Nobody able to sign in is what switching the application off is
+        // for, and says so honestly. One switched off (as 010 left a
+        // members-only one nobody could get into) may be edited still.
+        $enabledAfter = array_key_exists('enabled', $changes) ? !empty($body['enabled']) : asBool($application['enabled']);
+        if (!$system && $enabledAfter && $signInAfter === []) {
+            throw new DomainException('At least one role must be allowed to sign in - switch the application off instead');
         }
 
         $pdo->commit();
@@ -1256,7 +1413,20 @@ function saveApplication(PDO $pdo, int $id, array $body, bool $creating): array
         throw $e;
     }
 
-    return ['changed' => array_merge(array_keys($changes), array_keys($lists), $origins !== null ? ['web_origins'] : [], $roles !== null ? ['roles'] : [])];
+    // What changed about who gets in, for the audit: the roles that may sign
+    // in, and whether signing in is required, each as before and after.
+    $signIn = [];
+    if ($signInAfter !== $signInBefore) {
+        $signIn['sign_in_roles'] = ['before' => $signInBefore, 'after' => $signInAfter];
+    }
+    if (array_key_exists('login_required', $changes) && asBool($changes['login_required']) !== asBool($application['login_required'])) {
+        $signIn['login_required'] = ['before' => asBool($application['login_required']), 'after' => asBool($changes['login_required'])];
+    }
+
+    return [
+        'changed' => array_merge(array_keys($changes), array_keys($lists), $origins !== null ? ['web_origins'] : [], $maySignIn !== null ? ['roles'] : []),
+        'sign_in' => $signIn,
+    ];
 }
 
 function adminSettingRows(): array

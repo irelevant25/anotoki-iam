@@ -356,6 +356,77 @@ function grantRole(int $userId, string $clientId, string $role): void
     )->execute([$userId, $clientId, $role]);
 }
 
+/** The client ids of every application that has an ADMIN role, in order. */
+function applicationsWithAdmin(PDO $pdo): array
+{
+    return $pdo->query(
+        "SELECT a.client_id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE r.name = 'ADMIN' ORDER BY a.client_id"
+    )->fetchAll(PDO::FETCH_COLUMN);
+}
+
+/** The client ids of the applications whose ADMIN this account holds, in order. */
+function adminOf(PDO $pdo, int $userId): array
+{
+    $statement = $pdo->prepare(
+        "SELECT a.client_id FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id
+          WHERE ur.user_id = ? AND r.name = 'ADMIN' ORDER BY a.client_id"
+    );
+    $statement->execute([$userId]);
+
+    return $statement->fetchAll(PDO::FETCH_COLUMN);
+}
+
+/** Every first-party site, as migrations 002 and 005 register them. */
+const FIRST_PARTY_SITES = ['build-analyzer', 'genshin', 'japanese-academy', 'piano-academy', 'survey'];
+
+/**
+ * Applies what is pending up to and including $lastFile, and nothing after
+ * it, the way the runner applies each file. A migration's own test asserts
+ * the state its file leaves - "apply what is pending" would apply every later
+ * file too, and a later one (010's MEMBER for everyone) rewrite it.
+ *
+ * @return array{applied: string[], failed: ?string, error: ?string}
+ */
+function applyMigrationsThrough(PDO $pdo, string $lastFile): array
+{
+    if (!in_array($lastFile, migrationFiles('iam'), true)) {
+        throw new LogicException("There is no migration {$lastFile}");
+    }
+
+    $applied = [];
+    foreach (pendingMigrations($pdo, 'iam') as $file) {
+        if (strnatcmp($file, $lastFile) > 0) {
+            break;
+        }
+        try {
+            applyMigration($pdo, 'iam', $file);
+            $applied[] = $file;
+        } catch (\Throwable $e) {
+            return ['applied' => $applied, 'failed' => $file, 'error' => $e->getMessage()];
+        }
+    }
+
+    return ['applied' => $applied, 'failed' => null, 'error' => null];
+}
+
+/**
+ * A throwaway IAM built from the migrations up to and including $lastFile -
+ * an installed IAM as it was before what came after. The name is this run's
+ * database's plus a suffix, so it is dropped with it.
+ */
+function buildIamThrough(string $suffix, string $lastFile): PDO
+{
+    $name = throwawayDatabase(testEnvironment()['db'] . $suffix);
+    ensureDatabase(testServer(), $name);
+    $pdo = connectDatabase(testServer(), $name, false);
+    ensureMigrationsTable($pdo);
+
+    $result = applyMigrationsThrough($pdo, $lastFile);
+    same(null, $result['failed'], "built through {$lastFile} (" . ($result['error'] ?? '') . ')');
+
+    return $pdo;
+}
+
 /**
  * A throwaway copy of the genshin site's old accounts database, in the shape
  * its migrations leave it, empty. The name is this run's database's plus a

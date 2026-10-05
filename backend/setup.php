@@ -650,42 +650,44 @@ function setupErrors(bool $local, array $values, array $post): array
 
 // ── Test connection ──────────────────────────────────────────────────────────
 
-/** @return array{0: string, 1: string} tone and sentence */
+/**
+ * Connects the way the IAM will, and says what it found - in the words every
+ * anotoki setup page uses. Hosting often lets the user into its own database
+ * only, so that is tried first; the server's maintenance database second, to
+ * say whether the database is there at all and whether Save can create it
+ * (setupInstall() does, through ensureDatabase(), when this user may).
+ *
+ * @return array{0: string, 1: string} tone and sentence
+ */
 function setupTestDatabase(array $connection, string $name): array
 {
     try {
         $pdo = connectDatabase($connection, $name, false);
+        $tables = (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")->fetchColumn();
+        $applied = (bool) $pdo->query("SELECT to_regclass('public.migrations') IS NOT NULL")->fetchColumn() ? appliedMigrations($pdo) : [];
+        $pending = count(array_diff(migrationFiles('iam'), $applied));
+
+        return ['good', "Connected to the database \"{$name}\": "
+            . ($tables === 0 ? 'it is empty - Save makes the tables.' : ($pending > 0 ? "{$pending} update(s) to apply - Save applies them." : 'it is up to date.'))];
     } catch (\Throwable $error) {
-        $message = setupDriverMessage($error);
-        if (!preg_match('/database ".*" does not exist/i', $message)) {
-            return ['bad', 'Could not connect: ' . $message];
-        }
-        try {
-            connectDatabase($connection, 'postgres', false);
-        } catch (\Throwable) {
-            return ['bad', 'Could not connect: ' . $message];
-        }
-
-        return ['warn', "The server answers and the login works, but there is no database '{$name}' yet. Saving creates it if this user may create databases; otherwise create it first (in the hosting panel, on a server)."];
+        $first = setupDriverMessage($error);
     }
 
-    $version = (string) $pdo->query('SHOW server_version')->fetchColumn();
-    $files = migrationFiles('iam');
-    $applied = (bool) $pdo->query("SELECT to_regclass('public.migrations') IS NOT NULL")->fetchColumn()
-        ? array_values(array_intersect($files, appliedMigrations($pdo)))
-        : [];
-    $accounts = (bool) $pdo->query("SELECT to_regclass('public.users') IS NOT NULL")->fetchColumn()
-        ? (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn()
-        : 0;
+    try {
+        $server = connectDatabase($connection, 'postgres', false);
+        $exists = $server->prepare('SELECT 1 FROM pg_database WHERE datname = ?');
+        $exists->execute([$name]);
+        if ($exists->fetchColumn()) {
+            return ['bad', "The server is there, but \"{$connection['username']}\" cannot open the database \"{$name}\": {$first}"];
+        }
+        $create = (bool) $server->query('SELECT rolcreatedb OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn();
 
-    if ($applied === []) {
-        return ['good', "Connected to PostgreSQL {$version}. The database '{$name}' is empty - saving builds it from the " . count($files) . ' migrations.'];
+        return $create
+            ? ['good', "Connected to the server. The database \"{$name}\" does not exist yet - Save creates it."]
+            : ['bad', "Connected to the server, but there is no database \"{$name}\" and this user may not create one. Make it in the hosting panel first."];
+    } catch (\Throwable) {
+        return ['bad', 'Cannot connect: ' . $first];
     }
-
-    $pending = count($files) - count($applied);
-
-    return ['good', "Connected to PostgreSQL {$version}. '{$name}' has " . count($applied) . ' of ' . count($files) . ' migrations'
-        . ($pending > 0 ? " ({$pending} to apply on saving)" : '') . " and {$accounts} account" . ($accounts === 1 ? '' : 's') . '.'];
 }
 
 /** @return array{0: string, 1: string} */
@@ -698,7 +700,7 @@ function setupTestLegacy(array $connection, string $name): array
     try {
         $legacy = legacyConnect($connection, $name);
     } catch (\Throwable $error) {
-        return ['bad', 'Could not connect: ' . setupDriverMessage($error)];
+        return ['bad', 'Cannot connect: ' . setupDriverMessage($error)];
     }
 
     if (!legacyHasColumns($legacy, 'users', LEGACY_USER_COLUMNS)) {
@@ -779,7 +781,7 @@ function setupWriteConfig(array $context, string $name, mixed $value, array &$wr
  * seeded: every loopback redirect URI and origin goes - on a live IAM they
  * would hand codes to whatever listens on the visitor's own machine - and a
  * site given an address gets its callback, its landing after sign-out and its
- * origin there. A site left blank has no address until the admin console
+ * origin there. A site left blank has no address until the admin panel
  * gives it one.
  *
  * @return string[] a line per site
@@ -819,7 +821,7 @@ function setupProductionAddresses(PDO $pdo, array $sites): array
                 if ($application['home_url'] === null || onThisComputer($application['home_url'])) {
                     $pdo->prepare('UPDATE applications SET home_url = NULL WHERE id = ?')->execute([$id]);
                 }
-                $log[] = "{$site['name']}: no address yet - give it one under Applications in the admin console.";
+                $log[] = "{$site['name']}: no address yet - give it one under Applications in the admin panel.";
                 continue;
             }
 
@@ -1010,7 +1012,7 @@ function setupInstalledThere(array $context, array $values, array $log, array $w
         . ($locked ? '' : '<p class="err"><code>storage/installed.lock</code> could not be written, so nothing but deleting the installer stops it running again. Check that <code>storage/</code> is writable.</p>')
         . ($removed ? '<p class="ok">Removed <code>setup.php</code> and <code>config/setup.local.php</code>.</p>'
             : '<p class="err">Delete <code>setup.php</code> and <code>config/setup.local.php</code> by hand now' . ($locked ? ' (the lock stops it running again meanwhile).' : ' - nothing else stops it running again.') . '</p>')
-        . '<p>Sign in at <a href="' . setupEscape($values['public_url']) . '/login">' . setupEscape($values['public_url']) . '/login</a>; the admin console is at <code>/admin</code>.</p>', false, 'good');
+        . '<p>Sign in at <a href="' . setupEscape($values['public_url']) . '/login">' . setupEscape($values['public_url']) . '/login</a>; the admin panel is at <code>/admin</code>.</p>', false, 'good');
 }
 
 function setupRemoveInstaller(array $context): bool
@@ -1141,7 +1143,7 @@ function setupForm(bool $local, array $context, array $saved, array $values, arr
     }
 
     if (!$local) {
-        $body .= '<h2>The sites</h2><p>Each site\'s own address. The database arrives with the development ones; these replace them. Leave one blank to add it later in the admin console.</p>';
+        $body .= '<h2>The sites</h2><p>Each site\'s own address. The database arrives with the development ones; these replace them. Leave one blank to add it later in the admin panel.</p>';
         foreach (SETUP_SITES as $clientId => $site) {
             $body .= '<label for="site_' . $clientId . '">' . setupEscape($site['name']) . '</label><input id="site_' . $clientId . '" name="site[' . $clientId . ']" type="text" inputmode="url" spellcheck="false"'
                 . ' value="' . setupEscape($values['sites'][$clientId] ?? '') . '" placeholder="' . setupEscape($site['example']) . '">';

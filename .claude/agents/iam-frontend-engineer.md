@@ -2,7 +2,7 @@
 name: iam-frontend-engineer
 description: >
   Implements and changes the IAM's Angular frontend under frontend/ - the
-  sign-in pages, the account page, the admin console, the UI kit, the "not set
+  sign-in pages, the account page, the admin panel, the UI kit, the "not set
   up yet" page. Use for "add a page", "change the login flow", "new admin
   screen", "fix the account page", "translate X". Knows the zoneless/signals
   conventions, the three-file components, the hand-written API layer that
@@ -27,11 +27,15 @@ call exactly those endpoints and must handle exactly those refusal codes.
   `i18n/en.ts`: the typed list of keys and the English shown only while no
   bundle is in memory; `i18n/localization-drafts.service.ts`: the admin
   pages' unsaved edits; the `t` pipe), theme, Google sign-in.
-- `frontend/src/app/pages/admin/localization/` - the admin console's
+- `frontend/src/app/pages/admin/localization/` - the admin panel's
   Translations and Languages pages, the grid logic, and `unsavedChangesGuard`.
   After a save they call `TranslationService.reload()`.
 - `frontend/src/app/ui/` - the UI kit. Use it; extend it rather than styling a
   one-off.
+- `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame),
+  `shell` (the account pages and the admin panel) and `top-bar` (the anotoki
+  family's one bar - CLAUDE.md says what it holds, its fold width and its
+  keyboard rules; `top-bar.component.spec.ts` checks them).
 - Pages: the sign-in flow (with `/error` and `/not-set-up`), `/account/**`,
   `/admin/**`. Styles shared by a group of pages: `pages/auth/_auth-page.scss`,
   `pages/admin/_admin-list.scss`, `@use`d from each page's own `.scss`.
@@ -52,9 +56,14 @@ call exactly those endpoints and must handle exactly those refusal codes.
    key and its English in `en.ts` plus a migration with the key, its English
    and its informal Slovak (skill iam-migration) - there is no `sk.ts`. With a
    bundle in memory a key without a string shows as the key, on purpose. The
-   admin console is English only, written in its templates.
+   admin panel is English only, written in its templates.
 6. `npx ng build` (production) and `npx ng build --configuration development`
-   must pass, and `npx prettier --check "src/**/*.{ts,html,scss}"` be clean.
+   must pass, `npx ng test --watch=false` too (it needs `vitest` and `jsdom`
+   in `devDependencies` - `frontend/README.md`), and `npx prettier --check
+   "src/**/*.{ts,html,scss}"` be clean (`--end-of-line crlf` on a CRLF checkout).
+   A change to the top bar is checked in a browser too: 360, 390, the fold
+   width and one px over, 1280; light and dark; English and Slovak; a real
+   Tab press from a menu item.
    To see a page, run `composer start` in `backend/` (set up
    once through its `/setup.php`) and `npm start` here; stop both afterwards.
 

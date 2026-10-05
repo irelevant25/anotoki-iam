@@ -10,7 +10,6 @@
         @if (application(); as app) {
             <span pageMeta class="badges">
                 <app-badge [mono]="true">{{ app.client_id }}</app-badge>
-                <app-badge [mono]="true">{{ app.type }}</app-badge>
                 @if (app.system) {
                     <app-badge tone="primary">System</app-badge>
                 }
@@ -18,12 +17,6 @@
                     <app-badge tone="danger" [dot]="true">Off</app-badge>
                 }
             </span>
-        }
-        @if (application()?.type === "confidential") {
-            <button appButton variant="secondary" [loading]="secretBusy()" (click)="newSecret()">
-                <app-icon name="key" [size]="15" />
-                {{ application()?.has_secret ? "Generate new secret" : "Generate secret" }}
-            </button>
         }
         @if (application() && !system()) {
             <button appButton variant="danger" [loading]="deleting()" (click)="remove()">
@@ -50,10 +43,6 @@
                 [attr.id]="creating() ? null : 'app-panel-settings'"
                 [attr.aria-labelledby]="creating() ? null : 'app-tab-settings'"
                 (submit)="$event.preventDefault(); save()">
-                @if (application()?.type === "confidential" && !application()?.has_secret) {
-                    <app-alert tone="warning">This application is confidential but has no secret yet. Generate one before it tries to sign anybody in.</app-alert>
-                }
-
                 <app-card heading="Identity" subheading="How the application is known - to the IAM, and to people signing in.">
                     <div class="form-grid">
                         @if (creating()) {
@@ -102,10 +91,17 @@
                         [error]="errors().description ?? null" />
                 </app-card>
 
-                <app-card heading="Signing in">
+                <app-card heading="Signing in" subheading="A public client: the site proves each sign-in with PKCE and holds no secret.">
                     <div class="stack stack-lg">
-                        <app-radio-group label="Type" [options]="typeOptions" [(value)]="type" />
-                        <app-radio-group label="Who may use it" [options]="accessOptions" [(value)]="access" />
+                        @if (system()) {
+                            <p class="muted small">The IAM's own pages always ask for an account; only Settings → Signing in decides who gets in.</p>
+                        } @else {
+                            <app-switch
+                                [(checked)]="loginRequired"
+                                hint="On: every page of the site asks for an anotoki account. Off: anyone may use it without one - the site keeps what a visitor does for their browser, and signing in keeps it. Sites pick a change up within about a minute.">
+                                Sign-in required
+                            </app-switch>
+                        }
                         <div class="form-grid">
                             <app-text-field
                                 label="Access token lifetime"
@@ -146,63 +142,45 @@
                     </div>
                 </app-card>
 
-                <app-card heading="Roles" subheading="The application's own roles. One still held by somebody cannot be removed - take it from them first.">
+                <app-card heading="Roles" [subheading]="rolesLead()">
                     <div class="stack">
                         @if (errors().roles) {
                             <app-alert tone="danger">{{ errors().roles }}</app-alert>
                         }
-                        @if (roles().length) {
-                            <div class="roles" role="list">
-                                @for (role of roles(); track role.key; let index = $index) {
-                                    <div class="role" role="listitem">
-                                        <div class="field-control" [class.field-invalid]="roleInvalid(role)">
-                                            <input
-                                                class="field-input role-name"
-                                                [attr.aria-label]="'Role ' + (index + 1) + ' name'"
-                                                placeholder="MEMBER"
-                                                autocomplete="off"
-                                                spellcheck="false"
-                                                maxlength="50"
-                                                [value]="role.name"
-                                                (input)="setRoleName(role.key, $any($event.target).value)" />
-                                        </div>
-                                        <div class="field-control">
-                                            <input
-                                                class="field-input"
-                                                [attr.aria-label]="'Role ' + (index + 1) + ' description'"
-                                                placeholder="What it lets somebody do"
-                                                autocomplete="off"
-                                                maxlength="255"
-                                                [value]="role.description"
-                                                (input)="setRoleDescription(role.key, $any($event.target).value)" />
-                                        </div>
-                                        <span class="role-members" [attr.title]="role.members + ' account(s) hold this role'">
-                                            @if (role.members > 0) {
-                                                <app-badge tone="primary">{{ role.members }} held</app-badge>
+                        <div class="roles" role="list" aria-label="Roles">
+                            @for (role of roles(); track role.name) {
+                                <div class="role" role="listitem">
+                                    @if (system()) {
+                                        <div class="role-text">
+                                            <span class="role-name">{{ role.name }}</span>
+                                            @if (role.description) {
+                                                <span class="muted small">{{ role.description }}</span>
                                             }
+                                        </div>
+                                    } @else {
+                                        <app-checkbox
+                                            [name]="'may-sign-in-' + role.name"
+                                            [checked]="role.maySignIn"
+                                            [hint]="role.description || null"
+                                            (checkedChange)="setMaySignIn(role.name, $event)">
+                                            <span class="role-name">{{ role.name }}</span>
+                                            <span class="visually-hidden">may sign in</span>
+                                        </app-checkbox>
+                                    }
+                                    @if (!creating()) {
+                                        <span class="role-members">
+                                            <app-badge [tone]="role.members > 0 ? 'primary' : 'neutral'">{{ role.members }} held</app-badge>
                                         </span>
-                                        <button appButton variant="ghost" [iconOnly]="true" [attr.aria-label]="'Remove role ' + (role.name || index + 1)" (click)="removeRole(role.key)">
-                                            <app-icon name="trash" [size]="16" />
-                                        </button>
-                                    </div>
-                                }
-                            </div>
-                        } @else {
-                            <p class="muted small">No roles: every signed-in account is simply a user of it.</p>
-                        }
-                        <div>
-                            <button appButton variant="secondary" size="sm" (click)="addRole()">
-                                <app-icon name="plus" [size]="15" />
-                                Add role
-                            </button>
+                                    }
+                                </div>
+                            }
                         </div>
-                    </div>
-                </app-card>
-
-                <app-card heading="Landing page" subheading="The list on anotoki.eu of the sites people can go to.">
-                    <div class="form-grid">
-                        <app-switch [(checked)]="showOnLanding" hint="Listed only while it is also enabled.">Show on the landing page</app-switch>
-                        <app-text-field label="Order" type="number" name="sort-order" inputmode="numeric" hint="Lower comes first." [(value)]="sortOrder" [error]="errors().sort_order ?? null" />
+                        @if (!system()) {
+                            <p class="muted small">
+                                Somebody holding none of the ticked roles is turned away at sign-in, and at their next refresh. Every account holds MEMBER unless it was taken away (Users → the person
+                                → Roles); untick MEMBER to let in only the people you give another role.
+                            </p>
+                        }
                     </div>
                 </app-card>
 
@@ -220,67 +198,82 @@
                 </div>
             </form>
         } @else {
-            <div role="tabpanel" id="app-panel-members" aria-labelledby="app-tab-members">
-                <app-card [flush]="true">
-                    @if (membersError()) {
-                        <div class="padded">
-                            <app-error-state heading="The members could not be loaded" [message]="membersError()!" (retry)="loadMembers()" />
-                        </div>
-                    } @else if (members() === null) {
-                        <div class="loading"><app-spinner label="Loading the members" /></div>
-                    } @else if (members()!.length === 0) {
-                        <app-empty-state icon="users" heading="Nobody holds a role here" text="Give accounts roles from their page under Users." />
-                    } @else {
-                        <div class="table-scroll">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">User</th>
-                                        <th scope="col">Email</th>
-                                        <th scope="col">Roles</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @for (member of members(); track member.user_id) {
+            <div class="stack stack-lg" role="tabpanel" id="app-panel-members" aria-labelledby="app-tab-members">
+                @if (membersError()) {
+                    <app-card>
+                        <app-error-state heading="The members could not be loaded" [message]="membersError()!" (retry)="loadMembers()" />
+                    </app-card>
+                } @else if (members(); as shown) {
+                    <app-card heading="Roles beyond MEMBER" subheading="Every account holds MEMBER; these hold another role here too." [flush]="true">
+                        @if (shown.members.length === 0) {
+                            <app-empty-state icon="users" heading="Nobody holds a role here beyond MEMBER" text="Give accounts roles from their page under Users." />
+                        } @else {
+                            <div class="table-scroll">
+                                <table class="table">
+                                    <thead>
                                         <tr>
-                                            <td>
-                                                <a [routerLink]="['/admin/users', member.user_id]">{{ member.username }}</a>
-                                            </td>
-                                            <td class="break">{{ member.email }}</td>
-                                            <td>
-                                                <span class="badges">
-                                                    @for (role of member.roles; track role) {
-                                                        <app-badge tone="primary" [mono]="true">{{ role }}</app-badge>
-                                                    }
-                                                </span>
-                                            </td>
+                                            <th scope="col">User</th>
+                                            <th scope="col">Email</th>
+                                            <th scope="col">Roles</th>
                                         </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        @for (member of shown.members; track member.user_id) {
+                                            <tr>
+                                                <td>
+                                                    <a [routerLink]="['/admin/users', member.user_id]">{{ member.username }}</a>
+                                                </td>
+                                                <td class="break">{{ member.email }}</td>
+                                                <td>
+                                                    <span class="badges">
+                                                        @for (role of member.roles; track role) {
+                                                            <app-badge tone="primary" [mono]="true">{{ role }}</app-badge>
+                                                        }
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </app-card>
+
+                    @if (!system()) {
+                        <app-card heading="Cannot sign in" subheading="Accounts whose MEMBER was taken away here, or who hold only roles that may not sign in." [flush]="true">
+                            @if (membersOnly()) {
+                                <p class="padded muted small">MEMBER may not sign in here, so an account holding only MEMBER is not let in either - it is not listed.</p>
+                            }
+                            @if (shown.blocked.length === 0) {
+                                <app-empty-state icon="check" heading="Nobody is blocked" text="Take MEMBER from somebody under Users → the person → Roles to block them from this site." />
+                            } @else {
+                                <div class="table-scroll">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">User</th>
+                                                <th scope="col">Email</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @for (account of shown.blocked; track account.user_id) {
+                                                <tr>
+                                                    <td>
+                                                        <a [routerLink]="['/admin/users', account.user_id]">{{ account.username }}</a>
+                                                    </td>
+                                                    <td class="break">{{ account.email }}</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </app-card>
                     }
-                </app-card>
+                } @else {
+                    <div class="loading"><app-spinner label="Loading the members" /></div>
+                }
             </div>
         }
     }
 </div>
-
-@if (secret(); as shown) {
-    <app-dialog heading="The client secret" description="Shown this once. Put it in the application's configuration now - it cannot be shown again." [dismissible]="false">
-        <div class="stack">
-            <div class="secret-row">
-                <code class="secret">{{ shown.value }}</code>
-                <app-copy-button [text]="shown.value" variant="primary" />
-            </div>
-            <app-alert tone="info">
-                The application sends it with its client id to the token endpoint, as HTTP Basic or as
-                <code>client_secret</code>
-                .
-            </app-alert>
-        </div>
-        <div dialogFooter>
-            <button appButton variant="primary" (click)="secretClosed()">I have saved it</button>
-        </div>
-    </app-dialog>
-}

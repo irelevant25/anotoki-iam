@@ -6,7 +6,7 @@
 // traced from the network tab to the template without translating names.
 
 // A language is its code, as the `languages` table keeps it: `xx` or `xx-yy`,
-// lower case. Which ones exist is the admin console's business and arrives with
+// lower case. Which ones exist is the admin panel's business and arrives with
 // the words themselves (TranslationBundle below), so it is a plain string here -
 // there is no fixed list for the compiler to hold anybody to.
 
@@ -24,7 +24,7 @@ export interface ApiErrorBody {
 /** A language the pages are offered in. */
 export interface SiteLanguage {
   code: string;
-  /** In English ("Slovak") - what the admin console lists it as. */
+  /** In English ("Slovak") - what the admin panel lists it as. */
   name: string;
   /** As its speakers write it ("Slovenčina") - what a person choosing it reads. */
   native_name: string;
@@ -34,7 +34,7 @@ export interface SiteLanguage {
  * `GET /api/translations/{code}`: the site's words in one language, with
  * English merged underneath so a string nobody translated yet is still a
  * sentence, the languages on offer, and English itself beside it (left out
- * when `language` is `en`) for the admin console, which is English whatever
+ * when `language` is `en`) for the admin panel, which is English whatever
  * the person reads.
  *
  * `language` is the one that answered: the code asked for; its language for a
@@ -256,7 +256,7 @@ export interface EndedResponse {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The admin console
+// The admin panel
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface RoleGrant {
@@ -276,7 +276,14 @@ export interface AdminUser {
   has_password: boolean;
   google_connected: boolean;
   google_email: string | null;
+  /** Every grant, MEMBER included (every account holds MEMBER everywhere unless it was taken away). */
   roles: RoleGrant[];
+  /**
+   * Client ids of the switched-on sites this account is blocked from: it holds
+   * no role there that may sign in, and its MEMBER there was taken away or it
+   * holds another role there. Empty while migration 010 is pending.
+   */
+  blocked_in: string[];
   last_login_at: string | null;
   created_at: string;
   updated_at: string | null;
@@ -314,7 +321,11 @@ export interface AdminUserDetail {
 export interface FilterApplication {
   client_id: string;
   name: string;
+  /** The IAM's own entry: its roles are never asked at sign-in (Settings -> Signing in is its gate). */
+  system: boolean;
   roles: string[];
+  /** The roles whose holders may sign in (every role while migration 010 is pending). */
+  sign_in_roles: string[];
 }
 
 export interface AdminUserFilters {
@@ -451,15 +462,21 @@ export interface AdminStats {
   emails_24h: number;
 }
 
-export type ApplicationType = 'public' | 'confidential';
-export type ApplicationAccess = 'everyone' | 'members';
-
 export interface ApplicationRole {
   name: string;
   description: string | null;
+  /** Whether holding this role lets somebody sign in to the application. Means nothing for the IAM's own entry. */
+  may_sign_in: boolean;
+  /** How many accounts hold it. */
   members: number;
 }
 
+/**
+ * An application as the admin panel shows it. Every application is a public
+ * client (PKCE, no secret), and its roles are fixed - ADMIN, EDITOR and MEMBER
+ * (the IAM's own entry ADMIN and MEMBER), plus any made before they were: the
+ * panel changes only whether each may sign in.
+ */
 export interface AdminApplication {
   id: number;
   /** [a-z0-9-], 2-64 characters, fixed after creation. */
@@ -468,10 +485,9 @@ export interface AdminApplication {
   description: string | null;
   home_url: string | null;
   logo_url: string | null;
-  type: ApplicationType;
   enabled: boolean;
-  /** `members` needs at least one role in the application. */
-  access: ApplicationAccess;
+  /** Whether the site sends everybody to sign in (true), or lets visitors in. Always true for the IAM's own entry. */
+  login_required: boolean;
   /** Seconds, 60-3600. */
   access_token_ttl: number;
   redirect_uris: string[];
@@ -479,43 +495,44 @@ export interface AdminApplication {
   /** Allowed to call the token endpoint from a browser. */
   web_origins: string[];
   roles: ApplicationRole[];
-  show_on_landing: boolean;
-  sort_order: number;
-  has_secret: boolean;
-  /** The IAM itself: cannot be deleted or disabled. */
+  /** The IAM itself: cannot be deleted or disabled, has no sign-in switch. */
   system: boolean;
   created_at: string;
   updated_at: string | null;
 }
 
-/** The writable subset. `client_id` is sent on create only; updates may be partial. */
+/** A role as a save sends it: the roles are fixed, so only `may_sign_in` changes (left out, it is kept). */
+export interface ApplicationRoleInput {
+  name: string;
+  may_sign_in?: boolean;
+}
+
+/**
+ * The writable subset. `client_id` is sent on create only; updates may be
+ * partial. `roles`, on an update, names every role the application has; on a
+ * create, the roles whose tick it sets.
+ */
 export interface ApplicationInput {
   client_id?: string;
   name?: string;
   description?: string | null;
   home_url?: string | null;
   logo_url?: string | null;
-  type?: ApplicationType;
   enabled?: boolean;
-  access?: ApplicationAccess;
+  /** Not for the IAM's own entry. */
+  login_required?: boolean;
   access_token_ttl?: number;
   redirect_uris?: string[];
   post_logout_redirect_uris?: string[];
   web_origins?: string[];
-  roles?: { name: string; description: string | null }[];
-  show_on_landing?: boolean;
-  sort_order?: number;
+  roles?: ApplicationRoleInput[];
 }
 
 export interface CreatedApplication {
   application: AdminApplication;
-  client_secret?: string | null;
 }
 
-export interface ClientSecretResponse {
-  client_secret: string;
-}
-
+/** Somebody holding a role in the application beyond MEMBER, with every role they hold there. */
 export interface ApplicationMember {
   user_id: number;
   username: string;
@@ -523,8 +540,17 @@ export interface ApplicationMember {
   roles: string[];
 }
 
+/** An account (switched on) blocked from the application: MEMBER taken away, or only roles that may not sign in. */
+export interface BlockedAccount {
+  user_id: number;
+  username: string;
+  email: string;
+}
+
 export interface ApplicationMembersResponse {
   members: ApplicationMember[];
+  /** Always empty for the IAM's own entry. */
+  blocked: BlockedAccount[];
 }
 
 export interface Setting {
@@ -545,7 +571,7 @@ export interface SettingsResponse {
   settings: Setting[];
 }
 
-/** A language as the admin console sees it: the hidden ones too. */
+/** A language as the admin panel sees it: the hidden ones too. */
 export interface AdminLanguage extends SiteLanguage {
   /** Offered: on the switcher, in discovery, and a language an account can have. */
   enabled: boolean;
@@ -559,7 +585,7 @@ export interface AdminLanguage extends SiteLanguage {
 
 /**
  * `POST /api/admin/languages`. It goes after the ones there are. `enabled`
- * left out would mean offered at once; the console always says which.
+ * left out would mean offered at once; the panel always says which.
  */
 export interface NewLanguage {
   code: string;

@@ -20,7 +20,7 @@ const NAV: NavItem[] = [
 ];
 
 /**
- * The admin console, English only.
+ * The admin panel, English only.
  *
  * Somebody signed in without the IAM's ADMIN role sees "you don't have access"
  * in place of the page, at the address they asked for - no redirect, so the

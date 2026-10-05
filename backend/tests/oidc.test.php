@@ -6,7 +6,7 @@
  * The flows an application depends on, end to end through the real routes:
  * signing in, single sign-on, the code exchange with PKCE, refresh rotation and
  * reuse detection, logout, members-only applications, two-factor, personal
- * tokens, the admin console's guard rails - and the attacks each rule exists
+ * tokens, the admin panel's guard rails - and the attacks each rule exists
  * to stop.
  */
 
@@ -139,7 +139,7 @@ test('the full sign-in: authorize, login, accept, exchange - and the token verif
     $claims = verifyLikeAnApp($browser, $tokens['access_token'], 'genshin');
     check($claims !== null, 'the access token verifies against the published keys');
     same((string) $GLOBALS['playerId'], $claims['sub'], 'sub is the user id');
-    same(['EDITOR'], $claims['roles'], 'roles are genshin\'s roles');
+    same(['EDITOR', 'MEMBER'], $claims['roles'], 'roles are genshin\'s roles - the one given, and the MEMBER every account holds');
     same('player', $claims['preferred_username'], 'username claim');
 
     $idToken = jwtVerifyOwn($tokens['id_token'], 'JWT');
@@ -326,7 +326,13 @@ test('going back from the sign-in page is a cancel, once', function () {
     same(404, $browser->post("/api/login/request/{$request}/cancel")->status, 'a request is left only once');
 });
 
-test('a members-only application refuses an account without a role, until one is granted', function () {
+test('a site whose MEMBER may not sign in refuses an account holding only MEMBER, until a role that may is granted', function () {
+    // Every site lets in the MEMBER every account holds - but whether a role
+    // may sign in is the admin panel's to change; one of the sites stands in
+    // for a members-only application here.
+    iamDb()->exec("UPDATE application_roles SET may_sign_in = FALSE
+                    WHERE name = 'MEMBER' AND application_id = (SELECT id FROM applications WHERE client_id = 'japanese-academy')");
+
     $browser = new Browser();
     $browser->signIn('player@example.test', 'correct horse');
     [$verifier, $challenge] = pkce();
@@ -348,9 +354,9 @@ test('a members-only application refuses an account without a role, until one is
         'scope' => 'openid profile', 'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
     ]))->location())['request'] ?? null;
 
-    grantRole($GLOBALS['playerId'], 'japanese-academy', 'MEMBER');
+    grantRole($GLOBALS['playerId'], 'japanese-academy', 'EDITOR');
     $accept = $browser->post("/api/login/request/{$request}/accept");
-    same(200, $accept->status, 'accepted once a member');
+    same(200, $accept->status, 'accepted once it holds a role there');
 
     $tokens = $browser->request('POST', '/api/oidc/token', ['form' => [
         'grant_type' => 'authorization_code', 'code' => queryOf($accept->json()['redirect'])['code'],
@@ -358,9 +364,33 @@ test('a members-only application refuses an account without a role, until one is
     ]])->json();
     check(isset($tokens['refresh_token']), 'tokens');
 
-    iamDb()->prepare("DELETE FROM user_roles WHERE user_id = ? AND role_id IN (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'japanese-academy')")
+    iamDb()->prepare("DELETE FROM user_roles WHERE user_id = ? AND role_id IN (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'japanese-academy' AND r.name = 'EDITOR')")
         ->execute([$GLOBALS['playerId']]);
     same('invalid_grant', refreshWith($browser, $tokens['refresh_token'], 'japanese-academy')->json()['error'] ?? null, 'the role taken away stops the next refresh');
+
+    iamDb()->exec("UPDATE application_roles SET may_sign_in = TRUE
+                    WHERE name = 'MEMBER' AND application_id = (SELECT id FROM applications WHERE client_id = 'japanese-academy')");
+});
+
+test('every first-party site is open to every account: one given no role there signs in, with the MEMBER it holds', function () {
+    $browser = new Browser('10.2.0.1');
+    same(200, $browser->signIn('player@example.test', 'correct horse')->status, 'signed in');
+    [$verifier, $challenge] = pkce();
+    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
+        'response_type' => 'code', 'client_id' => 'japanese-academy', 'redirect_uri' => JAPANESE_CALLBACK,
+        'scope' => 'openid profile', 'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
+    ]));
+    $code = queryOf($start->location())['code'] ?? null;
+    check($code !== null, 'a signed-in browser gets its code straight away: ' . $start->location());
+
+    $tokens = $browser->request('POST', '/api/oidc/token', ['form' => [
+        'grant_type' => 'authorization_code', 'code' => $code, 'redirect_uri' => JAPANESE_CALLBACK,
+        'client_id' => 'japanese-academy', 'code_verifier' => $verifier,
+    ]]);
+    same(200, $tokens->status, 'code exchange: ' . $tokens->body);
+    $claims = verifyLikeAnApp($browser, $tokens->json()['access_token'], 'japanese-academy');
+    check($claims !== null, 'the access token verifies as the site verifies it');
+    same(['MEMBER'], $claims['roles'], 'and carries MEMBER alone: the site lets anybody signed in in, and keeps its admin area for ADMIN and EDITOR');
 });
 
 test('two-factor: setup, enable, then every sign-in asks; a recovery code works once', function () {
@@ -419,7 +449,7 @@ test('personal tokens: made on the account page, exchanged by a script, revoked 
     $exchanged = refreshWith(new Browser(), $pat);
     same(200, $exchanged->status, 'exchanged');
     check(!isset($exchanged->json()['refresh_token']), 'never rotated');
-    same(['EDITOR'], verifyLikeAnApp($browser, $exchanged->json()['access_token'], 'genshin')['roles'], 'carries the roles');
+    same(['EDITOR', 'MEMBER'], verifyLikeAnApp($browser, $exchanged->json()['access_token'], 'genshin')['roles'], 'carries the roles');
     same(200, refreshWith(new Browser(), $pat)->status, 'usable again');
 
     same(200, $browser->post('/api/logout')->status, 'signing out of the browser');
@@ -511,7 +541,7 @@ test('plain http is only for this computer, in redirect URIs and origins alike',
     check(!validOrigin('http://genshin.anotoki.eu'), 'no plain-http origin elsewhere');
 });
 
-test('the admin console is for IAM admins only', function () {
+test('the admin panel is for IAM admins only', function () {
     $player = new Browser();
     $player->signIn('player@example.test', 'correct horse');
     same(403, $player->get('/api/admin/users')->status, 'a player is refused');

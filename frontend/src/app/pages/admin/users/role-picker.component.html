@@ -1,20 +1,26 @@
 <div class="groups">
-    @for (application of applications(); track application.client_id) {
+    @for (group of groups(); track group.application.client_id) {
         <fieldset class="group" [disabled]="disabled()">
             <legend>
-                <span class="app-name">{{ application.name }}</span>
-                <code class="app-id">{{ application.client_id }}</code>
+                <span class="app-name">{{ group.application.name }}</span>
+                <code class="app-id">{{ group.application.client_id }}</code>
             </legend>
-            @if (application.roles.length) {
+            @if (group.roles.length) {
                 <div class="roles">
-                    @for (role of application.roles; track role) {
-                        <app-checkbox [checked]="isSelected(application.client_id, role)" [disabled]="disabled()" (checkedChange)="toggle(application.client_id, role, $event)">
+                    @for (role of group.roles; track role) {
+                        <app-checkbox [checked]="isSelected(group.application.client_id, role)" [disabled]="disabled()" (checkedChange)="toggle(group.application.client_id, role, $event)">
                             <span class="role">{{ role }}</span>
+                            @if (!maySignIn(group.application, role)) {
+                                <span class="no-sign-in">may not sign in</span>
+                            }
                         </app-checkbox>
                     }
                 </div>
             } @else {
-                <p class="none">No roles defined.</p>
+                <p class="none">No other roles.</p>
+            }
+            @if (blocked().has(group.application.client_id)) {
+                <p class="blocked" role="note">Cannot sign in to {{ group.application.name }} with these roles.</p>
             }
         </fieldset>
     }

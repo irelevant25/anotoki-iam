@@ -16,7 +16,7 @@
  *
  * The words are strings in the database, like the pages' (migration 006): the
  * `mail.` keys, in the recipient's own language, reworded in the admin
- * console. They used to be written here, because a template with a link in
+ * panel. They used to be written here, because a template with a link in
  * the middle is easy to break in a grid. So what could break was taken out of
  * the words instead:
  *
@@ -26,7 +26,7 @@
  *     rewording can drop the link, move it, or put another one in its place.
  *   - Which placeholders a string has is said by MAIL_KEYS - the code, not the
  *     stored English - and only those are filled in.
- *   - The console refuses an address in a mail's words, a line break in any of
+ *   - The panel refuses an address in a mail's words, a line break in any of
  *     them, a brace that is not a placeholder, a long subject, and a string
  *     too long for one line of mail once its {username}s are filled
  *     (translationsCheck()). For the subject sending relies on none of that:
@@ -60,7 +60,7 @@ const MAIL_SUBJECT_MAX = 200;
  * Every string a mail is made of, and the placeholders each may use.
  *
  * This list is the authority, not the English in the database: a string is
- * filled with exactly these and nothing else, and the admin console refuses a
+ * filled with exactly these and nothing else, and the admin panel refuses a
  * string, in any language, that uses another or leaves one out. There is no
  * placeholder for the link or the code of a message's middle line on purpose.
  */
@@ -134,7 +134,7 @@ function mailEncodeHeader(string $text): string
  *
  * The language's own strings over the English ones, read in one query - and
  * the language's only while it is on offer: one switched off in the admin
- * console is no longer spoken, in a mail either. Whatever the database does
+ * panel is no longer spoken, in a mail either. Whatever the database does
  * not give - it has no tables yet, the query failed, a row was deleted - is
  * said with MAIL_FALLBACK, key by key. It never throws and never answers
  * with a key or an empty string.
@@ -255,7 +255,7 @@ function sendMail(string $to, string $subject, string $body, string $kind, ?int 
     // One line, and not a long one - here, whatever was checked when the words
     // were saved: a subject is a header, a line break in a header starts the
     // next one ("Bcc: ..."), and a string can also reach the database without
-    // the admin console. Done once, before the header, the file and the log.
+    // the admin panel. Done once, before the header, the file and the log.
     $subject = mb_substr((string) preg_replace('/[\r\n\t]/', ' ', $subject), 0, MAIL_SUBJECT_MAX, 'UTF-8');
 
     $resolved = mailSender($sender);

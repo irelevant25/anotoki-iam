@@ -367,9 +367,13 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             $roles = json_decode((string) $row['my_roles'], true) ?: [];
             $canUse = applicationAccessRefusal($row, $user) === null;
 
-            // A members-only application nobody invited this account to is
-            // not worth listing - it is not something they can do anything with.
-            if ($row['access'] === 'members' && !$canUse && $roles === []) {
+            // An application nobody invited this account to is not worth
+            // listing - it is not something they can do anything with. That is
+            // one whose roles keep this account out while it holds none there
+            // but the MEMBER every account is given (or none at all: MEMBER
+            // taken away, or 010 still pending). One the account is invited to
+            // is listed, saying when it cannot be used.
+            if (array_diff($roles, ['MEMBER']) === [] && rolesKeepOut($row, (int) $user['id'])) {
                 continue;
             }
 

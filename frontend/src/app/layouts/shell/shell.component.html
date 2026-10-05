@@ -1,75 +1,23 @@
 <!-- Focus is moved by hand: with <base href="/">, a bare #main would resolve to /#main and leave the page. -->
 <a class="skip-link" href="#main" (click)="$event.preventDefault(); main.focus()">{{ "shell.skipToContent" | t }}</a>
 
-<header class="topbar">
-    <div class="topbar-inner">
-        <app-brand [size]="34" [area]="area() === 'admin' ? 'admin' : ('brand.area' | t)" [link]="home()" [linkLabel]="'brand.home' | t" />
+<app-top-bar [area]="area()" />
 
-        <div class="topbar-actions">
-            <app-theme-toggle [compact]="true" />
-
-            @if (user(); as me) {
-                <div class="user-menu">
-                    <button
-                        #menuButton
-                        type="button"
-                        class="user-button"
-                        aria-haspopup="menu"
-                        [attr.aria-expanded]="menuOpen()"
-                        aria-controls="user-menu"
-                        [attr.aria-label]="('shell.userMenu' | t) + ': ' + me.username"
-                        (click)="toggleMenu()">
-                        <span class="avatar" aria-hidden="true">{{ initial() }}</span>
-                        <span class="user-name">{{ me.username }}</span>
-                        <app-icon name="chevronDown" [size]="16" />
-                    </button>
-
-                    @if (menuOpen()) {
-                        <div #menu id="user-menu" class="menu" role="menu" [attr.aria-label]="'shell.userMenu' | t" (keydown)="onMenuKeydown($event)">
-                            <div class="menu-head" role="none">
-                                <span class="menu-name">{{ me.username }}</span>
-                                <span class="menu-email">{{ me.email }}</span>
-                            </div>
-                            <a role="menuitem" class="menu-item" routerLink="/account" (click)="closeMenu(false)">
-                                <app-icon name="user" [size]="17" />
-                                {{ "shell.account" | t }}
-                            </a>
-                            @if (isAdmin()) {
-                                <a role="menuitem" class="menu-item" routerLink="/admin" (click)="closeMenu(false)">
-                                    <app-icon name="shield" [size]="17" />
-                                    {{ "shell.admin" | t }}
-                                </a>
-                            }
-                            <div class="menu-sep" role="separator"></div>
-                            <button role="menuitem" type="button" class="menu-item" [disabled]="signingOut()" (click)="signOut()">
-                                @if (signingOut()) {
-                                    <app-spinner size="sm" />
-                                } @else {
-                                    <app-icon name="logOut" [size]="17" />
-                                }
-                                {{ "shell.signOut" | t }}
-                            </button>
-                        </div>
-                    }
-                </div>
-            }
-        </div>
-    </div>
-</header>
-
-<div class="frame">
-    <nav class="sidenav" [attr.aria-label]="'shell.mainNav' | t">
-        <ul>
-            @for (item of nav(); track item.link) {
-                <li>
-                    <a class="nav-link" [routerLink]="item.link" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: !!item.exact }" ariaCurrentWhenActive="page">
-                        <app-icon [name]="item.icon" [size]="18" />
-                        <span>{{ item.label }}</span>
-                    </a>
-                </li>
-            }
-        </ul>
-    </nav>
+<div class="frame" [class.has-sidenav]="nav().length > 0">
+    @if (nav().length) {
+        <nav class="sidenav" aria-label="Admin panel">
+            <ul>
+                @for (item of nav(); track item.link) {
+                    <li>
+                        <a class="nav-link" [routerLink]="item.link" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: !!item.exact }" ariaCurrentWhenActive="page">
+                            <app-icon [name]="item.icon" [size]="18" />
+                            <span>{{ item.label }}</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
 
     <main #main id="main" class="content" tabindex="-1">
         <ng-content />

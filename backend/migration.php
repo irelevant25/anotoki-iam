@@ -23,7 +23,7 @@
  *
  *   php create-admin.php you@example.com
  *
- * The engine lives in api/migration_runner.php, shared with the admin console's
+ * The engine lives in api/migration_runner.php, shared with the admin panel's
  * "Apply pending" button and with setup.php, so a database built any of the
  * three ways is the same database.
  */

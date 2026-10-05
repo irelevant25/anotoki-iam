@@ -29,7 +29,7 @@ export function isSessionArea(url: string): boolean {
   return ['/account', '/admin'].some((area) => path === area || path.startsWith(area + '/'));
 }
 
-/** Whether a URL is in the admin console, which is English only. */
+/** Whether a URL is in the admin panel, which is English only. */
 export function isAdminArea(url: string): boolean {
   const path = url.split(/[?#]/)[0];
   return path === '/admin' || path.startsWith('/admin/');

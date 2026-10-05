@@ -52,22 +52,27 @@ the files the installer writes.
 4. Fill in:
    - the **public address** - the IAM's own https address; it becomes the
      issuer every site is configured with, so choose it once;
-   - the **database**, with **Test connection** to check it;
+   - the **database**, with **Test connection** to check it - it says whether
+     it is empty, has updates to apply or is up to date; "does not exist yet -
+     Save creates it" when this user may create databases, "Make it in the
+     hosting panel first" when it may not;
    - the **accounts**: **bring them over from `users`** (its own **Test
      connection** counts them and their admins), or start with a new
      administrator;
    - **the sites**: each one's production address (the examples in the fields
      are placeholders). They replace the development addresses the database
      was seeded with - `/auth/callback`, `/` and the origin at each; a site left
-     blank has no address until the admin console gives it one;
+     blank has no address until the admin panel gives it one;
    - the sender mailboxes and, optionally, the Google client id.
 5. It runs the migrations, imports the accounts (or makes the admin), puts the
    sites' addresses in place, writes `database.local.php`, `secret.local.php`,
    `iam.local.php`, `mail.local.php` and `google.local.php`, writes
-   `storage/installed.lock`, and deletes itself and its token. The migrations
-   run before the accounts arrive, so the survey site's ADMIN - which 005 gives
-   to the administrators an IAM already has - is nobody's yet: give it in the
-   admin console (Users → the person → Roles).
+   `storage/installed.lock`, and deletes itself and its token. The
+   administrator it makes - or every ADMIN it brings over from `users` - holds
+   ADMIN in every application that has one: the IAM's and every site's (the
+   owner's rule; `createFirstAdmin()`, `legacy_import.php`). Any other role -
+   a site's EDITOR - is given in the admin panel (Users → the person →
+   Roles).
 6. **Download `config/secret.local.php` and keep it somewhere safe.** It is the
    master key; without it the signing keys and two-factor secrets cannot be read.
 
@@ -83,7 +88,7 @@ an id token.
 
 Every sign-in limit counts failures per address. Behind a proxy the address PHP
 sees is the proxy's, so all visitors on one of its edges share one count - an
-attacker's failures lock out everybody else there, and the admin console shows
+attacker's failures lock out everybody else there, and the admin panel shows
 the proxy's addresses. Tell the IAM which proxies to believe, in
 `config/iam.local.php` (by hand, over SFTP - the installer keeps what it finds
 there):
@@ -102,8 +107,8 @@ connections from those ranges.
 1. Install the IAM with the import (above). Every account arrives with its id,
    password, Google link, two-factor and recovery codes; the old sessions arrive
    as history. The old `users` database gains an `iam_handover` marker.
-2. Check the admin console: the accounts, and the roles (genshin ADMIN/EDITOR,
-   IAM ADMIN for the site's admins).
+2. Check the admin panel: the accounts, and the roles (genshin EDITOR for
+   the site's editors; the site's admins hold ADMIN in the IAM and every site).
 3. Deploy the genshin site's IAM build and apply its pending migrations from its
    admin Migrations page. Its migration `040_accounts_move_to_iam` removes the old
    account tables and refuses to run until it sees the marker. The site's own
@@ -119,18 +124,107 @@ working at step 3 and moves to a personal token (below).
 ### Later updates
 
 Upload the new build over the old one (never `config/*.local.php` - the build
-leaves them out), then **admin console → Migrations → Apply pending**. There is
+leaves them out), then **admin panel → Migrations → Apply pending**. There is
 no shell; the button runs the same engine as `php migration.php`.
 
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 without an address or a card on the landing page: a `localhost` address there
 would hand codes to whatever listens on the visitor's machine. So in
-**Admin → Applications → the site**, with `{site}` its https address, add the
+**Admin panel → Applications → the site**, with `{site}` its https address, add the
 redirect URI `{site}/auth/callback`, the logout redirect URI `{site}/`, the web
-origin and the home page `{site}`, and switch on **Show on the landing page**;
-then give its roles to whom they belong (Users → the person → Roles) - 005
+origin and the home page `{site}` (it is on the public list of sites while it
+is switched on - there are no landing page settings since 011); then give its roles to whom they belong (Users → the person → Roles) - 005
 itself gives the survey site's ADMIN to the IAM's administrators. A site made
 by hand before its migration arrived keeps what it has.
+
+**Migration 007** (every first-party site open to every account, ADMIN and
+EDITOR in each, MEMBER gone) reaches an installed IAM the same way: through
+**Apply pending** after an upload, re-running setup.php on this computer, or
+`php migration.php` where there is a shell. It opens genshin, Japanese
+Academy, Piano Academy, the build analyzer and the survey site to every
+account, deletes MEMBER from the three sites that had it - with whatever was
+granted of it - adds EDITOR beside their ADMIN, rewords their ADMIN only
+where it still says what 002 said, and gives every administrator of the IAM
+ADMIN in every application that has one. A site deleted in the admin panel
+stays deleted; a first-party site's ADMIN or EDITOR deleted there comes back in
+its usual words. Its gate stops it, and nothing of it is kept, if any of that
+did not happen - a safety net nothing known trips on an installed IAM.
+
+**Apply 007 after the sites, not before.** A Japanese Academy or a build
+analyzer from before the family's change still asks for MEMBER; once 007 has
+removed it, everybody who held it is refused there (only ADMIN holders get in)
+until the site is updated. So upload each site's new version first - it takes a
+token with no role and reads ADMIN / EDITOR - then apply 007. Then give EDITOR
+to whoever rewords a site's strings.
+
+**Migration 008** (the top bar's words: the phone's menu button, the role in
+the person's menu and the language button's name added, "Account" gone)
+belongs to the frontend with the family's top bar, and Apply pending applies
+it together with 007 - the engine takes the files in order. So upload the IAM's
+new build when 007 may be applied too (the sites updated first), and press
+Apply pending right after: until then the bar shows those three keys where
+their words should be (`shell.roleAdmin` under an administrator's name), and
+an older build left in place after 008 would show `shell.account`. It only
+adds strings and deletes the one key; its gate names its own keys.
+
+**Migration 009** ("Admin panel") rewords the person's menu entry and the
+account overview's card from 006's "Admin console" (Slovak "Administrácia")
+to "Admin panel" ("Administrátorský panel"), the name every anotoki site
+gives its admin area. It rewrites a string only while it still holds 006's
+words: one reworded on the Translations page stays the owner's. It goes with
+the build that says "admin panel" in the bar; applied before or after it, the
+worst is a moment of the old name.
+
+**Migration 010** (sign-in per site: MEMBER for everyone, roles that may sign
+in, sign-in required per site - `docs/decisions.md`, 2026-10-05) gives every
+application a MEMBER role ("Uses the site") and every account MEMBER in every
+application, from then on by two database triggers; adds each role's "may
+sign in" (all yes) and each application's "sign-in required" (genshin and
+the build analyzer no, the rest yes). Nothing changes for anybody on the day
+it runs: an application set to members only keeps letting in only the holders
+of its other roles (its MEMBER may not sign in), a MEMBER somebody held there
+becomes INVITED with its holders, and a members-only application nobody could
+get into is switched off. Before uploading the build that brings it, `php
+clients.php` lists each application's `access` - the members-only ones are
+those whose MEMBER 010 will untick. It adds no strings.
+
+**Apply 010 right after uploading its build, and before any site that reads
+the sign-in switch** - the opposite of 007's order. Until Apply, signing in
+everywhere keeps the rule before it, and the admin panel's Applications pages
+answer "Apply the pending migrations" (the other pages work); the public
+answer the sites read, `/api/public/applications/{client_id}`, is a 503,
+so each site keeps its last answer, or requires signing in. MEMBER in a
+token is harmless to the sites as they are: they read ADMIN and EDITOR.
+`access` stays in the database, unread; a later migration drops it once both
+IAMs run 010. **Once 010 is applied, never upload the build from before it
+again** - it would let every account into a members-only site and let back in
+anybody blocked by having MEMBER taken away. A problem after 010 is fixed
+forward, with a new build (`docs/decisions.md`).
+
+What 010 leaves unticked or switched off is said in its header: an
+application set to "Members only" before it keeps its MEMBER from signing in -
+only the holders of its other roles (ADMIN, EDITOR, INVITED) get in - and if
+that site does not require signing in (genshin, the build analyzer), everybody
+else uses it as a visitor. `php clients.php` shows each application's roles
+that may sign in afterwards. If "Members only" was set for a test, tick MEMBER
+again (Applications → the site → Settings → Roles). A members-only
+application with no other role was switched off.
+
+**Migration 011** (public clients only, the same roles everywhere, no landing
+page settings - the owner's words of 2026-10-05, `docs/decisions.md`) makes
+every application a public client and clears any client secret: the token and
+revocation endpoints refuse a request carrying a secret, and authorize asks
+every client for PKCE. Every anotoki site already signs in that way; an
+application of another kind that kept a secret must switch to PKCE. It gives
+every site ADMIN, EDITOR and MEMBER (the IAM's own entry ADMIN and MEMBER):
+an application without ADMIN or EDITOR gets it, in the family's words, held
+by nobody, and a role made before stays, read-only. A new application gets
+the three from then on. The admin panel no longer adds, removes, renames or
+rewords a role, offers no client type or secret, and has no landing page
+settings: the public list of sites is every one switched on, in the order
+they were added. `type`, the secret and the landing switch stay, unread, until
+the migration that drops `access` - not a way back to a build from before
+010. It adds no strings, and goes with 010, in the same Apply.
 
 ### The sites' addresses
 
@@ -140,9 +234,11 @@ the installer replaces them with the production ones it is given, and removes
 every loopback address either way - on a live IAM a `localhost` redirect URI
 would hand a code to whatever listens on the visitor's own machine. Anything
 after that - a new site, one a later migration seeded (above), a renamed
-domain, a site left blank at install - is the admin console's **Applications**
-page: exact redirect URIs, post-logout URIs, web origins, roles, the access
-policy (`everyone` or `members`) and the access token lifetime.
+domain, a site left blank at install - is the admin panel's **Applications**
+page: exact redirect URIs, post-logout URIs, web origins, which of its roles
+may sign in (the roles themselves are fixed: ADMIN, EDITOR, MEMBER), whether
+the site requires signing in (sites pick a change up within about a minute),
+and the access token lifetime.
 
 ### The words across an update
 
@@ -156,12 +252,12 @@ Apply pending** - and between the two:
   (and not `not_set_up`: the site is not sent to the installer's notice).
 - Discovery and `/api/public/config` offer `en` and `sk`, and accounts keep
   their language.
-- The admin console's Translations and Languages pages say to apply the pending
+- The admin panel's Translations and Languages pages say to apply the pending
   update first. The first navigation after Apply brings the words in, with no
   page load.
 
-A migration never writes over a string reworded in the console. Before a
-release that changes strings, **export the live strings** (Admin → Translations
+A migration never writes over a string reworded in the admin panel. Before a
+release that changes strings, **export the live strings** (Admin panel → Translations
 → Export, one JSON file per language) and keep them: they are the owner's
 wording, and the export is what puts it back if a release's rewording is not
 wanted. On a computer with the repository, `php translations.php --import`
@@ -171,17 +267,21 @@ checks and loads such a file into a development database.
 
 | Task | Where |
 | --- | --- |
-| Give somebody a role on a site | Admin → Users → the person → Roles |
-| Let everyone use a members-only site | Admin → Applications → the site → Access: everyone |
-| Somebody is locked out (lost password) | They use "Forgot password"; or Admin → Users → Set password (they must choose a new one at the next sign-in) |
-| Somebody lost their phone and recovery codes | Admin → Users → Reset two-factor |
-| End a session that should not be there | Admin → Sessions, or the person's own account page |
-| Switch signing in off for everybody but IAM admins | Admin → Settings → Signing in |
-| Rotate the signing key | Admin → Keys → Rotate. Tokens signed by the old key keep working until they expire; sites refetch the key set by themselves. Remove the retired key after a day. |
+| Give somebody a role on a site | Admin panel → Users → the person → Roles: the site's EDITOR opens its admin area, ADMIN all of it |
+| Let every account use a members-only application | Tick its MEMBER: Admin panel → Applications → the application → Settings → Roles (every account holds MEMBER everywhere, migration 010) |
+| Make a site members-only (or admins only) | Untick its MEMBER (and EDITOR) there; then give the people who should get in a role by hand (Users → the person → Roles). The Members tab lists who holds a role beyond MEMBER, and who cannot sign in |
+| Let visitors use a site without an account, or stop that | Admin panel → Applications → the site → Settings → **Sign-in required**. The site picks it up within about a minute |
+| See who is blocked where | Users: a "Cannot sign in: {site}" badge per site; an application's Members tab: "Cannot sign in" |
+| Block somebody from one site | Take that site's MEMBER (and any other role there that may sign in) from them: Admin panel → Users → the person → Roles. Their next sign-in and refresh are refused; the access token they hold works until it expires (minutes). A site that does not require signing in still lets them in as a visitor - blocking stops signing in, not visiting |
+| Somebody is locked out (lost password) | They use "Forgot password"; or Admin panel → Users → Set password (they must choose a new one at the next sign-in) |
+| Somebody lost their phone and recovery codes | Admin panel → Users → Reset two-factor |
+| End a session that should not be there | Admin panel → Sessions, or the person's own account page |
+| Switch signing in off for everybody but IAM admins | Admin panel → Settings → Signing in |
+| Rotate the signing key | Admin panel → Keys → Rotate. Tokens signed by the old key keep working until they expire; sites refetch the key set by themselves. Remove the retired key after a day. |
 | A script needs to call a site's API | The account page → Tokens for scripts |
-| Reword a sentence of the pages or a mail | Admin → Translations: edit, Save. Readers get it at their next page load; the change is in the audit log |
-| Add a language | Admin → Languages → Add (it starts hidden), write its strings on Translations (or import a JSON file), then switch it on. Until a string is written the language reads it in English |
-| Stop offering a language | Admin → Languages → switch it off: its strings and accounts stay, its readers get English. Deleting it sends its accounts to English and removes its strings; English and Slovak cannot be deleted |
+| Reword a sentence of the pages or a mail | Admin panel → Translations: edit, Save. Readers get it at their next page load; the change is in the audit log |
+| Add a language | Admin panel → Languages → Add (it starts hidden), write its strings on Translations (or import a JSON file), then switch it on. Until a string is written the language reads it in English |
+| Stop offering a language | Admin panel → Languages → switch it off: its strings and accounts stay, its readers get English. Deleting it sends its accounts to English and removes its strings; English and Slovak cannot be deleted |
 
 ## Scripts: personal access tokens
 
@@ -199,12 +299,12 @@ composer start                             # the API, and the installer at http:
 php migration.php                          # apply pending migrations
 php import-legacy.php --dry-run            # rehearse the account import (from the configured 'legacy' database)
 php import-legacy.php                      # the import itself (writes the marker)
-php create-admin.php you@example.com       # a first admin on an empty IAM, instead
+php create-admin.php you@example.com       # a first admin on an empty IAM, instead (ADMIN in every application)
 php clients.php --dev                      # put the sites' development addresses back
 php reset-password.php <email> [password] [--clear-2fa]
 php translations.php --status              # the frontend's keys against the database's, and how much of each language there is
 php translations.php --export sk [file]    # a language's own strings as flat JSON
-php translations.php --import sk file      # and back in, checked as the admin console checks a save
+php translations.php --import sk file      # and back in, checked as the admin panel checks a save
 php tests/run.php                          # every test, against throwaway databases
 ```
 
@@ -218,8 +318,10 @@ php tests/run.php                          # every test, against throwaway datab
 | A site says "invalid_redirect_uri" before any page | Its redirect URI is not registered exactly as it sends it (scheme, host, port, path, trailing slash) - or it was left blank at install. |
 | A site's token endpoint call fails in the browser with a CORS error | The site's origin is not in the application's web origins. |
 | A site accepts nobody's token | The site's configured issuer is not exactly the IAM's public URL, or its client id is wrong, or it cannot reach `/.well-known/jwks.json`. |
-| "access_denied" for somebody who should get in | The application is members-only and they hold none of its roles. |
+| "access_denied" for somebody who should get in | They hold no role there that may sign in: their MEMBER was taken away (give it back under Users → the person → Roles), or the site's MEMBER may not sign in (the site was members-only before 010, or unticked since) and they hold none of its other roles - tick MEMBER, or give them a role that may sign in. |
+| A site's admin area refuses its owner | They hold neither its ADMIN nor its EDITOR: Admin panel → Users → the person → Roles. An account made in the admin panel, or made the IAM's ADMIN there, gets no site's ADMIN by itself; the installer's administrator, `create-admin.php`'s, an imported one and every administrator there when 007 ran were given all of them. |
+| Somebody no longer an administrator still administers a site | Taking the IAM's ADMIN away takes nothing else: remove their ADMIN (and EDITOR) on each site too - Admin panel → Users → the person → Roles. |
 | Sign-in mail never arrives | `mail.local.php` still has the `file` driver (mail is in `storage/mail/`), or the sender is not a real mailbox on the hosted domain. |
 | Google button missing | No `google.local.php`, the switch is off, or the page's origin is not an authorised JavaScript origin of the client. |
-| The pages are English only, with no language switcher, after an upload | A migration with the words is pending: `/api/translations/...` answers 503 `translations_unavailable`. Admin → Migrations → Apply pending. |
+| The pages are English only, with no language switcher, after an upload | A migration with the words is pending: `/api/translations/...` answers 503 `translations_unavailable`. Admin panel → Migrations → Apply pending. |
 | A page shows a key (`login.title`) where a word should be | The key has no string in the database: a migration that adds it is pending, or its English row was removed by hand. `php translations.php --status` on a copy names it. |

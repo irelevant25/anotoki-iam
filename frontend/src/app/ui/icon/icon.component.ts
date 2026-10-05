@@ -32,6 +32,7 @@ const ICONS = {
   smartphone: [rect(5, 2, 14, 20, 2), 'M12 18h.01'],
   grid: [rect(3, 3, 7, 7, 1), rect(14, 3, 7, 7, 1), rect(14, 14, 7, 7, 1), rect(3, 14, 7, 7, 1)],
   terminal: ['M4 17l6-6-6-6', 'M12 19h8'],
+  logIn: ['M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4', 'M10 17l5-5-5-5', 'M15 12H3'],
   logOut: ['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'M16 17l5-5-5-5', 'M21 12H9'],
   chevronDown: ['M6 9l6 6 6-6'],
   chevronRight: ['M9 18l6-6-6-6'],

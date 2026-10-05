@@ -10,7 +10,7 @@
  * whenever the mailbox is out of reach. Filesystem access to this install is
  * the gate, which is why it runs on the command line only and is not shipped by
  * build-dist.php. On the shell-less production host, an IAM admin does the same
- * from the admin console (set password, reset two-factor).
+ * from the admin panel (set password, reset two-factor).
  *
  * It does the whole "let me back in": the password, password sign-in switched
  * back on, the address confirmed, the account switched back on, and the

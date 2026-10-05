@@ -99,7 +99,7 @@
                 </dl>
             </app-card>
 
-            <app-card heading="Roles" subheading="The complete set: anything unticked is taken away when saved.">
+            <app-card heading="Roles" subheading="The complete set: anything unticked is taken away when saved. Every account holds MEMBER everywhere - unticking it blocks the person from that site.">
                 <div class="stack">
                     @if (rolesError()) {
                         <app-alert tone="danger" [announce]="true">{{ rolesError() }}</app-alert>

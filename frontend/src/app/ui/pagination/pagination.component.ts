@@ -5,7 +5,7 @@ import { IconComponent } from '../icon/icon.component';
 /**
  * "51-100 of 230", with previous and next.
  *
- * Only the admin console pages through anything, and the admin console is
+ * Only the admin panel pages through anything, and the admin panel is
  * English, so the words are written here rather than translated.
  */
 @Component({

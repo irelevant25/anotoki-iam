@@ -12,7 +12,7 @@ description: >
 `backend/migrations/iam/NNN_name.sql`, the next free number, a short snake_case
 name. The engine (`backend/api/migration_runner.php`) applies each file in one
 transaction and records it; the same engine runs from the CLI, from `setup.php`
-(every time it saves) and from the admin console's Migrations page, so a file
+(every time it saves) and from the admin panel's Migrations page, so a file
 must work unattended on a host with no shell.
 
 ## House style
@@ -41,16 +41,51 @@ must work unattended on a host with no shell.
   `setup.php` and `DEV_CLIENTS` in `clients.php` too, and the installer's tests.
 - **A seeding migration reaches installed IAMs too** - through the Migrations
   page, one of them live - where no install follows to take a loopback address
-  out. So it adds the development addresses and the landing card only while the
+  out. So it adds the development addresses only while the
   IAM's own `iam` entry has its home on this computer (the installer sets that
   home to the IAM's address), and leaves an entry of the same client id that is
   there already as it is: model it on `005_survey_application.sql`. On a live
-  IAM the admin console gives the site its https address.
+  IAM the admin panel gives the site its https address.
+- **A first-party site has ADMIN and EDITOR** (`007_every_site_for_every_account.sql`,
+  the owner's decision; MEMBER beside them since 010, below), and the IAM's
+  administrators are given ADMIN in every application that has one (a grant at
+  install, import and in 007 - not a rule kept afterwards): a
+  migration that seeds a site gives its ADMIN to the IAM's administrators
+  there (005's last insert); one that changes roles or access touches only what
+  is there - a site deleted in the admin panel stays deleted, a role
+  reworded there keeps its words (compare against the words the earlier
+  migration wrote, as 007 does). A migration that changes who holds a role is
+  a permission decision: the owner says so first, and `docs/decisions.md`
+  records it.
+- **MEMBER is every account's, in every application** (`010_sign_in_per_site.sql`):
+  an application a migration inserts gets MEMBER, and every account it, from
+  010's trigger - never insert or grant MEMBER by hand, never take it from
+  people in a migration. A seeding migration sets the site's `login_required`
+  and, if it must, which roles may sign in (`may_sign_in`). Grants inserted
+  next to the triggers need `ON CONFLICT DO NOTHING`. Test helpers:
+  `buildIamThrough()` / `applyMigrationsThrough()` (`tests/lib.php`) build a
+  database up to a file and no further - a migration's own test asserts the
+  state its file leaves, not what 010 makes of it.
+- **Every site has the same roles, ADMIN, EDITOR and MEMBER**
+  (`011_public_clients_static_roles.sql`; the IAM's entry ADMIN and MEMBER):
+  011's trigger makes all three with an application, in generic words, and
+  gives none of ADMIN / EDITOR to anybody. A seeding migration that wants its
+  site's own words rewords them after the application's insert (the trigger
+  has run by then, so an `INSERT ... ON CONFLICT DO NOTHING` of the roles, as
+  005 does, changes nothing): `UPDATE ... WHERE description = <the trigger's
+  words>`, which leaves a rewording of the owner's alone. Never add a
+  fourth role: the admin panel cannot remove one. Every application is a
+  public client: never seed `type` or a secret.
+- **Test it on a database shaped like an installed one**, not only on a fresh
+  one: build the migrations before it, add what an owner would have (an
+  administrator, grants, edits made in the admin panel), then apply -
+  `tests/survey-application.test.php` (005) and `tests/every-site.test.php`
+  (007) are the pattern.
 
 ## Strings
 
 The pages' and mails' words are rows (`languages`, `translation_keys`,
-`translations`, from `006_languages_and_translations.sql`); the admin console
+`translations`, from `006_languages_and_translations.sql`); the admin panel
 changes strings, never keys.
 
 - **A new page string** is its key and English in
@@ -61,16 +96,24 @@ changes strings, never keys.
   `MAIL_FALLBACK` English in `api/mail.php` plus the same migration rows.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
-  that no migration wrote.
+  that no migration wrote. It also counts what the migrations leave (after
+  009 - which only rewords: 458 keys, 443 of the pages, 916 strings): a migration that adds or
+  removes keys moves those numbers, and `tests/top-bar-strings.test.php` is
+  the pattern for testing one on an installed IAM. A migration test that
+  builds a database "up to" its file and applies what is pending applies every
+  later file too - assert on its own file (`['applied'][0]`), not on the list.
 - **`ON CONFLICT DO NOTHING` never overwrites**: a string reworded in the
-  console is the owner's and a re-seed steps aside for it. A rewording that must
+  panel is the owner's and a re-seed steps aside for it. A rewording that must
   reach live IAMs is an `UPDATE` of that row, and says in the header that it
-  replaces whatever the console made of it (the owner exports first -
-  `docs/operations.md`). A removed key is a `DELETE FROM translation_keys`; its
+  replaces whatever the panel made of it (the owner exports first -
+  `docs/operations.md`) - or, kinder, an `UPDATE ... WHERE value = '<the
+  earlier migration's words>'`, which leaves the owner's rewording alone
+  (`009_admin_panel.sql`, tested by `tests/admin-panel-strings.test.php`).
+  A removed key is a `DELETE FROM translation_keys`; its
   strings go with it.
 - **The gate names its own keys.** Prove that every key this file writes has
   its English and Slovak row. Do not copy 006's form ("every key has en and sk,
-  total = 456"): the console deletes a Slovak string by blanking it and makes no
+  total = 456"): the panel deletes a Slovak string by blanking it and makes no
   keys, so a later gate that checks every key, or a total, fails on a live IAM
   for something the owner did on purpose.
 - **One string on a line**, an apostrophe written twice and nothing else

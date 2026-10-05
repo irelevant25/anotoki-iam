@@ -87,6 +87,25 @@ export class UsersListComponent {
     return (application?.roles ?? []).map((role) => ({ value: role, label: role }));
   });
 
+  /**
+   * What each row's Roles cell shows: the grants beyond MEMBER (every account
+   * holds MEMBER everywhere - six badges a row would say nothing), and a
+   * warning per site the account is blocked from, by name. Nothing left
+   * reads "Member".
+   */
+  protected readonly roleCells = computed(() => {
+    const names = new Map((this.filters()?.applications ?? []).map((application) => [application.client_id, application.name]));
+    return new Map(
+      this.users().map((user) => [
+        user.id,
+        {
+          grants: user.roles.filter((grant) => grant.role !== 'MEMBER'),
+          blocked: (user.blocked_in ?? []).map((clientId) => names.get(clientId) ?? clientId),
+        },
+      ]),
+    );
+  });
+
   protected readonly query = computed<AdminUserQuery>(() => ({
     search: this.search() || undefined,
     status: (this.status() as AdminUserQuery['status']) || undefined,

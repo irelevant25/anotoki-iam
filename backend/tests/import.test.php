@@ -39,7 +39,18 @@ test('a dry run reports and writes nothing', function () use ($legacy) {
 test('the import keeps ids, maps roles, encrypts two-factor secrets and leaves the marker', function () use ($legacy, $totpSecret) {
     $summary = importLegacyAccounts(iamDb(), $legacy);
     same(3, $summary['accounts'], 'accounts');
-    same(['genshin ADMIN' => 1, 'iam ADMIN' => 1, 'genshin EDITOR' => 1], $summary['roles'], 'roles');
+    // The old site's ADMIN administers the whole family: ADMIN in the IAM and in
+    // every site that has one (the owner's rule, migration 007); EDITOR stays
+    // the old site's own.
+    $roles = $summary['roles'];
+    ksort($roles);
+    same([
+        'build-analyzer ADMIN' => 1, 'genshin ADMIN' => 1, 'genshin EDITOR' => 1, 'iam ADMIN' => 1,
+        'japanese-academy ADMIN' => 1, 'piano-academy ADMIN' => 1, 'survey ADMIN' => 1,
+    ], $roles, 'roles');
+    same(['build-analyzer', 'genshin', 'iam', 'japanese-academy', 'piano-academy', 'survey'], adminOf(iamDb(), 1), 'the old ADMIN holds ADMIN in the IAM and every first-party site');
+    same(applicationsWithAdmin(iamDb()), adminOf(iamDb(), 1), 'which is every application that has one');
+    same([], adminOf(iamDb(), 4), 'the old EDITOR holds no ADMIN');
 
     same([1, 4, 9], array_map('intval', iamDb()->query('SELECT id FROM users ORDER BY id')->fetchAll(PDO::FETCH_COLUMN)), 'ids kept');
     same('en', iamDb()->query('SELECT language FROM users WHERE id = 9')->fetchColumn(), 'an unknown language falls back to English');

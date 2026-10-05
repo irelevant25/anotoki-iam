@@ -1,5 +1,38 @@
 @if (languages().length >= 2) {
-    @if (segmented()) {
+    @if (compact()) {
+        <button
+            #button
+            type="button"
+            class="switcher"
+            [id]="buttonId"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="open()"
+            [attr.aria-controls]="menuId"
+            [attr.aria-label]="'lang.button' | t: { name: currentName(), code: currentCode() }"
+            [attr.aria-busy]="switching() ? 'true' : null"
+            (click)="toggle()">
+            {{ currentCode() }}
+        </button>
+
+        @if (open()) {
+            <div #menu class="menu" role="menu" [id]="menuId" [attr.aria-labelledby]="buttonId" (keydown)="onMenuKeydown($event)">
+                @for (language of languages(); track language.code) {
+                    <button
+                        type="button"
+                        role="menuitemradio"
+                        class="menu-item"
+                        [attr.aria-checked]="language.code === i18n.language()"
+                        [attr.lang]="language.code"
+                        (click)="chooseFromMenu(language.code)">
+                        <span class="menu-label">{{ language.native_name }}</span>
+                        @if (language.code === i18n.language()) {
+                            <app-icon name="check" [size]="16" />
+                        }
+                    </button>
+                }
+            </div>
+        }
+    } @else if (segmented()) {
         <div class="segmented" role="radiogroup" [attr.aria-label]="'lang.label' | t" [attr.aria-busy]="switching() ? 'true' : null" (keydown)="onKeydown($event)">
             @for (language of languages(); track language.code) {
                 <button

@@ -14,7 +14,7 @@
  *   api/          the application
  *   config/       minus every *.local.php
  *   vendor/       Slim and its dependencies (the host cannot run composer)
- *   migrations/   the schema - the admin console applies it
+ *   migrations/   the schema - the admin panel applies it
  *   storage/      empty, writable, and denied to the web
  *
  * Not shipped: setup.php (uploaded by hand for the first install only), the CLI

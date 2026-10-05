@@ -1,0 +1,289 @@
+:host {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.topbar {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--border);
+  --brand-area: var(--primary-soft-text);
+}
+
+// One row: the brand, the links, then the controls pushed to the right.
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: var(--topbar-height, 60px);
+  // As wide as the frame under it (layouts/shell): the brand above the side navigation's edge.
+  max-width: 88rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+// On a bar with no room to spare, what gives way is the person's name (it
+// ends in an ellipsis) - never the brand, the links, the language or the theme.
+app-brand,
+app-theme-toggle,
+app-language-switcher {
+  flex: none;
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: none;
+}
+
+.topbar-link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+
+  &.is-active {
+    background: var(--primary-soft);
+    color: var(--primary-soft-text);
+  }
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.user-menu,
+.phone-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.phone-menu {
+  flex: none;
+}
+
+.user-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 0.6rem 0 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 650;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-3);
+  }
+
+  &[aria-expanded="true"] {
+    border-color: var(--primary);
+  }
+
+  app-icon {
+    flex: none;
+  }
+}
+
+.menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-3);
+  }
+
+  &[aria-expanded="true"] {
+    border-color: var(--primary);
+  }
+}
+
+.avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--primary), var(--accent));
+  color: var(--primary-contrast);
+  font-weight: 800;
+  font-size: 0.8125rem;
+}
+
+.user-name {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 15rem;
+  max-width: calc(100vw - 1.5rem);
+  max-height: calc(100dvh - var(--topbar-height, 60px) - 1rem);
+  overflow-y: auto;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+  animation: menu-in 140ms var(--ease);
+}
+
+.menu-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem 0.65rem;
+  margin-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.menu-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.menu-email {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.menu-role {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--surface-3);
+  }
+
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+
+  app-icon {
+    color: var(--muted);
+  }
+
+  .menu-external {
+    margin-left: auto;
+  }
+}
+
+// The site's sections in the phone's menu: the one the page is in stands out as the bar's links do.
+.menu-link.is-active {
+  background: var(--primary-soft);
+  color: var(--primary-soft-text);
+}
+
+.menu-sep {
+  height: 1px;
+  margin: 0.3rem 0;
+  background: var(--border);
+}
+
+// A bar wide enough for the links but not for the person's name as well: the round button alone.
+@media (max-width: 1240px) {
+  .user-name {
+    display: none;
+  }
+
+  .user-button {
+    padding: 0 0.4rem 0 0.3rem;
+  }
+}
+
+// The phone's bar (PHONE_BAR_MAX in top-bar.component.ts): the brand, the language, the theme, the menu button.
+@media (max-width: 1040px) {
+  .topbar-inner {
+    padding: 0 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .topbar-actions {
+    gap: 0.4rem;
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media print {
+  :host {
+    display: none;
+  }
+}

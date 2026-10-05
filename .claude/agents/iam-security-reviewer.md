@@ -20,13 +20,19 @@ the files you were given). You do not edit anything.
   byte for byte; errors before the client and URI are verified go to the IAM's
   own `/error`; `next` / `returnTo` only ever local paths.
 - **Codes**: single use (condition in the UPDATE), 60 s, bound to client,
-  redirect URI and PKCE challenge; reuse revokes the family; public clients
-  cannot skip PKCE.
+  redirect URI and PKCE challenge; reuse revokes the family; no client skips
+  PKCE - every client is public (011), authorize asks every one for a
+  challenge whatever its row says, and a code without one is refused.
+- **Client secrets**: there are none. The token and revocation endpoints
+  refuse any request carrying one (`client_secret` in the body, even empty,
+  or `Authorization: Basic`) with `invalid_client` before reading anything
+  else (`clientSentSecret()`); discovery says `["none"]`. Nothing may read
+  `type` or `secret_hash` to decide anything.
 - **Tokens**: RS256 pinned on every read; `typ` distinguishes access and ID
   tokens; `aud` is the client; roles are that application's only; lifetimes as
   documented; the SDK checks the same.
 - **Refresh**: rotation, reuse detection outside the leeway, death with the
-  session, access policy re-checked at every refresh.
+  session, roles that may sign in re-checked at every refresh.
 - **Sessions & CSRF**: the cookie is HttpOnly, SameSite=Lax, Secure on https;
   every first-party write passes the CSRF middleware, whose exemptions are exact
   paths compared on the percent-decoded path the router matches (try
@@ -43,6 +49,44 @@ the files you were given). You do not edit anything.
   where the endpoint mails; the limiter on every sign-in and mail-sending path.
 - **Switches & lockouts**: every way in checks `signInRefusal()` /
   `applicationAccessRefusal()`; no self-lockout; the last admin stays.
+- **Who is given a role without the admin panel**: only an administrator of
+  the IAM, and only ADMIN - `createFirstAdmin()` (on an IAM with no accounts),
+  the legacy import's ADMIN, and the migrations that give the administrators
+  already there a site's ADMIN (005, 007). Nothing else hands out a role, and
+  never from a request's body. A site's admin area rests on the site's own
+  check of ADMIN / EDITOR in the token. MEMBER is every account's in every
+  application (010's triggers - the only grant made without the admin panel
+  besides those, to every account alike). Roles are fixed (011): the admin
+  API changes only `may_sign_in`; a new application's ADMIN and EDITOR, and
+  those 011 added, are held by nobody.
+- **Who may sign in to a site** (010): `applicationAccessRefusal()` on every
+  way in (authorize, accept, the code exchange, every refresh, personal
+  tokens) needs a held role with `may_sign_in`; the IAM's own entry is never
+  asked (Settings -> Signing in is its gate). While 010 is pending the rule
+  before it holds on the `access` column - a fallback, removed with the
+  column. A change of who may sign in is audited (`application.sign_in_changed`;
+  a new application's `application.created` says what it starts with).
+  Taking MEMBER away, or unticking it, stops a personal token made before at
+  its next exchange too, and a code given before at its exchange.
+  `saveApplication()` locks the application's row before reading its roles,
+  so two saves cannot together leave a site switched on with no role that
+  may sign in. `access` is no way back: once 010 is applied, a build from
+  before it must never go on the host (it would fail open) - flag any doc or
+  header that offers it.
+- **The public contract** (`GET /api/public/applications/{client_id}`,
+  `routes/oidc.php`): three fields - `client_id`, `name`, `login_required` -
+  and nothing else ever (no roles, addresses, people); 404 for an unknown,
+  malformed, switched-off or system client id; 503 `sign_in_rules_unavailable`
+  while 010 is pending; no session read, no cookie set, in no CORS list;
+  `public, max-age=60` on the 200 only, `no-store` on the rest. It is the
+  switch that opens a site to visitors, so everything reading it fails closed:
+  the PHP SDK's `anotoki_iam_login_required()` reads anything but a 200 with
+  the site's own `client_id` and a JSON boolean as "sign-in required" (a 404
+  kept as that, an error falls back to the last answer), keeps it in the
+  site's PRIVATE `cache_dir`, and never waits longer than `application_timeout`.
+  A site treats a request carrying an `Authorization: Bearer` header as a
+  person's or 401 - never a visitor's (`anotoki_iam_sent_bearer()`;
+  `docs/integrating-an-app.md`).
 - **Configuration & the installer** (`backend/setup.php`, `backend/config/`):
   per-installation values only from `config/*.local.php`, no committed fallback
   and no environment variable; the API answers `not_set_up` before anything

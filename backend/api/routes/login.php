@@ -181,7 +181,7 @@ $app->get('/api/translations/{code}', function (Request $request, Response $resp
         return translationRefuse($response, $bundle);
     }
 
-    // The strings change when somebody saves one in the admin console, or with
+    // The strings change when somebody saves one in the admin panel, or with
     // a release: the browser asks every time (no-cache) and is told "the same
     // as you have" in a few bytes. Both headers are set before that answer, so
     // it carries them too - without them it would go out as no-store.

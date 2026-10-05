@@ -28,44 +28,34 @@ function redirectTo(Response $response, string $location): Response
 /**
  * Who is calling the token or revocation endpoint.
  *
- * A public client names itself; a confidential one proves it with its secret,
- * by HTTP Basic or in the body (RFC 6749 §2.3.1). Every failure is the same
- * answer - an unknown client and a wrong secret look alike from outside.
+ * Every application is a public client (migration 011, the owner's decision):
+ * it names itself with client_id, and a sign-in's code is proved with PKCE.
+ * There are no client secrets, so a request that carries one - by HTTP Basic
+ * or as client_secret in the body - is refused (clientSentSecret()) rather
+ * than half-read: a secret sent means the caller expects a check the IAM no
+ * longer makes. An unknown, switched-off or system client is the same answer
+ * as any other failure.
  *
  * @return array|null the application
  */
 function authenticateClient(Request $request, array $body): ?array
 {
-    $clientId = field($body, 'client_id');
-    $secret = (string) ($body['client_secret'] ?? '');
-    $header = $request->getHeaderLine('Authorization');
-
-    if (strncasecmp($header, 'Basic ', 6) === 0) {
-        $decoded = base64_decode(substr($header, 6), true);
-        if ($decoded === false || !str_contains($decoded, ':')) {
-            return null;
-        }
-        [$basicId, $basicSecret] = explode(':', $decoded, 2);
-        $basicId = urldecode($basicId);
-        if ($clientId !== '' && $clientId !== $basicId) {
-            return null;
-        }
-        $clientId = $basicId;
-        $secret = urldecode($basicSecret);
-    }
-
-    $application = applicationByClientId($clientId);
+    $application = applicationByClientId(field($body, 'client_id'));
 
     if ($application === null || asBool($application['system']) || !asBool($application['enabled'])) {
         return null;
     }
 
-    if ($application['type'] === 'confidential' && !clientSecretValid($application, $secret)) {
-        return null;
-    }
-
     return $application;
 }
+
+/** Whether a request to the token or revocation endpoint carries a client secret (HTTP Basic or client_secret). */
+function clientSentSecret(Request $request, array $body): bool
+{
+    return array_key_exists('client_secret', $body) || strncasecmp($request->getHeaderLine('Authorization'), 'Basic', 5) === 0;
+}
+
+const PUBLIC_CLIENTS_ONLY = 'Public clients only - send client_id and the PKCE code_verifier, no secret';
 
 /**
  * A browser calling the token endpoint must be on one of the client's own
@@ -97,8 +87,9 @@ $app->get('/.well-known/openid-configuration', function (Request $request, Respo
         'grant_types_supported' => ['authorization_code', 'refresh_token'],
         'subject_types_supported' => ['public'],
         'id_token_signing_alg_values_supported' => ['RS256'],
-        'token_endpoint_auth_methods_supported' => ['none', 'client_secret_basic', 'client_secret_post'],
-        'revocation_endpoint_auth_methods_supported' => ['none', 'client_secret_basic', 'client_secret_post'],
+        // Public clients only (011): nothing authenticates a client but PKCE.
+        'token_endpoint_auth_methods_supported' => ['none'],
+        'revocation_endpoint_auth_methods_supported' => ['none'],
         'code_challenge_methods_supported' => ['S256'],
         'scopes_supported' => OIDC_SCOPES,
         'claims_supported' => ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'sid', 'amr',
@@ -150,7 +141,7 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
         $state === '' || strlen($state) > 512 => ['invalid_request', 'state is required (at most 512 characters)'],
         strlen(field($query, 'nonce')) > 512 => ['invalid_request', 'nonce is too long'],
         !in_array('openid', explode(' ', $scope), true) => ['invalid_scope', 'The scope must include openid'],
-        $application['type'] === 'public' && $challenge === '' => ['invalid_request', 'A public client must send a PKCE code_challenge'],
+        $challenge === '' => ['invalid_request', 'A public client must send a PKCE code_challenge'],
         $challenge !== '' && ($challengeMethod !== 'S256' || !preg_match('/^[A-Za-z0-9_-]{43}$/', $challenge))
             => ['invalid_request', 'code_challenge must be an S256 challenge'],
         array_diff($prompts, ['none', 'login', 'create', 'consent']) !== [] => ['invalid_request', 'Unknown prompt value'],
@@ -210,6 +201,9 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
 
     if (in_array('none', $prompts, true)) {
         completeAuthRequest($pdo, $id);
+        // OIDC's error code `login_required` ("nobody is signed in here"), not
+        // the application's `login_required` switch the public contract below
+        // publishes - the same two words, unrelated.
         $error = $signIn === null ? 'login_required' : 'interaction_required';
         return redirectTo($response, errorRedirect($authRequest, $error, 'Signing in needs a page this request asked not to show'));
     }
@@ -223,6 +217,9 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
 
 $app->post('/api/oidc/token', function (Request $request, Response $response) {
     $body = requestBody($request);
+    if (clientSentSecret($request, $body)) {
+        return oauthError($response, 401, 'invalid_client', PUBLIC_CLIENTS_ONLY);
+    }
     $application = authenticateClient($request, $body);
 
     if ($application === null) {
@@ -363,6 +360,9 @@ $app->get('/api/oidc/logout', function (Request $request, Response $response) {
 
 $app->post('/api/oidc/revoke', function (Request $request, Response $response) {
     $body = requestBody($request);
+    if (clientSentSecret($request, $body)) {
+        return oauthError($response, 401, 'invalid_client', PUBLIC_CLIENTS_ONLY);
+    }
     $application = authenticateClient($request, $body);
 
     if ($application === null) {
@@ -376,14 +376,56 @@ $app->post('/api/oidc/revoke', function (Request $request, Response $response) {
     return respondJson($response, new stdClass());
 });
 
-// ── The landing page's list ──────────────────────────────────────────────────
+// ── The sites' list ──────────────────────────────────────────────────────────
 
+// Every site that is switched on, in the order the applications were made
+// (011: the admin panel no longer has landing page settings - show_on_landing
+// is not read, and a new application goes last). The anotoki.eu landing page
+// keeps its own list; only its auditor compares with this one.
 $app->get('/api/applications', function (Request $request, Response $response) {
     $rows = iamDb()->query(
         'SELECT client_id, name, description, home_url, logo_url FROM applications
-          WHERE show_on_landing = TRUE AND enabled = TRUE AND system = FALSE
+          WHERE enabled = TRUE AND system = FALSE
           ORDER BY sort_order, name'
     )->fetchAll();
 
     return respondJson($response, $rows)->withHeader('Cache-Control', 'public, max-age=300');
+});
+
+// ── Is sign-in required here? ────────────────────────────────────────────────
+
+/**
+ * The public contract every site's backend reads: whether its application
+ * requires signing in (the switch on its page in the admin panel). The PHP
+ * SDK's anotoki_iam_login_required() asks it, at most once a minute per site,
+ * keeps the answer, and reads anything but a 200 for its own client id as
+ * "sign-in required" (a 404 is kept as that; an error falls back to the last
+ * answer, or to required when it never had one).
+ *
+ * Three fields and nothing else, on purpose. 404 for an unknown, malformed,
+ * switched-off or system client id - the IAM's own entry is not a site
+ * anybody visits. It confirms to anybody who knows a client id that the
+ * application exists, and its name - as the sign-in page does for anybody who
+ * starts a sign-in to it. In no CORS list: browsers never read it, the sites'
+ * servers do. The 404 and the 503s are no-store (the security headers).
+ */
+$app->get('/api/public/applications/{client_id}', function (Request $request, Response $response, array $args) {
+    $clientId = (string) $args['client_id'];
+    $application = preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $clientId) ? applicationByClientId($clientId) : null;
+
+    if ($application === null || !asBool($application['enabled']) || asBool($application['system'])) {
+        return respondError($response, 404, 'not_found', 'There is no such application');
+    }
+    // 010 pending: there is no switch to read yet. A 503 makes the SDK keep
+    // the answer it had (or require sign-in) until the migration is applied.
+    if (!signInRulesReady(iamDb())) {
+        $refusal = signInRulesUnavailable();
+        return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+    }
+
+    return respondJson($response, [
+        'client_id' => $application['client_id'],
+        'name' => $application['name'],
+        'login_required' => asBool($application['login_required']),
+    ])->withHeader('Cache-Control', 'public, max-age=60');
 });

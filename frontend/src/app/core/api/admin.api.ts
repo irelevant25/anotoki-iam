@@ -13,10 +13,9 @@ import {
   AdminUserFilters,
   AdminUserQuery,
   ApplicationInput,
-  ApplicationMember,
+  ApplicationMembersResponse,
   AuditEntry,
   AuditQuery,
-  ClientSecretResponse,
   CreateUserBody,
   CreatedApplication,
   EmailFilters,
@@ -44,7 +43,7 @@ import {
 import { toParams } from './query';
 
 /**
- * The admin console. Every call needs the session cookie and ADMIN in the
+ * The admin panel. Every call needs the session cookie and ADMIN in the
  * application `iam`; without it the backend answers 403 `forbidden`.
  *
  * Shapes follow php/api/routes/admin.php where it says more than docs/api.md.
@@ -137,7 +136,7 @@ export class AdminApi {
     return this._http.get<AdminApplication>(`/api/admin/applications/${id}`);
   }
 
-  /** `client_secret` is set for a confidential application, and shown once. */
+  /** The database gives it ADMIN, EDITOR and MEMBER; every application is a public client (no secret). */
   createApplication(input: ApplicationInput): Observable<CreatedApplication> {
     return this._http.post<CreatedApplication>('/api/admin/applications', input);
   }
@@ -151,13 +150,9 @@ export class AdminApi {
     return this._http.delete<MessageResponse>(`/api/admin/applications/${id}`);
   }
 
-  /** Confidential applications only. The secret is shown once. */
-  newSecret(id: number): Observable<ClientSecretResponse> {
-    return this._http.post<ClientSecretResponse>(`/api/admin/applications/${id}/secret`, {});
-  }
-
-  members(id: number): Observable<ApplicationMember[]> {
-    return this._http.get<{ members: ApplicationMember[] }>(`/api/admin/applications/${id}/members`).pipe(map((response) => response.members ?? []));
+  /** Who holds a role beyond MEMBER, and who is blocked from it. */
+  members(id: number): Observable<ApplicationMembersResponse> {
+    return this._http.get<ApplicationMembersResponse>(`/api/admin/applications/${id}/members`).pipe(map((response) => ({ members: response.members ?? [], blocked: response.blocked ?? [] })));
   }
 
   // ── Settings ───────────────────────────────────────────────────────────────

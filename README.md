@@ -14,15 +14,15 @@ runs as its own subdomain.
   a form. Signing out ends it everywhere.
 - **Account page**: username and language, password, Google, two-factor,
   sessions, the sites you can use, tokens for scripts.
-- **Admin console**: accounts, per-site roles, sessions, the mail log, the sites
-  themselves (redirect URIs, origins, access policy), switches, signing keys,
+- **Admin panel**: accounts, per-site roles, sessions, the mail log, the sites
+  themselves (redirect URIs, origins, roles that may sign in), switches, signing keys,
   migrations, an audit log of every change - and the words: every sentence of
   the sign-in and account pages and of the three mails is a string in the
   database, reworded there, and a new language is added there, with no build.
   English and Slovak come with it.
 - **Installer**: `backend/setup.php` writes the configuration, builds the
-  database and makes the first administrator - on a development machine as on
-  a server. Until it has run, the IAM says it is not set up and does nothing
+  database and makes the first administrator, who holds ADMIN in the IAM and
+  in every site - on a development machine as on a server. Until it has run, the IAM says it is not set up and does nothing
   else.
 
 | Part | Folder | Stack |
@@ -46,9 +46,41 @@ fixed port it is registered with:
 | Surveys | `survey` | `http://localhost:4700` | `:8500` |
 
 - Getting it running: [DEV.md](DEV.md).
+- Each half's layout, entry points and commands: [backend/README.md](backend/README.md)
+  and [frontend/README.md](frontend/README.md).
 - How it works: [docs/architecture.md](docs/architecture.md), then
   [docs/api.md](docs/api.md) for the endpoints.
 - Making a site sign in through it: [docs/integrating-an-app.md](docs/integrating-an-app.md)
   and [sdk/README.md](sdk/README.md).
 - Putting it on the hosting: [docs/operations.md](docs/operations.md).
 - Why it is built the way it is: [docs/decisions.md](docs/decisions.md).
+
+## Current state
+
+- Every anotoki site signs in through it, and every first-party site is open
+  to every account, with the roles ADMIN and EDITOR (migration 007, the
+  owner's decisions of 2026-10-01) - and MEMBER, which every account holds in
+  every application since migration 010 (2026-10-05): a sign-in needs a role
+  that may sign in, so taking somebody's MEMBER blocks them from one site, and
+  each site says whether it requires signing in (genshin and the build
+  analyzer let visitors in; the sites' backends read it at
+  `/api/public/applications/{client_id}`). The admin panel shows both on an
+  application's page, and who is blocked where. Since migration 011 every
+  application is a public client (PKCE, no secret) with the same fixed roles -
+  ADMIN, EDITOR, MEMBER - and no landing page settings. ADMIN in every site was given to
+  the installer's administrator, `create-admin.php`'s, one brought over from
+  the genshin site, and every administrator there when 007 ran - a grant at
+  those moments: promoting or removing an administrator later changes no
+  site's roles. 007 goes on an installed IAM after the sites are updated.
+- Migrations 001-009; an installed IAM gets 007, 008 and 009 through the
+  admin panel's Migrations page (or setup.php / `php migration.php` on this
+  computer). 008 is the top bar's words: three strings added, one gone; 009
+  calls the admin area the admin panel ("Admin console" was 006's word),
+  as every anotoki site does.
+- The account pages and the admin panel wear the anotoki family's one top
+  bar (the survey site's is the reference): the account pages as its links,
+  the language, the theme, the person's menu; a menu button on a phone, up to
+  1040 px. The admin panel keeps its side navigation under it.
+- The pages and mails in English and Slovak, reworded in the admin panel.
+- "Test connection" on the installer answers in the family's words, the
+  survey's setup page's.

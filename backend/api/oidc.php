@@ -213,7 +213,9 @@ function redeemAuthorizationCode(PDO $pdo, string $code, array $application, str
             || !hash_equals((string) $row['code_challenge'], base64UrlEncode(hash('sha256', $verifier, true)))) {
             return 'code_verifier does not match the challenge';
         }
-    } elseif ($application['type'] === 'public') {
+    } else {
+        // Every client is public (011): a code without a challenge proves
+        // nothing about who redeems it.
         return 'A public client must use PKCE';
     }
 

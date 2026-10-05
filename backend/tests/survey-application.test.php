@@ -10,7 +10,7 @@
  * it, a development IAM or a live one, with accounts and roles - and then 005
  * on top. Where the IAM itself is served from (its own entry's home, which the
  * installer sets) decides whether the site gets development addresses, and an
- * entry made by hand in the admin console must come through as it was.
+ * entry made by hand in the admin panel must come through as it was.
  */
 
 declare(strict_types=1);
@@ -80,12 +80,16 @@ function grantIn(PDO $pdo, int $userId, string $clientId, string $role): void
     )->execute([$userId, $clientId, $role]);
 }
 
-/** Applies what is pending - 005 among it - the way the CLI, the installer and the admin console do. */
+/**
+ * Applies 005, the way the CLI, the installer and the admin panel do - and
+ * nothing after it, so what is asserted is what 005 leaves (010 gives every
+ * application MEMBER and every account MEMBER in it: sign-in-rules.test.php).
+ */
 function applySurveyMigration(PDO $pdo): void
 {
-    $result = applyPendingMigrations($pdo, 'iam');
+    $result = applyMigrationsThrough($pdo, SURVEY_MIGRATION);
     same(null, $result['failed'], 'nothing fails (' . ($result['error'] ?? '') . ')');
-    check(in_array(SURVEY_MIGRATION, $result['applied'], true), '005 is applied');
+    same([SURVEY_MIGRATION], $result['applied'], '005 is applied, and nothing after it');
     same(1, (int) $pdo->query("SELECT count(*) FROM migrations WHERE filename = '" . SURVEY_MIGRATION . "'")->fetchColumn(), 'and recorded as applied');
 }
 
@@ -124,6 +128,7 @@ function surveyIn(PDO $pdo): ?array
         'roles' => $column('SELECT name FROM application_roles WHERE application_id = ? ORDER BY name'),
         'admins' => $holders('ADMIN'),
         'editors' => $holders('EDITOR'),
+        'members' => $holders('MEMBER'),
     ];
 }
 
@@ -148,7 +153,7 @@ function checkADevelopmentIam(string $suffix, string $iamHome): void
     same('Answer surveys, one step at a time.', $survey['description'], 'with its description');
     same('public', $survey['type'], 'a browser app, PKCE and no secret');
     same('everyone', $survey['access'], 'anybody signed in takes surveys');
-    same(false, $survey['system'], 'an ordinary application, removable in the admin console');
+    same(false, $survey['system'], 'an ordinary application, removable in the admin panel');
     same(SURVEY_FRONTEND, $survey['home_url'], 'home is its dev server');
     same(true, $survey['show_on_landing'], 'with a card on the landing page');
     same([SURVEY_CALLBACK], $survey['login'], 'the sign-in callback of its dev server');
@@ -202,7 +207,7 @@ test('a live IAM from before 005: the site without a loopback address or a card,
     check($survey !== null, 'the survey site is there');
     same('Surveys', $survey['name'], 'called what it is');
     same('everyone', $survey['access'], 'open to every account');
-    same(null, $survey['home_url'], 'no home: the admin console gives it its address');
+    same(null, $survey['home_url'], 'no home: the admin panel gives it its address');
     same(false, $survey['show_on_landing'], 'and no card leading nowhere');
     same([], $survey['login'], 'no redirect URI - a localhost one would hand codes to the visitor\'s own machine');
     same([], $survey['logout'], 'nor a landing after sign-out');
@@ -256,7 +261,7 @@ test('a development IAM that made `survey` by hand gets what is missing beside w
     $writer = accountIn($pdo, 'writer');
     grantIn($pdo, $owner, 'iam', 'ADMIN');
 
-    // Made in the admin console while the site was tried on another port: the
+    // Made in the admin panel while the site was tried on another port: the
     // port table's callback and origin are there already, its landing after
     // sign-out is not, and the only role is EDITOR, which somebody holds.
     $insert = $pdo->prepare("INSERT INTO applications (client_id, name, home_url, type, access, show_on_landing, sort_order, system)
@@ -283,7 +288,7 @@ test('a development IAM that made `survey` by hand gets what is missing beside w
     same([$owner], $survey['admins'], 'and the IAM\'s administrator holds the new ADMIN');
 });
 
-test('a live IAM that made `survey` by hand keeps it as it is; only what is missing is added', function () {
+test('a live IAM that made `survey` by hand keeps it as it is through 005, only what is missing added; then 007 opens it', function () {
     $pdo = iamBeforeSurvey('_byhand', 'https://iam.example.test');
     asInstalledOnARealHost($pdo);
     $owner = accountIn($pdo, 'owner');
@@ -291,7 +296,7 @@ test('a live IAM that made `survey` by hand keeps it as it is; only what is miss
     grantIn($pdo, $owner, 'iam', 'ADMIN');
     grantIn($pdo, $second, 'iam', 'ADMIN');
 
-    // As the admin console would have made it: another name, members only, its
+    // As the admin panel would have made it: another name, members only, its
     // https addresses, and one role, which the owner gave themselves.
     $insert = $pdo->prepare("INSERT INTO applications (client_id, name, description, home_url, type, access, show_on_landing, sort_order, system)
                              VALUES ('survey', 'Our surveys', 'Made by hand', 'https://survey.example.test', 'public', 'members', FALSE, 7, FALSE) RETURNING id");
@@ -303,7 +308,9 @@ test('a live IAM that made `survey` by hand keeps it as it is; only what is miss
     $pdo->prepare("INSERT INTO application_roles (application_id, name, description) VALUES (?, 'ADMIN', 'The owner')")->execute([$id]);
     grantIn($pdo, $owner, 'survey', 'ADMIN');
 
-    applySurveyMigration($pdo);
+    // 005's promise first, on its own: what was made by hand is kept, members
+    // only included.
+    applyMigration($pdo, 'iam', SURVEY_MIGRATION);
     $survey = surveyIn($pdo);
 
     same('Our surveys', $survey['name'], 'its name is kept');
@@ -319,6 +326,31 @@ test('a live IAM that made `survey` by hand keeps it as it is; only what is miss
     same('The owner', $pdo->query("SELECT r.description FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND r.name = 'ADMIN'")->fetchColumn(), 'and the ADMIN it had is left as it was');
     same([$owner, $second], $survey['admins'], 'the owner held it already and the other administrator is given it: each once');
     same([], $survey['editors'], 'nobody holds EDITOR');
+
+    // Then what came after it: 007 opens every first-party site to every
+    // account, this one too, and leaves the rest of what was made by hand.
+    $result = applyMigrationsThrough($pdo, '007_every_site_for_every_account.sql');
+    same(null, $result['failed'], 'nothing from 005 to 007 fails (' . ($result['error'] ?? '') . ')');
+    $survey = surveyIn($pdo);
+    same('everyone', $survey['access'], '007 opens it to every account');
+    same(['Our surveys', 'Made by hand', 'https://survey.example.test'], [$survey['name'], $survey['description'], $survey['home_url']], 'and keeps its name, description and home');
+    same(['ADMIN', 'EDITOR'], $survey['roles'], 'and its two roles');
+    same('The owner', $pdo->query("SELECT r.description FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND r.name = 'ADMIN'")->fetchColumn(), 'whose words are kept: 007 rewords no survey role');
+    same([$owner, $second], $survey['admins'], 'each administrator still holds survey ADMIN once');
+
+    // And the rest: 010 gives it MEMBER, which both accounts hold, and keeps
+    // it requiring signing in - an 'everyone' site lets every account in.
+    $result = applyPendingMigrations($pdo, 'iam');
+    same(null, $result['failed'], 'nothing after 007 fails (' . ($result['error'] ?? '') . ')');
+    same([], pendingMigrations($pdo, 'iam'), 'nothing left pending');
+    $survey = surveyIn($pdo);
+    same(['ADMIN', 'EDITOR', 'MEMBER'], $survey['roles'], '010 adds MEMBER');
+    same([$owner, $second], $survey['members'], 'which every account holds');
+    same(true, asBool($pdo->query("SELECT login_required FROM applications WHERE client_id = 'survey'")->fetchColumn()), 'and the survey site requires signing in');
+    same(['ADMIN', 'EDITOR', 'MEMBER'], $pdo->query("SELECT r.name FROM application_roles r JOIN applications a ON a.id = r.application_id
+                                                      WHERE a.client_id = 'survey' AND r.may_sign_in ORDER BY r.name")->fetchAll(PDO::FETCH_COLUMN),
+        'with every role allowed to sign in');
+    same([$owner, $second], $survey['admins'], 'each administrator still holds survey ADMIN once');
 });
 
 // ── The survey site signing in ───────────────────────────────────────────────
@@ -368,14 +400,14 @@ test('the survey site signs its administrator in, and the token says ADMIN to th
     check(verifyLikeAnApp($browser, $tokens['access_token'], 'genshin') === null, 'and it is no good for another site');
 });
 
-test('anybody signed in takes surveys: an account with no role gets in, with no roles', function () {
+test('anybody signed in takes surveys: an account given no role gets in, with the MEMBER every account holds', function () {
     $browser = new Browser();
     $tokens = signInToSurvey($browser, 'respondent@example.test');
 
     $claims = verifyLikeAnApp($browser, $tokens['access_token'], 'survey');
     check($claims !== null, 'the access token verifies');
     same((string) $GLOBALS['respondentId'], $claims['sub'], 'sub is the account');
-    same([], $claims['roles'], 'no roles');
+    same(['MEMBER'], $claims['roles'], 'MEMBER and nothing more');
 });
 
 test('the survey site\'s origin is answered at the token endpoint; a redirect URI off by one character is refused', function () {

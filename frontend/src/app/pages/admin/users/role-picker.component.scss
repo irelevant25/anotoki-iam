@@ -49,3 +49,16 @@ legend {
   color: var(--muted);
   font-size: 0.8125rem;
 }
+
+.no-sign-in {
+  margin-left: 0.4rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.blocked {
+  margin-top: 0.55rem;
+  color: var(--warning);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}

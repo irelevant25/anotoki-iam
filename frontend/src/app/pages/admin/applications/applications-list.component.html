@@ -27,12 +27,9 @@
                     <thead>
                         <tr>
                             <th scope="col">Application</th>
-                            <th scope="col">Type</th>
-                            <th scope="col">Access</th>
+                            <th scope="col">Sign-in</th>
+                            <th scope="col">Roles that may sign in</th>
                             <th scope="col">State</th>
-                            <th scope="col" class="cell-num">Roles</th>
-                            <th scope="col">Landing page</th>
-                            <th scope="col" class="cell-num">Order</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -51,9 +48,27 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <app-badge [mono]="true">{{ app.type }}</app-badge>
+                                    @if (app.system) {
+                                        <span class="muted">-</span>
+                                    } @else if (app.login_required) {
+                                        Required
+                                    } @else {
+                                        Visitors welcome
+                                    }
                                 </td>
-                                <td>{{ app.access === "members" ? "Members only" : "Everyone" }}</td>
+                                <td>
+                                    @if (app.system) {
+                                        <span class="muted">Settings → Signing in</span>
+                                    } @else {
+                                        <span class="badges">
+                                            @for (role of app.roles; track role.name) {
+                                                @if (role.may_sign_in) {
+                                                    <app-badge [mono]="true">{{ role.name }}</app-badge>
+                                                }
+                                            }
+                                        </span>
+                                    }
+                                </td>
                                 <td>
                                     @if (app.enabled) {
                                         <app-badge tone="success" [dot]="true">On</app-badge>
@@ -61,9 +76,6 @@
                                         <app-badge tone="danger" [dot]="true">Off</app-badge>
                                     }
                                 </td>
-                                <td class="cell-num">{{ app.roles.length }}</td>
-                                <td>{{ app.show_on_landing ? "Shown" : "-" }}</td>
-                                <td class="cell-num">{{ app.sort_order }}</td>
                             </tr>
                         }
                     </tbody>

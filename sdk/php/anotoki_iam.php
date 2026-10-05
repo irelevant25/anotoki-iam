@@ -1,7 +1,8 @@
 <?php
 
 /**
- * anotoki_iam.php - checks anotoki IAM access tokens.                v1.0.1
+ * anotoki_iam.php - checks anotoki IAM access tokens, and reads       v1.1.0
+ * whether the IAM says a site requires sign-in.
  *
  * One file, no dependencies, plain functions, for any PHP backend of an anotoki
  * site: copy it in and require it. It parses under PHP 7.4 (no match, no
@@ -33,19 +34,30 @@
  * than every five minutes, so a stream of made-up kids cannot turn every
  * request into a download.
  *
+ * Whether a site requires sign-in is the IAM's to say, per application
+ * (anotoki_iam_login_required(), further down): read from the IAM's public
+ * answer, kept on disk for a minute, and true - sign-in required - whenever
+ * nothing better is known.
+ *
  * Configuration (an array):
  *
- *   issuer        required  the IAM's address, http://localhost:4300 in development
- *   client_id     required  this application's client id
- *   jwks_url      optional  default {issuer}/.well-known/jwks.json
- *   jwks_file     optional  a JWKS on disk instead of downloading one (tests, offline)
- *   cache_dir     optional  where the key set is cached; default the system temp dir
- *   cache_ttl     optional  seconds, default 3600
- *   leeway        optional  seconds of clock slack, default 60
- *   http_timeout  optional  seconds, default 5
+ *   issuer               required  the IAM's address, http://localhost:4300 in development
+ *   client_id            required  this application's client id
+ *   jwks_url             optional  default {issuer}/.well-known/jwks.json
+ *   jwks_file            optional  a JWKS on disk instead of downloading one (tests, offline)
+ *   cache_dir            optional  where the key set and the application's answer are
+ *                                  cached; default the system temp dir. Give a PRIVATE
+ *                                  folder: see anotoki_iam_login_required()
+ *   cache_ttl            optional  seconds the key set is kept, default 3600
+ *   leeway               optional  seconds of clock slack, default 60
+ *   http_timeout         optional  seconds, default 5 (the key set)
+ *   application_ttl      optional  seconds the sign-in answer is kept, default 60
+ *   application_timeout  optional  seconds, default 2 (the sign-in answer: asked on a
+ *                                  page's way through, so it waits less than the key set)
+ *   application_file     optional  the IAM's answer on disk instead of asking it (tests)
  */
 
-const ANOTOKI_IAM_SDK_VERSION = '1.0.1';
+const ANOTOKI_IAM_SDK_VERSION = '1.1.0';
 
 /**
  * The token out of an Authorization header, or null.
@@ -69,6 +81,21 @@ function anotoki_iam_bearer_token($header)
     $token = trim(substr($header, 7));
 
     return $token === '' ? null : $token;
+}
+
+/**
+ * Whether an Authorization header claims to be somebody: its scheme is Bearer,
+ * with or without a token after it.
+ *
+ * A site that also lets visitors in decides with this, before anything else,
+ * that a request is a person's: a token that does not verify then answers 401,
+ * and never falls back to being a visitor - a visitor's key is not even read.
+ * Only Bearer counts: `Basic ...` is what a host protected by a password file
+ * sends with every request, and says nothing about who is using the site.
+ */
+function anotoki_iam_sent_bearer($header)
+{
+    return is_string($header) && preg_match('/^\s*Bearer(?:\s|$)/i', $header) === 1;
 }
 
 /**
@@ -321,9 +348,18 @@ function anotoki_iam_usable_keys(array $document)
     return $keys;
 }
 
-/** A GET with a timeout, by curl when there is curl. Null on any failure. */
-function anotoki_iam_http_get($url, $timeout)
+/**
+ * A GET with a timeout, by curl when there is curl. The body of a 200, null for
+ * anything else.
+ *
+ * `$status` is set to the answer's HTTP status, or 0 when there was no answer
+ * at all (unreachable, timed out, refused) - which is how a caller tells "the
+ * IAM said no" (a 404) from "the IAM is not there".
+ */
+function anotoki_iam_http_get($url, $timeout, &$status = null)
 {
+    $status = 0;
+
     if (function_exists('curl_init')) {
         $handle = curl_init($url);
         curl_setopt_array($handle, array(
@@ -334,7 +370,7 @@ function anotoki_iam_http_get($url, $timeout)
             CURLOPT_HTTPHEADER => array('Accept: application/json'),
         ));
         $body = curl_exec($handle);
-        $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        $status = $body === false ? 0 : (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
         // No curl_close(): the handle goes with the variable, the call has done
         // nothing since PHP 8.0, and PHP 8.5 deprecates it.
 
@@ -363,8 +399,327 @@ function anotoki_iam_http_get($url, $timeout)
 
     $headers = isset($meta['wrapper_data']) && is_array($meta['wrapper_data']) ? $meta['wrapper_data'] : array();
     $statusLine = isset($headers[0]) ? (string) $headers[0] : '';
+    $status = preg_match('#^HTTP/\S+\s+(\d{3})\b#', $statusLine, $match) ? (int) $match[1] : 0;
 
-    return is_string($body) && preg_match('#^HTTP/\S+\s+200\b#', $statusLine) ? $body : null;
+    return is_string($body) && $status === 200 ? $body : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Is sign-in required here?
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The IAM says, per application, whether its site requires sign-in:
+// GET {issuer}/api/public/applications/{client_id} answers 200 {client_id, name,
+// login_required}, or 404 for an application it does not know or has switched
+// off. A site asks on its way through a request, so the answer is kept on disk
+// for application_ttl, and the rule fails closed: unless the IAM has said "no
+// sign-in needed" and nothing has said otherwise since, sign-in is required.
+//
+// The kept answer is what opens a site to visitors, so it belongs in a folder
+// only the site can write. In a shared temp directory anybody else on the host
+// could write login_required = false into it.
+
+/**
+ * Whether this site requires sign-in: true unless the IAM said otherwise.
+ *
+ *   - a 200 naming this client_id with a boolean login_required: that, kept
+ *   - a 404 (an unknown or switched-off application): true, kept the same way
+ *   - no answer, a 5xx, anything else: the last value kept, or true when none
+ *     was ever read - and the IAM is not asked again for application_ttl
+ *   - while one request asks, the others use the last value: one fetch when
+ *     the minute runs out, not one per request
+ *   - the answer holds for the rest of the request. A process that serves
+ *     several (a test driving the app in-process, a worker) calls
+ *     anotoki_iam_login_required_reset() between them.
+ *
+ * `$reason` says where the answer came from, for a log line: fresh, read,
+ * unknown_application, stale, never_read, backing_off, refreshing,
+ * not_configured.
+ */
+function anotoki_iam_login_required(array $config, &$reason = null): bool
+{
+    $reason = null;
+    $issuer = rtrim((string) (isset($config['issuer']) ? $config['issuer'] : ''), '/');
+    $clientId = (string) (isset($config['client_id']) ? $config['client_id'] : '');
+
+    if ($issuer === '' || $clientId === '') {
+        $reason = 'not_configured';
+        return true;
+    }
+
+    // The tests' seam, like jwks_file: the file's content is the IAM's answer
+    // (a 200), a missing file no answer at all. Read every time - nothing kept,
+    // nothing remembered - so a test can change it between two requests.
+    if (!empty($config['application_file'])) {
+        $file = (string) $config['application_file'];
+        $body = is_file($file) ? @file_get_contents($file) : false;
+        $outcome = $body === false
+            ? anotoki_iam_login_required_from(0, null, $clientId, null, time())
+            : anotoki_iam_login_required_from(200, $body, $clientId, null, time());
+        $reason = $outcome['reason'];
+
+        return $outcome['value'];
+    }
+
+    $ttl = max(1, (int) (isset($config['application_ttl']) ? $config['application_ttl'] : 60));
+    $timeout = max(1, (int) (isset($config['application_timeout']) ? $config['application_timeout'] : 2));
+    $directory = rtrim(!empty($config['cache_dir']) ? (string) $config['cache_dir'] : sys_get_temp_dir(), '/\\');
+    $cacheFile = $directory . '/anotoki-iam-application-' . sha1($issuer . ' ' . $clientId) . '.json';
+
+    $outcome = anotoki_iam_login_required_memo('get', $cacheFile);
+
+    if ($outcome === null) {
+        $url = $issuer . '/api/public/applications/' . rawurlencode($clientId);
+        $outcome = anotoki_iam_login_required_ask($url, $clientId, $cacheFile, $ttl, $timeout);
+        anotoki_iam_login_required_memo('set', $cacheFile, $outcome);
+    }
+
+    $reason = $outcome['reason'];
+
+    return $outcome['value'];
+}
+
+/** Forgets the answers remembered for this request (tests, workers). */
+function anotoki_iam_login_required_reset()
+{
+    anotoki_iam_login_required_memo('reset');
+}
+
+/** The request's remembered answers, by cache file: 'get', 'set' or 'reset'. */
+function anotoki_iam_login_required_memo($action, $key = '', $outcome = null)
+{
+    static $memo = array();
+
+    if ($action === 'reset') {
+        $memo = array();
+    } elseif ($action === 'set') {
+        $memo[$key] = array('value' => (bool) $outcome['value'], 'reason' => (string) $outcome['reason']);
+    } elseif (isset($memo[$key])) {
+        return $memo[$key];
+    }
+
+    return null;
+}
+
+/**
+ * The kept answer, or a fresh one from the IAM: ['value' => bool, 'reason' => string].
+ *
+ * Single flight: the request that finds the answer old claims the refresh - a
+ * lock nobody waits for, and `tried_at` written into the kept answer before it
+ * asks - so the others go on with the last value instead of all asking at once.
+ */
+function anotoki_iam_login_required_ask($url, $clientId, $cacheFile, $ttl, $timeout)
+{
+    $step = anotoki_iam_login_required_from_cache(anotoki_iam_login_required_read($cacheFile), time(), $ttl, $timeout);
+
+    if (!$step['fetch']) {
+        return $step;
+    }
+
+    $lock = anotoki_iam_login_required_lock($cacheFile . '.lock');
+
+    if ($lock === false) {
+        $cached = anotoki_iam_login_required_read($cacheFile);
+        $last = $cached !== null ? $cached['login_required'] : null;
+
+        return array('fetch' => false, 'value' => $last === null ? true : $last, 'reason' => 'refreshing');
+    }
+
+    // Once more under the lock: another request may have finished asking
+    // between the first look and the lock.
+    $cached = anotoki_iam_login_required_read($cacheFile);
+    $step = anotoki_iam_login_required_from_cache($cached, time(), $ttl, $timeout);
+
+    if (!$step['fetch']) {
+        anotoki_iam_login_required_unlock($lock);
+        return $step;
+    }
+
+    $claim = $cached !== null ? $cached : anotoki_iam_login_required_record(null);
+    $claim['tried_at'] = time();
+    $claimed = anotoki_iam_login_required_write($cacheFile, $claim);
+
+    $body = anotoki_iam_http_get($url, $timeout, $status);
+    $outcome = anotoki_iam_login_required_from($status, $body, $clientId, $cached, time());
+    $kept = anotoki_iam_login_required_write($cacheFile, $outcome['cache']);
+
+    anotoki_iam_login_required_unlock($lock);
+
+    if (!$claimed || !$kept) {
+        // Still answered - from what was read, failing closed - but nothing is
+        // kept, so every request asks the IAM and waits for it.
+        error_log('anotoki_iam: cannot write ' . $cacheFile . '; the IAM is asked on every request until the cache folder is writable');
+    }
+
+    return $outcome;
+}
+
+/**
+ * What the kept answer says, before asking: ['fetch' => bool, 'value' => bool, 'reason' => string].
+ * A pure function of the kept record (anotoki_iam_login_required_read()'s shape, or null) and the time.
+ *
+ *   fresh        read less than $ttl ago: its value
+ *   backing_off  the last ask failed less than $ttl ago: the last value, or true
+ *   refreshing   another request claimed the ask and has not finished: the same
+ *   otherwise    fetch
+ */
+function anotoki_iam_login_required_from_cache($cached, $now, $ttl, $timeout)
+{
+    $record = anotoki_iam_login_required_record($cached);
+    $last = $record['login_required'];
+    $value = $last === null ? true : $last;
+    $recent = function ($at, $window) use ($now) {
+        return $at > 0 && $at <= $now && $now - $at < $window;
+    };
+
+    if ($last !== null && $recent($record['fetched_at'], $ttl)) {
+        return array('fetch' => false, 'value' => $last, 'reason' => 'fresh');
+    }
+
+    if ($recent($record['failed_at'], $ttl)) {
+        return array('fetch' => false, 'value' => $value, 'reason' => 'backing_off');
+    }
+
+    // A claim outlives its asker only when the asker died without a lock to
+    // release; a few seconds past the timeout, somebody else may ask.
+    $answeredSince = max($record['fetched_at'], $record['failed_at']);
+    if ($record['tried_at'] > $answeredSince && $recent($record['tried_at'], $timeout + 3)) {
+        return array('fetch' => false, 'value' => $value, 'reason' => 'refreshing');
+    }
+
+    return array('fetch' => true, 'value' => $value, 'reason' => 'fetch');
+}
+
+/**
+ * What the IAM's answer means: ['value' => bool, 'cache' => the record to keep, 'reason' => string].
+ * A pure function of the HTTP status (0: no answer), the body, this client id,
+ * the kept record (or null) and the time.
+ */
+function anotoki_iam_login_required_from($status, $body, $clientId, $cached, $now)
+{
+    $record = anotoki_iam_login_required_record($cached);
+
+    if ($status === 200 && is_string($body)) {
+        $answer = json_decode($body, true);
+
+        // Only an answer about this application counts: a proxy's page, an
+        // answer for another client or a login_required that is not a JSON
+        // boolean is no answer.
+        if (is_array($answer)
+            && isset($answer['client_id']) && $answer['client_id'] === (string) $clientId
+            && array_key_exists('login_required', $answer) && is_bool($answer['login_required'])
+        ) {
+            $record['login_required'] = $answer['login_required'];
+            $record['fetched_at'] = $now;
+            $record['failed_at'] = 0;
+
+            return array('value' => $answer['login_required'], 'cache' => $record, 'reason' => 'read');
+        }
+    } elseif ($status === 404) {
+        $record['login_required'] = true;
+        $record['fetched_at'] = $now;
+        $record['failed_at'] = 0;
+
+        return array('value' => true, 'cache' => $record, 'reason' => 'unknown_application');
+    }
+
+    $record['failed_at'] = $now;
+    $last = $record['login_required'];
+
+    return array(
+        'value' => $last === null ? true : $last,
+        'cache' => $record,
+        'reason' => $last === null ? 'never_read' : 'stale',
+    );
+}
+
+/** A kept record in its one shape: login_required (bool, or null: never read) and three times. */
+function anotoki_iam_login_required_record($record)
+{
+    $record = is_array($record) ? $record : array();
+    $time = function ($key) use ($record) {
+        return isset($record[$key]) && is_int($record[$key]) && $record[$key] > 0 ? $record[$key] : 0;
+    };
+    $value = isset($record['login_required']) ? $record['login_required'] : null;
+
+    return array(
+        'login_required' => is_bool($value) ? $value : null,
+        'fetched_at' => $time('fetched_at'),
+        'failed_at' => $time('failed_at'),
+        'tried_at' => $time('tried_at'),
+    );
+}
+
+/** The kept record, or null when there is none to read. */
+function anotoki_iam_login_required_read($cacheFile)
+{
+    if (!is_file($cacheFile)) {
+        return null;
+    }
+
+    $record = json_decode((string) @file_get_contents($cacheFile), true);
+
+    return is_array($record) ? anotoki_iam_login_required_record($record) : null;
+}
+
+/** Keeps the record: written beside and renamed over, so no reader sees half of it. */
+function anotoki_iam_login_required_write($cacheFile, array $record)
+{
+    $directory = dirname($cacheFile);
+
+    if (!is_dir($directory) && !@mkdir($directory, 0700, true) && !is_dir($directory)) {
+        return false;
+    }
+
+    $temporary = $cacheFile . '.' . bin2hex(random_bytes(4)) . '.tmp';
+
+    if (@file_put_contents($temporary, json_encode(anotoki_iam_login_required_record($record))) === false) {
+        return false;
+    }
+
+    if (!@rename($temporary, $cacheFile)) {
+        @unlink($temporary);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * The refresh's lock, without waiting: a handle when it is ours, false when
+ * another request holds it, null when there is no lock to be had (a folder that
+ * cannot be written, a filesystem without locks) - then `tried_at` alone keeps
+ * the others from asking at the same time.
+ */
+function anotoki_iam_login_required_lock($lockFile)
+{
+    $directory = dirname($lockFile);
+
+    if (!is_dir($directory)) {
+        @mkdir($directory, 0700, true);
+    }
+
+    $handle = @fopen($lockFile, 'c');
+
+    if ($handle === false) {
+        return null;
+    }
+
+    if (flock($handle, LOCK_EX | LOCK_NB, $wouldBlock)) {
+        return $handle;
+    }
+
+    fclose($handle);
+
+    return $wouldBlock ? false : null;
+}
+
+function anotoki_iam_login_required_unlock($lock)
+{
+    if (is_resource($lock)) {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

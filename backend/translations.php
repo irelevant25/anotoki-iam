@@ -7,12 +7,12 @@
  *                                            much of each language there is; exit 1 when a key is missing
  *                                            or has no English string
  *   php translations.php --export sk [file]  a language's own strings as flat JSON (to the screen without a file)
- *   php translations.php --import sk file    and back in: checked as a save in the admin console is, all of
+ *   php translations.php --import sk file    and back in: checked as a save in the admin panel is, all of
  *                                            it or none of it; an empty string is passed over
  *
  * For a computer with a shell and the whole repository: it is never uploaded
  * (build-dist.php leaves the command-line tools out), and the live IAM's
- * strings are edited in the admin console. Export them from there before a
+ * strings are edited in the admin panel. Export them from there before a
  * release that changes strings.
  *
  * The strings live in the database so they can be reworded without a build,
@@ -170,7 +170,7 @@ function commandExport(PDO $pdo, string $code, ?string $file): int
     return 0;
 }
 
-/** A file of strings into a language: checked like a save in the admin console, written by nobody. */
+/** A file of strings into a language: checked like a save in the admin panel, written by nobody. */
 function commandImport(PDO $pdo, string $code, string $file): int
 {
     $values = translationFileRead($file);
@@ -194,7 +194,7 @@ if (in_array($command, ['--help', '-h'], true)) {
     echo $usage . "\n\n"
         . "  --status            the keys the frontend uses against the database's; exit 1 when one is missing or has no English string\n"
         . "  --export CODE       a language's own strings as flat JSON, to FILE or to the screen\n"
-        . "  --import CODE FILE  and back in: checked as a save in the admin console is, all of it or none of it\n";
+        . "  --import CODE FILE  and back in: checked as a save in the admin panel is, all of it or none of it\n";
     exit(0);
 }
 

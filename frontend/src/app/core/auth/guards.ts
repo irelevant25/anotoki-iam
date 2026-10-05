@@ -20,7 +20,7 @@ import { SessionService } from './session.service';
  * page would be drawn in the sign-in page's language and change under the
  * reader a moment later.
  *
- * Whether somebody may use the admin console is decided by the admin layout,
+ * Whether somebody may use the admin panel is decided by the admin layout,
  * which shows "you don't have access" in place rather than redirecting.
  */
 export const sessionGuard: CanActivateFn = (_route, state) => {

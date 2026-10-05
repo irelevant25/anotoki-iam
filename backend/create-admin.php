@@ -7,8 +7,9 @@
  *
  * Only while there are no accounts at all, so it is a way to start and never a
  * way in. Without a password one is generated and printed once, and the account
- * is flagged to choose its own at the first sign-in. The account holds the
- * IAM's ADMIN role; roles in the sites are granted from the admin console.
+ * is flagged to choose its own at the first sign-in. The account holds ADMIN
+ * in every application that has one - the IAM's and every site's (the owner's
+ * rule); any other role is granted from the admin panel.
  *
  * On a server without a shell, setup.php does this as part of the install.
  */
@@ -34,7 +35,7 @@ if ($password !== null && strlen($password) < 8) {
 $created = createFirstAdmin(iamDb(), $email, $password);
 
 if ($created === null) {
-    fwrite(STDERR, "There are accounts already; make more from the admin console.\n");
+    fwrite(STDERR, "There are accounts already; make more from the admin panel.\n");
     exit(1);
 }
 

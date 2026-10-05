@@ -8,7 +8,7 @@ export interface HoldsUnsavedChanges {
 }
 
 /**
- * Leaving a page inside the console (a link, Back) asks the page first.
+ * Leaving a page inside the panel (a link, Back) asks the page first.
  *
  * Not when nobody is signed in any more. The session ended, or the person
  * signed out, and the page is on its way to the sign-in form whatever is

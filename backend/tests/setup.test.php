@@ -110,11 +110,33 @@ test('a post without the nonce, with a wrong one, or from another page is refuse
 test('"Test connection" answers in place: a login that works, one that does not, a database not there yet', function () use ($server) {
     $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
 
+    // The family's words (every anotoki setup page answers in them).
+    $mayCreate = (bool) connectDatabase(testServer(), 'postgres', false)->query('SELECT rolcreatedb OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn();
     $missing = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER + ['HTTP_ORIGIN' => 'http://localhost:8100'], json: ['action' => 'test_database'] + localForm($nonce)));
-    same('warn', $missing['tone'], 'the server answers, the database is still to be made: ' . $missing['message']);
+    if ($mayCreate) {
+        same('good', $missing['tone'], 'the server answers and Save will make the database: ' . $missing['message']);
+        same("Connected to the server. The database \"{$GLOBALS['database']}\" does not exist yet - Save creates it.", $missing['message'], 'in the family\'s words');
+    } else {
+        same('bad', $missing['tone'], 'the server answers, but this user cannot make the database: ' . $missing['message']);
+        same("Connected to the server, but there is no database \"{$GLOBALS['database']}\" and this user may not create one. Make it in the hosting panel first.", $missing['message'], 'in the family\'s words');
+    }
 
     $wrong = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_pass' => 'certainly not the password', 'db_user' => 'iam_test_nobody'])));
     same('bad', $wrong['tone'], 'a wrong login: ' . $wrong['message']);
+    check(str_starts_with($wrong['message'], 'Cannot connect: '), 'said as the family says it: ' . $wrong['message']);
+
+    $empty = throwawayDatabase($GLOBALS['database'] . '_empty');
+    ensureDatabase(testServer(), $empty);
+    $emptyAnswer = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_name' => $empty])));
+    same(['ok' => true, 'tone' => 'good', 'message' => "Connected to the database \"{$empty}\": it is empty - Save makes the tables."], $emptyAnswer, 'an empty database');
+
+    $files = migrationFiles('iam');
+    $partial = connectDatabase(testServer(), $empty, false);
+    ensureMigrationsTable($partial);
+    applyMigration($partial, 'iam', $files[0]);
+    $partialAnswer = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_name' => $empty])));
+    same(['ok' => true, 'tone' => 'good', 'message' => "Connected to the database \"{$empty}\": " . (count($files) - 1) . ' update(s) to apply - Save applies them.'], $partialAnswer, 'a database with updates to apply');
+    $partial = null;
 
     $old = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_legacy'] + localForm($nonce)));
     same('good', $old['tone'], 'the old accounts: ' . $old['message']);
@@ -122,11 +144,58 @@ test('"Test connection" answers in place: a login that works, one that does not,
 
     $unsafe = setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_name' => 'anotoki_iam;host=elsewhere']));
     same(422, $unsafe['status'], 'a database name that would reach into the DSN');
+    check(!is_file(IAM_CONFIG_DIR . '/database.local.php'), 'testing writes nothing');
 
+    // Last, as it depends on this computer's password: one so short that it
+    // turns up inside other words fails here, and nothing after it would run.
     if ((string) $server['password'] !== '') {
-        foreach ([$missing, $wrong, $old] as $answer) {
+        foreach ([$missing, $wrong, $emptyAnswer, $partialAnswer, $old] as $answer) {
             check(!str_contains($answer['message'], (string) $server['password']), 'no answer repeats the password');
         }
+    }
+});
+
+test('"Test connection" for a login that may not create a database, and for a database the login may not open', function () {
+    $admin = connectDatabase(testServer(), 'postgres', false);
+    if (!(bool) $admin->query('SELECT rolcreaterole OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn()) {
+        echo "      (skipped: the test login may not make the throwaway login these answers need)\n";
+        return;
+    }
+
+    // A throwaway login of this run's own, with no right to make databases,
+    // and a throwaway database nobody but its owner may open. Both go at the
+    // end of the run: the database with the others, the login just after.
+    $login = testEnvironment()['db'] . '_nocreate';
+    $password = bin2hex(random_bytes(16));
+    $admin->exec('CREATE ROLE "' . $login . '" LOGIN NOCREATEDB NOSUPERUSER NOCREATEROLE PASSWORD ' . $admin->quote($password));
+    register_shutdown_function(static function () use ($login): void {
+        try {
+            connectDatabase(testServer(), 'postgres', false)->exec('DROP ROLE IF EXISTS "' . $login . '"');
+        } catch (\Throwable $e) {
+            fwrite(STDERR, "could not drop the login {$login}: {$e->getMessage()}\n");
+        }
+    });
+    $closed = throwawayDatabase($GLOBALS['database'] . '_closed');
+    ensureDatabase(testServer(), $closed);
+    $admin->exec('REVOKE CONNECT ON DATABASE "' . $closed . '" FROM PUBLIC');
+
+    $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
+    $as = static fn(string $name): array => setupJsonAnswer(setupRequest('POST', LOCAL_SERVER,
+        json: ['action' => 'test_database'] + localForm($nonce, ['db_user' => $login, 'db_pass' => $password, 'db_name' => $name])));
+
+    $never = $GLOBALS['database'] . '_never';
+    $missing = $as($never);
+    same(['ok' => false, 'tone' => 'bad', 'message' => "Connected to the server, but there is no database \"{$never}\" and this user may not create one. Make it in the hosting panel first."],
+        $missing, 'a database not there, and a login that may not make it');
+
+    $shut = $as($closed);
+    $opening = "The server is there, but \"{$login}\" cannot open the database \"{$closed}\": ";
+    same([false, 'bad'], [$shut['ok'], $shut['tone']], 'a database the login may not open: ' . $shut['message']);
+    check(str_starts_with($shut['message'], $opening), 'said as the family says it: ' . $shut['message']);
+    check(strlen($shut['message']) > strlen($opening), 'with the server\'s reason');
+
+    foreach ([$missing, $shut] as $answer) {
+        check(!str_contains($answer['message'], $password), 'no answer repeats the login\'s password');
     }
     check(!is_file(IAM_CONFIG_DIR . '/database.local.php'), 'testing writes nothing');
 });
@@ -151,6 +220,9 @@ test('saving writes every file, builds the database, brings the accounts over, a
     same(TEST_ISSUER, $browser->get('/.well-known/openid-configuration')->json()['issuer'] ?? null, 'as the issuer entered');
     same(200, $browser->signIn('owner@example.test', 'owner password')->status, 'the imported admin signs in with the old password');
     same(true, $browser->get('/api/account')->json()['is_admin'] ?? null, 'and administers the IAM');
+    same(applicationsWithAdmin(iamDb()), adminOf(iamDb(), 3), 'and holds ADMIN in every application that has one - every site\'s too');
+    same(count(FIRST_PARTY_SITES) + 1, count(adminOf(iamDb(), 3)), 'the IAM and the five sites');
+    same([], adminOf(iamDb(), 8), 'the old site\'s player holds none');
     same(2, (int) $legacy->query('SELECT accounts FROM iam_handover')->fetchColumn(), 'the marker for the genshin site is written');
     same('http://localhost:4300', iamDb()->query("SELECT home_url FROM applications WHERE client_id = 'iam'")->fetchColumn(), 'the IAM\'s own home is its address');
 });
@@ -161,8 +233,7 @@ test('run again: the saved values show, never a password or the key; a blank pas
     check(str_contains($page['body'], 'value="' . $GLOBALS['database'] . '"'), 'the saved database');
     check(!str_contains($page['body'], (string) localConfig('secret')), 'the master key is never shown');
     if ((string) $server['password'] !== '') {
-        check(!str_contains($page['body'], (string) $server['password']), 'nor the database password');
-        check(str_contains($page['body'], 'placeholder="saved - blank keeps it"'), 'which is said to be saved');
+        check(str_contains($page['body'], 'placeholder="saved - blank keeps it"'), 'the database password is said to be saved');
     }
     check(str_contains($page['body'], 'account'), 'the accounts already there are named');
 
@@ -183,6 +254,13 @@ test('run again: the saved values show, never a password or the key; a blank pas
 
     $kept = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm(nonceFrom($page), ['db_pass' => ''])));
     same('good', $kept['tone'], 'a test with a blank password uses the saved one: ' . $kept['message']);
+    same("Connected to the database \"{$GLOBALS['database']}\": it is up to date.", $kept['message'], 'and finds the database it built up to date');
+
+    // Last, as it depends on this computer's password: one so short that it
+    // turns up inside other words fails here, and nothing after it would run.
+    if ((string) $server['password'] !== '') {
+        check(!str_contains($page['body'], (string) $server['password']), 'nor the database password');
+    }
 });
 
 test('a blank password is the saved one only for the server and user it was saved for', function () {
@@ -208,6 +286,11 @@ test('a new administrator instead, into a database of its own; Google comes and 
     ]));
     same(200, $answer['status'], 'saved: ' . strip_tags($answer['body']));
     same(200, (new Browser())->signIn('admin@localhost', 'a long enough one')->status, 'the administrator signs in');
+    $pdo = connectDatabase(testServer(), $fresh, false);
+    $adminId = (int) $pdo->query("SELECT id FROM users WHERE email = 'admin@localhost'")->fetchColumn();
+    same(['build-analyzer', 'genshin', 'iam', 'japanese-academy', 'piano-academy', 'survey'], adminOf($pdo, $adminId), 'and holds ADMIN in the IAM and every site - the owner\'s rule for the setup\'s administrator');
+    same(applicationsWithAdmin($pdo), adminOf($pdo, $adminId), 'which is every application that has one');
+    $pdo = null;
     same('1234-abc.apps.googleusercontent.com', localConfig('google')['client_id'] ?? null, 'Google is on');
     same(true, (new Browser())->get('/api/public/config')->json()['google_enabled'] ?? null, 'and the pages know');
 
@@ -241,13 +324,13 @@ test('a fresh database arrives with the sites\' development addresses, as in the
 
     // The survey site arrives by a later migration than the others, and on a
     // database built on this computer it gets what they got: a card, and roles.
-    $survey = $pdo->query("SELECT id, name, access, show_on_landing FROM applications WHERE client_id = 'survey'")->fetch();
+    $survey = $pdo->query("SELECT id, name, login_required, show_on_landing FROM applications WHERE client_id = 'survey'")->fetch();
     same('Surveys', $survey['name'], 'the survey site is called what it is');
-    same('everyone', $survey['access'], 'anybody signed in takes surveys');
+    same(true, asBool($survey['login_required']), 'it asks everybody to sign in');
     same(true, asBool($survey['show_on_landing']), 'and it has a card on the landing page');
-    $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? ORDER BY name');
+    $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? AND may_sign_in ORDER BY name');
     $roles->execute([$survey['id']]);
-    same(['ADMIN', 'EDITOR'], $roles->fetchAll(PDO::FETCH_COLUMN), 'the roles the survey site asks for');
+    same(['ADMIN', 'EDITOR', 'MEMBER'], $roles->fetchAll(PDO::FETCH_COLUMN), 'the roles the survey site asks for, and the MEMBER every account holds - each may sign in');
 });
 
 test('a copy locked as a real host stays locked on this computer too', function () {

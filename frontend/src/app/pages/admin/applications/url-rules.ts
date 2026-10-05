@@ -22,4 +22,3 @@ export function validOrigin(origin: string): boolean {
 }
 
 export const CLIENT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
-export const ROLE_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,49}$/;

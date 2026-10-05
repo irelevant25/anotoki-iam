@@ -19,9 +19,10 @@
  *     which the IAM's pages - another origin - cannot read.
  *
  * Roles move from one column to the IAM's per-application roles: the site's
- * ADMIN becomes genshin ADMIN and, because those accounts already ran the
- * account pages that now live here, IAM ADMIN too; EDITOR becomes genshin
- * EDITOR; USER needs no role.
+ * ADMIN becomes ADMIN in every application that has one - genshin's, the IAM's
+ * (those accounts already ran the account pages that now live here) and every
+ * other site's, as the owner wants an administrator of the family to
+ * administer all of it; EDITOR becomes genshin EDITOR; USER needs no role.
  *
  * All of it is one transaction on the IAM database, into an IAM with no
  * accounts yet. When it commits, a marker is written into the old database:
@@ -155,6 +156,13 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
     // transaction, through this connection: the installer runs the import
     // before any config file is written, so nothing may reach for iamDb().
     $languages = languageCodes($iam);
+    // Every application with an ADMIN role, read the same way: an ADMIN of the
+    // old site becomes ADMIN of each.
+    $adminClients = array_values(array_unique(array_merge(
+        [$siteClientId, IAM_CLIENT_ID],
+        $iam->query("SELECT a.client_id FROM application_roles r JOIN applications a ON a.id = r.application_id
+                      WHERE r.name = 'ADMIN' ORDER BY a.client_id")->fetchAll(PDO::FETCH_COLUMN)
+    )));
 
     $iam->beginTransaction();
 
@@ -189,7 +197,7 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
             $summary['accounts']++;
 
             $grants = match (strtoupper((string) $user['role'])) {
-                'ADMIN' => [[$siteClientId, 'ADMIN'], [IAM_CLIENT_ID, 'ADMIN']],
+                'ADMIN' => array_map(static fn(string $clientId): array => [$clientId, 'ADMIN'], $adminClients),
                 'EDITOR' => [[$siteClientId, 'EDITOR']],
                 default => [],
             };

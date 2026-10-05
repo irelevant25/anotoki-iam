@@ -10,7 +10,9 @@
 img {
   display: block;
   height: auto;
-  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 18%));
+  // The family's shadow in light; in dark a light halo, so the navy mark
+  // stands out of the dark bar (--mark-shadow, styles.scss).
+  filter: var(--mark-shadow);
 }
 
 .wordmark {
@@ -30,4 +32,11 @@ img {
   font-weight: 500;
   font-size: 1.05rem;
   color: var(--brand-area, var(--muted));
+}
+
+// The area alone beside the mark: it is the name there, so it reads as one.
+.is-short .area {
+  font-weight: 700;
+  font-size: 1.075rem;
+  letter-spacing: -0.01em;
 }
