@@ -20,5 +20,8 @@ export class AppAvatarComponent {
   readonly size = input(40);
 
   protected readonly failed = signal(false);
-  protected readonly initial = computed(() => (this.name().trim()[0] ?? '?').toUpperCase());
+  protected readonly initial = computed(() => {
+    return this.name().trim().split(' ').map(x => x[0].toUpperCase() ?? '?').join('');
+    // return (this.name().trim()[0] ?? '?').toUpperCase()
+  });
 }
