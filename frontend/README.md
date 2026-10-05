@@ -11,7 +11,7 @@ PHP in [`../backend/api/routes/`](../backend/api/routes/) says more, the code wi
 ## Commands
 
 ```bash
-npm install
+bun ci                  # the packages, exactly as bun.lock lists them (npm start runs it first)
 npm start               # ng serve on http://localhost:4300; /api, /.well-known and /setup.php proxied to PHP on :8100
 npm run build           # production build into dist/iam/browser/
 npm run build:dev       # development build (unminified, source maps)
@@ -20,6 +20,10 @@ npm run watch           # development build, rebuilt on change
 npm run format          # prettier over src/
 npx ng test --watch=false   # the unit tests (Vitest, jsdom) - see below
 ```
+
+The packages come from `bun.lock`, so bun has to be installed. `bun ci` stops
+when `bun.lock` and `package.json` disagree: add or update packages with bun
+(`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 The unit tests run with Angular's `@angular/build:unit-test` (`angular.json`'s
 `test` target, `tsconfig.spec.json`), which needs `vitest` and `jsdom` in

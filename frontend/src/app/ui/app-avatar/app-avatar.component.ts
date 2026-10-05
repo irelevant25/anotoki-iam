@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
 /**
- * An application's logo, or its initial when it has none.
+ * An application's logo, or the initials of its name when it has none.
  *
  * A logo that fails to load (a moved file, a URL the Content-Security-Policy
- * refuses) falls back to the initial rather than leaving a broken image. The
+ * refuses) falls back to the initials rather than leaving a broken image. The
  * image is decorative - the application's name is always written next to it.
  */
 @Component({
@@ -20,8 +20,12 @@ export class AppAvatarComponent {
   readonly size = input(40);
 
   protected readonly failed = signal(false);
-  protected readonly initial = computed(() => {
-    return this.name().trim().split(' ').map(x => x[0].toUpperCase() ?? '?').join('');
-    // return (this.name().trim()[0] ?? '?').toUpperCase()
-  });
+  protected readonly initial = computed(
+    () =>
+      this.name()
+        .trim()
+        .split(/\s+/)
+        .map((word) => word.charAt(0).toUpperCase())
+        .join('') || '?',
+  );
 }

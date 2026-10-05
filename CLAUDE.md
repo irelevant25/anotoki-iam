@@ -36,7 +36,8 @@ php translations.php --export sk [file]   # a language's own strings as flat JSO
 php build-dist.php                        # -> backend/dist/ for upload
 
 # Frontend (from frontend/)
-npm start                                 # ng serve on :4300, proxying /api, /.well-known and /setup.php to :8100
+npm start                                 # bun ci (the packages in bun.lock), then ng serve on :4300, proxying /api, /.well-known and /setup.php to :8100
+bun add <package>                         # add or update packages with bun: npm start's bun ci stops when bun.lock is behind package.json
 npx ng build                              # production; --configuration development for a debug build
 npm run build:deploy                      # production build + the web root's .htaccess
 npx ng test --watch=false                 # unit tests (Vitest): needs vitest + jsdom in devDependencies (frontend/README.md)

@@ -11,6 +11,7 @@ builds for the hosting. What is where inside each half, and its entry points:
 | PHP | 8.2+ | with `pdo_pgsql`, `openssl`, `mbstring`, and `curl` or `allow_url_fopen`; `php` on the PATH |
 | PostgreSQL | 14+ | a local server, and a login that may create databases (the installer and the tests make theirs) |
 | Node.js | 22.12+ | for the Angular app |
+| Bun | 1.4+ | installs the Angular app's packages (`npm start` runs `bun ci` first) |
 
 `backend/vendor/` is committed (the hosting cannot run composer), so composer
 is only needed to change PHP dependencies.
@@ -59,9 +60,13 @@ Google sign-in is optional: a client id from the Google Cloud console, with
 
 ```bash
 cd frontend
-npm install
 npm start          # http://localhost:4300, proxying /api, /.well-known and /setup.php to :8100
 ```
+
+`npm start` installs the packages before it serves - `bun ci`, exactly as
+`bun.lock` lists them - so there is no separate install step. `bun ci` stops
+when `bun.lock` and `package.json` disagree, so add or update packages with bun
+(`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 Sign in at `http://localhost:4300/login`. The account page is `/account`, the
 admin panel `/admin`. The issuer is `http://localhost:4300` - the address the
