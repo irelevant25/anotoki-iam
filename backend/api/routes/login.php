@@ -152,6 +152,7 @@ $app->get('/api/public/config', function (Request $request, Response $response) 
     return respondJson($response, [
         'login_enabled' => loginEnabled(),
         'registration_enabled' => registrationEnabled() && loginEnabled(),
+        'registration_approval' => registrationApprovalRequired(),
         'google_enabled' => $google,
         'google_client_id' => $google ? googleClientId() : null,
         'password_min' => PASSWORD_MIN,
@@ -475,14 +476,24 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
             claimUnconfirmedAccount($pdo, $request, $user);
             $user = userById($pdo, (int) $user['id']);
         }
-        if ($stop = signInRefusalResponse($response, $user)) {
-            return $stop;
+        // Waiting for an administrator's approval is the one refusal that
+        // leaves Google's word standing: the address is this person's, as a
+        // confirmation link would say, so the identity is attached and the
+        // address confirmed before the answer - and the approval, when it
+        // comes, can be mailed to it. Any other refusal stops before either.
+        $stop = signInRefusal($user);
+        if ($stop !== null && $stop['code'] !== 'approval_pending') {
+            return respondError($response, $stop['status'], $stop['code'], $stop['error']);
         }
 
         attachIdentity($pdo, (int) $user['id'], IDENTITY_GOOGLE, $subject, $email);
         // Google has just vouched for the address, which is what the
         // confirmation link is for.
         $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ?')->execute([(int) $user['id']]);
+
+        if ($stop !== null) {
+            return respondError($response, $stop['status'], $stop['code'], $stop['error']);
+        }
 
         return completeSignIn($request, $response, userById($pdo, (int) $user['id']), SESSION_METHOD_GOOGLE, $body, 200, ['created' => false]);
     }
@@ -495,13 +506,22 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
         return respondError($response, 403, 'registration_disabled', 'New accounts cannot be made at the moment');
     }
 
-    $insert = $pdo->prepare(
-        'INSERT INTO users (username, email, password, email_confirmed, language) VALUES (?, ?, NULL, TRUE, ?) RETURNING id'
-    );
-    $insert->execute([availableUsername($pdo, (string) ($claims['name'] ?? ''), $email), $email, languageOrDefault($body['language'] ?? null)]);
-    $userId = (int) $insert->fetchColumn();
+    $made = insertSignedUpAccount($pdo, [
+        'username' => availableUsername($pdo, (string) ($claims['name'] ?? ''), $email),
+        'email' => $email,
+        'password' => null,
+        'email_confirmed' => true,
+        'language' => languageOrDefault($body['language'] ?? null),
+    ]);
+    $userId = $made['id'];
     attachIdentity($pdo, $userId, IDENTITY_GOOGLE, $subject, $email);
-    audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'google']);
+    audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'google'] + ($made['waits'] ? ['waits' => true] : []));
+
+    // Made, and waiting for an administrator: no session. The page says so,
+    // as it does to an account that waits and signs in again later.
+    if ($stop = signInRefusal(userById($pdo, $userId))) {
+        return respondError($response, $stop['status'], $stop['code'], $stop['error'], ['created' => true]);
+    }
 
     return completeSignIn($request, $response, userById($pdo, $userId), SESSION_METHOD_GOOGLE, $body, 201, ['created' => true]);
 });
@@ -546,19 +566,25 @@ $app->post('/api/register', function (Request $request, Response $response) {
         return respondError($response, 409, 'username_taken', 'That username is already taken');
     }
 
-    $insert = $pdo->prepare('INSERT INTO users (username, email, password, language) VALUES (?, ?, ?, ?) RETURNING id');
-    $insert->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $language]);
-    $userId = (int) $insert->fetchColumn();
+    $made = insertSignedUpAccount($pdo, [
+        'username' => $username,
+        'email' => $email,
+        'password' => password_hash($password, PASSWORD_DEFAULT),
+        'email_confirmed' => false,
+        'language' => $language,
+    ]);
+    $userId = $made['id'];
     recordLoginAttempt($pdo, $request, $email, $userId, 'register', 'sent');
-    audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'register']);
+    audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'register'] + ($made['waits'] ? ['waits' => true] : []));
 
     $user = userById($pdo, $userId);
     $token = issueOneTimeToken($pdo, $userId, TOKEN_EMAIL_CONFIRM, MAIL_CONFIRM_HOURS * 3600, contextFromRequestId($pdo, field($body, 'request')));
     $sent = $token !== null && sendConfirmationMail($user, $token);
 
     // No session: the account is unusable until somebody opens the link, which
-    // is the whole point of sending one.
-    return respondJson($response, ['email' => $email, 'sent' => $sent], 201);
+    // is the whole point of sending one - and, while new accounts need
+    // approval, until an administrator approves it too: the page says so.
+    return respondJson($response, ['email' => $email, 'sent' => $sent, 'approval_pending' => $made['waits']], 201);
 });
 
 $app->post('/api/register/confirm', function (Request $request, Response $response) {

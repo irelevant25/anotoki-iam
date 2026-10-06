@@ -66,6 +66,7 @@ export const en = {
   'common.passwordTooShort': 'That password is too short.',
   'common.passwordMismatch': 'The two passwords do not match.',
   'common.passwordTooLong': 'That password is too long - at most 72 characters.',
+  'common.approvalWait': 'An administrator has to approve your account before you can sign in. We will email you once they have.',
 
   // ── The UI kit ─────────────────────────────────────────────────────────────
   'ui.showPassword': 'Show password',
@@ -117,6 +118,7 @@ export const en = {
   'error.invalidPassword': 'That password is too short or too long.',
   'error.invalidUsername': 'That username cannot be used.',
   'error.notFound': 'That no longer exists.',
+  'error.approvalPending': 'This account is waiting for an administrator’s approval.',
 
   // ── Sign in ────────────────────────────────────────────────────────────────
   'login.pageTitle': 'Sign in',
@@ -184,6 +186,8 @@ export const en = {
   'login.appDisabled.title': '{app} is switched off',
   'login.appDisabled.text': 'It cannot be signed in to at the moment. Please try again later.',
 
+  'login.pending.title': 'Waiting for approval',
+
   'login.change.title': 'Choose a password',
   'login.change.lead': 'This account was made for you, and the password on it was chosen by somebody else. Pick your own before going on.',
   'login.change.current': 'Current password',
@@ -214,6 +218,8 @@ export const en = {
   'register.notSentNote': 'Nothing is lost - ask for it again below, and check the address was right.',
   'register.resend': 'Send it again',
   'register.resent': 'If that address needs confirming, another message is on its way.',
+  'register.approvalNotice': 'An administrator approves every new account. Once you have confirmed your address, we will email you when yours is approved.',
+  'register.approvalNote': 'An administrator also approves every new account - we will email you once yours is approved.',
 
   // ── Confirm an address ─────────────────────────────────────────────────────
   'confirm.pageTitle': 'Confirm your address',

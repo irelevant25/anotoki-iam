@@ -59,6 +59,7 @@ const MAILS: Record<string, MailAbout> = {
   'mail.confirm': { title: 'The confirmation mail', sent: 'Sent after registering, and whenever the link is asked for again.' },
   'mail.reset': { title: 'The password reset mail', sent: 'Sent from "Forgotten password".' },
   'mail.loginCode': { title: 'The sign-in code mail', sent: 'Sent from "Email me a sign-in code".' },
+  'mail.approved': { title: 'The account approved mail', sent: 'Sent when an administrator approves an account that waited (Approvals), once its address is confirmed.' },
 };
 
 /** One of the grid's two parts: its heading, the line that says what its strings may hold, and its blocks. */
@@ -89,7 +90,7 @@ const UNAVAILABLE = 'translations_unavailable';
 /**
  * /admin/translations - the IAM's own words, in every language: a key a row,
  * a language a column, each string a box. The pages' keys, and - apart from
- * them, a block a mail - the words of the three mails the IAM sends.
+ * them, a block a mail - the words of the four mails the IAM sends.
  *
  * What is typed is held until Save, which sends only the boxes that changed;
  * the server checks all of them before it writes any, and answers the grid

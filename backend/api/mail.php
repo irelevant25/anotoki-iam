@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Sending mail, and the three messages worth sending.
+ * Sending mail, and the four messages worth sending.
  *
  * Two drivers, chosen in config/mail.local.php (config/mail.php describes it):
  * `mail` hands the message to PHP's mail(), which is what the hosting
@@ -21,8 +21,9 @@
  * the words instead:
  *
  *   - A message is put together here, always the same way: greeting, intro,
- *     one line that is the link or the code, validity, ignore. That line is
- *     never part of a string and there is no placeholder for it, so no
+ *     the line that is the link or the code, then validity and ignore - the
+ *     two a notice of an administrator's approval has no use for. That line
+ *     is never part of a string and there is no placeholder for it, so no
  *     rewording can drop the link, move it, or put another one in its place.
  *   - Which placeholders a string has is said by MAIL_KEYS - the code, not the
  *     stored English - and only those are filled in.
@@ -43,12 +44,13 @@ const MAIL_LOGIN_CODE_MINUTES = 10;
 const MAIL_KIND_CONFIRMATION = 'confirmation';
 const MAIL_KIND_PASSWORD_RESET = 'password_reset';
 const MAIL_KIND_LOGIN_CODE = 'login_code';
+const MAIL_KIND_ACCOUNT_APPROVED = 'account_approved';
 
 /**
  * Kinds whose subject holds nothing secret. Default-deny: the sign-in code is in
  * its message's subject, so an unlisted kind is logged with no subject at all.
  */
-const MAIL_SUBJECT_SAFE_KINDS = [MAIL_KIND_CONFIRMATION, MAIL_KIND_PASSWORD_RESET];
+const MAIL_SUBJECT_SAFE_KINDS = [MAIL_KIND_CONFIRMATION, MAIL_KIND_PASSWORD_RESET, MAIL_KIND_ACCOUNT_APPROVED];
 
 const MAIL_SENDER_NOREPLY = 'noreply';
 const MAIL_SENDER_SUPPORT = 'support';
@@ -80,12 +82,15 @@ const MAIL_KEYS = [
     'mail.loginCode.intro' => [],
     'mail.loginCode.validity' => ['minutes'],
     'mail.loginCode.ignore' => [],
+    'mail.approved.subject' => [],
+    'mail.approved.greeting' => ['username'],
+    'mail.approved.intro' => [],
 ];
 
 /**
- * The English of every mail string, as migration 006 seeds it (a test holds
- * the two together). Used string by string whenever the database has nothing
- * to say: no tables yet, a query that failed, a row that is gone.
+ * The English of every mail string, as migrations 006 and 012 seed it (a test
+ * holds the two together). Used string by string whenever the database has
+ * nothing to say: no tables yet, a query that failed, a row that is gone.
  */
 const MAIL_FALLBACK = [
     'mail.confirm.subject' => 'Confirm your anotoki account',
@@ -103,6 +108,9 @@ const MAIL_FALLBACK = [
     'mail.loginCode.intro' => 'Your sign-in code is:',
     'mail.loginCode.validity' => 'It is good for {minutes} minutes and can only be used once.',
     'mail.loginCode.ignore' => 'If you did not ask to sign in, you can ignore this message. Nobody can get in with this code unless they can also read this mailbox.',
+    'mail.approved.subject' => 'Your anotoki account is approved',
+    'mail.approved.greeting' => 'Hello {username},',
+    'mail.approved.intro' => 'An administrator has approved your anotoki account. You can sign in now, the same way you signed up:',
 ];
 
 /** @return array{from: string, from_name: string} */
@@ -231,12 +239,15 @@ function mailFill(string $key, string $text, array $values): string
 /**
  * A whole message: ['subject' => ..., 'body' => ...].
  *
- * $mail is 'confirm', 'reset' or 'loginCode'. $line is the message's middle
- * line - the link, or the code - put in here and never by a string.
+ * $mail is 'confirm', 'reset', 'loginCode' or 'approved'. $line is the
+ * message's middle line - the link, or the code - put in here and never by a
+ * string. $after names the paragraphs under it: the link's or the code's
+ * validity and the line for somebody who did not ask for it, which a notice
+ * of an administrator's approval has no use for.
  *
  * @return array{subject: string, body: string}
  */
-function mailMessage(string $mail, array $words, string $line, array $values): array
+function mailMessage(string $mail, array $words, string $line, array $values, array $after = ['validity', 'ignore']): array
 {
     $part = static function (string $name) use ($mail, $words, $values): string {
         $key = 'mail.' . $mail . '.' . $name;
@@ -246,7 +257,7 @@ function mailMessage(string $mail, array $words, string $line, array $values): a
 
     return [
         'subject' => $part('subject'),
-        'body' => $part('greeting') . "\n\n" . $part('intro') . "\n\n" . $line . "\n\n" . $part('validity') . "\n\n" . $part('ignore') . "\n",
+        'body' => implode("\n\n", [$part('greeting'), $part('intro'), $line, ...array_map($part, $after)]) . "\n",
     ];
 }
 
@@ -333,4 +344,16 @@ function sendLoginCodeMail(array $user, string $code): bool
     ]);
 
     return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_LOGIN_CODE, $user['id'] ?? null);
+}
+
+/**
+ * An administrator approved the account (api/accounts.php): it signs in now,
+ * the way it signed up - the link is the sign-in page. From support@, like the
+ * confirmation: both welcome somebody, and might be answered.
+ */
+function sendAccountApprovedMail(array $user): bool
+{
+    $text = mailMessage('approved', mailWordsFor($user), iamPageUrl('/login'), ['username' => $user['username']], []);
+
+    return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_ACCOUNT_APPROVED, $user['id'] ?? null, MAIL_SENDER_SUPPORT);
 }

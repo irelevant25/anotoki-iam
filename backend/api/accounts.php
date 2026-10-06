@@ -91,6 +91,104 @@ function passwordLoginAvailable(array $user): bool
     return $user['password'] !== null && asBool($user['password_login_enabled']);
 }
 
+// ── Approval of new accounts ─────────────────────────────────────────────────
+//
+// Settings -> New accounts need approval (migration 012, the owner's decision
+// of 2026-10-06): while it is on, an account a person makes for themselves -
+// the registration form, or a Google sign-up - waits (`approved` FALSE) until
+// an administrator of the IAM approves it, and signs in nowhere meanwhile:
+// signInRefusal() and applicationAccessRefusal() say so on every way in.
+// Accounts an administrator makes never wait - the column's default - and
+// switching the setting off lets in everybody still waiting.
+
+/** Whether the account waits for an administrator's approval. A row from before 012 has no such column: it does not. */
+function accountAwaitsApproval(array $user): bool
+{
+    return !asBool($user['approved'] ?? true);
+}
+
+/**
+ * Whether the database has migration 012's `users.approved`. A catalog query
+ * that cannot fail, asked afresh every time like signInRulesReady(): a build
+ * is uploaded before its migrations, signing up must work in between, and the
+ * admin panel's Apply runs in the same process as the requests after it.
+ */
+function accountApprovalReady(PDO $pdo): bool
+{
+    return asBool($pdo->query(
+        "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'approved' AND NOT attisdropped)"
+    )->fetchColumn());
+}
+
+/**
+ * Makes an account a person signs up for - the registration form, or Google -
+ * waiting for an administrator while new accounts need approval. These two
+ * are the only places an account is ever made waiting.
+ *
+ * The switch is read here, under a share lock on its row and in the insert's
+ * own transaction, not from the request's settings: a save switching it off
+ * (PUT /api/admin/settings) locks that row and approves everybody waiting in
+ * one transaction, so the two go one after the other - an account made
+ * waiting is either there for the save to let in, or made after it, by the
+ * switch as it is then. Read earlier, one could be made waiting just after
+ * the save let everybody in, and wait with the switch off.
+ *
+ * @param array{username: string, email: string, password: ?string, email_confirmed: bool, language: string} $account
+ * @return array{id: int, waits: bool}
+ */
+function insertSignedUpAccount(PDO $pdo, array $account): array
+{
+    $pdo->beginTransaction();
+    try {
+        // Before 012 there is neither the switch nor the column: nobody waits.
+        $waits = false;
+        if (accountApprovalReady($pdo)) {
+            $switch = $pdo->query("SELECT value FROM settings WHERE name = 'registration_approval' FOR SHARE")->fetchColumn();
+            $waits = $switch !== false && strtolower(trim((string) $switch)) === 'true';
+        }
+
+        $insert = $pdo->prepare(
+            'INSERT INTO users (username, email, password, email_confirmed, language' . ($waits ? ', approved' : '') . ')
+             VALUES (?, ?, ?, ?, ?' . ($waits ? ', FALSE' : '') . ') RETURNING id'
+        );
+        $insert->execute([$account['username'], $account['email'], $account['password'], pgBool($account['email_confirmed']), $account['language']]);
+        $id = (int) $insert->fetchColumn();
+
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    return ['id' => $id, 'waits' => $waits];
+}
+
+/**
+ * An administrator approves an account that waits and is switched on: the
+ * account as it is now, or null when it was not waiting - or was switched off
+ * (declined) meanwhile. Decided in the UPDATE, so what is mailed is never the
+ * answer to a row read before somebody else's decision.
+ */
+function approveAccount(PDO $pdo, int $userId): ?array
+{
+    $statement = $pdo->prepare('UPDATE users SET approved = TRUE WHERE id = ? AND NOT approved AND NOT disabled RETURNING *');
+    $statement->execute([$userId]);
+
+    return $statement->fetch() ?: null;
+}
+
+/**
+ * New accounts no longer need approval: every account still waiting is
+ * approved. Not one that was declined - it is switched off, and stays
+ * declined: switched on again, it waits for an administrator's word. How many.
+ */
+function releaseWaitingAccounts(PDO $pdo): int
+{
+    return (int) $pdo->exec('UPDATE users SET approved = TRUE WHERE NOT approved AND NOT disabled');
+}
+
 /** The account as the IAM's own pages see it. */
 function accountPayload(PDO $pdo, array $user): array
 {

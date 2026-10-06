@@ -597,3 +597,74 @@ host-only).
   a copy of the tracker in `public/` (the counter would then receive reports
   and send no code), or pinning the file with an `integrity` hash, would take
   the trust back; neither is done.
+
+## 2026-10-06 - New accounts may wait for an administrator's approval
+
+The owner: "I would like to be able to turn on/off manual approvement of
+registration per project/application or globally" - and then, before it was
+done: "registration per project does not make any sense because registration
+and accounts are shared across every projects so the global settings will be
+enough". So one switch for the whole IAM, Settings -> **New accounts need
+approval** (`registration_approval`, migration 012), off by default:
+
+- **On, an account made by signing up waits** (`users.approved` false): the
+  registration form and a Google sign-up, the only two ways a person makes an
+  account for themselves. It signs in nowhere until an administrator of the
+  IAM approves it - the IAM's own pages included - and every way in says so
+  with the same refusal, `403 approval_pending`: password, emailed code,
+  Google, the confirmation link, a reset link (`signInRefusal()`), and
+  `applicationAccessRefusal()` for anything issued, should such an account
+  ever hold anything. Its address is still confirmed by its link, and a
+  reset still sets its password: both are the mailbox's proof, and neither is
+  a way in. Nobody is exempt - not even an IAM administrator, as the switch
+  for signing in exempts them: an account that waits was made by signing up,
+  and its approval comes from an administrator's own session.
+- **Accounts an administrator makes never wait**: the admin panel's, the
+  installer's, `create-admin.php`'s, the legacy import's - the column's
+  default is true, and only the two sign-up paths write false. Every account
+  there was when 012 ran is approved.
+- **Approve or decline** on the admin panel's Approvals page (or the
+  person's page under Users); the dashboard counts who waits. Approving mails
+  the person - the sign-in page's link, in their language - once their
+  address is confirmed; one approved before that is signed in by its own
+  confirmation link and needs no mail. Declining switches the account off:
+  nothing is deleted, as nothing in the IAM is, the address stays taken (so a
+  stranger declined cannot simply sign up again), and switching it on puts it
+  back among the waiting - a declined account is not approved while switched
+  off, so nobody is mailed "approved" who cannot sign in. Nobody is mailed a
+  no.
+- **Never a decline of an address nobody has confirmed** (`409
+  not_confirmed`; found by the security review): anybody can register an
+  address that is not theirs, and its owner takes such an account back with a
+  reset link or Google (rule 13) - which nothing does for an account switched
+  off, so a declined stranger's registration would keep the owner out of
+  every site for good. Unconfirmed, the account cannot sign in anyway; once
+  its owner has claimed it, it waits, and is judged like any other.
+- **Google's word confirms an address that waits**: Google vouching for the
+  address of an account that waits attaches Google and confirms the address
+  before the `approval_pending` answer, as a confirmation link would - or the
+  approval could never be mailed to it.
+- **An account that waits is not made the IAM's administrator** (`422
+  not_approved`): it signs in nowhere and administers nothing, yet the
+  last-admin rule would count it as an administrator left.
+- **Switching it off lets in everybody still waiting and switched on**, in the
+  same transaction, and the log says how many (`approvals.released`): "off"
+  means nobody waits, and turning it on again is about accounts made from then
+  on - somebody let in meanwhile is not locked out afresh. A declined account
+  stays declined. The waiting are not mailed then: among them may be the very
+  strangers the switch was for. A sign-up reads the switch under a share lock
+  on its row, in the transaction that makes the account, so it and a save
+  switching it off go one after the other: none is made waiting just after
+  the release.
+- **Not a way back**: once 012 is applied, the build before it must never go
+  on the host again. That build reads no `approved`, and would let every
+  waiting account in. Fix forward - or decide on everybody waiting first.
+- **The sites see nothing new.** A person waiting never gets as far as a
+  site's code; going back from the sign-in page is a cancelled sign-in. No
+  contract, SDK or site changes.
+
+A switch per site (an account made while a site's switch is on waiting for
+that site alone, shown to the administrators once the person asks for it) was
+built first and taken out before release at the owner's word: an account is
+one for every site, and a person signs up for the account, not for a site.
+Keeping somebody off one site stays what it was - taking their MEMBER there.

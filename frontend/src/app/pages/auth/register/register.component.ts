@@ -32,7 +32,9 @@ interface FieldErrors {
 }
 
 /**
- * /register - a new account, confirmed by a mailed link before it works.
+ * /register - a new account, confirmed by a mailed link before it works - and,
+ * while Settings -> New accounts need approval is on, approved by an
+ * administrator as well: the page says so before and after.
  *
  * `?request=` is passed on to the backend, which remembers it in the link so
  * the confirmation can offer the way back to the application. Signing up with
@@ -84,6 +86,8 @@ export class RegisterComponent implements OnInit {
   protected readonly loadError = signal<string | null>(null);
   protected readonly sentTo = signal('');
   protected readonly info = signal<string | null>(null);
+  /** The new account waits for an administrator's approval too, besides its confirmation. */
+  protected readonly approvalPending = signal(false);
 
   protected readonly forAppParts = computed(() => splitAround(this._i18n.t('register.forApp'), '{app}'));
   protected readonly requestParams = computed(() => (this.request() ? { request: this.request() } : {}));
@@ -159,6 +163,7 @@ export class RegisterComponent implements OnInit {
         this.sentTo.set(response.email);
         this.password.set('');
         this.passwordAgain.set('');
+        this.approvalPending.set(!!response.approval_pending);
         this.step.set(response.sent ? 'sent' : 'not-sent');
       },
       error: (error: ApiError) => {

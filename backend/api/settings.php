@@ -58,6 +58,16 @@ function registrationEnabled(): bool
     return settingBool('registration_enabled', true);
 }
 
+/**
+ * Whether an account made by signing up - the form, or Google - waits for an
+ * administrator's approval before it can sign in anywhere (api/accounts.php).
+ * Off by default, and off while there is no such row (012 pending).
+ */
+function registrationApprovalRequired(): bool
+{
+    return settingBool('registration_approval', false);
+}
+
 function googleLoginEnabled(): bool
 {
     return settingBool('google_login_enabled', true);
@@ -67,12 +77,18 @@ function googleLoginEnabled(): bool
  * Why this account may not sign in, or null when it may.
  *
  * IAM admins are exempt from the switch on purpose: whoever turned signing in
- * off has to be able to get back in and turn it on.
+ * off has to be able to get back in and turn it on. Nobody is exempt from
+ * waiting for approval - an account that waits was made by signing up, and
+ * an administrator approves it from a session of their own.
  */
 function signInRefusal(?array $user): ?array
 {
     if ($user !== null && !empty($user['disabled'])) {
         return ['status' => 403, 'code' => 'account_disabled', 'error' => 'This account has been switched off'];
+    }
+
+    if ($user !== null && accountAwaitsApproval($user)) {
+        return ['status' => 403, 'code' => 'approval_pending', 'error' => 'This account is waiting for an administrator\'s approval'];
     }
 
     if (!loginEnabled() && !($user !== null && isIamAdmin((int) $user['id']))) {

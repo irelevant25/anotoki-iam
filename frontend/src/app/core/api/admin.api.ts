@@ -14,6 +14,8 @@ import {
   AdminUserQuery,
   ApplicationInput,
   ApplicationMembersResponse,
+  ApprovalDecision,
+  ApprovalQueue,
   AuditEntry,
   AuditQuery,
   CreateUserBody,
@@ -96,6 +98,25 @@ export class AdminApi {
   /** The complete set of grants: anything left out is taken away. */
   setUserRoles(id: number, roles: RoleGrant[]): Observable<AdminUserDetail> {
     return this._http.put<AdminUserDetail>(`/api/admin/users/${id}/roles`, { roles });
+  }
+
+  // ── Approvals ──────────────────────────────────────────────────────────────
+  //
+  // 503 `sign_in_rules_unavailable` until migration 012 is applied.
+
+  /** The accounts waiting for an administrator's approval, and whether new accounts need it now. */
+  approvals(): Observable<ApprovalQueue> {
+    return this._http.get<ApprovalQueue>('/api/admin/approvals').pipe(map((queue) => ({ accounts: queue.accounts ?? [], account_approval: !!queue.account_approval })));
+  }
+
+  /** The person is mailed once their address is confirmed. 409 `not_waiting` when there is nothing to approve. */
+  approve(userId: number): Observable<ApprovalDecision> {
+    return this._http.post<ApprovalDecision>(`/api/admin/users/${userId}/approve`, {});
+  }
+
+  /** The account is switched off - nothing is deleted - and nobody is mailed. 409 `not_waiting` when there is nothing to decline. */
+  decline(userId: number): Observable<ApprovalDecision> {
+    return this._http.post<ApprovalDecision>(`/api/admin/users/${userId}/decline`, {});
   }
 
   // ── Sessions, emails, audit ────────────────────────────────────────────────

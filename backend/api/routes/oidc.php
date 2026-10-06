@@ -291,7 +291,9 @@ $userinfo = function (Request $request, Response $response) {
     $user = $claims === null ? null : userById($pdo, (int) $claims['sub']);
     $application = $claims === null ? null : applicationByClientId((string) ($claims['client_id'] ?? $claims['aud'] ?? ''));
 
-    if ($user === null || $application === null || asBool($user['disabled'])) {
+    // An account waiting for approval is never issued a token; one that holds
+    // one anyway is refused here as it is everywhere else.
+    if ($user === null || $application === null || asBool($user['disabled']) || accountAwaitsApproval($user)) {
         return oauthError($response, 401, 'invalid_token', 'The access token is not valid')
             ->withHeader('WWW-Authenticate', 'Bearer error="invalid_token"');
     }

@@ -29,7 +29,9 @@ function currentSignIn(Request $request): ?array
 
     $user = userById($pdo, (int) $session['user_id']);
 
-    if ($user === null || asBool($user['disabled'])) {
+    // An account waiting for approval never gets a session (signInRefusal());
+    // should it hold one anyway, it is not let in by it.
+    if ($user === null || asBool($user['disabled']) || accountAwaitsApproval($user)) {
         return null;
     }
 
@@ -79,6 +81,11 @@ function requireAdmin(): callable
  * an account or change somebody's roles in that window. Decided on the
  * route's own pattern, not the address, so no spelling of a path slips past.
  * Must come after requireAdmin() in the chain (added before it).
+ *
+ * The same answer from the approvals - the list, approving and declining -
+ * while migration 012 is pending: there is nothing to approve before it, and
+ * no column to read. The user pages read it only once it is there, and keep
+ * working in that window.
  */
 function requireSignInRules(): callable
 {
@@ -86,7 +93,10 @@ function requireSignInRules(): callable
         $route = \Slim\Routing\RouteContext::fromRequest($request)->getRoute();
         $pattern = $route !== null ? $route->getPattern() : '';
 
-        if (preg_match('#^/api/admin/applications(/|$)#', $pattern) && !signInRulesReady(iamDb())) {
+        $unready = (preg_match('#^/api/admin/applications(/|$)#', $pattern) && !signInRulesReady(iamDb()))
+            || (preg_match('#^/api/admin/(approvals|users/[^/]+/(approve|decline))$#', $pattern) && !accountApprovalReady(iamDb()));
+
+        if ($unready) {
             $refusal = signInRulesUnavailable();
             return respondError(new \Slim\Psr7\Response(), $refusal['status'], $refusal['code'], $refusal['error']);
         }

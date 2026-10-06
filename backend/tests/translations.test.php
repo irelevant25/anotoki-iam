@@ -536,9 +536,9 @@ test('the two languages the IAM is released in, and every key with an English an
         array_map('array_values', $pdo->query('SELECT code, name, native_name, enabled, sort_order FROM languages ORDER BY sort_order')->fetchAll()),
         'the languages'
     );
-    same(458, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), '443 keys of the pages and 15 of the mails');
-    same(458, count(seeded('en')), 'each has an English string');
-    same(458, count(seeded('sk')), 'and a Slovak one');
+    same(466, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), '448 keys of the pages and 18 of the mails');
+    same(466, count(seeded('en')), 'each has an English string');
+    same(466, count(seeded('sk')), 'and a Slovak one');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE description IS NULL OR description = ''")->fetchColumn(), 'and a description');
     same(0, (int) $pdo->query('SELECT count(*) FROM translations WHERE updated_by IS NOT NULL')->fetchColumn(), 'written by nobody');
     foreach (array_keys(seeded('en')) as $key) {
@@ -588,13 +588,13 @@ test('placeholders: a Slovak string uses none its English lacks; the two the pag
     }
     $result = translationsCheck($all, array_keys($all), ['en' => 'English', 'sk' => 'Slovak'], seeded('en'));
     check(!translationRefused($result), 'every seeded string passes the rules it is edited under: ' . json_encode($result['extra'] ?? null) . ' ' . ($result['code'] ?? ''));
-    same(916, count($result['changes'] ?? []), 'all 916 of them');
+    same(932, count($result['changes'] ?? []), 'all 932 of them');
 });
 
 test('the mails: MAIL_KEYS and MAIL_FALLBACK are exactly what the database has', function () {
     $mailKeys = array_values(array_filter(array_keys(seeded('en')), static fn(string $key): bool => str_starts_with($key, 'mail.')));
     same(sorted(array_keys(MAIL_KEYS)), sorted($mailKeys), 'MAIL_KEYS names the mail keys of the database');
-    same(15, count(MAIL_KEYS), 'fifteen: five strings for each of three mails');
+    same(18, count(MAIL_KEYS), 'eighteen: five strings for each of the three mails with a link or a code, three for the approval');
     same(array_keys(MAIL_KEYS), array_keys(MAIL_FALLBACK), 'MAIL_FALLBACK has a string for each, in the same order');
 
     foreach (MAIL_KEYS as $key => $placeholders) {
@@ -622,7 +622,7 @@ test('the frontend\'s compiled English is the database\'s: the same keys without
     $dictionary = translationKeysDictionary(translationKeysFrontendRoot() . '/' . TRANSLATION_DICTIONARY_FILE);
     $pages = array_filter(seeded('en'), static fn(string $key): bool => !str_starts_with($key, 'mail.'), ARRAY_FILTER_USE_KEY);
 
-    same(443, count($pages), 'the pages have 443 keys');
+    same(448, count($pages), 'the pages have 448 keys');
     foreach (array_keys($dictionary) as $key) {
         check(translationKeyShapeOk((string) $key), "$key in en.ts has the shape of a key, so the scan can find it");
     }
@@ -644,7 +644,7 @@ test('every page key the database has is used by the frontend, and nothing in th
     same([], $scan['problems'], 'what the scan does not let through');
     same([], $scan['unused'], 'in the database, used nowhere - a key built at run time cannot be seen and is forbidden; delete a dead key with a migration');
     same([], array_keys($scan['missing']), 'used by the frontend, not in the database - the page would show the key');
-    same(443, count($scan['used']), 'all 443');
+    same(448, count($scan['used']), 'all 448');
     same([], array_values(array_filter(array_keys($scan['used']), static fn(string $key): bool => str_starts_with($key, 'mail.'))), 'the mail keys are not the frontend\'s');
 
     $files = translationKeySourceFiles(translationKeysFrontendRoot());
@@ -1092,7 +1092,7 @@ test('the bundle: a language\'s strings with English underneath, no mail key, th
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(443, count($english->json()['values']), 'the 443 strings of the pages');
+    same(448, count($english->json()['values']), 'the 448 strings of the pages');
     same('Save', $english->json()['values']['common.save'], 'a string');
     check(str_contains($english->header('Content-Type'), 'application/json'), 'as JSON');
 
@@ -1451,7 +1451,7 @@ test('the grid: every key with its strings in every language, the mail keys amon
     same(200, $grid->status, 'the grid');
     same(['languages', 'keys'], array_keys($grid->json()), 'its two parts');
     same($admin->get('/api/admin/languages')->json()['languages'], $grid->json()['languages'], 'every language, as the languages page has them');
-    same(458, count($grid->json()['keys']), 'every key');
+    same(466, count($grid->json()['keys']), 'every key');
     same(sorted(array_column($grid->json()['keys'], 'name')), array_column($grid->json()['keys'], 'name'), 'by name');
 
     $byName = array_column($grid->json()['keys'], null, 'name');
@@ -1951,7 +1951,7 @@ test('with the database out of reach, discovery and the pages\' config still ans
         $config = (new Browser('10.9.5.7'))->get('/api/public/config');
         same(200, $config->status, 'the pages\' config answers: ' . substr($config->body, 0, 200));
         same(
-            ['login_enabled' => true, 'registration_enabled' => true, 'google_enabled' => false, 'google_client_id' => null, 'password_min' => PASSWORD_MIN, 'languages' => ['en', 'sk']],
+            ['login_enabled' => true, 'registration_enabled' => true, 'registration_approval' => false, 'google_enabled' => false, 'google_client_id' => null, 'password_min' => PASSWORD_MIN, 'languages' => ['en', 'sk']],
             $config->json(),
             'with the switches as they are when nothing overrides them, and the two languages'
         );
@@ -2284,10 +2284,10 @@ test('the command line: --export and --import on the same strings, by nobody and
 
     // --status: the frontend's keys against this database's.
     [$code, $out] = cli('--status');
-    check(preg_match('/the database has\s+458 keys \(443 of the pages, 15 of the mails\)/', $out) === 1, $out);
+    check(preg_match('/the database has\s+466 keys \(448 of the pages, 18 of the mails\)/', $out) === 1, $out);
     check(preg_match('/the frontend uses\s+\d+ of the pages\' keys/', $out) === 1, $out);
-    check(preg_match('/\n\s+sk\s+Slovak\s+458 \/ 458\n/', $out) === 1, 'how much of each language there is: ' . $out);
-    check(preg_match('/\n\s+de\s+German \(Germany\)\s+4 \/ 458\n/', $out) === 1, 'German: ' . $out);
+    check(preg_match('/\n\s+sk\s+Slovak\s+466 \/ 466\n/', $out) === 1, 'how much of each language there is: ' . $out);
+    check(preg_match('/\n\s+de\s+German \(Germany\)\s+4 \/ 466\n/', $out) === 1, 'German: ' . $out);
     same(str_contains($out, 'Not clean.') ? 1 : 0, $code, 'exit 1 exactly when a key is missing or has no English string');
     same(str_contains($out, 'Clean.') ? 0 : 1, $code, 'and 0 when clean');
 
@@ -2324,7 +2324,7 @@ test('deleting a language: never English, never one the IAM is released in; its 
     same([$adminId, 'language', 'de', ordered(['name' => 'German (Germany)', 'accounts' => 3, 'strings' => $strings])], lastAudit('language.deleted'), 'recorded with that number');
     same(['en', 'en', 'en'], iamDb()->query("SELECT language FROM users WHERE email IN ('dieter@example.test', 'gretchen@example.test', 'player@example.test')")->fetchAll(PDO::FETCH_COLUMN), 'the accounts are English now');
     same(0, (int) iamDb()->query("SELECT count(*) FROM translations WHERE language_code = 'de'")->fetchColumn(), 'its strings went with it');
-    same(458, (int) iamDb()->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'the keys are the code\'s, and stay');
+    same(466, (int) iamDb()->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'the keys are the code\'s, and stay');
     same(404, $admin->delete('/api/admin/languages/de')->status, 'it is gone');
 
     same(['en', 'sk', 'pt-br'], (new Browser('10.9.8.1'))->get('/api/public/config')->json()['languages'], 'no longer offered');

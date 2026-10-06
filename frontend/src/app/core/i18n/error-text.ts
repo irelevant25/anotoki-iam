@@ -38,6 +38,7 @@ const BY_CODE: Record<string, TranslationKey> = {
   invalid_email: 'common.invalidEmail',
   username_taken: 'error.usernameTaken',
   email_taken: 'error.emailTaken',
+  approval_pending: 'error.approvalPending',
 };
 
 /**

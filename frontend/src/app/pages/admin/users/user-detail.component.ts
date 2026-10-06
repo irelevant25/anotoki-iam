@@ -32,6 +32,9 @@ import { SetPasswordDialogComponent } from './set-password-dialog.component';
  * The self-lockout rules are the backend's (an admin cannot switch themselves
  * off or take the IAM's ADMIN from themselves, and the last admin stays); the
  * page shows the refusal where the action was, in the server's own words.
+ *
+ * An account waiting for an administrator's approval is approved or declined
+ * here as on the Approvals page.
  */
 @Component({
   selector: 'app-user-detail',
@@ -180,6 +183,46 @@ export class UserDetailComponent {
     }
 
     this._run('2fa', this._adminApi.resetUserTwoFactor(account.id), 'Two-factor authentication is off for this account.');
+  }
+
+  /** Lets an account that waits in; the person is mailed once their address is confirmed. */
+  protected approve(): void {
+    const account = this.account();
+    if (!account) {
+      return;
+    }
+    this.actionError.set(null);
+    this.busyAction.set('approve');
+    this._adminApi.approve(account.id).subscribe({
+      next: (decision) => {
+        this.busyAction.set(null);
+        this._toast.success(decision.mailed ? `${account.username} is approved, and was emailed.` : `${account.username} is approved.`);
+        this.reload();
+      },
+      error: (error: ApiError) => {
+        this.busyAction.set(null);
+        this.actionError.set(adminErrorText(error));
+      },
+    });
+  }
+
+  /** Switches an account that waits off - nothing is deleted - and mails nobody. */
+  protected async decline(): Promise<void> {
+    const account = this.account();
+    if (!account) {
+      return;
+    }
+    const sure = await this._confirm.ask({
+      title: `Decline ${account.username}?`,
+      message: 'The account is switched off: nothing is deleted, and its address stays taken. Switching it on again puts it back on the Approvals page. Nobody is emailed.',
+      confirmLabel: 'Decline',
+      tone: 'danger',
+    });
+    if (!sure) {
+      return;
+    }
+
+    this._run('decline', this._adminApi.decline(account.id), `${account.username} is declined and switched off.`);
   }
 
   protected async endSession(session: SessionEntry): Promise<void> {

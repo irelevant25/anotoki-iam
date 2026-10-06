@@ -37,6 +37,9 @@
                 <a appButton variant="primary" [block]="true" routerLink="/login" [queryParams]="requestParams()">{{ "register.signIn" | t }}</a>
             } @else {
                 <form class="form" novalidate (submit)="$event.preventDefault(); submit()">
+                    @if (config()?.registration_approval) {
+                        <app-alert tone="info">{{ "register.approvalNotice" | t }}</app-alert>
+                    }
                     @if (formError()) {
                         <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
                     }
@@ -93,6 +96,9 @@
                 <h1 tabindex="-1" appAutofocus>{{ "register.sentTitle" | t }}</h1>
                 <p>{{ "register.sent" | t: { email: sentTo() } }}</p>
                 <p>{{ "register.sentNote" | t }}</p>
+                @if (approvalPending()) {
+                    <p>{{ "register.approvalNote" | t }}</p>
+                }
             </header>
             @if (info()) {
                 <app-alert tone="success" [announce]="true">{{ info() }}</app-alert>
@@ -112,6 +118,9 @@
                 <h1 tabindex="-1" appAutofocus>{{ "register.notSentTitle" | t }}</h1>
                 <p>{{ "register.notSent" | t: { email: sentTo() } }}</p>
                 <p>{{ "register.notSentNote" | t }}</p>
+                @if (approvalPending()) {
+                    <p>{{ "register.approvalNote" | t }}</p>
+                }
             </header>
             @if (info()) {
                 <app-alert tone="success" [announce]="true">{{ info() }}</app-alert>

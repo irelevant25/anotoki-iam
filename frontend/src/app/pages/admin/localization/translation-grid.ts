@@ -13,7 +13,7 @@ export const IMPORT_MAX_BYTES = 1024 * 1024;
 const MAIL_PREFIX = 'mail.';
 
 /** The mails the IAM sends, in the order the page shows them. */
-const MAILS = ['confirm', 'reset', 'loginCode'];
+const MAILS = ['confirm', 'reset', 'loginCode', 'approved'];
 
 /** A mail's strings in the order the message has them: the subject, then the body from its first line to its last. */
 const MAIL_PARTS = ['subject', 'greeting', 'intro', 'validity', 'ignore'];
@@ -44,8 +44,8 @@ function placeIn(order: readonly string[], name: string): number {
 
 /**
  * The keys as blocks. The mails come first, apart from the pages' keys: each
- * mail one block (confirm, reset, loginCode - one the list does not know after
- * them), its strings in the order the message has them (a part the list does
+ * mail one block (confirm, reset, loginCode, approved - one the list does not
+ * know after them), its strings in the order the message has them (a part the list does
  * not know after those, where it came). Then every other key on its own, in
  * the order they came (by name).
  */

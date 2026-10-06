@@ -359,12 +359,19 @@ What the sign-in pages need before they can draw themselves.
 {
   "login_enabled": true,
   "registration_enabled": true,
+  "registration_approval": false,
   "google_enabled": true,
   "google_client_id": "105...apps.googleusercontent.com",
   "password_min": 8,
   "languages": ["en", "sk"]
 }
 ```
+
+`registration_approval` is Settings → New accounts need approval: while it is
+on, an account made by registering or signing up with Google waits for an
+administrator's approval before it can sign in anywhere (the register page
+says so above its form). `false` before migration 012, and while the database
+cannot be reached.
 
 `languages` is the codes on offer, in the admin panel's order - the same list
 as discovery's `ui_locales_supported`, and like it `["en", "sk"]` before
@@ -496,8 +503,9 @@ cookie is set. Refusals:
 | 403 | `totp_required` | ask for the code, send again with `totp` |
 | 403 | `totp_invalid` | the code was wrong |
 | 403 | `email_not_confirmed` | offer to resend |
-| 403 | `login_disabled` | signing in is switched off (IAM admins are exempt) |
 | 403 | `account_disabled` | an admin switched this account off |
+| 403 | `approval_pending` | made by signing up while new accounts need approval, and not approved yet: no session until an administrator approves it, who mails the person then |
+| 403 | `login_disabled` | signing in is switched off (IAM admins are exempt) |
 | 429 | `too_many_attempts` | wait |
 
 The 401 here means "wrong credentials", not "session expired" - the frontend's
@@ -526,7 +534,9 @@ Google identity is attached to; attaches it to the account with the same verifie
 address; or makes a new account (`201`, `"created": true`). Answer as
 `/api/login/password` plus `created`. Refusals add `google_disabled` (403) and
 `invalid_token` (400), and `429 too_many_attempts` from the same limiter as the
-other ways in.
+other ways in. A new account made while new accounts need approval is made,
+waiting, with no session: `403 approval_pending` with `"created": true` beside
+`code` and `error`.
 
 Attaching to an account whose address was never confirmed first removes
 everything its registrant set - password, two-factor, recovery codes,
@@ -536,8 +546,10 @@ happens when a reset link reaches such an account's mailbox.
 
 ### `POST /api/register`
 
-`{ username, email, password, language, request? }` → `201 { "email", "sent" }`.
-No session: the account works once the emailed link is opened. `request`, when
+`{ username, email, password, language, request? }` → `201 { "email", "sent", "approval_pending" }`.
+No session: the account works once the emailed link is opened - and, when
+`approval_pending` is true (Settings → New accounts need approval), once an
+administrator has approved it as well. `request`, when
 the registration started from an application, is remembered so the confirmation
 can offer the way back. `409` for a taken username or address (named),
 `422` for invalid input, `403 registration_disabled`, `429 too_many_attempts`.
@@ -547,7 +559,9 @@ the IAM does not offer makes an English account rather than a refusal.
 ### `POST /api/register/confirm`
 
 `{ token }` from the emailed link → `{ "user": AccountUser, "continue_to": { "name", "url" } | null }`
-and the session cookie is set. `400 invalid_token`.
+and the session cookie is set. `400 invalid_token`. An account waiting for
+approval has its address confirmed and the link spent all the same, and is
+answered `403 approval_pending`, with no session.
 
 ### `POST /api/register/resend`
 
@@ -560,7 +574,8 @@ and the session cookie is set. `400 invalid_token`.
 signs in, and takes the account back: every other session, every personal
 token, every remembered device and every outside identity (an attached Google)
 ends. A Google account under the same address attaches itself again at its next
-sign-in. `400 invalid_token`, `422` for a short password.
+sign-in. `400 invalid_token`, `422` for a short password. An account waiting
+for approval gets its new password and `403 approval_pending`, with no session.
 
 With two-factor on, the link alone is not enough - it proves the mailbox, which
 is what the second factor stands in case of: `403 totp_required` until `totp`
@@ -697,9 +712,37 @@ application `iam`; otherwise `401 no_session` / `403 { code: "forbidden" }`.
 | `PUT /api/admin/users/{id}/enabled` | `{ enabled }` → `AdminUser` - disabling ends every session and refresh token |
 | `DELETE /api/admin/users/{id}/2fa` | turn two-factor off for somebody locked out → `AdminUser` |
 | `PUT /api/admin/users/{id}/roles` | `{ roles: RoleGrant[] }` (the complete set) → `AdminUserDetail` |
+| `GET /api/admin/approvals` | `{ accounts: { user_id, username, email, email_confirmed, created_at }[], account_approval: boolean }` - the accounts waiting for approval and switched on, oldest first; `account_approval` is the setting |
+| `POST /api/admin/users/{id}/approve` | → `{ account: AdminUser, mailed: boolean }` - lets an account that waits in |
+| `POST /api/admin/users/{id}/decline` | → `{ account: AdminUser, mailed: false }` - switches an account that waits off |
 
 Self-lockout rules carry over: an admin cannot disable themselves or take the
 IAM `ADMIN` role from themselves, and the last IAM admin cannot be removed.
+
+**Approval of new accounts** (migration 012). While Settings → New accounts
+need approval (`registration_approval`) is on, an account made by
+`POST /api/register` or a Google sign-up has `approved: false` and signs in
+nowhere - every way in answers `403 approval_pending` - until it is approved.
+Accounts made here (`POST /api/admin/users`), by the installer,
+`create-admin.php` or the import never wait. Approving mails the person the
+sign-in page's link, in their language, when their address is confirmed
+(`mailed: true`); one approved before that is signed in by its confirmation
+link. Declining switches the account off - nothing is deleted, its address
+stays taken, switching it on again puts it back among the waiting - and mails
+nobody. `404 not_found` for no such account; `409 not_waiting` for one that is
+not waiting, or is switched off (a declined account is switched on first, and
+waits again); `409 not_confirmed` for declining one whose address is not
+confirmed - whoever registered it may not own the address, and its owner
+takes such an account back by a reset link or Google, which nothing does for
+an account switched off. Declining keeps the last-admin rule, and
+`PUT .../roles` refuses the IAM's `ADMIN` for an account that waits
+(`422 not_approved`): it administers nothing until approved. All three answer
+`503 sign_in_rules_unavailable` while migration 012 is pending. Switching the
+setting off (`PUT /api/admin/settings`) approves everybody still waiting and
+switched on, in the same transaction - not a declined account. The audit log
+records `user.approved` and `user.declined`, `approvals.released`
+(`{ accounts }`, how many the switch let in) and, on `account.created`,
+`waits: true` for an account made waiting.
 
 A new account holds `MEMBER` in every application, however it is made (the
 database does it, migration 010): `POST` gives it besides the `roles` named,
@@ -742,6 +785,7 @@ interface AdminUser {
   google_email: string | null;
   roles: RoleGrant[];               // MEMBER included
   blocked_in: string[];             // client ids, as above
+  approved: boolean;                // false: waiting for an administrator's approval (true while 012 is pending)
   last_login_at: string | null;
   created_at: string;
   updated_at: string | null;
@@ -777,7 +821,7 @@ interface AdminUserDetail {
 | `GET /api/admin/emails?kind=&status=&recipient=&from=&to=&page=` | `{ total, page, pageSize, items: EmailLogEntry[] }` |
 | `GET /api/admin/emails/filters` | `{ kinds, statuses }` |
 | `GET /api/admin/audit?actor=&action=&target_type=&page=` | `{ total, page, pageSize, items: AuditEntry[] }` |
-| `GET /api/admin/stats` | `{ users, disabled, admins, active_sessions, applications, signins_24h, failed_24h, emails_24h }` |
+| `GET /api/admin/stats` | `{ users, disabled, admins, active_sessions, applications, signins_24h, failed_24h, emails_24h, awaiting_approval }` - the last: accounts waiting for approval and switched on (0 while 012 is pending) |
 
 `AdminSession` is a `SessionEntry` plus `user_id`, `username`, `email`.
 `EmailLogEntry` is `{ id, recipient, kind, subject, status, error, user_id, username, created_at }`.
@@ -865,7 +909,7 @@ A new application's `application.created` entry holds what it starts with,
 ### Languages and strings
 
 The IAM's own words (`api/translations.php`): the languages it offers and the
-strings of its pages and its three mails. Keys are the code's - migrations
+strings of its pages and its four mails. Keys are the code's - migrations
 write them, these routes only change strings. English is what every other
 language falls back to, key by key.
 
@@ -959,8 +1003,10 @@ string's old and new text whole).
 | `GET /api/admin/migrations` | `{ applied: [...], pending: [...] }` |
 | `POST /api/admin/migrations/apply` | `{ applied, failed, error }` |
 
-Settings: `login_enabled`, `registration_enabled`, `google_login_enabled`
-(booleans).
+Settings: `login_enabled`, `registration_enabled`, `registration_approval`
+(since migration 012; off by default), `google_login_enabled` (booleans). A save
+that switches `registration_approval` off approves every account still waiting
+and switched on.
 
 ### Public
 

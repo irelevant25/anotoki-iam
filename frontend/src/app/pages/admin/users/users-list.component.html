@@ -94,6 +94,9 @@
                                         @if (user.disabled) {
                                             <app-badge tone="danger">Switched off</app-badge>
                                         }
+                                        @if (!user.approved) {
+                                            <app-badge tone="warning">{{ user.disabled ? "Not approved" : "Awaiting approval" }}</app-badge>
+                                        }
                                         @if (!user.email_confirmed) {
                                             <app-badge tone="warning">Unconfirmed</app-badge>
                                         }

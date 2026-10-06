@@ -1,0 +1,68 @@
+<div class="page">
+    <app-page-header heading="Approvals" lead="New accounts waiting for an administrator's yes or no before they can sign in anywhere." />
+
+    @if (loadError()) {
+        <app-error-state heading="The approvals could not be loaded" [message]="loadError()!" (retry)="load()" />
+    } @else if (queue(); as q) {
+        @if (!q.account_approval) {
+            <app-alert tone="info">
+                New accounts do not wait at the moment: switch
+                <a routerLink="/admin/settings">Settings → New accounts need approval</a>
+                on to have every account made with the form or with Google wait here.
+            </app-alert>
+        }
+
+        <app-card [flush]="true">
+            @if (q.accounts.length === 0) {
+                <app-empty-state icon="check" heading="Nobody is waiting" />
+            } @else {
+                <div class="table-scroll">
+                    <table class="table table-stack">
+                        <caption class="visually-hidden">Accounts waiting for approval</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">User</th>
+                                <th scope="col">Signed up</th>
+                                <th scope="col"><span class="visually-hidden">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (account of q.accounts; track account.user_id) {
+                                <tr>
+                                    <td data-label="User">
+                                        <div class="who">
+                                            <a class="who-name" [routerLink]="['/admin/users', account.user_id]">{{ account.username }}</a>
+                                            <span class="who-email break">{{ account.email }}</span>
+                                            @if (!account.email_confirmed) {
+                                                <span class="badges"><app-badge tone="warning">Address not confirmed</app-badge></span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td data-label="Signed up">
+                                        <span class="nowrap" [attr.title]="account.created_at | appDate">{{ account.created_at | appDate: "relative" }}</span>
+                                    </td>
+                                    <td class="cell-actions">
+                                        <span class="decisions">
+                                            <button appButton size="sm" variant="primary" [loading]="busy() === account.user_id" [disabled]="busy() !== null" (click)="approve(account)">
+                                                Approve
+                                            </button>
+                                            <button appButton size="sm" variant="secondary" [disabled]="busy() !== null || !account.email_confirmed" (click)="decline(account)">Decline</button>
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (anyUnconfirmed()) {
+                    <p class="padded muted small">
+                        An account whose address is not confirmed cannot be declined: whoever registered it may not own the address, and declining would keep its owner out - they take such an account
+                        back with a reset link or Google. It cannot sign in until the address is confirmed anyway.
+                    </p>
+                }
+            }
+        </app-card>
+    } @else {
+        <div class="loading"><app-spinner size="lg" label="Loading the approvals" [showLabel]="true" /></div>
+    }
+</div>

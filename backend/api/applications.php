@@ -218,6 +218,10 @@ function userMaySignInTo(int $userId, int $applicationId): bool
  * The IAM's own entry is not asked about roles: its pages use their own
  * cookie, and Settings -> Signing in (signInRefusal()) is their only gate.
  *
+ * An account waiting for an administrator's approval (api/accounts.php) is
+ * refused `approval_pending`. It never has a session to get this far with:
+ * this is the same switch on one more door.
+ *
  * @return array{status: int, code: string, error: string}|null
  */
 function applicationAccessRefusal(array $application, array $user): ?array
@@ -232,6 +236,10 @@ function applicationAccessRefusal(array $application, array $user): ?array
 
     if (!$user['email_confirmed']) {
         return ['status' => 403, 'code' => 'email_not_confirmed', 'error' => 'Confirm your email address first'];
+    }
+
+    if (accountAwaitsApproval($user)) {
+        return ['status' => 403, 'code' => 'approval_pending', 'error' => 'This account is waiting for an administrator\'s approval'];
     }
 
     if (rolesKeepOut($application, (int) $user['id'])) {

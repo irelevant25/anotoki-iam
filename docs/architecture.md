@@ -130,7 +130,7 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 
 | Table | Holds |
 | --- | --- |
-| `users` | Accounts: username and address (unique regardless of case), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled), the language. The id is the `sub` every site keys its data on. |
+| `users` | Accounts: username and address (unique regardless of case), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator), the language. The id is the `sub` every site keys its data on. |
 | `user_identities` | Who an account is at Google: provider + permanent subject. |
 | `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). |
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
@@ -167,6 +167,22 @@ secret, so a copy of the table opens nothing.
 - **Personal token** - `iam_pat_…`, made on the account page for a script,
   bound to one application, never rotated, until it expires or is revoked.
 
+## New accounts that wait for approval
+
+Settings → **New accounts need approval** (migration 012, off by default) is
+one switch for the whole IAM - an account is one for every site, so a person
+signs up for the account, never for one site. While it is on, an account made
+by the registration form or by signing up with Google waits (`users.approved`
+false): its address is confirmed by its link as ever, but every way in
+refuses it `approval_pending` - `signInRefusal()` for the sign-in endpoints,
+the confirmation and the reset link, `applicationAccessRefusal()` for
+anything issued - until an administrator approves it on the admin panel's
+**Approvals** page (or its page under Users). Approving mails the person once
+their address is confirmed; declining switches the account off, deleting
+nothing. Accounts an administrator makes never wait (the column's default),
+and switching the setting off approves everybody still waiting. The sites see
+nothing of it: a person waiting never gets as far as a code.
+
 ## The account and admin pages
 
 The IAM's own pages talk to its own API with the session cookie, from the same
@@ -177,7 +193,7 @@ origin cannot send without a CORS preflight those endpoints never answer, and an
 
 ## The IAM's own words
 
-What the sign-in pages, the account page and the three mails say lives in the
+What the sign-in pages, the account page and the four mails say lives in the
 database (migration 006), so a word can be reworded and a language added in the
 admin panel with no build and no upload. The admin panel itself is English,
 written in its templates.
@@ -225,8 +241,8 @@ written in its templates.
   settles against the languages that come with it (the one on the page may have
   just been switched off). A failed load is asked again on the next navigation.
 - **The mails.** A mail is put together by the server - greeting, intro, then a
-  line that is the link or the code, validity, ignore - in the recipient's
-  language while it is offered. The link and the code are never part of a
+  line that is the link or the code, validity, ignore (the approval notice has
+  no use for the last two) - in the recipient's language while it is offered. The link and the code are never part of a
   string and have no placeholder; which placeholders a mail string has is
   `MAIL_KEYS`, the code, not the stored English. The panel refuses an address
   in a mail's words, a line break, and a line longer than a mail line may be.
@@ -264,7 +280,8 @@ written down, not a refactor.
    endpoint mails an address; failures are **rate-limited** per address-and-source
    and per source.
 8. **Every way in checks the same switches** (login enabled, account disabled,
-   a role that may sign in) - a switch on one door is a lock on one of five.
+   an account waiting for approval, a role that may sign in) - a switch on one
+   door is a lock on one of five.
 9. **An account always keeps a way in**, and an admin cannot lock themselves out
    or remove the last admin.
 10. **Revocation is at the refresh.** Signing out, disabling an account or taking

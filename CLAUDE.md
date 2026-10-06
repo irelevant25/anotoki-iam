@@ -119,6 +119,20 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   removes, renames or rewords a role; there are no landing page settings
   (the public list is every site switched on). The panel shows who is
   blocked where by one rule (`blockedFromSql()`, `sign-in-check.ts`).
+- **New accounts may wait for approval** (migration 012, the owner's decision
+  of 2026-10-06): Settings -> New accounts need approval, one switch for the
+  whole IAM - never per site: accounts are shared by every site. While on, an
+  account made by `/api/register` or a Google sign-up has `users.approved`
+  false and every way in refuses it `approval_pending` (`signInRefusal()`,
+  `applicationAccessRefusal()`, `currentSignIn()`) until an IAM ADMIN approves
+  it (Approvals page; `POST /api/admin/users/{id}/approve|decline` - declining
+  switches it off, deleting nothing - never while the address is unconfirmed,
+  or a stranger's registration would keep the address's owner out). Only
+  those two paths write false (`insertSignedUpAccount()`, which reads the
+  switch under its row's lock); every other account is approved by the
+  column's default. Switching the setting off approves everybody waiting and
+  switched on. Once 012 is applied, no build from before it goes on the host
+  again: it would let every waiting account in.
 
 ## Backend layout & conventions
 
@@ -210,7 +224,7 @@ a decision for `docs/decisions.md`, not a refactor.
 - Zoneless and signals-first; OnPush everywhere; no UI library. Colours only
   from the CSS custom properties in `styles.scss`, defined for light and dark.
   Every page works at 390 px (360 px for the top bar).
-- The auth and account pages' words, and the three mails', are rows in the
+- The auth and account pages' words, and the four mails', are rows in the
   database (`languages`, `translation_keys`, `translations`, migration 006),
   reworded and added to on the admin panel's Translations and Languages
   pages; English and Slovak (informal, "ty") are seeded. An unknown key is a

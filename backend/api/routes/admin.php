@@ -57,7 +57,8 @@ function blockedFromSql(string $user, string $application): string
  * The admin panel's account rows. `blocked_in` - the switched-on sites the
  * account is blocked from (blockedFromSql()) - needs 010's may_sign_in; while
  * 010 is pending it is empty, so the users pages keep working in the minutes
- * between an upload and Apply.
+ * between an upload and Apply. `approved` needs 012, and reads as true while
+ * it is pending: nobody can wait before it.
  */
 function adminUserSelect(PDO $pdo): string
 {
@@ -65,6 +66,7 @@ function adminUserSelect(PDO $pdo): string
         ? "COALESCE((SELECT json_agg(a.client_id ORDER BY a.sort_order, a.client_id) FROM applications a
                       WHERE a.system = FALSE AND a.enabled AND " . blockedFromSql('u', 'a') . "), '[]')"
         : "'[]'";
+    $approved = accountApprovalReady($pdo) ? 'u.approved' : 'TRUE';
 
     return "SELECT u.id, u.username, u.email, u.email_confirmed, u.language, u.disabled, u.totp_enabled,
         u.force_password_change, (u.password IS NOT NULL) AS has_password, u.last_login_at, u.created_at, u.updated_at,
@@ -73,7 +75,8 @@ function adminUserSelect(PDO $pdo): string
         COALESCE((SELECT json_agg(json_build_object('client_id', a.client_id, 'role', r.name) ORDER BY a.sort_order, r.name)
                     FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
                     JOIN applications a ON a.id = r.application_id WHERE ur.user_id = u.id), '[]') AS roles,
-        {$blockedIn} AS blocked_in
+        {$blockedIn} AS blocked_in,
+        {$approved} AS approved
    FROM users u";
 }
 
@@ -93,6 +96,7 @@ function adminUserShape(array $row): array
         'google_email' => $row['google_email'],
         'roles' => json_decode((string) $row['roles'], true) ?: [],
         'blocked_in' => json_decode((string) $row['blocked_in'], true) ?: [],
+        'approved' => asBool($row['approved']),
         'last_login_at' => isoTime($row['last_login_at']),
         'created_at' => isoTime($row['created_at']),
         'updated_at' => isoTime($row['updated_at']),
@@ -183,6 +187,61 @@ function grantsIamAdmin(PDO $pdo, array $roleIds): bool
     return (bool) $statement->fetchColumn();
 }
 
+/**
+ * Switches an account off: every session and refresh token it holds ends, on
+ * every site. Refused for the last administrator of the IAM - checked under
+ * lockIamAdmins(), so two administrators switching each other off at the same
+ * moment cannot both win. Whether the account may be switched off by this
+ * actor at all (not themselves) is the caller's.
+ *
+ * @return array{status: int, code: string, error: string}|null
+ */
+function switchOffAccount(PDO $pdo, int $id): ?array
+{
+    lockIamAdmins($pdo);
+    try {
+        if (isIamAdmin($id) && iamAdminCount() <= 1) {
+            $pdo->rollBack();
+            return ['status' => 422, 'code' => 'last_admin', 'error' => 'This is the only IAM administrator left'];
+        }
+
+        $pdo->prepare('UPDATE users SET disabled = TRUE WHERE id = ?')->execute([$id]);
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    revokeSessionsFor($pdo, $id, SESSION_REVOKED_DISABLED);
+    $pdo->prepare("UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'account_disabled'
+                    WHERE user_id = ? AND revoked_at IS NULL")->execute([$id]);
+
+    return null;
+}
+
+/**
+ * The accounts waiting for an administrator's approval (Settings -> New
+ * accounts need approval), oldest first - only those switched on: one that is
+ * switched off was declined, or is somebody's business other than approval.
+ */
+function waitingAccounts(PDO $pdo): array
+{
+    $rows = $pdo->query(
+        'SELECT id, username, email, email_confirmed, created_at FROM users
+          WHERE NOT approved AND NOT disabled ORDER BY created_at, id'
+    )->fetchAll();
+
+    return array_map(static fn(array $row): array => [
+        'user_id' => (int) $row['id'],
+        'username' => $row['username'],
+        'email' => $row['email'],
+        'email_confirmed' => asBool($row['email_confirmed']),
+        'created_at' => isoTime($row['created_at']),
+    ], $rows);
+}
+
 $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
     // ── Overview ─────────────────────────────────────────────────────────────
@@ -200,6 +259,7 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             'signins_24h' => $count("SELECT count(*) FROM login_attempts WHERE outcome = 'ok' AND created_at > CURRENT_TIMESTAMP - INTERVAL '1 day'"),
             'failed_24h' => $count("SELECT count(*) FROM login_attempts WHERE outcome NOT IN ('ok', 'sent') AND created_at > CURRENT_TIMESTAMP - INTERVAL '1 day'"),
             'emails_24h' => $count("SELECT count(*) FROM email_log WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '1 day'"),
+            'awaiting_approval' => accountApprovalReady($pdo) ? $count('SELECT count(*) FROM users WHERE NOT approved AND NOT disabled') : 0,
         ]);
     });
 
@@ -501,31 +561,84 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             return respondError($response, 422, 'self_lockout', 'You cannot switch off your own account');
         }
 
-        lockIamAdmins($pdo);
-        try {
-            if (!$enabled && isIamAdmin($id) && iamAdminCount() <= 1) {
-                $pdo->rollBack();
-                return respondError($response, 422, 'last_admin', 'This is the only IAM administrator left');
-            }
-
-            $pdo->prepare('UPDATE users SET disabled = ? WHERE id = ?')->execute([pgBool(!$enabled), $id]);
-            $pdo->commit();
-        } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $e;
-        }
-
         if (!$enabled) {
-            revokeSessionsFor($pdo, $id, SESSION_REVOKED_DISABLED);
-            $pdo->prepare("UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'account_disabled'
-                            WHERE user_id = ? AND revoked_at IS NULL")->execute([$id]);
+            if ($refusal = switchOffAccount($pdo, $id)) {
+                return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+            }
+        } else {
+            $pdo->prepare('UPDATE users SET disabled = FALSE WHERE id = ?')->execute([$id]);
         }
 
         audit($request, (int) actor($request)['id'], $enabled ? 'user.enabled' : 'user.disabled', 'user', $id);
 
         return respondJson($response, adminUser($pdo, $id));
+    });
+
+    // ── Approvals ────────────────────────────────────────────────────────────
+    //
+    // The accounts made by signing up while Settings -> New accounts need
+    // approval is on (api/accounts.php), waiting for an administrator. All
+    // three answer 503 sign_in_rules_unavailable while migration 012 is
+    // pending.
+
+    $group->get('/approvals', function (Request $request, Response $response) {
+        return respondJson($response, ['accounts' => waitingAccounts(iamDb()), 'account_approval' => registrationApprovalRequired()]);
+    });
+
+    // Yes, to an account that waits and is switched on - one declined is
+    // switched on first, and waits again. The person is mailed once their
+    // address is confirmed: an account approved before that is signed in by
+    // its confirmation link, and needs no mail to say so.
+    $group->post('/users/{id:[0-9]+}/approve', function (Request $request, Response $response, array $args) {
+        $pdo = iamDb();
+        $id = (int) $args['id'];
+        $target = userById($pdo, $id);
+
+        if ($target === null) {
+            return respondError($response, 404, 'not_found', 'Not found');
+        }
+        $approved = approveAccount($pdo, $id);
+        if ($approved === null) {
+            return respondError($response, 409, 'not_waiting', $target['username'] . (accountAwaitsApproval($target) && asBool($target['disabled'])
+                ? ' is switched off - switch the account on first, and it waits for approval again'
+                : ' is not waiting for approval'));
+        }
+        audit($request, (int) actor($request)['id'], 'user.approved', 'user', $id);
+
+        $mailed = asBool($approved['email_confirmed']) && sendAccountApprovedMail($approved);
+
+        return respondJson($response, ['account' => adminUser($pdo, $id), 'mailed' => $mailed]);
+    });
+
+    // No: the account is switched off. Nothing is deleted, its address stays
+    // taken, and switching it on again puts it back among the waiting.
+    // Nobody is mailed.
+    //
+    // Not while its address is unconfirmed: anybody can register an address
+    // they do not hold, and the address's owner takes such an account back by
+    // a reset link or Google (claimUnconfirmedAccount()) - which nothing does
+    // for an account switched off. Declined, a stranger's registration would
+    // keep the owner out for good. Unconfirmed, it cannot sign in anyway.
+    $group->post('/users/{id:[0-9]+}/decline', function (Request $request, Response $response, array $args) {
+        $pdo = iamDb();
+        $id = (int) $args['id'];
+        $target = userById($pdo, $id);
+
+        if ($target === null) {
+            return respondError($response, 404, 'not_found', 'Not found');
+        }
+        if (!accountAwaitsApproval($target) || asBool($target['disabled'])) {
+            return respondError($response, 409, 'not_waiting', $target['username'] . (asBool($target['disabled']) ? ' is switched off already' : ' is not waiting for approval'));
+        }
+        if (!asBool($target['email_confirmed'])) {
+            return respondError($response, 409, 'not_confirmed', $target['username'] . '\'s address is not confirmed: whoever registered it may not own it, and declining would keep its owner out. It cannot sign in until the address is confirmed anyway');
+        }
+        if ($refusal = switchOffAccount($pdo, $id)) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+        }
+        audit($request, (int) actor($request)['id'], 'user.declined', 'user', $id);
+
+        return respondJson($response, ['account' => adminUser($pdo, $id), 'mailed' => false]);
     });
 
     // Two-factor off, for somebody who lost the phone and the recovery codes.
@@ -551,8 +664,9 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         $id = (int) $args['id'];
         $actorId = (int) actor($request)['id'];
         $grants = requestBody($request)['roles'] ?? null;
+        $target = userById($pdo, $id);
 
-        if (userById($pdo, $id) === null) {
+        if ($target === null) {
             return respondError($response, 404, 'not_found', 'Not found');
         }
         if (!is_array($grants)) {
@@ -567,6 +681,12 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         $keepsAdmin = grantsIamAdmin($pdo, $roles['ids']);
         if (!$keepsAdmin && $id === $actorId && isIamAdmin($id)) {
             return respondError($response, 422, 'self_lockout', 'You cannot take the IAM ADMIN role from yourself');
+        }
+        // An account that waits for approval signs in nowhere, so it can
+        // administer nothing - yet the last-admin rule would count it as an
+        // administrator left. It is approved first.
+        if ($keepsAdmin && !isIamAdmin($id) && accountAwaitsApproval($target)) {
+            return respondError($response, 422, 'not_approved', $target['username'] . ' is waiting for approval - approve the account before making it an administrator of the IAM');
         }
 
         $before = rolesOf($pdo, $id);
@@ -943,14 +1063,33 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
 
         $pdo = iamDb();
-        $update = $pdo->prepare('UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP, updated_by = ? WHERE name = ?');
-        foreach ($changes as $name => $value) {
-            $update->execute([$value, (int) actor($request)['id'], $name]);
+        $letIn = null;
+        $pdo->beginTransaction();
+        try {
+            $update = $pdo->prepare('UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP, updated_by = ? WHERE name = ?');
+            foreach ($changes as $name => $value) {
+                $update->execute([$value, (int) actor($request)['id'], $name]);
+            }
+
+            // New accounts no longer wait for approval: neither do the ones
+            // that were waiting. Approved with the switch, so turning it on
+            // again is about accounts made from then on.
+            if (($changes['registration_approval'] ?? null) === 'false') {
+                $letIn = releaseWaitingAccounts($pdo);
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
         }
 
         if ($changes !== []) {
             settingsAll(true);
             audit($request, (int) actor($request)['id'], 'settings.changed', 'settings', null, $changes);
+        }
+        if ($letIn !== null) {
+            audit($request, (int) actor($request)['id'], 'approvals.released', 'settings', 'registration_approval', ['accounts' => $letIn]);
         }
 
         return respondJson($response, ['settings' => adminSettingRows()]);

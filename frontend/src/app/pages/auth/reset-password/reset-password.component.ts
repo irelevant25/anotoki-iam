@@ -18,7 +18,7 @@ import { PasswordFieldComponent } from '../../../ui/password-field/password-fiel
 import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { PASSWORD_MAX_BYTES, dropQueryParam, isInternalPath, passwordBytes } from '../auth-helpers';
 
-type Step = 'form' | 'done' | 'dead' | 'missing';
+type Step = 'form' | 'done' | 'pending' | 'dead' | 'missing';
 
 /**
  * /reset-password?token= - where the reset link lands.
@@ -28,6 +28,9 @@ type Step = 'form' | 'done' | 'dead' | 'missing';
  * a reset is how somebody takes an account back. With two-factor on, the
  * answer is `totp_required` first and a code field appears: the link proves
  * only the mailbox, and the same form goes again with the code.
+ *
+ * An account waiting for an administrator's approval gets its new password
+ * but no session (`approval_pending`), and the page says what is left.
  */
 @Component({
   selector: 'app-reset-password',
@@ -116,6 +119,10 @@ export class ResetPasswordComponent implements OnInit {
         this.busy.set(false);
         if (error.code === 'invalid_token') {
           this.step.set('dead');
+        } else if (error.code === 'approval_pending') {
+          // The password is set; the account waits for an administrator.
+          this._token = '';
+          this.step.set('pending');
         } else if (error.code === 'totp_required') {
           this.totpNeeded.set(true);
         } else if (error.code === 'totp_invalid') {

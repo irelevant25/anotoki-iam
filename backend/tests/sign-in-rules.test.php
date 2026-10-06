@@ -324,7 +324,7 @@ test('an IAM with 009, 010 and 011 pending: Apply runs them all, 009\'s words as
     accountIn($pdo, 'someone');
 
     $result = applyPendingMigrations($pdo, 'iam');
-    same([['009_admin_panel.sql', RULES_MIGRATION, STATIC_MIGRATION], null], [$result['applied'], $result['failed']], 'all three, in order (' . ($result['error'] ?? '') . ')');
+    same([['009_admin_panel.sql', RULES_MIGRATION, STATIC_MIGRATION], null], [array_slice($result['applied'], 0, 3), $result['failed']], 'all three, in order, and whatever came after them (' . ($result['error'] ?? '') . ')');
     same('Admin panel', $pdo->query("SELECT value FROM translations WHERE key_name = 'shell.admin' AND language_code = 'en'")->fetchColumn(), '009\'s English');
     same([], withoutMember($pdo), 'and 010\'s MEMBER for everyone');
 });
@@ -854,10 +854,10 @@ test('with 010 pending signing in works by the rule before it, the panel\'s appl
         $contract = (new Browser())->get('/api/public/applications/survey');
         same([503, 'sign_in_rules_unavailable', 'no-store'], [$contract->status, $contract->code(), $contract->header('Cache-Control')], 'the public contract has no switch to read yet: 503, kept by nobody');
         same(404, (new Browser())->get('/api/public/applications/nobody-here')->status, 'an unknown site is still 404');
-        same([RULES_MIGRATION, STATIC_MIGRATION], $admin->get('/api/admin/migrations')->json()['pending'] ?? null, 'the Migrations page shows 010 and 011 pending');
+        same([RULES_MIGRATION, STATIC_MIGRATION], array_slice($admin->get('/api/admin/migrations')->json()['pending'] ?? [], 0, 2), 'the Migrations page shows 010 and 011 pending, first');
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [RULES_MIGRATION, STATIC_MIGRATION], null], [$applied->status, $applied->json()['applied'] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same([200, [RULES_MIGRATION, STATIC_MIGRATION], null], [$applied->status, array_slice($applied->json()['applied'] ?? [], 0, 2), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
 
         same(true, signInRulesReady($pdo), 'from the next request on, in the same process: the rules are there');
         $list = $admin->get('/api/admin/applications');

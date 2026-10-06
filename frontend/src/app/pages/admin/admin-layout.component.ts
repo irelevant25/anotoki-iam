@@ -8,6 +8,7 @@ import { EmptyStateComponent } from '../../ui/empty-state/empty-state.component'
 const NAV: NavItem[] = [
   { link: '/admin', label: 'Dashboard', icon: 'dashboard', exact: true },
   { link: '/admin/users', label: 'Users', icon: 'users' },
+  { link: '/admin/approvals', label: 'Approvals', icon: 'clock' },
   { link: '/admin/sessions', label: 'Sessions', icon: 'laptop' },
   { link: '/admin/applications', label: 'Applications', icon: 'appWindow' },
   { link: '/admin/emails', label: 'Email log', icon: 'mail' },

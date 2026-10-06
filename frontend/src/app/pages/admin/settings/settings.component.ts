@@ -25,6 +25,12 @@ const DESCRIPTIONS: Record<string, { label: string; text: string }> = {
     label: 'New accounts',
     text: 'Off: nobody can make an account, with the form or with Google. Existing accounts are not affected.',
   },
+  registration_approval: {
+    label: 'New accounts need approval',
+    text:
+      'On: an account made with the form or with Google cannot sign in anywhere until an administrator approves it under Approvals - its owner is emailed then. ' +
+      'Accounts made here, and the accounts there are, are not affected. Switching it off lets in everybody still waiting.',
+  },
   google_login_enabled: {
     label: 'Signing in with Google',
     text: 'Off: the Google button disappears and Google sign-ins are refused. Accounts made through Google can still sign in with an emailed code.',

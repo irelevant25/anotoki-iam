@@ -11,6 +11,7 @@ export const ADMIN_ROUTES: Routes = [
       { path: '', title: 'Dashboard', loadComponent: () => import('./dashboard/dashboard.component').then((m) => m.DashboardComponent) },
       { path: 'users', title: 'Users', loadComponent: () => import('./users/users-list.component').then((m) => m.UsersListComponent) },
       { path: 'users/:id', title: 'User', loadComponent: () => import('./users/user-detail.component').then((m) => m.UserDetailComponent) },
+      { path: 'approvals', title: 'Approvals', loadComponent: () => import('./approvals/approvals.component').then((m) => m.ApprovalsComponent) },
       { path: 'sessions', title: 'Sessions', loadComponent: () => import('./sessions/admin-sessions.component').then((m) => m.AdminSessionsComponent) },
       {
         path: 'applications',

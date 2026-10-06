@@ -229,6 +229,15 @@
             </form>
         }
 
+        @case ("pending") {
+            <header class="auth-head">
+                <span class="auth-icon is-warning"><app-icon name="clock" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "login.pending.title" | t }}</h1>
+                <p>{{ "common.approvalWait" | t }}</p>
+            </header>
+            <button appButton variant="secondary" [block]="true" (click)="startOver()">{{ "login.startOver" | t }}</button>
+        }
+
         @case ("denied") {
             <header class="auth-head">
                 <span class="auth-icon is-danger"><app-icon name="ban" [size]="22" /></span>

@@ -33,7 +33,7 @@ import { SignInHandoffService } from '../sign-in-handoff.service';
  * The steps of signing in. Every refusal the backend can give maps to one of
  * them, so the person always sees what to do next rather than a bare "no".
  */
-type Step = 'loading' | 'load-error' | 'expired' | 'form' | 'code' | 'totp' | 'unconfirmed' | 'other-way' | 'change-password' | 'denied' | 'app-disabled' | 'continuing';
+type Step = 'loading' | 'load-error' | 'expired' | 'form' | 'code' | 'totp' | 'unconfirmed' | 'other-way' | 'change-password' | 'pending' | 'denied' | 'app-disabled' | 'continuing';
 
 /** The sign-in being attempted, kept so the two-factor step can send the whole of it again with the code. */
 type PendingSignIn = { kind: 'password'; email: string; password: string } | { kind: 'code'; email: string; code: string } | { kind: 'google'; credential: string };
@@ -533,6 +533,10 @@ export class LoginComponent implements OnInit {
         return;
       case 'password_login_unavailable':
         this.goTo('other-way');
+        return;
+      case 'approval_pending':
+        // The account waits for an administrator - one Google has just made too.
+        this.goTo('pending');
         return;
       case 'invalid_code':
         this.code.set('');

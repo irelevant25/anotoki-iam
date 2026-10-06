@@ -15,9 +15,10 @@ runs as its own subdomain.
 - **Account page**: username and language, password, Google, two-factor,
   sessions, the sites you can use, tokens for scripts.
 - **Admin panel**: accounts, per-site roles, sessions, the mail log, the sites
-  themselves (redirect URIs, origins, roles that may sign in), switches, signing keys,
+  themselves (redirect URIs, origins, roles that may sign in), switches - new
+  accounts can be made to wait for an administrator's approval -, signing keys,
   migrations, an audit log of every change - and the words: every sentence of
-  the sign-in and account pages and of the three mails is a string in the
+  the sign-in and account pages and of the four mails is a string in the
   database, reworded there, and a new language is added there, with no build.
   English and Slovak come with it.
 - **Installer**: `backend/setup.php` writes the configuration, builds the
@@ -72,11 +73,16 @@ fixed port it is registered with:
   the genshin site, and every administrator there when 007 ran - a grant at
   those moments: promoting or removing an administrator later changes no
   site's roles. 007 goes on an installed IAM after the sites are updated.
-- Migrations 001-009; an installed IAM gets 007, 008 and 009 through the
+- Migrations 001-012; an installed IAM gets the later ones through the
   admin panel's Migrations page (or setup.php / `php migration.php` on this
   computer). 008 is the top bar's words: three strings added, one gone; 009
   calls the admin area the admin panel ("Admin console" was 006's word),
   as every anotoki site does.
+- New accounts can be made to wait for an administrator's approval
+  (migration 012, the owner's decision of 2026-10-06): one switch for the
+  whole IAM, Settings → New accounts need approval, off by default. While it
+  is on, an account made by signing up signs in nowhere until it is approved
+  on the admin panel's Approvals page, which mails the person.
 - The account pages and the admin panel wear the anotoki family's one top
   bar (the survey site's is the reference): the account pages as its links,
   the language, the theme, the person's menu; a menu button on a phone, up to

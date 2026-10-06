@@ -23,6 +23,9 @@
                 } @else {
                     <app-badge tone="success" [dot]="true">Enabled</app-badge>
                 }
+                @if (!d.account.approved) {
+                    <app-badge tone="warning">{{ d.account.disabled ? "Not approved" : "Awaiting approval" }}</app-badge>
+                }
                 @if (!d.account.email_confirmed) {
                     <app-badge tone="warning">Unconfirmed</app-badge>
                 }
@@ -37,6 +40,16 @@
                 }
             </span>
 
+            @if (!d.account.approved && !d.account.disabled) {
+                <button appButton variant="primary" [loading]="busyAction() === 'approve'" (click)="approve()">
+                    <app-icon name="check" [size]="15" />
+                    Approve
+                </button>
+                <!-- Not while the address is unconfirmed: its registrant may not own it, and the owner takes such an account back by a reset or Google. -->
+                @if (d.account.email_confirmed) {
+                    <button appButton variant="secondary" [loading]="busyAction() === 'decline'" (click)="decline()">Decline</button>
+                }
+            }
             <button appButton variant="secondary" (click)="dialog.set('edit')">
                 <app-icon name="pencil" [size]="15" />
                 Edit

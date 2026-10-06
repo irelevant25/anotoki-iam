@@ -51,6 +51,8 @@ export interface TranslationBundle {
 export interface PublicConfig {
   login_enabled: boolean;
   registration_enabled: boolean;
+  /** A new account waits for an administrator's approval before it can sign in (Settings -> New accounts need approval). */
+  registration_approval: boolean;
   google_enabled: boolean;
   google_client_id: string | null;
   password_min: number;
@@ -133,6 +135,8 @@ export interface RegisterBody {
 export interface RegisterResponse {
   email: string;
   sent: boolean;
+  /** The account waits for an administrator's approval before it can sign in anywhere. */
+  approval_pending: boolean;
 }
 
 export interface ContinueTo {
@@ -284,6 +288,8 @@ export interface AdminUser {
    * holds another role there. Empty while migration 010 is pending.
    */
   blocked_in: string[];
+  /** False: made by signing up while new accounts needed approval, and not approved yet - it signs in nowhere. */
+  approved: boolean;
   last_login_at: string | null;
   created_at: string;
   updated_at: string | null;
@@ -460,6 +466,8 @@ export interface AdminStats {
   signins_24h: number;
   failed_24h: number;
   emails_24h: number;
+  /** Accounts waiting for an administrator's approval, switched-off ones left out (the Approvals page). */
+  awaiting_approval: number;
 }
 
 export interface ApplicationRole {
@@ -551,6 +559,28 @@ export interface ApplicationMembersResponse {
   members: ApplicationMember[];
   /** Always empty for the IAM's own entry. */
   blocked: BlockedAccount[];
+}
+
+/** An account waiting for an administrator's approval before it can sign in anywhere. */
+export interface PendingAccount {
+  user_id: number;
+  username: string;
+  email: string;
+  email_confirmed: boolean;
+  created_at: string;
+}
+
+/** `GET /api/admin/approvals`: the accounts waiting, oldest first - switched-off ones left out. */
+export interface ApprovalQueue {
+  accounts: PendingAccount[];
+  /** Settings -> New accounts need approval. */
+  account_approval: boolean;
+}
+
+/** What approving or declining answers: the account as it is now, and whether it was mailed. */
+export interface ApprovalDecision {
+  account: AdminUser;
+  mailed: boolean;
 }
 
 export interface Setting {

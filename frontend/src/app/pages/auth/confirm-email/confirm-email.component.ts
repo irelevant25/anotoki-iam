@@ -16,7 +16,7 @@ import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
 import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { dropQueryParam, isInternalPath, looksLikeEmail } from '../auth-helpers';
 
-type Step = 'working' | 'done' | 'failed' | 'missing';
+type Step = 'working' | 'done' | 'pending' | 'failed' | 'missing';
 
 /**
  * /confirm-email?token= - where the confirmation link lands.
@@ -25,6 +25,10 @@ type Step = 'working' | 'done' | 'failed' | 'missing';
  * not stay in the history or travel on with a copied URL. Opening the link
  * signs the person in (holding the mailbox is the proof), and the page offers
  * the way back to the application the registration started from, if any.
+ *
+ * An account waiting for an administrator's approval has its address
+ * confirmed all the same, but is not signed in (`approval_pending`): the page
+ * says the address is done and what is left - and that a mail will come.
  */
 @Component({
   selector: 'app-confirm-email',
@@ -66,6 +70,10 @@ export class ConfirmEmailComponent implements OnInit {
         this.step.set('done');
       },
       error: (error: ApiError) => {
+        if (error.code === 'approval_pending') {
+          this.step.set('pending');
+          return;
+        }
         this.failure.set(error.code === 'invalid_token' ? this._i18n.t('confirm.failedText') : errorText(error, (key) => this._i18n.t(key)));
         this.step.set('failed');
       },

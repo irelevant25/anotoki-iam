@@ -78,9 +78,9 @@ src/
       auth/                /login /register /confirm-email /forgot-password
                            /reset-password /logout /error /not-set-up, and not-found
       account/             /account and its four sub-pages (the top bar's links)
-      admin/               /admin: users, sessions, applications, logs, settings,
-                           translations and languages (localization/), keys,
-                           migrations
+      admin/               /admin: users, approvals, sessions, applications, logs,
+                           settings, translations and languages (localization/),
+                           keys, migrations
 public/
   anotoki.png, favicon.png
   theme-boot.js            applies the stored theme before first paint (no inline scripts)

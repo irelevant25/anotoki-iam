@@ -26,6 +26,14 @@
             </div>
         }
 
+        @case ("pending") {
+            <header class="auth-head">
+                <span class="auth-icon is-success"><app-icon name="checkCircle" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "confirm.doneTitle" | t }}</h1>
+                <p>{{ "common.approvalWait" | t }}</p>
+            </header>
+        }
+
         @case ("failed") {
             <header class="auth-head">
                 <span class="auth-icon is-danger"><app-icon name="xCircle" [size]="22" /></span>

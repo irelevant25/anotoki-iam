@@ -18,6 +18,7 @@ interface Tile {
 }
 
 const TILES: Tile[] = [
+  { key: 'awaiting_approval', label: 'Awaiting approval', icon: 'clock', link: '/admin/approvals', tone: 'warning' },
   { key: 'users', label: 'Active accounts', icon: 'users', link: '/admin/users', query: { status: 'enabled' } },
   { key: 'disabled', label: 'Switched off', icon: 'ban', link: '/admin/users', query: { status: 'disabled' } },
   { key: 'admins', label: 'IAM admins', icon: 'shield', link: '/admin/users', query: { application: 'iam', role: 'ADMIN' } },
@@ -30,8 +31,9 @@ const TILES: Tile[] = [
 
 const LINKS: { link: string; label: string; text: string; icon: IconName }[] = [
   { link: '/admin/users', label: 'Users', text: 'Accounts, roles, passwords and two-factor resets.', icon: 'users' },
+  { link: '/admin/approvals', label: 'Approvals', text: 'New accounts waiting for your yes or no, when they need approval.', icon: 'clock' },
   { link: '/admin/applications', label: 'Applications', text: 'The sites that sign in here, their addresses and roles.', icon: 'appWindow' },
-  { link: '/admin/settings', label: 'Settings', text: 'Switch signing in, registration and Google on or off.', icon: 'sliders' },
+  { link: '/admin/settings', label: 'Settings', text: 'Switch signing in, registration, its approval and Google on or off.', icon: 'sliders' },
   { link: '/admin/keys', label: 'Signing keys', text: 'The keys tokens are signed with, and rotating them.', icon: 'key' },
 ];
 

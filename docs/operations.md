@@ -226,6 +226,17 @@ they were added. `type`, the secret and the landing switch stay, unread, until
 the migration that drops `access` - not a way back to a build from before
 010. It adds no strings, and goes with 010, in the same Apply.
 
+**Migration 012** (new accounts may wait for an administrator's approval - the
+owner's decision of 2026-10-06, `docs/decisions.md`) adds the switch
+Settings → **New accounts need approval**, off, and an `approved` flag on every
+account, true for all there are: nothing changes until the switch is turned
+on. It adds the words of the waiting pages and of the approval mail, in
+English and Slovak. Between the upload and Apply, signing up and signing in
+work as before and the admin panel's Approvals page says to apply the pending
+update first. **Once 012 is applied, a build from before it never goes on the
+host again** - it reads no `approved`, and would let every account waiting
+for approval in; fix forward, or approve or decline everybody waiting first.
+
 ### The sites' addresses
 
 A fresh database registers the first-party applications with their development
@@ -277,6 +288,7 @@ checks and loads such a file into a development database.
 | Somebody lost their phone and recovery codes | Admin panel → Users → Reset two-factor |
 | End a session that should not be there | Admin panel → Sessions, or the person's own account page |
 | Switch signing in off for everybody but IAM admins | Admin panel → Settings → Signing in |
+| Approve every new account before it can sign in | Admin panel → Settings → **New accounts need approval**. Accounts made with the form or with Google then wait on Admin panel → **Approvals** (the dashboard counts them): Approve mails them (once their address is confirmed), Decline switches the account off - not while its address is unconfirmed, as its registrant may not own it. Accounts made in the panel never wait; switching it off lets in everybody still waiting (a declined account stays declined) |
 | Rotate the signing key | Admin panel → Keys → Rotate. Tokens signed by the old key keep working until they expire; sites refetch the key set by themselves. Remove the retired key after a day. |
 | A script needs to call a site's API | The account page → Tokens for scripts |
 | Reword a sentence of the pages or a mail | Admin panel → Translations: edit, Save. Readers get it at their next page load; the change is in the audit log |
@@ -319,6 +331,7 @@ php tests/run.php                          # every test, against throwaway datab
 | A site's token endpoint call fails in the browser with a CORS error | The site's origin is not in the application's web origins. |
 | A site accepts nobody's token | The site's configured issuer is not exactly the IAM's public URL, or its client id is wrong, or it cannot reach `/.well-known/jwks.json`. |
 | "access_denied" for somebody who should get in | They hold no role there that may sign in: their MEMBER was taken away (give it back under Users → the person → Roles), or the site's MEMBER may not sign in (the site was members-only before 010, or unticked since) and they hold none of its other roles - tick MEMBER, or give them a role that may sign in. |
+| Somebody signed up and is told "Waiting for approval" | Settings → New accounts need approval is on: approve them on Admin panel → Approvals (or their page under Users). A declined account is switched off: switch it on under Users, and it waits again |
 | A site's admin area refuses its owner | They hold neither its ADMIN nor its EDITOR: Admin panel → Users → the person → Roles. An account made in the admin panel, or made the IAM's ADMIN there, gets no site's ADMIN by itself; the installer's administrator, `create-admin.php`'s, an imported one and every administrator there when 007 ran were given all of them. |
 | Somebody no longer an administrator still administers a site | Taking the IAM's ADMIN away takes nothing else: remove their ADMIN (and EDITOR) on each site too - Admin panel → Users → the person → Roles. |
 | Sign-in mail never arrives | `mail.local.php` still has the `file` driver (mail is in `storage/mail/`), or the sender is not a real mailbox on the hosted domain. |
