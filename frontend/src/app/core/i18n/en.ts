@@ -220,6 +220,8 @@ export const en = {
   'register.resent': 'If that address needs confirming, another message is on its way.',
   'register.approvalNotice': 'An administrator approves every new account. Once you have confirmed your address, we will email you when yours is approved.',
   'register.approvalNote': 'An administrator also approves every new account - we will email you once yours is approved.',
+  'register.newsMail': 'Send me news from anotoki sites',
+  'register.newsMailHint': 'Now and then an email about a new version, a new site or a survey. You can stop them at any time.',
 
   // ── Confirm an address ─────────────────────────────────────────────────────
   'confirm.pageTitle': 'Confirm your address',
@@ -308,6 +310,16 @@ export const en = {
   'notSetUp.check': 'Check again',
   'notSetUp.developer': 'On a development machine, start the API first; the installer then fills in everything development needs:',
 
+  // ── Stopping the news ──────────────────────────────────────────────────────
+  'unsubscribe.pageTitle': 'Stop the news',
+  'unsubscribe.title': 'Stop the news from anotoki sites?',
+  'unsubscribe.text': 'You will get no more emails about new versions, new sites or surveys. Emails about your account - confirmations, sign-in codes, password resets - still come.',
+  'unsubscribe.submit': 'Stop the news',
+  'unsubscribe.doneTitle': 'The news is stopped',
+  'unsubscribe.doneText': 'You will get no more news from anotoki sites. To have it again, switch it on on your account page.',
+  'unsubscribe.failedText': 'It is not a link from one of our emails, or only part of it was copied.',
+  'unsubscribe.missingText': 'This page is where the link at the end of our news emails lands, and there was no link in it.',
+
   // ── The shell around the account pages ─────────────────────────────────────
   'shell.skipToContent': 'Skip to content',
   'shell.mainNav': 'Main navigation',
@@ -353,6 +365,11 @@ export const en = {
   'overview.twoFactorOff': 'Two-factor off',
   'overview.adminTitle': 'Admin panel',
   'overview.adminText': 'Accounts, applications, roles, keys and switches.',
+  'overview.emails': 'Emails',
+  'overview.newsMail': 'News from anotoki sites',
+  'overview.newsMailHint': 'Now and then an email about a new version, a new site or a survey. Emails about your account come either way.',
+  'overview.newsMailOn': 'You will get the news from anotoki sites.',
+  'overview.newsMailOff': 'You will get no more news from anotoki sites.',
 
   // ── Account: security ──────────────────────────────────────────────────────
   'security.pageTitle': 'Security',

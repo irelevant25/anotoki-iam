@@ -15,6 +15,7 @@ import { CardComponent } from '../../../ui/card/card.component';
 import { IconComponent, IconName } from '../../../ui/icon/icon.component';
 import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
 import { SelectComponent, SelectOption } from '../../../ui/select/select.component';
+import { SwitchComponent } from '../../../ui/switch/switch.component';
 import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { ThemeToggleComponent } from '../../../ui/theme-toggle/theme-toggle.component';
 import { ToastService } from '../../../ui/toast/toast.service';
@@ -40,6 +41,10 @@ const QUICK_LINKS: QuickLink[] = [
  * chosen: the page switches to it first - as soon as its words have come - and
  * the account is told after, so "saved" is already said in the new language.
  * Which languages there are comes from the database, with the words.
+ *
+ * The news from the sites - the announcements administrators send - is
+ * switched here, the same switch the link at the end of every announcement
+ * turns off.
  */
 @Component({
   selector: 'app-overview',
@@ -54,6 +59,7 @@ const QUICK_LINKS: QuickLink[] = [
     IconComponent,
     PageHeaderComponent,
     SelectComponent,
+    SwitchComponent,
     TextFieldComponent,
     ThemeToggleComponent,
   ],
@@ -78,6 +84,11 @@ export class OverviewComponent {
   /** Follows the account, and can be put back if saving a new choice fails. */
   protected readonly language = linkedSignal<string>(() => this.user()?.language ?? this._i18n.language());
   protected readonly savingLanguage = signal(false);
+
+  /** The news from the sites: no switch while the server has none (migration 013 pending). */
+  protected readonly hasNewsSwitch = computed(() => typeof this.user()?.news_mail === 'boolean');
+  protected readonly newsMail = linkedSignal(() => this.user()?.news_mail ?? true);
+  protected readonly savingNewsMail = signal(false);
 
   /**
    * Nothing to choose between with fewer than two languages known - one on
@@ -135,6 +146,23 @@ export class OverviewComponent {
       error: (error: ApiError) => {
         this.savingUsername.set(false);
         this.usernameError.set(errorText(error, (key) => this._i18n.t(key)));
+      },
+    });
+  }
+
+  /** Saved the moment it is switched; refused, the switch goes back. */
+  protected setNewsMail(on: boolean): void {
+    this.savingNewsMail.set(true);
+    this._accountApi.updateProfile({ news_mail: on }).subscribe({
+      next: (user) => {
+        this.savingNewsMail.set(false);
+        this._session.set(user);
+        this._toast.success(this._i18n.t(on ? 'overview.newsMailOn' : 'overview.newsMailOff'));
+      },
+      error: (error: ApiError) => {
+        this.savingNewsMail.set(false);
+        this.newsMail.set(!on);
+        this._toast.error(errorText(error, (key) => this._i18n.t(key)));
       },
     });
   }

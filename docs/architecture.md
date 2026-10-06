@@ -130,7 +130,7 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 
 | Table | Holds |
 | --- | --- |
-| `users` | Accounts: username and address (unique regardless of case), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator), the language. The id is the `sub` every site keys its data on. |
+| `users` | Accounts: username and address (unique regardless of case), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator, news_mail - whether it gets the announcements), the language. The id is the `sub` every site keys its data on. |
 | `user_identities` | Who an account is at Google: provider + permanent subject. |
 | `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). |
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
@@ -145,6 +145,8 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `languages` | The languages the IAM speaks: `code` (`xx` or `xx-yy`, small letters), `name` in English, `native_name`, `enabled` (offered), `sort_order`. English and Slovak are seeded. |
 | `translation_keys` | Every key the pages and the mails ask for, with a description for the translator. Written by migrations only. |
 | `translations` | One string per key and language, who reworded it last (`updated_by`, null for a migration) and when. No empty string: a language without one has no row and reads the English. |
+| `announcements`, `announcement_recipients` | What administrators mailed to the people of the sites: the words per language, the template and the site, the sender and the link as they were, who it was for, who sent it and when, whether it is sending, sent or stopped - and one row per person: the address and the version it went in, and how it went. |
+| `mail_senders` | The addresses added in the admin panel that an announcement may come from, beside config/mail.local.php's own. |
 
 "Encrypted" means AES-256-GCM under the **master key** in
 `config/secret.local.php`, which the installer makes once and never replaces. A
@@ -183,6 +185,50 @@ nothing. Accounts an administrator makes never wait (the column's default),
 and switching the setting off approves everybody still waiting. The sites see
 nothing of it: a person waiting never gets as far as a code.
 
+## Announcements
+
+The admin panel's **Announcements** (migration 013, `api/announcements.php`)
+mails news to the people of the sites - never by itself: an administrator
+writes it and presses Send.
+
+- **The words.** Three templates - a new version of a site, a new site, a
+  survey about one - are mail strings (`mail.newVersion.*`, ...), reworded on
+  the Translations page; the composer fills a draft with them in every
+  language on offer, `{project}` the chosen site's name, and the administrator
+  changes them. A language left empty has no version: its readers get the
+  English one, which is needed. The words are text: the server escapes every
+  one into one fixed layout (`announcementMessage()`, plain text and HTML), and
+  ends each mail with two more mail strings - why the person gets it, and the
+  link that stops the news.
+- **Links to the anotoki sites only** (the owner's choice): the button's link
+  and any written out in the words must be at the IAM's host, a host an
+  application is registered with, or the domain the IAM sends mail from or one
+  under it; a mail address in the words, at that domain.
+- **Who.** Everybody, the holders of some roles, some people - and of them only
+  those who can be written to: switched on, the address confirmed, approved,
+  and `news_mail` on. The list is made when Send is pressed, and each person
+  asked again as their mail goes. A person signing up is offered the news in
+  a box left unticked (migration 014) - with Google from the register page
+  too; an account made any other way by its owner gets none until they switch
+  it on.
+- **From whom.** config/mail.local.php's senders (noreply, support), or one an
+  administrator added at the domain the IAM sends from.
+- **Sending.** The host has no cron and a request has half a minute, so the
+  announcement's page sends it, batch after batch (20 mails or 10 seconds a
+  request), while it is open: each mail in a transaction of its own, its row
+  taken `FOR UPDATE SKIP LOCKED` - two pages pressing on never send one twice -
+  and Stop waits for the mail on its way. With config/mail.local.php's
+  `hourly_limit`, announcements keep to nine tenths of the host's hourly
+  allowance and wait for room.
+- **Stopping the news.** Every announcement ends with a link to `/unsubscribe`
+  and carries it as `List-Unsubscribe`: a token naming the account, a MAC under
+  a key derived from the master key for this use alone (HKDF), which does
+  nothing but switch its news off - after the page
+  asks, so a link checker opening it changes nothing. The account page has the
+  same switch.
+- **Kept.** Every announcement, with its words, its audience and each person's
+  mail - and every mail in the email log, as ever.
+
 ## The account and admin pages
 
 The IAM's own pages talk to its own API with the session cookie, from the same
@@ -193,8 +239,8 @@ origin cannot send without a CORS preflight those endpoints never answer, and an
 
 ## The IAM's own words
 
-What the sign-in pages, the account page and the four mails say lives in the
-database (migration 006), so a word can be reworded and a language added in the
+What the sign-in pages, the account page and the four mails say - and the
+announcements' templates - lives in the database (migration 006), so a word can be reworded and a language added in the
 admin panel with no build and no upload. The admin panel itself is English,
 written in its templates.
 
@@ -312,7 +358,7 @@ written down, not a refactor.
 | `backend/config/` | `config.php` (reading `*.local.php`, whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`. |
 | `backend/api/index.php` | Front controller: requires, middleware order, error handler. |
 | `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, logout, revoke, the public list of sites, the public "is sign-in required here?" answer. |
-| `backend/api/routes/login.php` | Sign-in (password, emailed code, Google), registration, confirmation, resets, the pending request (accept/cancel), sign-out. |
+| `backend/api/routes/login.php` | Sign-in (password, emailed code, Google), registration, confirmation, resets, the pending request (accept/cancel), sign-out, stopping the news. |
 | `backend/api/routes/account.php` | The account page. |
 | `backend/api/routes/admin.php` | The admin panel. |
 | `backend/api/oidc.php` | Requests, codes, refresh tokens, minting tokens. |
@@ -322,6 +368,7 @@ written down, not a refactor.
 | `backend/api/totp.php`, `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php` | Carried over from the genshin site, rules intact. |
 | `backend/api/legacy_import.php` | The one-time move of the genshin site's accounts. |
 | `backend/api/translations.php` | The languages, the strings, the bundle, the admin panel's grid and every check of a string (`translationsCheck()`). |
+| `backend/api/announcements.php` | Announcements: the senders, the checks of a draft and of its links, who it reaches, the mail's layout, the batches, the token that stops the news. |
 | `backend/translations.php` | The strings from the command line: `--status`, `--export`, `--import`. Never uploaded. |
 | `frontend/src/app/core/i18n/` | `translation.service.ts` (which language, the bundle, the `t` pipe's strings), `en.ts` (the keys and the English of last resort), `localization-drafts.service.ts`. |
 | `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `shell` (the account pages and the admin panel: the top bar, the panel's side navigation, the page), `top-bar` (the anotoki family's one bar: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). |

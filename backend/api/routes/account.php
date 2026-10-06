@@ -65,12 +65,28 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             $changes['language'] = $language;
         }
 
+        // The news from the sites (announcements, migration 013): the switch
+        // the link at the end of every announcement turns off.
+        if (array_key_exists('news_mail', $body)) {
+            if (!is_bool($body['news_mail'])) {
+                return respondError($response, 422, 'invalid_input', 'news_mail is true or false');
+            }
+            if (!announcementsReady($pdo)) {
+                $refusal = announcementsUnavailable();
+                return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+            }
+            $changes['news_mail'] = pgBool($body['news_mail']);
+        }
+
         if ($changes !== []) {
             $sets = implode(', ', array_map(static fn(string $column): string => $column . ' = ?', array_keys($changes)));
             $pdo->prepare("UPDATE users SET $sets WHERE id = ?")->execute([...array_values($changes), (int) $user['id']]);
 
             if (isset($changes['username'])) {
                 audit($request, (int) $user['id'], 'account.username_changed', 'user', $user['id'], ['from' => $user['username'], 'to' => $changes['username']]);
+            }
+            if (isset($changes['news_mail']) && $body['news_mail'] !== asBool($user['news_mail'] ?? true)) {
+                audit($request, (int) $user['id'], 'account.news_mail', 'user', $user['id'], ['news_mail' => $body['news_mail'], 'by' => 'account']);
             }
         }
 

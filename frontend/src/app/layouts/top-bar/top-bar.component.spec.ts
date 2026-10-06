@@ -75,6 +75,7 @@ const MIRA: AccountUser = {
   trusted_devices: 0,
   force_password_change: false,
   is_admin: true,
+  news_mail: true,
 };
 
 /** Whatever page the router draws: the bar only needs it to be somewhere. */

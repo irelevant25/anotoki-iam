@@ -1,0 +1,221 @@
+<div class="page">
+    @if (loadError()) {
+        <app-page-header heading="Announcement" />
+        <app-error-state heading="The announcement could not be loaded" [message]="loadError()!" (retry)="reload()" />
+    } @else if (detail(); as d) {
+        <app-page-header [heading]="d.subject">
+            <p pageMeta class="counts">
+                <app-badge [tone]="statusLabels[d.status].tone" [dot]="true">{{ statusLabels[d.status].label }}</app-badge>
+                <span>
+                    {{ templateLabel(d.template) }}
+                    @if (d.application) {
+                        · {{ d.application.name }}
+                    }
+                </span>
+                <span [attr.title]="d.created_at | appDate">
+                    {{ d.created_at | appDate: "relative" }}
+                    @if (d.created_by) {
+                        by {{ d.created_by }}
+                    }
+                </span>
+            </p>
+            <a appButton variant="ghost" routerLink="/admin/announcements">
+                <app-icon name="arrowLeft" [size]="16" />
+                Announcements
+            </a>
+        </app-page-header>
+
+        <app-card heading="Sending">
+            <div class="stack">
+                <div class="progress-head">
+                    <span>
+                        <strong>{{ d.counts.sent }}</strong>
+                        of {{ people(d.counts.total) }} sent
+                    </span>
+                    <span class="muted">{{ percent() }}%</span>
+                </div>
+                <div class="progress" role="progressbar" aria-label="Done" aria-valuemin="0" [attr.aria-valuemax]="d.counts.total" [attr.aria-valuenow]="done()">
+                    <span class="progress-bar" [style.width.%]="percent()"></span>
+                </div>
+                <p class="counts">
+                    @if (d.counts.failed) {
+                        <span>
+                            <strong>{{ d.counts.failed }}</strong>
+                            failed
+                        </span>
+                    }
+                    @if (d.counts.skipped) {
+                        <span>
+                            <strong>{{ d.counts.skipped }}</strong>
+                            skipped - switched off or the news stopped since it was written
+                        </span>
+                    }
+                    @if (d.counts.pending) {
+                        <span>
+                            <strong>{{ d.counts.pending }}</strong>
+                            {{ d.status === "stopped" ? "never sent" : "not sent yet" }}
+                        </span>
+                    }
+                </p>
+
+                @if (runError()) {
+                    <app-alert tone="danger" [announce]="true">{{ runError() }}</app-alert>
+                }
+
+                @switch (d.status) {
+                    @case ("sending") {
+                        @if (running() && waitingUntil()) {
+                            <app-alert tone="info">The host's hourly allowance of mails is used up: it goes on by itself at {{ waitingUntil() | appDate: "time" }} - keep this page open.</app-alert>
+                        } @else if (running() && othersSending()) {
+                            <app-alert tone="info">Another page is sending it too: this one waits its turn.</app-alert>
+                        } @else if (running()) {
+                            <app-alert tone="info">
+                                <span class="cluster">
+                                    <app-spinner size="sm" />
+                                    Sending, a batch at a time - keep this page open until it is done.
+                                </span>
+                            </app-alert>
+                        } @else {
+                            <app-alert tone="warning">Paused: it goes on only while this page sends it.</app-alert>
+                        }
+                        <div class="form-actions">
+                            <button appButton variant="danger" [loading]="stopping()" (click)="stop()">Stop sending</button>
+                            @if (running()) {
+                                <button appButton variant="secondary" (click)="pause()">Pause</button>
+                            } @else {
+                                <button appButton variant="primary" (click)="run()">
+                                    <app-icon name="send" [size]="16" />
+                                    Continue sending
+                                </button>
+                            }
+                        </div>
+                    }
+                    @case ("sent") {
+                        <p class="muted">Finished {{ d.finished_at | appDate }}.</p>
+                    }
+                    @case ("stopped") {
+                        <p class="muted">Stopped {{ d.finished_at | appDate }}: what was not sent then never goes.</p>
+                    }
+                }
+            </div>
+        </app-card>
+
+        <div class="columns">
+            <app-card heading="The mail">
+                <div class="stack">
+                    @if (tabs().length > 1) {
+                        <app-tabs label="Languages" idPrefix="version" [tabs]="tabs()" [(active)]="language" />
+                    }
+                    @if (version(); as v) {
+                        <dl class="facts" role="tabpanel" [id]="'version-panel-' + language()" [attr.aria-labelledby]="tabs().length > 1 ? 'version-tab-' + language() : null">
+                            <dt>Subject</dt>
+                            <dd class="break">{{ v.subject }}</dd>
+                            <dt>Heading</dt>
+                            <dd class="break">{{ v.heading }}</dd>
+                            <dt>Text</dt>
+                            <dd class="body break">{{ v.body }}</dd>
+                            @if (d.link) {
+                                <dt>Button</dt>
+                                <dd class="break">
+                                    {{ v.button }}
+                                    <span class="muted small block">{{ d.link }}</span>
+                                </dd>
+                            }
+                        </dl>
+                    }
+                    <p class="small muted">Readers of a language without a version got the English one.</p>
+                </div>
+            </app-card>
+
+            <app-card heading="From and to">
+                <dl class="facts">
+                    <dt>From</dt>
+                    <dd class="break">{{ d.sender.name ? d.sender.name + " <" + d.sender.address + ">" : d.sender.address }}</dd>
+                    <dt>For</dt>
+                    <dd>
+                        @if (d.audience.everybody) {
+                            Everybody
+                        } @else {
+                            <span class="audience">
+                                @for (grant of d.audience.roles; track grant.client_id + grant.role) {
+                                    <app-badge [mono]="true">{{ grant.client_id }} · {{ grant.role }}</app-badge>
+                                }
+                                @for (person of d.audience.users; track person.id) {
+                                    <a [routerLink]="['/admin/users', person.id]">{{ person.username }}</a>
+                                }
+                            </span>
+                        }
+                    </dd>
+                    <dt>Languages</dt>
+                    <dd>{{ d.languages.join(", ").toUpperCase() }}</dd>
+                </dl>
+            </app-card>
+        </div>
+
+        <app-card [flush]="true" heading="Recipients" subheading="Each person once, at the address and in the version it went in.">
+            <div class="filters" role="search" aria-label="Filter the recipients">
+                <app-text-field class="filter-search" label="Person" type="search" name="recipient-search" placeholder="Name or address" [(value)]="recipientSearch">
+                    <span fieldPrefix class="field-affix"><app-icon name="search" [size]="16" /></span>
+                </app-text-field>
+                <app-select label="Status" placeholder="Any" [options]="statusOptions" [value]="recipientStatus()" (valueChange)="recipientStatus.set($event); recipientPage.set(1)" />
+            </div>
+
+            @if (recipientsError()) {
+                <div class="padded">
+                    <app-error-state heading="The recipients could not be loaded" [message]="recipientsError()!" />
+                </div>
+            } @else if (recipients(); as r) {
+                @if (r.items.length === 0) {
+                    <app-empty-state icon="users" heading="Nobody matches" />
+                } @else {
+                    <div class="table-scroll" [class.is-refreshing]="recipientsLoading()">
+                        <table class="table table-stack">
+                            <caption class="visually-hidden">Recipients</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Person</th>
+                                    <th scope="col">Version</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">When</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (recipient of r.items; track recipient.user_id) {
+                                    <tr>
+                                        <td data-label="Person">
+                                            <div class="who">
+                                                <a class="who-name" [routerLink]="['/admin/users', recipient.user_id]">{{ recipient.username }}</a>
+                                                <span class="who-email break">{{ recipient.email }}</span>
+                                            </div>
+                                        </td>
+                                        <td data-label="Version">
+                                            <app-badge [mono]="true">{{ recipient.language.toUpperCase() }}</app-badge>
+                                        </td>
+                                        <td data-label="Status">
+                                            <app-badge [tone]="recipientLabels[recipient.status].tone" [dot]="true">{{ recipientLabels[recipient.status].label }}</app-badge>
+                                        </td>
+                                        <td data-label="When">
+                                            @if (recipient.sent_at) {
+                                                <span class="nowrap">{{ recipient.sent_at | appDate }}</span>
+                                            } @else {
+                                                <span class="muted">-</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <app-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="recipientsLoading()" (pageChange)="recipientPage.set($event)" />
+                }
+            } @else {
+                <div class="skeletons" aria-hidden="true">
+                    <span class="skeleton"></span>
+                    <span class="skeleton"></span>
+                </div>
+            }
+        </app-card>
+    } @else {
+        <div class="loading"><app-spinner size="lg" label="Loading the announcement" [showLabel]="true" /></div>
+    }
+</div>

@@ -1,0 +1,42 @@
+<app-auth-card>
+    @switch (step()) {
+        @case ("ask") {
+            <header class="auth-head">
+                <span class="auth-icon"><app-icon name="mail" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "unsubscribe.title" | t }}</h1>
+                <p>{{ "unsubscribe.text" | t }}</p>
+            </header>
+            <div class="actions">
+                <button appButton variant="primary" size="lg" [block]="true" [loading]="busy()" (click)="stop()">{{ "unsubscribe.submit" | t }}</button>
+                <a appButton variant="secondary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+            </div>
+        }
+
+        @case ("done") {
+            <header class="auth-head">
+                <span class="auth-icon is-success"><app-icon name="checkCircle" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "unsubscribe.doneTitle" | t }}</h1>
+                <p>{{ "unsubscribe.doneText" | t }}</p>
+            </header>
+            <a appButton variant="primary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+        }
+
+        @case ("failed") {
+            <header class="auth-head">
+                <span class="auth-icon is-danger"><app-icon name="xCircle" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "confirm.failedTitle" | t }}</h1>
+                <p>{{ failure() }}</p>
+            </header>
+            <a appButton variant="primary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+        }
+
+        @case ("missing") {
+            <header class="auth-head">
+                <span class="auth-icon"><app-icon name="link" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "unsubscribe.pageTitle" | t }}</h1>
+                <p>{{ "unsubscribe.missingText" | t }}</p>
+            </header>
+            <a appButton variant="primary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+        }
+    }
+</app-auth-card>

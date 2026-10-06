@@ -5,6 +5,18 @@ import { ApiError, isApiError } from './api-error';
 import {
   AdminApplication,
   AdminLanguage,
+  AnnouncementAudience,
+  AnnouncementBatch,
+  AnnouncementCompose,
+  AnnouncementDetail,
+  AnnouncementDraft,
+  AnnouncementPreview,
+  AnnouncementRecipient,
+  AnnouncementRecipientQuery,
+  AnnouncementSummary,
+  AnnouncementTestResult,
+  AudienceCount,
+  MailSenders,
   AdminSessionQuery,
   AdminSessionsResponse,
   AdminStats,
@@ -143,6 +155,74 @@ export class AdminApi {
 
   stats(): Observable<AdminStats> {
     return this._http.get<AdminStats>('/api/admin/stats');
+  }
+
+  // ── Announcements ──────────────────────────────────────────────────────────
+  //
+  // News mailed to the people of the sites, and the addresses it may come
+  // from. 503 `announcements_unavailable` until migration 013 is applied. A
+  // draft is checked the same way by preview, test and create: 422 with the
+  // server's sentence (`invalid_link`, `foreign_address`, `incomplete_version`, ...).
+
+  /** What was sent, newest first, fifty a page. */
+  announcements(page = 1): Observable<Paged<AnnouncementSummary>> {
+    return this._http.get<Paged<AnnouncementSummary>>('/api/admin/announcements', { params: toParams({ page: page > 1 ? page : undefined }) });
+  }
+
+  announcementCompose(): Observable<AnnouncementCompose> {
+    return this._http.get<AnnouncementCompose>('/api/admin/announcements/compose');
+  }
+
+  /** How many an audience reaches, and why the others are left out. */
+  announcementAudience(audience: AnnouncementAudience): Observable<AudienceCount> {
+    return this._http.post<AudienceCount>('/api/admin/announcements/audience', { audience });
+  }
+
+  /** The mail a reader of `language` would get - their version, or the English one. */
+  previewAnnouncement(draft: AnnouncementDraft, language: string): Observable<AnnouncementPreview> {
+    return this._http.post<AnnouncementPreview>('/api/admin/announcements/preview', { ...draft, language });
+  }
+
+  /** To the administrator's own address only; 429 `too_many_tests` after twenty in an hour. */
+  testAnnouncement(draft: AnnouncementDraft, language: string): Observable<AnnouncementTestResult> {
+    return this._http.post<AnnouncementTestResult>('/api/admin/announcements/test', { ...draft, language });
+  }
+
+  /** Makes it and its list of people (201); nothing is sent until the first batch. 422 `no_recipients` when nobody can get it. */
+  createAnnouncement(draft: AnnouncementDraft, audience: AnnouncementAudience): Observable<AnnouncementDetail> {
+    return this._http.post<AnnouncementDetail>('/api/admin/announcements', { ...draft, audience });
+  }
+
+  announcement(id: number): Observable<AnnouncementDetail> {
+    return this._http.get<AnnouncementDetail>(`/api/admin/announcements/${id}`);
+  }
+
+  announcementRecipients(id: number, query: AnnouncementRecipientQuery = {}): Observable<Paged<AnnouncementRecipient>> {
+    return this._http.get<Paged<AnnouncementRecipient>>(`/api/admin/announcements/${id}/recipients`, { params: toParams(query) });
+  }
+
+  /** The next batch, and the announcement after it; `wait` when the host's hourly allowance is used up. 409 `stopped` once it was stopped. */
+  sendAnnouncementBatch(id: number): Observable<AnnouncementBatch> {
+    return this._http.post<AnnouncementBatch>(`/api/admin/announcements/${id}/send`, {});
+  }
+
+  /** What is not sent yet never goes. 409 `not_sending` when it is not sending. */
+  stopAnnouncement(id: number): Observable<AnnouncementDetail> {
+    return this._http.post<AnnouncementDetail>(`/api/admin/announcements/${id}/stop`, {});
+  }
+
+  mailSenders(): Observable<MailSenders> {
+    return this._http.get<MailSenders>('/api/admin/mail-senders');
+  }
+
+  /** At a domain the IAM sends from (422 `foreign_domain`); 409 `sender_exists`. */
+  addMailSender(address: string, name: string): Observable<MailSenders> {
+    return this._http.post<MailSenders>('/api/admin/mail-senders', { address, name });
+  }
+
+  /** Only an added one; what was sent from it keeps its address. */
+  removeMailSender(id: string): Observable<MailSenders> {
+    return this._http.delete<MailSenders>(`/api/admin/mail-senders/${encodeURIComponent(id)}`);
   }
 
   // ── Applications ───────────────────────────────────────────────────────────

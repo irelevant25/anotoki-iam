@@ -24,6 +24,16 @@
 //
 // The links in the messages point at the IAM's own pages, built from the
 // public URL in config/iam.php - there is no separate base URL to keep in step.
+//
+// One key setup.php does not write, and keeps when it finds it: the host's
+// hourly allowance, for a host that has one -
+//
+//       'hourly_limit' => 300,
+//
+// Announcements (api/announcements.php) then keep to nine tenths of it,
+// counting every mail the IAM sent in the last hour, and wait for room rather
+// than go over; the rest is left for confirmations, codes and resets. Without
+// it they go as fast as the page sends them.
 // ---------------------------------------------------------------------------
 
 require_once __DIR__ . '/config.php';

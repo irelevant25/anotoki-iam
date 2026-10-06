@@ -12,11 +12,11 @@ export const IMPORT_MAX_BYTES = 1024 * 1024;
 /** What the keys of the mails' words start with. No page reads them: they are the server's (backend/api/mail.php). */
 const MAIL_PREFIX = 'mail.';
 
-/** The mails the IAM sends, in the order the page shows them. */
-const MAILS = ['confirm', 'reset', 'loginCode', 'approved'];
+/** The mails the IAM sends, then the announcements' templates and the lines every announcement ends with - in the order the page shows them. */
+const MAILS = ['confirm', 'reset', 'loginCode', 'approved', 'newVersion', 'newRelease', 'newSurvey', 'news'];
 
 /** A mail's strings in the order the message has them: the subject, then the body from its first line to its last. */
-const MAIL_PARTS = ['subject', 'greeting', 'intro', 'validity', 'ignore'];
+const MAIL_PARTS = ['subject', 'greeting', 'heading', 'intro', 'body', 'button', 'validity', 'ignore', 'footer', 'stop'];
 
 /** One key of a block, and which part of its mail it is (null: a page's key, on its own). */
 export interface BlockRow {
@@ -44,10 +44,11 @@ function placeIn(order: readonly string[], name: string): number {
 
 /**
  * The keys as blocks. The mails come first, apart from the pages' keys: each
- * mail one block (confirm, reset, loginCode, approved - one the list does not
- * know after them), its strings in the order the message has them (a part the list does
- * not know after those, where it came). Then every other key on its own, in
- * the order they came (by name).
+ * mail one block (confirm, reset, loginCode, approved, then the announcements'
+ * templates and their ending - one the list does not know after them), its
+ * strings in the order the message has them (a part the list does not know
+ * after those, where it came). Then every other key on its own, in the order
+ * they came (by name).
  */
 export function keyBlocks(keys: readonly TranslationKeyRow[]): KeyBlock[] {
   const pages: KeyBlock[] = [];

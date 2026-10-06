@@ -36,7 +36,7 @@ import { SignInHandoffService } from '../sign-in-handoff.service';
 type Step = 'loading' | 'load-error' | 'expired' | 'form' | 'code' | 'totp' | 'unconfirmed' | 'other-way' | 'change-password' | 'pending' | 'denied' | 'app-disabled' | 'continuing';
 
 /** The sign-in being attempted, kept so the two-factor step can send the whole of it again with the code. */
-type PendingSignIn = { kind: 'password'; email: string; password: string } | { kind: 'code'; email: string; code: string } | { kind: 'google'; credential: string };
+type PendingSignIn = { kind: 'password'; email: string; password: string } | { kind: 'code'; email: string; code: string } | { kind: 'google'; credential: string; newsMail?: boolean };
 
 /** How long before another sign-in code may be asked for. */
 const RESEND_COOLDOWN_MS = 30_000;
@@ -173,9 +173,9 @@ export class LoginComponent implements OnInit {
             this.email.set(request.login_hint);
           }
 
-          const credential = this._handoff.takeGoogleCredential();
-          if (credential) {
-            this.signInWithGoogle(credential);
+          const google = this._handoff.takeGoogleCredential();
+          if (google) {
+            this.signInWithGoogle(google.credential, google.newsMail);
           } else if (user) {
             this._continueAfterSignIn(user);
           } else {
@@ -278,9 +278,10 @@ export class LoginComponent implements OnInit {
 
   // ── Google ─────────────────────────────────────────────────────────────────
 
-  protected signInWithGoogle(credential: string): void {
+  /** `newsMail`: the register page's news box, handed over with the credential - nobody is asked on this page. */
+  protected signInWithGoogle(credential: string, newsMail = false): void {
     this._clearErrors();
-    this._pending = { kind: 'google', credential };
+    this._pending = { kind: 'google', credential, newsMail };
     this._signIn();
   }
 
@@ -491,7 +492,7 @@ export class LoginComponent implements OnInit {
         ? this._loginApi.password({ email: pending.email, password: pending.password, ...options })
         : pending.kind === 'code'
           ? this._loginApi.verifyCode({ email: pending.email, code: pending.code, ...options })
-          : this._loginApi.google({ credential: pending.credential, language, ...options });
+          : this._loginApi.google({ credential: pending.credential, language, ...(pending.newsMail ? { news_mail: true } : {}), ...options });
 
     this.busy.set(true);
     call$.subscribe({

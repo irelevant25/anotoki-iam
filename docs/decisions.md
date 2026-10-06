@@ -668,3 +668,97 @@ that site alone, shown to the administrators once the person asks for it) was
 built first and taken out before release at the owner's word: an account is
 one for every site, and a person signs up for the account, not for a site.
 Keeping somebody off one site stays what it was - taking their MEMBER there.
+
+## 2026-10-06 - Announcements: news an administrator mails to the people of the sites
+
+The owner: "Sending an email to all user with a specific role (I can select
+more and like that can send email to pretty much everyone)", from "some
+pretty template what user will see when they receive an email. I will just
+fill or change some template text" - a new version of a site, a new site, a
+survey about one; "also with option to send an email to a specific user";
+from a chosen address - "support@anotoki.eu, noreply@anotoki.eu. Those will be
+predefined with an option to setup a new"; and "those sended emails store so
+I can check what and when I have send in the past". Asked, the owner chose a
+version of the words per language - "but it should not be automatic. I will
+send it manually via IAM" - an unsubscribe link with a switch on the account
+page, and links to the anotoki sites only. Migration 013 and the admin
+panel's **Announcements**:
+
+- **Written, never sent by itself.** A template's words (mail strings, so
+  they are reworded on the Translations page like any mail's) fill a draft in
+  every language on offer, the chosen site's name for `{project}`; the
+  administrator changes them, a language at a time, and presses Send. A
+  language left empty has no version: its readers get the English one, which
+  is needed. A version has all of its parts or none.
+- **Text, in one fixed layout.** The words are never HTML: the server escapes
+  every one into the IAM's layout (plain text and HTML in one mail), with one
+  button - the link - and two endings of its own (why the person gets it, the
+  link that stops the news).
+- **Links to the anotoki sites only**: the button's link, and any link or mail
+  address written in the words, at the IAM's host, a host an application is
+  registered with, or the domain the IAM sends mail from and the names under
+  it. Like the mail strings' rule, a bare name ("example.com") is not looked
+  for: the obvious is stopped, and what was sent is kept whole.
+- **Who.** Everybody, the holders of chosen roles, chosen people - in any mix -
+  and of them only who can be written to: switched on, the address confirmed
+  (an unconfirmed one may be anybody's), approved, the news on. A person chosen
+  by name who stopped the news does not get it either: "no more news" is a
+  promise.
+- **From whom.** The installation's own senders (config/mail.local.php, which
+  the installer writes and the panel does not change), and senders added in
+  the panel - only at the domain the IAM sends from, because the host sends as
+  its own mailboxes and anything else is taken for a forgery. A sender's name
+  is letters, digits, spaces and a few marks: nothing a From header gives a
+  meaning to.
+- **Sent by the page, in batches.** The host has no cron and a request has half
+  a minute, so the announcement's own page asks for batch after batch while it
+  is open; it can be paused, continued, and stopped. Each mail is a
+  transaction of its own with its row locked and skipped by any other, so two
+  pages never send one mail twice; a person switched off or with the news
+  stopped since the list was made is skipped. With `hourly_limit` in
+  config/mail.local.php, announcements keep to nine tenths of the host's
+  hourly allowance, the rest left for codes and resets, and wait for room.
+- **Stopping the news, without signing in.** Every announcement ends with a
+  link - and a `List-Unsubscribe` header - to `/unsubscribe` with a token: the
+  account id (in the clear - it is the account's `sub`) and a MAC of it under
+  a key derived from the master key for this one use (HKDF, found by the
+  security review: the master key encrypts, and should sign nothing itself).
+  It can only switch that account's news off and never expires; the key's
+  name is in every link mailed, so it stays. The page asks first: link
+  checkers open every link in a mail. The account page has the same switch.
+- **No one-click unsubscribe (RFC 8058).** A mail program's one-click POST
+  carries no `X-IAM-Request`, so offering it would make the unsubscribe the
+  first first-party write without the CSRF header - a rule that must not
+  loosen. Not needed at the anotoki sites' volume; the header names the page.
+- **Kept.** Every announcement: the words of each version, the template, the
+  site, the link and the sender as they were, who it was for, who sent it and
+  when, and each person's mail - the address and the version it went in, and
+  whether it went. A test goes to the administrator's own address only.
+- **What "the anotoki sites" are rests with the administrators and the
+  installation.** Registering an application's address in the panel (audited)
+  adds its host; the domains of config/mail.local.php's senders, and every name
+  under them, count too - so a sender there must never be at a public mail
+  provider, whose every host and address would then count as an anotoki site.
+  Links and addresses are read as a mail program reads them (any space ends
+  one; every `://` and `www.` judged on its own), the button's link is
+  printable ASCII, and the site's name - at the top of every mail - is held to
+  the same check: all three found by the security review.
+- **At least once.** A mail is marked sent in the transaction that sends it: a
+  process that dies between the two sends that one again. A failed email log
+  write does not - a savepoint keeps it apart from the mark.
+- **No pace unless named.** Without `hourly_limit` an announcement goes as fast
+  as its page sends it - the host's limit is not the IAM's to guess - and the
+  composer says so where mail really leaves, as it could use up what the host
+  allows and sign-in codes with it.
+- **Offered at registration, unticked** (migration 014). The security review
+  noted that a person signing up was never asked; told, the owner: "add [an]
+  offer checkbox in registration for sign-up for announcements". The
+  register page offers the news in a box of its own, unticked - an offer, so
+  a yes is a choice the person made, kept in the audit log with the account's
+  making. Signing up with Google from the register page carries the box's
+  answer over; from the sign-in page nobody was asked, and the account gets
+  none. Either way the account page's switch turns it on later. A yes given
+  with an address its registrant did not own goes when the owner takes the
+  account back, with the rest of what the registrant set. Accounts an
+  administrator makes, the import brings, and every one there was before 013
+  keep the news on, as 013 left them - every announcement says how to stop it.

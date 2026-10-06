@@ -18,10 +18,11 @@
  * address they do not hold, with a password of their own choosing, and wait.
  * So nothing the registrant set may keep working once the address's owner
  * arrives: the password, two-factor and its recovery codes, remembered
- * devices, every session and token, and any outside identity. The account is
- * then the owner's alone, and they add back whatever ways in they want. An
- * account confirmed all along is left as it is: its credentials were set by
- * somebody who had proved the address.
+ * devices, every session and token, and any outside identity - and a yes to
+ * the news from the sites, which was the registrant's to give, not theirs. The
+ * account is then the owner's alone, and they add back whatever ways in they
+ * want. An account confirmed all along is left as it is: its credentials were
+ * set by somebody who had proved the address.
  *
  * Call it with the account as it was before anything confirmed it.
  */
@@ -36,6 +37,9 @@ function claimUnconfirmedAccount(PDO $pdo, \Psr\Http\Message\ServerRequestInterf
     $pdo->prepare(
         'UPDATE users SET password = NULL, totp_enabled = FALSE, totp_secret = NULL, totp_last_step = NULL, force_password_change = FALSE WHERE id = ?'
     )->execute([$userId]);
+    if (announcementsReady($pdo)) {
+        $pdo->prepare('UPDATE users SET news_mail = FALSE WHERE id = ?')->execute([$userId]);
+    }
     $pdo->prepare('DELETE FROM user_recovery_codes WHERE user_id = ?')->execute([$userId]);
     $pdo->prepare('DELETE FROM user_identities WHERE user_id = ?')->execute([$userId]);
     revokeTrustedDevices($pdo, $userId);
@@ -133,7 +137,11 @@ function accountApprovalReady(PDO $pdo): bool
  * switch as it is then. Read earlier, one could be made waiting just after
  * the save let everybody in, and wait with the switch off.
  *
- * @param array{username: string, email: string, password: ?string, email_confirmed: bool, language: string} $account
+ * `news_mail` is what the person chose: the registration form offers the news
+ * from the sites unticked (migration 014), so an account is made with it off
+ * unless they ticked it. Before 013 there is no such column, and no choice.
+ *
+ * @param array{username: string, email: string, password: ?string, email_confirmed: bool, language: string, news_mail?: bool} $account
  * @return array{id: int, waits: bool}
  */
 function insertSignedUpAccount(PDO $pdo, array $account): array
@@ -147,11 +155,25 @@ function insertSignedUpAccount(PDO $pdo, array $account): array
             $waits = $switch !== false && strtolower(trim((string) $switch)) === 'true';
         }
 
+        $columns = [
+            'username' => $account['username'],
+            'email' => $account['email'],
+            'password' => $account['password'],
+            'email_confirmed' => pgBool($account['email_confirmed']),
+            'language' => $account['language'],
+        ];
+        if ($waits) {
+            $columns['approved'] = pgBool(false);
+        }
+        if (announcementsReady($pdo)) {
+            $columns['news_mail'] = pgBool(($account['news_mail'] ?? false) === true);
+        }
+
         $insert = $pdo->prepare(
-            'INSERT INTO users (username, email, password, email_confirmed, language' . ($waits ? ', approved' : '') . ')
-             VALUES (?, ?, ?, ?, ?' . ($waits ? ', FALSE' : '') . ') RETURNING id'
+            'INSERT INTO users (' . implode(', ', array_keys($columns)) . ')
+             VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ') RETURNING id'
         );
-        $insert->execute([$account['username'], $account['email'], $account['password'], pgBool($account['email_confirmed']), $account['language']]);
+        $insert->execute(array_values($columns));
         $id = (int) $insert->fetchColumn();
 
         $pdo->commit();
@@ -212,6 +234,9 @@ function accountPayload(PDO $pdo, array $user): array
         'trusted_devices' => $totp ? trustedDeviceCount($pdo, $id) : 0,
         'force_password_change' => asBool($user['force_password_change']),
         'is_admin' => isIamAdmin($id),
+        // Whether the account gets the announcements; null while migration
+        // 013 is pending, and the account page shows no switch.
+        'news_mail' => array_key_exists('news_mail', $user) ? asBool($user['news_mail']) : null,
     ];
 }
 

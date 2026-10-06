@@ -49,6 +49,11 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/auth/reset-password/reset-password.component').then((m) => m.ResetPasswordComponent),
       },
       { path: 'logout', title: 'logout.pageTitle', loadComponent: () => import('./pages/auth/logout/logout.component').then((m) => m.LogoutComponent) },
+      {
+        path: 'unsubscribe',
+        title: 'unsubscribe.pageTitle',
+        loadComponent: () => import('./pages/auth/unsubscribe/unsubscribe.component').then((m) => m.UnsubscribeComponent),
+      },
       { path: 'error', title: 'errorPage.pageTitle', loadComponent: () => import('./pages/auth/error/error-page.component').then((m) => m.ErrorPageComponent) },
       {
         path: 'not-set-up',

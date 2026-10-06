@@ -133,6 +133,27 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   column's default. Switching the setting off approves everybody waiting and
   switched on. Once 012 is applied, no build from before it goes on the host
   again: it would let every waiting account in.
+- **Announcements** (migration 013, the owner's decision of 2026-10-06;
+  `api/announcements.php`): news an administrator writes from a template (the
+  `mail.newVersion|newRelease|newSurvey.*` strings) and sends - never by
+  itself - to everybody, roles or people, a version per language (English
+  needed; an empty one reads English). Only accounts switched on, confirmed,
+  approved and with `news_mail` on get it, asked again as each mail goes;
+  signing up offers it in a box left unticked (014: `/api/register` and a
+  Google sign-up from the register page take `news_mail`, a yes is
+  audited, claiming an unconfirmed account takes the registrant's yes away).
+  Links and addresses in it to the anotoki sites only (the IAM's host, the
+  applications' registered hosts, the mail domain and under it - read as a
+  mail program reads them: any kind of space ends one, every `://` and `www.`
+  judged on its own; the button's link printable ASCII; the site's name
+  checked too); senders are config/mail.local.php's or added at the mail
+  domain. The words are escaped into one fixed layout. Sent by the
+  announcement's page in batches (`FOR UPDATE SKIP LOCKED`, one transaction a
+  mail, at least once; `hourly_limit` paces it). Every one ends with
+  `/unsubscribe?token=` (and `List-Unsubscribe`): a MAC under a key derived
+  from the master key (HKDF - its name is in every link mailed, so it never
+  changes), POSTed with the CSRF header after the page asks - no RFC 8058
+  one-click, which would need a CSRF exemption.
 
 ## Backend layout & conventions
 

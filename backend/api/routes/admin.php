@@ -842,6 +842,257 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         ]);
     });
 
+    // ── Announcements ────────────────────────────────────────────────────────
+    //
+    // News an administrator mails to the people of the sites, and the
+    // addresses it may come from (api/announcements.php). A group of their
+    // own, like the strings': 503 `announcements_unavailable` until migration
+    // 013 has been applied.
+    //
+    // Sending is the page's: Send makes the announcement and its list of
+    // people, then the page asks for batch after batch (/send) until nobody is
+    // left. The draft is checked the same way for a preview, a test and Send
+    // (announcementDraft()).
+
+    $group->group('', function (\Slim\Routing\RouteCollectorProxy $news) {
+
+        // What was sent, newest first, fifty a page.
+        $news->get('/announcements', function (Request $request, Response $response) {
+            $pdo = iamDb();
+            $page = min(max(1, (int) ($request->getQueryParams()['page'] ?? 1)), 100000);
+            $size = 50;
+            $rows = $pdo->query(ANNOUNCEMENT_SELECT . " ORDER BY a.created_at DESC, a.id DESC LIMIT $size OFFSET " . (($page - 1) * $size))->fetchAll();
+
+            return respondJson($response, [
+                'total' => (int) $pdo->query('SELECT count(*) FROM announcements')->fetchColumn(),
+                'page' => $page,
+                'pageSize' => $size,
+                'items' => array_map('announcementSummary', $rows),
+            ]);
+        });
+
+        // Everything the composer starts from: the templates' words in every
+        // language on offer, the languages, the senders, the sites and their
+        // roles, and the administrator's own address - where a test goes.
+        $news->get('/announcements/compose', function (Request $request, Response $response) {
+            $pdo = iamDb();
+            $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? ORDER BY name');
+            $applications = [];
+            foreach ($pdo->query('SELECT id, client_id, name, home_url, system, enabled FROM applications ORDER BY sort_order, name')->fetchAll() as $application) {
+                $roles->execute([(int) $application['id']]);
+                $applications[] = [
+                    'client_id' => $application['client_id'],
+                    'name' => $application['name'],
+                    'home_url' => $application['home_url'],
+                    'system' => asBool($application['system']),
+                    'enabled' => asBool($application['enabled']),
+                    'roles' => $roles->fetchAll(PDO::FETCH_COLUMN),
+                ];
+            }
+
+            $languages = array_values(array_filter(languagesAll($pdo), static fn(array $language): bool => $language['enabled']));
+            usort($languages, static fn(array $a, array $b): int => ($b['code'] === TRANSLATION_FALLBACK) <=> ($a['code'] === TRANSLATION_FALLBACK));
+
+            return respondJson($response, [
+                'templates' => announcementTemplates($pdo),
+                'languages' => array_map(static fn(array $language): array => ['code' => $language['code'], 'name' => $language['name'], 'native_name' => $language['native_name']], $languages),
+                'senders' => announcementSenders($pdo),
+                'applications' => $applications,
+                'email' => actor($request)['email'],
+                'limits' => ANNOUNCEMENT_FIELDS + ['link' => ANNOUNCEMENT_LINK_MAX, 'people' => ANNOUNCEMENT_PEOPLE_MAX],
+                // How fast it may go: the composer says so when mail really
+                // leaves and no hourly limit is named - an announcement could
+                // then use up what the host allows, codes and resets with it.
+                'pacing' => ['driver' => (string) (mailConfig()['driver'] ?? 'file'), 'hourly_limit' => announcementHourlyLimit()],
+            ]);
+        });
+
+        // {audience}: how many it reaches, and why the others are left out.
+        $news->post('/announcements/audience', function (Request $request, Response $response) {
+            $pdo = iamDb();
+            $audience = announcementAudience($pdo, requestBody($request)['audience'] ?? null);
+            if (translationRefused($audience)) {
+                return translationRefuse($response, $audience);
+            }
+
+            return respondJson($response, announcementAudienceCount($pdo, $audience));
+        });
+
+        // A draft and a language: the mail a reader of that language would
+        // get - its own version, or the English one. The link to stop the
+        // news leads to the page without a token.
+        $news->post('/announcements/preview', function (Request $request, Response $response) {
+            $pdo = iamDb();
+            $body = requestBody($request);
+            $language = field($body, 'language') ?: TRANSLATION_FALLBACK;
+            if (!in_array($language, languageCodes($pdo), true)) {
+                return respondError($response, 422, 'unknown_language', 'The IAM does not offer that language');
+            }
+            $draft = announcementDraft($pdo, $body, $language);
+            if (translationRefused($draft)) {
+                return translationRefuse($response, $draft);
+            }
+
+            return respondJson($response, announcementDraftMessage($draft, $language, iamPageUrl('/unsubscribe')) + [
+                'sender' => ['address' => $draft['sender']['address'], 'name' => $draft['sender']['name']],
+            ]);
+        });
+
+        // The same, to the administrator's own address - and to nobody else's,
+        // so that this is never a way to mail anybody anything.
+        $news->post('/announcements/test', function (Request $request, Response $response) {
+            $pdo = iamDb();
+            $actor = actor($request);
+            $body = requestBody($request);
+            $language = field($body, 'language') ?: TRANSLATION_FALLBACK;
+            if (!in_array($language, languageCodes($pdo), true)) {
+                return respondError($response, 422, 'unknown_language', 'The IAM does not offer that language');
+            }
+            $draft = announcementDraft($pdo, $body, $language);
+            if (translationRefused($draft)) {
+                return translationRefuse($response, $draft);
+            }
+            if (!announcementTestAllowed($pdo, (int) $actor['id'])) {
+                return respondError($response, 429, 'too_many_tests', 'That is ' . ANNOUNCEMENT_TESTS_PER_HOUR . ' tests in an hour - the next one in a little while');
+            }
+
+            $sent = announcementSendTest($draft, $language, $actor);
+            audit($request, (int) $actor['id'], 'announcement.tested', null, null, [
+                'language' => isset($draft['content'][$language]) ? $language : TRANSLATION_FALLBACK,
+                'subject' => $draft['content'][$language]['subject'] ?? $draft['content'][TRANSLATION_FALLBACK]['subject'],
+            ]);
+
+            return respondJson($response, ['sent' => $sent, 'email' => $actor['email']]);
+        });
+
+        // A draft and its audience: the announcement, and the list of people
+        // it goes to. Nothing is sent until the page asks for the first batch.
+        $news->post('/announcements', function (Request $request, Response $response) {
+            $pdo = iamDb();
+            $body = requestBody($request);
+            $actorId = (int) actor($request)['id'];
+
+            $draft = announcementDraft($pdo, $body);
+            if (translationRefused($draft)) {
+                return translationRefuse($response, $draft);
+            }
+            $audience = announcementAudience($pdo, $body['audience'] ?? null);
+            if (translationRefused($audience)) {
+                return translationRefuse($response, $audience);
+            }
+            $created = announcementCreate($pdo, $draft, $audience, $actorId);
+            if (translationRefused($created)) {
+                return translationRefuse($response, $created);
+            }
+
+            audit($request, $actorId, 'announcement.created', 'announcement', $created['id'], [
+                'subject' => $draft['content'][TRANSLATION_FALLBACK]['subject'],
+                'sender' => $draft['sender']['address'],
+                'recipients' => $created['recipients'],
+                'audience' => ['everybody' => $audience['everybody'], 'roles' => $audience['roles'], 'people' => count($audience['user_ids'])],
+            ]);
+
+            return respondJson($response, announcementDetail($pdo, $created['id']), 201);
+        });
+
+        $news->get('/announcements/{id:[0-9]+}', function (Request $request, Response $response, array $args) {
+            $detail = announcementDetail(iamDb(), (int) $args['id']);
+
+            return $detail ? respondJson($response, $detail) : respondError($response, 404, 'not_found', 'Not found');
+        });
+
+        $news->get('/announcements/{id:[0-9]+}/recipients', function (Request $request, Response $response, array $args) {
+            $pdo = iamDb();
+            $id = (int) $args['id'];
+            if (announcementDetail($pdo, $id) === null) {
+                return respondError($response, 404, 'not_found', 'Not found');
+            }
+
+            return respondJson($response, announcementRecipients($pdo, $id, $request->getQueryParams()));
+        });
+
+        // The next batch: the announcement as it stands after it, and `wait` -
+        // the seconds until the host's hourly allowance has room again, when
+        // it had none (announcementHourlyRoom()). One sent already answers as
+        // it is; one stopped is refused.
+        $news->post('/announcements/{id:[0-9]+}/send', function (Request $request, Response $response, array $args) {
+            $pdo = iamDb();
+            $id = (int) $args['id'];
+            $detail = announcementDetail($pdo, $id);
+
+            if ($detail === null) {
+                return respondError($response, 404, 'not_found', 'Not found');
+            }
+            if ($detail['status'] === 'stopped') {
+                return respondError($response, 409, 'stopped', 'This announcement was stopped - what was not sent then is never sent');
+            }
+            $wait = null;
+            if ($detail['status'] === 'sending') {
+                $wait = announcementSendBatch($pdo, $id)['wait'];
+                $detail = announcementDetail($pdo, $id);
+            }
+
+            return respondJson($response, $detail + ['wait' => $wait]);
+        });
+
+        // Stopped: what is not sent yet never goes.
+        $news->post('/announcements/{id:[0-9]+}/stop', function (Request $request, Response $response, array $args) {
+            $pdo = iamDb();
+            $id = (int) $args['id'];
+
+            if (announcementDetail($pdo, $id) === null) {
+                return respondError($response, 404, 'not_found', 'Not found');
+            }
+            if (!announcementStop($pdo, $id)) {
+                return respondError($response, 409, 'not_sending', 'It is not sending any more');
+            }
+
+            $detail = announcementDetail($pdo, $id);
+            audit($request, (int) actor($request)['id'], 'announcement.stopped', 'announcement', $id, [
+                'sent' => $detail['counts']['sent'],
+                'not_sent' => $detail['counts']['pending'],
+            ]);
+
+            return respondJson($response, $detail);
+        });
+
+        // The senders: the installation's own (config/mail.local.php), which
+        // the panel cannot change, and those added here.
+        $news->get('/mail-senders', function (Request $request, Response $response) {
+            return respondJson($response, ['senders' => announcementSenders(iamDb()), 'domains' => mailDomains()]);
+        });
+
+        $news->post('/mail-senders', function (Request $request, Response $response) {
+            $pdo = iamDb();
+            $body = requestBody($request);
+            $result = mailSenderAdd($pdo, $body['address'] ?? null, $body['name'] ?? null, (int) actor($request)['id']);
+            if (translationRefused($result)) {
+                return translationRefuse($response, $result);
+            }
+
+            $sender = $result['sender'];
+            audit($request, (int) actor($request)['id'], 'mail_sender.added', 'mail_sender', $sender['id'], ['address' => $sender['address'], 'name' => $sender['name']]);
+
+            return respondJson($response, ['sender' => $sender, 'senders' => announcementSenders($pdo), 'domains' => mailDomains()], 201);
+        });
+
+        // What was sent from it keeps its address: an announcement holds its
+        // sender as it was.
+        $news->delete('/mail-senders/{id:[0-9]+}', function (Request $request, Response $response, array $args) {
+            $pdo = iamDb();
+            $statement = $pdo->prepare('DELETE FROM mail_senders WHERE id = ? RETURNING address, name');
+            $statement->execute([(int) $args['id']]);
+            $removed = $statement->fetch();
+
+            if ($removed === false) {
+                return respondError($response, 404, 'not_found', 'Not found');
+            }
+            audit($request, (int) actor($request)['id'], 'mail_sender.removed', 'mail_sender', (int) $args['id'], ['address' => $removed['address'], 'name' => $removed['name']]);
+
+            return respondJson($response, ['senders' => announcementSenders($pdo), 'domains' => mailDomains()]);
+        });
+    })->add(requireAnnouncements());
+
     // ── Audit log ────────────────────────────────────────────────────────────
 
     $group->get('/audit', function (Request $request, Response $response) {

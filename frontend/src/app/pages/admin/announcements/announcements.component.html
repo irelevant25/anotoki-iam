@@ -1,0 +1,151 @@
+<div class="page">
+    <app-page-header heading="Announcements" lead="News for the people of the anotoki sites: written from a template, in every language you want, and sent when you say so.">
+        <a appButton variant="primary" routerLink="/admin/announcements/new">
+            <app-icon name="plus" [size]="16" />
+            New announcement
+        </a>
+    </app-page-header>
+
+    <app-card [flush]="true" heading="Sent">
+        @if (loadError()) {
+            <div class="padded">
+                <app-error-state heading="The announcements could not be loaded" [message]="loadError()!" (retry)="reload()" />
+            </div>
+        } @else if (loading() && !result()) {
+            <div class="skeletons" aria-hidden="true">
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+            </div>
+        } @else if (result(); as r) {
+            @if (r.items.length === 0) {
+                <app-empty-state icon="send" heading="Nothing sent yet" text="An announcement you send is kept here: its words, who it went to, and how every mail went.">
+                    <a appButton variant="primary" routerLink="/admin/announcements/new">New announcement</a>
+                </app-empty-state>
+            } @else {
+                <div class="table-scroll" [class.is-refreshing]="loading()">
+                    <table class="table table-stack">
+                        <caption class="visually-hidden">Announcements sent, newest first</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Announcement</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Mails</th>
+                                <th scope="col">Sent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (item of r.items; track item.id) {
+                                <tr>
+                                    <td data-label="Announcement">
+                                        <div class="who">
+                                            <a class="who-name" [routerLink]="['/admin/announcements', item.id]">{{ item.subject }}</a>
+                                            <span class="who-email">
+                                                {{ templateLabel(item.template) }}
+                                                @if (item.application) {
+                                                    · {{ item.application.name }}
+                                                }
+                                                · {{ item.languages.join(", ").toUpperCase() }}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td data-label="Status">
+                                        <app-badge [tone]="statusLabels[item.status].tone" [dot]="true">{{ statusLabels[item.status].label }}</app-badge>
+                                    </td>
+                                    <td data-label="Mails">
+                                        <span class="nowrap">{{ item.counts.sent }} of {{ people(item.counts.total) }}</span>
+                                        @if (item.counts.failed || item.counts.skipped) {
+                                            <span class="muted small block">
+                                                @if (item.counts.failed) {
+                                                    {{ item.counts.failed }} failed
+                                                }
+                                                @if (item.counts.failed && item.counts.skipped) {
+                                                    ·
+                                                }
+                                                @if (item.counts.skipped) {
+                                                    {{ item.counts.skipped }} skipped
+                                                }
+                                            </span>
+                                        }
+                                    </td>
+                                    <td data-label="Sent">
+                                        <span class="nowrap" [attr.title]="item.created_at | appDate">{{ item.created_at | appDate: "relative" }}</span>
+                                        @if (item.created_by) {
+                                            <span class="muted small block">by {{ item.created_by }}</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <app-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="loading()" (pageChange)="setPage($event)" />
+            }
+        }
+    </app-card>
+
+    <app-card heading="Senders" subheading="The addresses an announcement can come from. A reply goes to the same address.">
+        @if (sendersError()) {
+            <app-error-state heading="The senders could not be loaded" [message]="sendersError()!" (retry)="loadSenders()" />
+        } @else if (senders(); as s) {
+            <div class="stack">
+                <ul class="senders">
+                    @for (sender of s.senders; track sender.id) {
+                        <li class="sender">
+                            <span class="sender-text">
+                                <strong>{{ sender.name || sender.address }}</strong>
+                                <span class="muted break">{{ sender.address }}</span>
+                            </span>
+                            @if (sender.added) {
+                                <span class="sender-end">
+                                    @if (sender.created_by) {
+                                        <span class="muted small">Added by {{ sender.created_by }}</span>
+                                    }
+                                    <button
+                                        appButton
+                                        variant="ghost"
+                                        size="sm"
+                                        [attr.aria-label]="'Remove ' + sender.address"
+                                        [loading]="removing() === sender.id"
+                                        [disabled]="removing() !== null"
+                                        (click)="removeSender(sender)">
+                                        <app-icon name="trash" [size]="15" />
+                                        Remove
+                                    </button>
+                                </span>
+                            } @else {
+                                <app-badge>From the installation</app-badge>
+                            }
+                        </li>
+                    }
+                </ul>
+
+                <form class="stack stack-sm" novalidate (submit)="$event.preventDefault(); addSender()">
+                    <h3 class="add-title">Add a sender</h3>
+                    <div class="form-grid">
+                        <app-text-field label="Address" type="email" name="sender-address" autocomplete="off" [placeholder]="addressPlaceholder()" [(value)]="newAddress" />
+                        <app-text-field label="Name" name="sender-name" autocomplete="off" placeholder="anotoki" [maxlength]="60" [(value)]="newName" />
+                    </div>
+                    <p class="small muted">
+                        At {{ domains() }}, the domain the IAM sends from - and a mailbox that is really there: the host sends as its own mailboxes, and a mail from anywhere else is taken for a
+                        forgery.
+                    </p>
+                    @if (addError()) {
+                        <p class="error-text small" role="alert">{{ addError() }}</p>
+                    }
+                    <div class="form-actions">
+                        <button appButton type="submit" variant="secondary" [loading]="adding()">
+                            <app-icon name="plus" [size]="16" />
+                            Add sender
+                        </button>
+                    </div>
+                </form>
+            </div>
+        } @else {
+            <div class="skeletons" aria-hidden="true">
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+            </div>
+        }
+    </app-card>
+</div>

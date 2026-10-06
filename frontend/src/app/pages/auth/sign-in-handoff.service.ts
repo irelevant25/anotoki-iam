@@ -11,19 +11,26 @@ import { Injectable } from '@angular/core';
  * growing a second copy of all of it.
  *
  * In memory only, and taken once: the credential is a bearer token for about
- * an hour and must not end up in a URL or in storage.
+ * an hour and must not end up in a URL or in storage. With it goes the answer
+ * of the register page's news box, for an account the sign-in makes.
  */
 @Injectable({ providedIn: 'root' })
 export class SignInHandoffService {
-  private _googleCredential: string | null = null;
+  private _google: GoogleHandoff | null = null;
 
-  giveGoogleCredential(credential: string): void {
-    this._googleCredential = credential;
+  giveGoogleCredential(credential: string, newsMail = false): void {
+    this._google = { credential, newsMail };
   }
 
-  takeGoogleCredential(): string | null {
-    const credential = this._googleCredential;
-    this._googleCredential = null;
-    return credential;
+  takeGoogleCredential(): GoogleHandoff | null {
+    const google = this._google;
+    this._google = null;
+    return google;
   }
+}
+
+export interface GoogleHandoff {
+  credential: string;
+  /** The register page's news box was ticked. */
+  newsMail: boolean;
 }

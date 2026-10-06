@@ -53,6 +53,8 @@ export interface PublicConfig {
   registration_enabled: boolean;
   /** A new account waits for an administrator's approval before it can sign in (Settings -> New accounts need approval). */
   registration_approval: boolean;
+  /** The registration form offers the news from the sites (announcements) - once migration 013 is applied. */
+  registration_news: boolean;
   google_enabled: boolean;
   google_client_id: string | null;
   password_min: number;
@@ -111,6 +113,8 @@ export interface CodeSignInBody extends SignInOptions {
 export interface GoogleSignInBody extends SignInOptions {
   credential: string;
   language?: string;
+  /** For an account this sign-in makes: the registration page's news box was ticked. */
+  news_mail?: boolean;
 }
 
 export interface SignInResponse {
@@ -130,6 +134,8 @@ export interface RegisterBody {
   password: string;
   language: string;
   request?: string;
+  /** The news from the sites: offered unticked; left out, it is no. */
+  news_mail?: boolean;
 }
 
 export interface RegisterResponse {
@@ -176,6 +182,11 @@ export interface AccountUser {
   force_password_change: boolean;
   /** Holds ADMIN in the IAM itself. */
   is_admin: boolean;
+  /**
+   * Gets the announcements administrators send (the news from the sites);
+   * null while migration 013 is pending - the page shows no switch.
+   */
+  news_mail: boolean | null;
 }
 
 export type SessionMethod = 'password' | 'login_code' | 'google' | 'email_link';
@@ -239,6 +250,8 @@ export interface CreatedToken {
 export interface ProfileBody {
   username?: string;
   language?: string;
+  /** The news from the sites, on or off. */
+  news_mail?: boolean;
 }
 
 export interface TwoFactorSetup {
@@ -435,6 +448,175 @@ export interface EmailQuery {
 export interface EmailFilters {
   kinds: string[];
   statuses: string[];
+}
+
+// ── Announcements ────────────────────────────────────────────────────────────
+//
+// News an administrator mails to the people of the sites (docs/api.md ->
+// Announcements). 503 `announcements_unavailable` until migration 013 is applied.
+
+/** Three templates with starting words (the mail strings), and one that starts empty. */
+export type AnnouncementTemplate = 'newVersion' | 'newRelease' | 'newSurvey' | 'blank';
+
+export type AnnouncementStatus = 'sending' | 'sent' | 'stopped';
+
+/** One person's mail: waiting for its batch, sent, failed, or skipped - switched off or the news stopped since the list was made. */
+export type RecipientStatus = 'pending' | 'sent' | 'failed' | 'skipped';
+
+/** What an administrator writes in one language. `body` is paragraphs, an empty line between two. */
+export interface AnnouncementVersion {
+  subject: string;
+  heading: string;
+  body: string;
+  /** The button's label; empty when there is no link. */
+  button: string;
+}
+
+/** The versions by language code. English is needed; another language has all of its parts or is left out. */
+export type AnnouncementContent = Record<string, AnnouncementVersion>;
+
+/** An address an announcement may come from: the installation's own (`added` false, id a word) or one added in the panel (id its number). */
+export interface MailSender {
+  id: string;
+  address: string;
+  name: string;
+  added: boolean;
+  created_at: string | null;
+  created_by: string | null;
+}
+
+export interface MailSenders {
+  senders: MailSender[];
+  /** The domains the IAM sends from: an added sender must be at one of them. */
+  domains: string[];
+}
+
+export interface ComposeApplication {
+  client_id: string;
+  name: string;
+  home_url: string | null;
+  system: boolean;
+  enabled: boolean;
+  roles: string[];
+}
+
+export interface ComposeLanguage {
+  code: string;
+  name: string;
+  native_name: string;
+}
+
+export interface AnnouncementLimits {
+  subject: number;
+  heading: number;
+  body: number;
+  button: number;
+  link: number;
+  people: number;
+}
+
+/** What the composer starts from. The templates' words still hold `{project}`, the chosen site's name. */
+export interface AnnouncementCompose {
+  templates: Partial<Record<AnnouncementTemplate, Record<string, AnnouncementVersion>>>;
+  languages: ComposeLanguage[];
+  senders: MailSender[];
+  applications: ComposeApplication[];
+  /** The administrator's own address: where a test goes. */
+  email: string;
+  limits: AnnouncementLimits;
+  /** How mail goes out (`mail` really sends it; `file` writes it to disk), and the host's hourly limit named in config/mail.local.php - announcements keep to nine tenths of it. */
+  pacing: { driver: string; hourly_limit: number | null };
+}
+
+/** Everybody, or whoever holds one of the roles or is one of the people. */
+export interface AnnouncementAudience {
+  everybody: boolean;
+  roles: RoleGrant[];
+  user_ids: number[];
+}
+
+/** How many an audience reaches, why the others are left out (each once, for the first reason), and how many read which language. */
+export interface AudienceCount {
+  recipients: number;
+  left_out: { disabled: number; unconfirmed: number; waiting: number; news_off: number };
+  languages: Record<string, number>;
+}
+
+export interface AnnouncementDraft {
+  template: AnnouncementTemplate;
+  /** The site it is about; '' only for the blank template. */
+  client_id: string;
+  /** Where the button leads; '' for no button. */
+  link: string;
+  /** A sender's id. */
+  sender: string;
+  content: AnnouncementContent;
+}
+
+/** The mail a reader of `language` would get: their version, or the English one. */
+export interface AnnouncementPreview {
+  subject: string;
+  text: string;
+  html: string;
+  language: string;
+  sender: { address: string; name: string };
+}
+
+export interface AnnouncementTestResult {
+  sent: boolean;
+  email: string;
+}
+
+export interface AnnouncementCounts {
+  total: number;
+  pending: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+}
+
+/** An announcement as the history lists it; the English subject stands for it. */
+export interface AnnouncementSummary {
+  id: number;
+  template: AnnouncementTemplate;
+  /** As it was sent; `client_id` is null once the application is gone. */
+  application: { client_id: string | null; name: string } | null;
+  subject: string;
+  languages: string[];
+  sender: { address: string; name: string };
+  link: string | null;
+  status: AnnouncementStatus;
+  counts: AnnouncementCounts;
+  created_by: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
+export interface AnnouncementDetail extends AnnouncementSummary {
+  content: AnnouncementContent;
+  audience: { everybody: boolean; roles: RoleGrant[]; users: { id: number; username: string; email: string }[] };
+}
+
+/** What a batch answers: the announcement after it, and - when the host's hourly allowance had no room - the seconds until it has. */
+export interface AnnouncementBatch extends AnnouncementDetail {
+  wait: number | null;
+}
+
+export interface AnnouncementRecipient {
+  user_id: number;
+  username: string;
+  /** The address it went to. */
+  email: string;
+  /** The version they got. */
+  language: string;
+  status: RecipientStatus;
+  sent_at: string | null;
+}
+
+export interface AnnouncementRecipientQuery {
+  status?: string;
+  search?: string;
+  page?: number;
 }
 
 export interface AuditEntry {

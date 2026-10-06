@@ -14,6 +14,7 @@ import { AuthCardComponent } from '../../../layouts/auth-card/auth-card.componen
 import { AlertComponent } from '../../../ui/alert/alert.component';
 import { AutofocusDirective } from '../../../ui/autofocus.directive';
 import { ButtonComponent } from '../../../ui/button/button.component';
+import { CheckboxComponent } from '../../../ui/checkbox/checkbox.component';
 import { GoogleButtonComponent } from '../../../ui/google-button/google-button.component';
 import { IconComponent } from '../../../ui/icon/icon.component';
 import { PasswordFieldComponent } from '../../../ui/password-field/password-field.component';
@@ -40,6 +41,10 @@ interface FieldErrors {
  * the confirmation can offer the way back to the application. Signing up with
  * Google is a sign-in (the backend makes the account), so it is handed to the
  * login page, which knows every way that can continue.
+ *
+ * The news from the sites is offered here, in a box left unticked: an account
+ * gets announcements only when the person ticks it - signing up with Google
+ * from this page too, whose credential carries the answer over.
  */
 @Component({
   selector: 'app-register',
@@ -50,6 +55,7 @@ interface FieldErrors {
     AlertComponent,
     AutofocusDirective,
     ButtonComponent,
+    CheckboxComponent,
     GoogleButtonComponent,
     IconComponent,
     PasswordFieldComponent,
@@ -79,6 +85,8 @@ export class RegisterComponent implements OnInit {
   protected readonly email = signal('');
   protected readonly password = signal('');
   protected readonly passwordAgain = signal('');
+  /** The news from the sites: offered, never assumed - unticked until ticked. */
+  protected readonly newsMail = signal(false);
 
   protected readonly busy = signal(false);
   protected readonly errors = signal<FieldErrors>({});
@@ -157,7 +165,8 @@ export class RegisterComponent implements OnInit {
     // The language that was asked for, not the one on the page: that is the
     // compiled English while no words have come from the database.
     const language = this._i18n.preferred(this.config()?.languages ?? []);
-    this._loginApi.register({ username, email, password, language, ...(this.request() ? { request: this.request() } : {}) }).subscribe({
+    const news = this.config()?.registration_news ? { news_mail: this.newsMail() } : {};
+    this._loginApi.register({ username, email, password, language, ...news, ...(this.request() ? { request: this.request() } : {}) }).subscribe({
       next: (response) => {
         this.busy.set(false);
         this.sentTo.set(response.email);
@@ -190,7 +199,7 @@ export class RegisterComponent implements OnInit {
   }
 
   protected signUpWithGoogle(credential: string): void {
-    this._handoff.giveGoogleCredential(credential);
+    this._handoff.giveGoogleCredential(credential, !!this.config()?.registration_news && this.newsMail());
     void this._router.navigate(['/login'], { queryParams: this.requestParams() });
   }
 

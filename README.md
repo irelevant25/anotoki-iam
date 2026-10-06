@@ -16,11 +16,13 @@ runs as its own subdomain.
   sessions, the sites you can use, tokens for scripts.
 - **Admin panel**: accounts, per-site roles, sessions, the mail log, the sites
   themselves (redirect URIs, origins, roles that may sign in), switches - new
-  accounts can be made to wait for an administrator's approval -, signing keys,
-  migrations, an audit log of every change - and the words: every sentence of
-  the sign-in and account pages and of the four mails is a string in the
-  database, reworded there, and a new language is added there, with no build.
-  English and Slovak come with it.
+  accounts can be made to wait for an administrator's approval -,
+  announcements (news mailed to everybody, the holders of some roles or some
+  people, from a template, in every language), signing keys, migrations, an
+  audit log of every change - and the words: every sentence of the sign-in
+  and account pages, of the four mails and of the announcements' templates is
+  a string in the database, reworded there, and a new language is added
+  there, with no build. English and Slovak come with it.
 - **Installer**: `backend/setup.php` writes the configuration, builds the
   database and makes the first administrator, who holds ADMIN in the IAM and
   in every site - on a development machine as on a server. Until it has run, the IAM says it is not set up and does nothing
@@ -73,7 +75,7 @@ fixed port it is registered with:
   the genshin site, and every administrator there when 007 ran - a grant at
   those moments: promoting or removing an administrator later changes no
   site's roles. 007 goes on an installed IAM after the sites are updated.
-- Migrations 001-012; an installed IAM gets the later ones through the
+- Migrations 001-014; an installed IAM gets the later ones through the
   admin panel's Migrations page (or setup.php / `php migration.php` on this
   computer). 008 is the top bar's words: three strings added, one gone; 009
   calls the admin area the admin panel ("Admin console" was 006's word),
@@ -83,6 +85,14 @@ fixed port it is registered with:
   whole IAM, Settings → New accounts need approval, off by default. While it
   is on, an account made by signing up signs in nowhere until it is approved
   on the admin panel's Approvals page, which mails the person.
+- Announcements (migration 013, the owner's decision of 2026-10-06): news an
+  administrator writes from a template - a new version of a site, a new site,
+  a survey - a version per language, and sends to everybody, roles or people,
+  from noreply, support or an added address at the same domain. Links to the
+  anotoki sites only; every one ends with a link to stop the news, and the
+  account page has the same switch. Sent in batches from its page, and kept:
+  what, to whom, when, and how each mail went. Signing up offers the news in
+  a box left unticked (migration 014).
 - The account pages and the admin panel wear the anotoki family's one top
   bar (the survey site's is the reference): the account pages as its links,
   the language, the theme, the person's menu; a menu button on a phone, up to

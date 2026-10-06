@@ -237,6 +237,20 @@ update first. **Once 012 is applied, a build from before it never goes on the
 host again** - it reads no `approved`, and would let every account waiting
 for approval in; fix forward, or approve or decline everybody waiting first.
 
+**Migration 013** (announcements - the owner's decision of 2026-10-06,
+`docs/decisions.md`) adds the admin panel's **Announcements**: the tables
+that keep what was sent and the senders added in the panel, the news switch
+on every account (on for all there are; every announcement says how to stop
+it), the three templates' words and the two lines every announcement ends
+with, and the words of the account page's switch and the `/unsubscribe` page,
+in English and Slovak. Nothing is sent by itself. Between the upload and
+Apply the Announcements pages say to apply the pending update first, and the
+account page shows no switch.
+
+**Migration 014** (the news, offered at registration) adds the words of the
+register page's box - "Send me news from anotoki sites", unticked - in English
+and Slovak; no schema. It goes with 013, in the same Apply.
+
 ### The sites' addresses
 
 A fresh database registers the first-party applications with their development
@@ -288,6 +302,10 @@ checks and loads such a file into a development database.
 | Somebody lost their phone and recovery codes | Admin panel → Users → Reset two-factor |
 | End a session that should not be there | Admin panel → Sessions, or the person's own account page |
 | Switch signing in off for everybody but IAM admins | Admin panel → Settings → Signing in |
+| Send news to the people of the sites | Admin panel → **Announcements** → New announcement: a template (new version, new release, new survey, blank), the site, the link and the sender; the words in each language (empty: that language's readers get English); who it is for - everybody, roles, people; Send me a test; Send. Keep its page open until it is sent - it goes in batches from there, and can be paused, continued and stopped. Only people with a confirmed address, approved, switched on and with the news on get it |
+| Change the template's words, or the line every announcement ends with | Admin panel → Translations: the mails, "Announcements: ..." and "The end of every announcement" |
+| Add an address announcements can come from | Admin panel → Announcements → Senders. Only at the domain the IAM sends from - and the mailbox must exist on the host. The installation's own (noreply, support) are config/mail.local.php's - never at a public mail provider: that domain is what counts as the anotoki sites' in an announcement's links |
+| Keep announcements inside the host's hourly mail limit | `'hourly_limit' => 300` (the host's number) in config/mail.local.php: announcements then use nine tenths of it, counting every mail the IAM sent in the last hour, and wait on their page for room. The installer keeps the key when it runs again. Without it the composer warns, as an announcement could use up what the host allows - sign-in codes with it |
 | Approve every new account before it can sign in | Admin panel → Settings → **New accounts need approval**. Accounts made with the form or with Google then wait on Admin panel → **Approvals** (the dashboard counts them): Approve mails them (once their address is confirmed), Decline switches the account off - not while its address is unconfirmed, as its registrant may not own it. Accounts made in the panel never wait; switching it off lets in everybody still waiting (a declined account stays declined) |
 | Rotate the signing key | Admin panel → Keys → Rotate. Tokens signed by the old key keep working until they expire; sites refetch the key set by themselves. Remove the retired key after a day. |
 | A script needs to call a site's API | The account page → Tokens for scripts |
@@ -335,6 +353,9 @@ php tests/run.php                          # every test, against throwaway datab
 | A site's admin area refuses its owner | They hold neither its ADMIN nor its EDITOR: Admin panel → Users → the person → Roles. An account made in the admin panel, or made the IAM's ADMIN there, gets no site's ADMIN by itself; the installer's administrator, `create-admin.php`'s, an imported one and every administrator there when 007 ran were given all of them. |
 | Somebody no longer an administrator still administers a site | Taking the IAM's ADMIN away takes nothing else: remove their ADMIN (and EDITOR) on each site too - Admin panel → Users → the person → Roles. |
 | Sign-in mail never arrives | `mail.local.php` still has the `file` driver (mail is in `storage/mail/`), or the sender is not a real mailbox on the hosted domain. |
+| An announcement stopped going out half-way | Its page was closed: it is sent only while the page is open - open it (Announcements → it) and press Continue sending. Waiting "for the host's hourly allowance" is `hourly_limit` at work; it goes on by itself |
+| Announcement mails "failed", or never arrive | The host refused them: its hourly limit (set `hourly_limit`), or the sender is not a real mailbox on the hosted domain. Each person's status is on the announcement's page, and the Email log has every mail |
+| Somebody gets no announcements | They did not tick "Send me news" when they signed up (or signed up with Google from the sign-in page, where nobody is asked), they stopped the news (the link at the end of one, or the switch on their account page - the audit log says which: `account.news_mail`), their address is not confirmed, they wait for approval, or they are switched off |
 | Google button missing | No `google.local.php`, the switch is off, or the page's origin is not an authorised JavaScript origin of the client. |
 | The pages are English only, with no language switcher, after an upload | A migration with the words is pending: `/api/translations/...` answers 503 `translations_unavailable`. Admin panel → Migrations → Apply pending. |
 | A page shows a key (`login.title`) where a word should be | The key has no string in the database: a migration that adds it is pending, or its English row was removed by hand. `php translations.php --status` on a copy names it. |

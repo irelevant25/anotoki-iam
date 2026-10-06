@@ -153,6 +153,9 @@ $app->get('/api/public/config', function (Request $request, Response $response) 
         'login_enabled' => loginEnabled(),
         'registration_enabled' => registrationEnabled() && loginEnabled(),
         'registration_approval' => registrationApprovalRequired(),
+        // The registration form offers the news from the sites once there is
+        // somewhere to keep the answer (migration 013).
+        'registration_news' => registrationNewsOffered(),
         'google_enabled' => $google,
         'google_client_id' => $google ? googleClientId() : null,
         'password_min' => PASSWORD_MIN,
@@ -506,16 +509,21 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
         return respondError($response, 403, 'registration_disabled', 'New accounts cannot be made at the moment');
     }
 
+    // The news from the sites: a yes only from the registration page's box,
+    // which hands it over with the credential. From the sign-in page nobody
+    // was asked, and the account gets none.
+    $newsMail = ($body['news_mail'] ?? false) === true;
     $made = insertSignedUpAccount($pdo, [
         'username' => availableUsername($pdo, (string) ($claims['name'] ?? ''), $email),
         'email' => $email,
         'password' => null,
         'email_confirmed' => true,
         'language' => languageOrDefault($body['language'] ?? null),
+        'news_mail' => $newsMail,
     ]);
     $userId = $made['id'];
     attachIdentity($pdo, $userId, IDENTITY_GOOGLE, $subject, $email);
-    audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'google'] + ($made['waits'] ? ['waits' => true] : []));
+    audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'google'] + ($made['waits'] ? ['waits' => true] : []) + ($newsMail ? ['news_mail' => true] : []));
 
     // Made, and waiting for an administrator: no session. The page says so,
     // as it does to an account that waits and signs in again later.
@@ -549,6 +557,12 @@ $app->post('/api/register', function (Request $request, Response $response) {
     if ($refusal = passwordRefusal($password)) {
         return respondError($response, 422, 'invalid_password', $refusal);
     }
+    // The news from the sites: offered unticked, so only a yes given here is
+    // one (insertSignedUpAccount()). Left out, it is no.
+    $newsMail = $body['news_mail'] ?? false;
+    if (!is_bool($newsMail)) {
+        return respondError($response, 422, 'invalid_input', 'news_mail is true or false');
+    }
 
     // Registration has to say "that address is taken", which makes it an
     // enumeration oracle, and each account mails a confirmation, which makes it
@@ -572,10 +586,12 @@ $app->post('/api/register', function (Request $request, Response $response) {
         'password' => password_hash($password, PASSWORD_DEFAULT),
         'email_confirmed' => false,
         'language' => $language,
+        'news_mail' => $newsMail,
     ]);
     $userId = $made['id'];
     recordLoginAttempt($pdo, $request, $email, $userId, 'register', 'sent');
-    audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'register'] + ($made['waits'] ? ['waits' => true] : []));
+    // A yes to the news is kept with the account's making: when, and from where.
+    audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'register'] + ($made['waits'] ? ['waits' => true] : []) + ($newsMail ? ['news_mail' => true] : []));
 
     $user = userById($pdo, $userId);
     $token = issueOneTimeToken($pdo, $userId, TOKEN_EMAIL_CONFIRM, MAIL_CONFIRM_HOURS * 3600, contextFromRequestId($pdo, field($body, 'request')));
@@ -767,4 +783,42 @@ $app->post('/api/logout', function (Request $request, Response $response) {
     }
 
     return withoutSessionCookie(respondJson($response, ['message' => 'Signed out', 'redirect' => $redirect]));
+});
+
+// ── Stopping the news ────────────────────────────────────────────────────────
+
+/**
+ * POST /api/news/unsubscribe {token} - the account the token names gets no
+ * more announcements (api/announcements.php). The link at the end of every
+ * announcement opens the page (/unsubscribe), which asks first and then
+ * sends this: a mail program or a virus scanner that opens every link in a
+ * mail must not switch anybody's news off by looking.
+ *
+ * No session: the token is the proof, and all it can do is this - whoever
+ * reads the mail may stop it. It answers the same once the news is off
+ * already. It keeps the CSRF header every first-party write has, which is
+ * why no mail program's one-click unsubscribe (RFC 8058) is offered: that
+ * would be the first write outside the protocol endpoints without it
+ * (docs/decisions.md).
+ */
+$app->post('/api/news/unsubscribe', function (Request $request, Response $response) {
+    $pdo = iamDb();
+
+    if (!announcementsReady($pdo)) {
+        $refusal = announcementsUnavailable();
+        return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+    }
+
+    $userId = newsUnsubscribeUser(field(requestBody($request), 'token'));
+    if ($userId === null) {
+        return respondError($response, 400, 'invalid_token', 'That is not a link from one of our emails');
+    }
+
+    $statement = $pdo->prepare('UPDATE users SET news_mail = FALSE WHERE id = ? AND news_mail RETURNING id');
+    $statement->execute([$userId]);
+    if ($statement->fetchColumn() !== false) {
+        audit($request, null, 'account.news_mail', 'user', $userId, ['news_mail' => false, 'by' => 'link']);
+    }
+
+    return respondJson($response, ['news_mail' => false]);
 });

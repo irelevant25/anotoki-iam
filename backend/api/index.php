@@ -42,6 +42,7 @@ require_once __DIR__ . '/trusted_device.php';
 require_once __DIR__ . '/google_identity.php';
 require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/translations.php';
+require_once __DIR__ . '/announcements.php';
 require_once __DIR__ . '/accounts.php';
 require_once __DIR__ . '/oidc.php';
 require_once __DIR__ . '/housekeeping.php';

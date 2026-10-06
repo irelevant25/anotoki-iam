@@ -60,6 +60,10 @@ const MAILS: Record<string, MailAbout> = {
   'mail.reset': { title: 'The password reset mail', sent: 'Sent from "Forgotten password".' },
   'mail.loginCode': { title: 'The sign-in code mail', sent: 'Sent from "Email me a sign-in code".' },
   'mail.approved': { title: 'The account approved mail', sent: 'Sent when an administrator approves an account that waited (Approvals), once its address is confirmed.' },
+  'mail.newVersion': { title: 'Announcements: the "New version" template', sent: 'The words a new announcement starts from, {project} filled with the site chosen - changed there before it is sent.' },
+  'mail.newRelease': { title: 'Announcements: the "New release" template', sent: 'The same, for a new anotoki site.' },
+  'mail.newSurvey': { title: 'Announcements: the "New survey" template', sent: 'The same, for a survey about a site.' },
+  'mail.news': { title: 'The end of every announcement', sent: "Why the person gets it, and the link that stops the news - the link is the IAM's to put in." },
 };
 
 /** One of the grid's two parts: its heading, the line that says what its strings may hold, and its blocks. */
@@ -90,7 +94,8 @@ const UNAVAILABLE = 'translations_unavailable';
 /**
  * /admin/translations - the IAM's own words, in every language: a key a row,
  * a language a column, each string a box. The pages' keys, and - apart from
- * them, a block a mail - the words of the four mails the IAM sends.
+ * them, a block a mail - the words of the four mails the IAM sends, and the
+ * announcements' templates and the lines every announcement ends with.
  *
  * What is typed is held until Save, which sends only the boxes that changed;
  * the server checks all of them before it writes any, and answers the grid

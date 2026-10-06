@@ -76,9 +76,12 @@ src/
                            top-bar (the anotoki family's one bar, below)
     pages/
       auth/                /login /register /confirm-email /forgot-password
-                           /reset-password /logout /error /not-set-up, and not-found
+                           /reset-password /logout /unsubscribe /error
+                           /not-set-up, and not-found
       account/             /account and its four sub-pages (the top bar's links)
-      admin/               /admin: users, approvals, sessions, applications, logs,
+      admin/               /admin: users, approvals, sessions, applications,
+                           announcements (the history and senders, the composer,
+                           one announcement and its sending), logs,
                            settings, translations and languages (localization/),
                            keys, migrations
 public/

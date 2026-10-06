@@ -75,6 +75,13 @@ export class LoginApi {
     return this._http.post<RequestedResponse>('/api/register/resend', { email });
   }
 
+  // ── The news ───────────────────────────────────────────────────────────────
+
+  /** The link at the end of every announcement: that account gets no more. 400 `invalid_token` for a link that is not ours. */
+  stopNews(token: string): Observable<{ news_mail: false }> {
+    return this._http.post<{ news_mail: false }>('/api/news/unsubscribe', { token });
+  }
+
   // ── Passwords ──────────────────────────────────────────────────────────────
 
   forgotPassword(email: string, request?: string | null): Observable<RequestedResponse> {

@@ -11,6 +11,7 @@ const NAV: NavItem[] = [
   { link: '/admin/approvals', label: 'Approvals', icon: 'clock' },
   { link: '/admin/sessions', label: 'Sessions', icon: 'laptop' },
   { link: '/admin/applications', label: 'Applications', icon: 'appWindow' },
+  { link: '/admin/announcements', label: 'Announcements', icon: 'send' },
   { link: '/admin/emails', label: 'Email log', icon: 'mail' },
   { link: '/admin/audit', label: 'Audit log', icon: 'history' },
   { link: '/admin/settings', label: 'Settings', icon: 'sliders' },

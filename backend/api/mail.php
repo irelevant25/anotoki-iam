@@ -1,7 +1,8 @@
 <?php
 
 /**
- * Sending mail, and the four messages worth sending.
+ * Sending mail: the four messages the IAM sends by itself, and the
+ * announcements an administrator writes (api/announcements.php).
  *
  * Two drivers, chosen in config/mail.local.php (config/mail.php describes it):
  * `mail` hands the message to PHP's mail(), which is what the hosting
@@ -45,12 +46,14 @@ const MAIL_KIND_CONFIRMATION = 'confirmation';
 const MAIL_KIND_PASSWORD_RESET = 'password_reset';
 const MAIL_KIND_LOGIN_CODE = 'login_code';
 const MAIL_KIND_ACCOUNT_APPROVED = 'account_approved';
+const MAIL_KIND_ANNOUNCEMENT = 'announcement';
+const MAIL_KIND_ANNOUNCEMENT_TEST = 'announcement_test';
 
 /**
  * Kinds whose subject holds nothing secret. Default-deny: the sign-in code is in
  * its message's subject, so an unlisted kind is logged with no subject at all.
  */
-const MAIL_SUBJECT_SAFE_KINDS = [MAIL_KIND_CONFIRMATION, MAIL_KIND_PASSWORD_RESET, MAIL_KIND_ACCOUNT_APPROVED];
+const MAIL_SUBJECT_SAFE_KINDS = [MAIL_KIND_CONFIRMATION, MAIL_KIND_PASSWORD_RESET, MAIL_KIND_ACCOUNT_APPROVED, MAIL_KIND_ANNOUNCEMENT, MAIL_KIND_ANNOUNCEMENT_TEST];
 
 const MAIL_SENDER_NOREPLY = 'noreply';
 const MAIL_SENDER_SUPPORT = 'support';
@@ -85,12 +88,30 @@ const MAIL_KEYS = [
     'mail.approved.subject' => [],
     'mail.approved.greeting' => ['username'],
     'mail.approved.intro' => [],
+    // The announcements' templates (api/announcements.php): starting points the
+    // admin panel fills a draft with, {project} put in there - not sent as
+    // they stand.
+    'mail.newVersion.subject' => ['project'],
+    'mail.newVersion.heading' => ['project'],
+    'mail.newVersion.body' => ['project'],
+    'mail.newVersion.button' => ['project'],
+    'mail.newRelease.subject' => ['project'],
+    'mail.newRelease.heading' => ['project'],
+    'mail.newRelease.body' => ['project'],
+    'mail.newRelease.button' => ['project'],
+    'mail.newSurvey.subject' => ['project'],
+    'mail.newSurvey.heading' => ['project'],
+    'mail.newSurvey.body' => ['project'],
+    'mail.newSurvey.button' => [],
+    // What every announcement ends with.
+    'mail.news.footer' => [],
+    'mail.news.stop' => [],
 ];
 
 /**
- * The English of every mail string, as migrations 006 and 012 seed it (a test
- * holds the two together). Used string by string whenever the database has
- * nothing to say: no tables yet, a query that failed, a row that is gone.
+ * The English of every mail string, as migrations 006, 012 and 013 seed it (a
+ * test holds the two together). Used string by string whenever the database
+ * has nothing to say: no tables yet, a query that failed, a row that is gone.
  */
 const MAIL_FALLBACK = [
     'mail.confirm.subject' => 'Confirm your anotoki account',
@@ -111,11 +132,35 @@ const MAIL_FALLBACK = [
     'mail.approved.subject' => 'Your anotoki account is approved',
     'mail.approved.greeting' => 'Hello {username},',
     'mail.approved.intro' => 'An administrator has approved your anotoki account. You can sign in now, the same way you signed up:',
+    'mail.newVersion.subject' => 'A new version of {project}',
+    'mail.newVersion.heading' => '{project} has a new version',
+    'mail.newVersion.body' => 'A new version of {project} is out. Come and see what is new - your anotoki account signs you in as always.',
+    'mail.newVersion.button' => 'Open {project}',
+    'mail.newRelease.subject' => 'New on anotoki: {project}',
+    'mail.newRelease.heading' => 'Meet {project}',
+    'mail.newRelease.body' => '{project} is a new anotoki site, and your anotoki account already works there - no new sign-up needed.',
+    'mail.newRelease.button' => 'Try {project}',
+    'mail.newSurvey.subject' => 'A new survey about {project}',
+    'mail.newSurvey.heading' => 'What do you think of {project}?',
+    'mail.newSurvey.body' => 'We have put together a short survey about {project}. It takes a few minutes, and your answers shape what comes next.',
+    'mail.newSurvey.button' => 'Take the survey',
+    'mail.news.footer' => 'You get this email because you have an anotoki account.',
+    'mail.news.stop' => 'Stop the news from anotoki sites',
 ];
 
-/** @return array{from: string, from_name: string} */
-function mailSender(string $sender): array
+/**
+ * The address a mail goes out from: one of config/mail.local.php's senders by
+ * its key, or - an announcement's - an address and a name given whole.
+ *
+ * @param string|array{from: string, from_name?: string} $sender
+ * @return array{from: string, from_name: string}
+ */
+function mailSender(string|array $sender): array
 {
+    if (is_array($sender)) {
+        return ['from' => (string) $sender['from'], 'from_name' => (string) ($sender['from_name'] ?? '')];
+    }
+
     $config = mailConfig();
     $entry = $config['senders'][$sender] ?? null;
     $from = (string) ($config['from'] ?? 'noreply@localhost');
@@ -261,7 +306,19 @@ function mailMessage(string $mail, array $words, string $line, array $values, ar
     ];
 }
 
-function sendMail(string $to, string $subject, string $body, string $kind, ?int $userId = null, string $sender = MAIL_SENDER_NOREPLY): bool
+/**
+ * Sends one message, and logs it (email_log keeps no body).
+ *
+ * `$body` is plain text. With `$html` beside it, the message goes as
+ * multipart/alternative - the announcements, which look like something: both
+ * parts base64, whose lines stay short however long a paragraph somebody
+ * typed. `$headers` adds headers of the caller's (List-Unsubscribe), each
+ * kept to one line.
+ *
+ * @param string|array{from: string, from_name?: string} $sender
+ * @param array<string, string> $headers
+ */
+function sendMail(string $to, string $subject, string $body, string $kind, ?int $userId = null, string|array $sender = MAIL_SENDER_NOREPLY, ?string $html = null, array $headers = []): bool
 {
     // One line, and not a long one - here, whatever was checked when the words
     // were saved: a subject is a header, a line break in a header starts the
@@ -272,21 +329,54 @@ function sendMail(string $to, string $subject, string $body, string $kind, ?int 
     $resolved = mailSender($sender);
     $from = $resolved['from_name'] === '' ? $resolved['from'] : mailEncodeHeader($resolved['from_name']) . ' <' . $resolved['from'] . '>';
 
-    $headers = [
+    $lines = [
         'From: ' . $from,
         'Reply-To: ' . $resolved['from'],
         'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=UTF-8',
-        'Content-Transfer-Encoding: 8bit',
     ];
 
-    $ok = (mailConfig()['driver'] ?? '') === 'mail'
-        ? @mail($to, mailEncodeHeader($subject), $body, implode("\n", $headers))
-        : mailToFile($to, $subject, $body, $headers);
+    if ($html === null) {
+        $lines[] = 'Content-Type: text/plain; charset=UTF-8';
+        $lines[] = 'Content-Transfer-Encoding: 8bit';
+        $content = $body;
+    } else {
+        $boundary = 'anotoki-' . bin2hex(random_bytes(12));
+        $lines[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
+        $part = static fn(string $type, string $text): string => "--{$boundary}\nContent-Type: {$type}; charset=UTF-8\nContent-Transfer-Encoding: base64\n\n"
+            . chunk_split(base64_encode($text), 76, "\n");
+        $content = $part('text/plain', $body) . $part('text/html', $html) . "--{$boundary}--\n";
+    }
 
+    foreach ($headers as $name => $value) {
+        $lines[] = $name . ': ' . preg_replace('/[\r\n]+/', ' ', $value);
+    }
+
+    $ok = (mailConfig()['driver'] ?? '') === 'mail'
+        ? @mail($to, mailEncodeHeader($subject), $content, implode("\n", $lines))
+        : mailToFile($to, $subject, $content, $lines);
+
+    // Inside somebody's transaction - an announcement marks each of its mails
+    // in one - a failed insert must not end it: the mail has gone, and the row
+    // that says so must still be written, or it would be sent again. A
+    // savepoint takes back the insert alone.
     try {
-        iamDb()->prepare('INSERT INTO email_log (recipient, kind, subject, status, user_id) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$to, $kind, in_array($kind, MAIL_SUBJECT_SAFE_KINDS, true) ? $subject : null, $ok ? 'sent' : 'failed', $userId]);
+        $pdo = iamDb();
+        $nested = $pdo->inTransaction();
+        if ($nested) {
+            $pdo->exec('SAVEPOINT email_log');
+        }
+        try {
+            $pdo->prepare('INSERT INTO email_log (recipient, kind, subject, status, user_id) VALUES (?, ?, ?, ?, ?)')
+                ->execute([$to, $kind, in_array($kind, MAIL_SUBJECT_SAFE_KINDS, true) ? $subject : null, $ok ? 'sent' : 'failed', $userId]);
+        } catch (\Throwable $e) {
+            if ($nested) {
+                $pdo->exec('ROLLBACK TO SAVEPOINT email_log');
+            }
+            throw $e;
+        }
+        if ($nested) {
+            $pdo->exec('RELEASE SAVEPOINT email_log');
+        }
     } catch (\Throwable $e) {
         error_log('[email_log] could not record a send: ' . $e->getMessage());
     }

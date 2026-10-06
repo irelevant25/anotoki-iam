@@ -28,6 +28,24 @@ export const ADMIN_ROUTES: Routes = [
         title: 'Application',
         loadComponent: () => import('./applications/application-form.component').then((m) => m.ApplicationFormComponent),
       },
+      {
+        path: 'announcements',
+        title: 'Announcements',
+        loadComponent: () => import('./announcements/announcements.component').then((m) => m.AnnouncementsComponent),
+      },
+      // A draft is held only by its page, and an announcement is sent only while its page is open: leaving either asks first.
+      {
+        path: 'announcements/new',
+        title: 'New announcement',
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./announcements/announcement-compose.component').then((m) => m.AnnouncementComposeComponent),
+      },
+      {
+        path: 'announcements/:id',
+        title: 'Announcement',
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () => import('./announcements/announcement-detail.component').then((m) => m.AnnouncementDetailComponent),
+      },
       { path: 'emails', title: 'Email log', loadComponent: () => import('./emails/emails.component').then((m) => m.EmailsComponent) },
       { path: 'audit', title: 'Audit log', loadComponent: () => import('./audit/audit.component').then((m) => m.AuditComponent) },
       { path: 'settings', title: 'Settings', loadComponent: () => import('./settings/settings.component').then((m) => m.SettingsComponent) },

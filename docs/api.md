@@ -360,6 +360,7 @@ What the sign-in pages need before they can draw themselves.
   "login_enabled": true,
   "registration_enabled": true,
   "registration_approval": false,
+  "registration_news": true,
   "google_enabled": true,
   "google_client_id": "105...apps.googleusercontent.com",
   "password_min": 8,
@@ -372,6 +373,10 @@ on, an account made by registering or signing up with Google waits for an
 administrator's approval before it can sign in anywhere (the register page
 says so above its form). `false` before migration 012, and while the database
 cannot be reached.
+
+`registration_news` says the register page offers the news from the sites (the
+announcements) in a box of its own, unticked - `false` before migration 013,
+and while the database cannot be reached.
 
 `languages` is the codes on offer, in the admin panel's order - the same list
 as discovery's `ui_locales_supported`, and like it `["en", "sk"]` before
@@ -528,10 +533,13 @@ Everywhere a second factor is asked for, an authenticator code is accepted once
 
 ### `POST /api/login/google`
 
-`{ credential, totp?, device_token?, remember_device?, remember?, language? }` -
+`{ credential, totp?, device_token?, remember_device?, remember?, language?, news_mail? }` -
 `credential` is the Google Identity Services id token. Signs in the account that
 Google identity is attached to; attaches it to the account with the same verified
-address; or makes a new account (`201`, `"created": true`). Answer as
+address; or makes a new account (`201`, `"created": true`) - with the news from
+the sites only when `news_mail` is `true`: the register page's box, handed over
+with the credential (from the sign-in page nobody was asked, and anything else
+is no; for an account that is there already it changes nothing). Answer as
 `/api/login/password` plus `created`. Refusals add `google_disabled` (403) and
 `invalid_token` (400), and `429 too_many_attempts` from the same limiter as the
 other ways in. A new account made while new accounts need approval is made,
@@ -540,13 +548,17 @@ waiting, with no session: `403 approval_pending` with `"created": true` beside
 
 Attaching to an account whose address was never confirmed first removes
 everything its registrant set - password, two-factor, recovery codes,
-remembered devices, sessions, tokens, other identities - since whoever
-registered it need not own the address Google has just vouched for. The same
-happens when a reset link reaches such an account's mailbox.
+remembered devices, sessions, tokens, other identities, and a yes to the news -
+since whoever registered it need not own the address Google has just vouched
+for. The same happens when a reset link reaches such an account's mailbox.
 
 ### `POST /api/register`
 
-`{ username, email, password, language, request? }` → `201 { "email", "sent", "approval_pending" }`.
+`{ username, email, password, language, request?, news_mail? }` → `201 { "email", "sent", "approval_pending" }`.
+`news_mail` is the register page's box for the news from the sites, offered
+unticked: `true` gives the account announcements, `false` or left out none
+(`422 invalid_input` for anything but a boolean); a yes is kept in the audit
+log's `account.created`.
 No session: the account works once the emailed link is opened - and, when
 `approval_pending` is true (Settings → New accounts need approval), once an
 administrator has approved it as well. `request`, when
@@ -599,6 +611,20 @@ A logout an application asked for without a verifiable ID token, waiting on the
 `404 { code: "request_expired" }`. Declining is simply not confirming - the page
 offers "Stay signed in" with a link to the application's `home_url`.
 
+### `POST /api/news/unsubscribe`
+
+`{ token }` - the link at the end of every announcement (below, the admin
+panel's Announcements) leads to `/unsubscribe?token=...`, which asks first and
+then sends this: the account the token names gets no more announcements
+(`news_mail` false - the account page's switch). No session is needed; the
+token is the account id and a MAC of it under a key derived from the master
+key for this one use (HKDF), never expires, and can do nothing else. Answers `{ "news_mail": false }`, the same once the
+news is off already; `400 { code: "invalid_token" }` for a token that is not
+the IAM's; `503 { code: "announcements_unavailable" }` while migration 013 is
+pending. It needs the CSRF header like every first-party write - which is why
+a mail program's one-click unsubscribe (RFC 8058) is not offered: the
+`List-Unsubscribe` header of an announcement names the page.
+
 ---
 
 ## First-party: the account page
@@ -624,13 +650,14 @@ interface AccountUser {
   trusted_devices: number;
   force_password_change: boolean;
   is_admin: boolean;              // holds ADMIN in the IAM itself
+  news_mail: boolean | null;      // gets the announcements; null while migration 013 is pending
 }
 ```
 
 | Method + path | Body | Answer |
 | --- | --- | --- |
 | `GET /api/account` | | `AccountUser` |
-| `PUT /api/account/profile` | `{ username?, language? }` | `AccountUser` (409 username taken; `422 invalid_language` for a language not on offer) |
+| `PUT /api/account/profile` | `{ username?, language?, news_mail? }` | `AccountUser` (409 username taken; `422 invalid_language` for a language not on offer; `news_mail` is true or false - `422 invalid_input` otherwise, `503 announcements_unavailable` while 013 is pending) |
 | `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; `422` wrong current password |
 | `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change |
 | `PUT /api/account/password/enabled` | `{ enabled }` | `AccountUser` - `409 would_lock_account` / `no_password` |
@@ -826,6 +853,115 @@ interface AdminUserDetail {
 `AdminSession` is a `SessionEntry` plus `user_id`, `username`, `email`.
 `EmailLogEntry` is `{ id, recipient, kind, subject, status, error, user_id, username, created_at }`.
 `AuditEntry` is `{ id, actor_id, actor_username, action, target_type, target_id, details, ip, created_at }`.
+
+### Announcements
+
+News an administrator mails to the people of the sites (migration 013,
+`backend/api/announcements.php`): from a template, a version of the words per
+language, to everybody, the holders of some roles, or some people, from one of
+the installation's addresses or one added here. Every route answers
+`503 { code: "announcements_unavailable" }` while 013 is pending.
+
+| Method + path | |
+| --- | --- |
+| `GET /api/admin/announcements?page=` | `{ total, page, pageSize, items: AnnouncementSummary[] }`, newest first, fifty a page |
+| `GET /api/admin/announcements/compose` | `AnnouncementCompose` - what the composer starts from |
+| `POST /api/admin/announcements/audience` | `{ audience: Audience }` → `AudienceCount` |
+| `POST /api/admin/announcements/preview` | `Draft & { language }` → `{ subject, text, html, language, sender: { address, name } }` - the mail a reader of `language` gets: its version, or the English one; the stop link without a token |
+| `POST /api/admin/announcements/test` | `Draft & { language }` → `{ sent: boolean, email }` - to the administrator's own address and nobody else's, the subject marked `[Test] `; `429 too_many_tests` after 20 in an hour |
+| `POST /api/admin/announcements` | `Draft & { audience: Audience }` → `201 AnnouncementDetail` - made with its list of people; nothing is sent yet. `422 no_recipients` when nobody it names can get it |
+| `GET /api/admin/announcements/{id}` | `AnnouncementDetail` |
+| `GET /api/admin/announcements/{id}/recipients?status=&search=&page=` | `{ total, page, pageSize, items: { user_id, username, email, language, status, sent_at }[] }` - fifty a page; `email` is the address it went to, `language` the version |
+| `POST /api/admin/announcements/{id}/send` | → `AnnouncementDetail & { wait: number \| null }` - the next batch (at most 20 mails, or 10 seconds), each mail in a transaction of its own; the page asks again while `status` is `sending`. `wait`: the seconds until the host's hourly allowance has room again (config/mail.local.php's `hourly_limit`; announcements keep to nine tenths of it). `409 stopped` once stopped |
+| `POST /api/admin/announcements/{id}/stop` | → `AnnouncementDetail` - what is not sent yet never goes; `409 not_sending` |
+| `GET /api/admin/mail-senders` | `{ senders: MailSender[], domains: string[] }` - the installation's own first (config/mail.local.php's `senders`), then the added ones |
+| `POST /api/admin/mail-senders` | `{ address, name }` → `201 { sender, senders, domains }` - `422 invalid_email` / `foreign_domain` (only at one of `domains`) / `invalid_name` (letters, digits, spaces and `. ' & ! ? + _ -`, up to 60); `409 sender_exists` |
+| `DELETE /api/admin/mail-senders/{id}` | an added one only → `{ senders, domains }`; what was sent from it keeps its address |
+
+```ts
+type Template = 'newVersion' | 'newRelease' | 'newSurvey' | 'blank';
+interface Version { subject: string; heading: string; body: string; button: string }  // body: paragraphs, an empty line between two
+
+interface Draft {
+  template: Template;
+  client_id: string;        // the site it is about: its name for {project}, and at the top of the mail; '' only for blank
+  link: string;             // where the button leads; '' for none (then no button)
+  sender: string;           // a MailSender id
+  content: Record<string, Version>;   // by language code
+}
+
+interface Audience { everybody: boolean; roles: RoleGrant[]; user_ids: number[] }   // at most 100 roles, 500 people
+
+interface AudienceCount {
+  recipients: number;
+  left_out: { disabled: number; unconfirmed: number; waiting: number; news_off: number };  // each person once, the first reason
+  languages: Record<string, number>;  // how many read which language (one switched off counts as English)
+}
+
+interface MailSender { id: string; address: string; name: string; added: boolean; created_at: string | null; created_by: string | null }
+// id: the key in config/mail.local.php (noreply, support) for the installation's own; the number of an added one
+
+interface AnnouncementCompose {
+  templates: Record<'newVersion' | 'newRelease' | 'newSurvey', Record<string, Version>>;  // the mail strings, {project} still in them
+  languages: { code: string; name: string; native_name: string }[];  // on offer, English first
+  senders: MailSender[];
+  applications: { client_id: string; name: string; home_url: string | null; system: boolean; enabled: boolean; roles: string[] }[];
+  email: string;            // the administrator's own: where a test goes
+  limits: { subject: 150; heading: 150; body: 5000; button: 60; link: 500; people: 500 };
+  pacing: { driver: string; hourly_limit: number | null };  // `mail` really sends; the host's limit, if config/mail.local.php names one
+}
+
+interface AnnouncementSummary {
+  id: number;
+  template: Template;
+  application: { client_id: string | null; name: string } | null;  // as it was sent
+  subject: string;          // the English one
+  languages: string[];      // the versions, English first
+  sender: { address: string; name: string };  // as it was sent
+  link: string | null;
+  status: 'sending' | 'sent' | 'stopped';
+  counts: { total: number; pending: number; sent: number; failed: number; skipped: number };
+  created_by: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
+interface AnnouncementDetail extends AnnouncementSummary {
+  content: Record<string, Version>;
+  audience: { everybody: boolean; roles: RoleGrant[]; users: { id: number; username: string; email: string }[] };
+}
+```
+
+A draft is checked the same way by preview, test and create (preview and test
+only the version their `language` gets, and English) - 422 with the server's
+sentence: `invalid_template`, `application_required` / `unknown_application`,
+`unknown_sender`, `invalid_link` (https - http only on this computer - with no
+name before the host, at the IAM's host, a host an application is registered
+with, or the domain the IAM sends mail from or one under it; printable ASCII
+only, so no space of any kind and no backslash), `invalid_content` (lengths;
+subject, heading and button one line), `english_required`,
+`incomplete_version` (a language has all of its parts or none; a link needs a
+button label), `unknown_language` (one not on offer), `placeholder_left` (a
+`{project}` never filled), `foreign_address` (a link written in the words off
+those hosts, or a mail address off the mail domain - read as a mail program
+reads it: every kind of space and invisible character ends an address, and
+each `://` and `www.` is judged on its own wherever it stands; the site's name
+too, which stands at the top of every mail).
+
+Sending is at least once: a mail is marked in the transaction that sends it,
+so a process that dies between the two sends that one again on the next
+batch. A failed email log write does not (a savepoint keeps it apart).
+
+Who gets it: only accounts switched on, with the address confirmed, approved,
+and the news on - asked when the list is made and again as each mail goes (one
+that no longer can is `skipped`); the address it goes to is the account's at
+that moment. Each mail is `multipart/alternative` (plain text and HTML, both
+base64) with a `List-Unsubscribe` header naming the person's `/unsubscribe`
+page, from the chosen sender (Reply-To the same), logged in the email log as
+`announcement` (tests as `announcement_test`). The audit log has
+`announcement.created`, `announcement.tested`, `announcement.stopped`,
+`mail_sender.added`, `mail_sender.removed`, and `account.news_mail` (`by`:
+`account` or `link`).
 
 ### Applications
 

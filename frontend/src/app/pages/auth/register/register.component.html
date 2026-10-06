@@ -83,6 +83,10 @@
                         [(value)]="passwordAgain"
                         [error]="errors().again ?? null" />
 
+                    @if (config()?.registration_news) {
+                        <app-checkbox name="news" [hint]="'register.newsMailHint' | t" [(checked)]="newsMail">{{ "register.newsMail" | t }}</app-checkbox>
+                    }
+
                     <button appButton type="submit" variant="primary" size="lg" [block]="true" [loading]="busy()">{{ "register.submit" | t }}</button>
                 </form>
 
