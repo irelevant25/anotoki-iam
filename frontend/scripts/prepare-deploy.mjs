@@ -21,7 +21,8 @@
 // And the headers every page of an identity provider should carry: no framing
 // (clickjacking a sign-in form is a classic), no MIME sniffing, a referrer that
 // never leaks a path to another site, and a Content-Security-Policy that allows
-// exactly this app and Google Identity Services - nothing inline. The build
+// exactly this app, Google Identity Services and the family's visitor counter
+// (Umami, whose script sends to its own origin) - nothing inline. The build
 // cooperates: angular.json turns off critical-CSS inlining, whose loader is an
 // inline onload handler that this policy would block. (Component styles are
 // still injected as <style> elements at runtime, hence style-src 'unsafe-inline'.)
@@ -52,11 +53,23 @@ if (inlineScript || inlineHandler) {
     process.exit(1);
 }
 
+// The family's visitor counter (Umami) reads the address as soon as it runs, and a confirm or reset link
+// carries its token in the query string: its tag must tell it to leave the query string and the fragment
+// out - and be async, so that no page of the sign-in waits for the counter. The snippet Umami's dashboard
+// hands out has none of the three, so a build that pasted it as it is goes no further.
+const counters = index.match(/<script\b[^>]*\bdata-website-id=[^>]*>/gi) ?? [];
+const unsafe = counters.filter((tag) => !/\sasync(?=[\s>=])/i.test(tag) || !/\sdata-exclude-search="true"/i.test(tag) || !/\sdata-exclude-hash="true"/i.test(tag));
+if (unsafe.length) {
+    console.error('index.html loads the visitor counter without async, data-exclude-search="true" and data-exclude-hash="true":');
+    for (const tag of unsafe) console.error(`  ${tag}`);
+    process.exit(1);
+}
+
 const csp = [
     "default-src 'self'",
-    "script-src 'self' https://accounts.google.com/gsi/client",
+    "script-src 'self' https://accounts.google.com/gsi/client https://umami.anotoki.eu",
     "frame-src https://accounts.google.com/gsi/",
-    "connect-src 'self' https://accounts.google.com/gsi/",
+    "connect-src 'self' https://accounts.google.com/gsi/ https://umami.anotoki.eu",
     "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
     "img-src 'self' data: https:",
     "font-src 'self'",

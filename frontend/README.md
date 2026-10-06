@@ -149,7 +149,8 @@ the web root, next to the backend's `api/`. The `.htaccess` it writes:
 - sets `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin` and a
   Content-Security-Policy that allows this origin plus Google Identity Services
-  and nothing inline.
+  and the family's visitor counter (`https://umami.anotoki.eu`, Umami), and
+  nothing inline.
 
 The policy is why `angular.json` turns off critical-CSS inlining in the
 production build: its stylesheet loader is an inline `onload` handler, which

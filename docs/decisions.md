@@ -564,3 +564,36 @@ in applications of iam admin console. It will be public only." Migration 011:
   again); the migration that drops 010's `access` drops them too.
   `sort_order` stays for good: it is the order of the list (a new
   application goes last), only no longer set in the panel.
+
+## 2026-10-06 - The family's visitor counter, without the query string
+
+The owner asked for Umami - the family's own, at `umami.anotoki.eu` - on every
+anotoki site, the IAM included. `frontend/src/index.html` loads its script,
+and the policy (`frontend/scripts/prepare-deploy.mjs`) names its origin beside
+Google's, in `script-src` and `connect-src`. The counter sets no cookie,
+stores nothing in the browser, and sends its reports without credentials (the
+script's own request carries no cookie of the IAM's: its one cookie is
+host-only).
+
+- **No query string, no fragment** (`data-exclude-search="true"`,
+  `data-exclude-hash="true"`): a confirm or reset link carries its token in
+  the query, the script may read the address before the app has run, and a
+  counter that kept the tokens would hold a way into somebody's account. The
+  sites leave them out too: their sign-in's `code` arrives the same way, on
+  the callback. What still goes: the path (an administrator's
+  `/admin/users/{id}` among them), the title, the screen size, the language,
+  and the referrer from another site without its query.
+- **`async`, not the snippet's `defer`**: a deferred script and the app's own
+  module run in document order, so the app would wait for the counter - and
+  every sign-in of the family with it, for as long as a slow or unreachable
+  `umami.anotoki.eu` takes to give up.
+- **`prepare-deploy.mjs` refuses a build without the three**: the snippet
+  Umami's dashboard hands out has none of them, and pasted again (a new id, a
+  moved counter) it would send every reset token to the counter.
+- **The price, accepted**: the script runs inside the IAM's own origin, on the
+  sign-in pages too, so whoever controls what `umami.anotoki.eu` serves (its
+  server, its host, the Cloudflare account in front of it) could act as anybody
+  who opens an IAM page. The IAM trusts the family's counter that far. Keeping
+  a copy of the tracker in `public/` (the counter would then receive reports
+  and send no code), or pinning the file with an `integrity` hash, would take
+  the trust back; neither is done.
