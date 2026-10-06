@@ -105,14 +105,15 @@ const { returnTo } = await auth.init();
 if (returnTo) history.replaceState(null, '', returnTo);
 
 auth.isAuthenticated();          // boolean
-auth.user();                     // { sub, preferred_username, email, email_verified, locale, roles } | null
+auth.user();                     // { sub, preferred_username, email, email_verified, locale, roles, preferences } | null
 await auth.getAccessToken();     // string | null - refreshed when under 30 s remain
 auth.login({ returnTo: location.pathname + location.search });   // redirect to the IAM
 auth.register({ returnTo });     // the same, opening on the registration form
 auth.logout();                   // everywhere: the IAM ends its session, lands on postLogoutRedirectUri
 auth.logout({ local: true });    // this site only: spends the refresh token, no navigation
 auth.fetch('/api/progress', { method: 'PUT', body });            // fetch with the bearer, one retry after a refresh on 401
-auth.onChange(() => redraw());   // signed in / out / refreshed, also from other tabs
+await auth.savePreferences({ theme: 'dark' });                    // the account's, for every site (below)
+auth.onChange(() => redraw());   // signed in / out / refreshed / a preference saved, also from other tabs
 auth.accountUrl();               // the IAM account page, for a "Manage account" link
 ```
 
@@ -144,6 +145,43 @@ It is **not** a promise that the site speaks it: the IAM may offer a language
 the site does not have, and a token minted before a language was switched off
 carries it for that token's lifetime. A site checks `locale` against its own
 languages and starts a newcomer in its default when it is not one of them.
+
+### The account's preferences
+
+The theme, how dates are written and the clock are the account's, like its
+language (the owner's decision of 2026-10-06, `decisions.md`): one choice
+every anotoki site follows - every page of it, its admin area included.
+`user().preferences` holds them (the `preferences` claim, [api.md](api.md)):
+
+| | Values | |
+| --- | --- | --- |
+| `theme` | `auto`, `light`, `dark` | `auto` follows the operating system |
+| `date_format` | `dmy_dot` (6.10.2026, `d.M.yyyy`), `dmy_slash` (06/10/2026), `mdy_slash` (10/06/2026), `ymd_dash` (2026-10-06), `null` | `null`: the page language's own way |
+| `time_format` | `24` (14:30), `12` (2:30 PM, the language's words for am and pm), `null` | `null`: the language's own clock |
+
+What a site does with them:
+
+- **Signed in, the account's.** The site shows the theme, writes dates and
+  times in the account's order and clock, and speaks `locale` when it has that
+  language. When `onChange` fires - another tab, a refresh, a save - it reads
+  them again.
+- **The site's own controls save to the account.** Its theme toggle, its
+  language switcher, a date setting: for a signed-in person each choice is
+  shown at once and saved with `savePreferences({ theme })`,
+  `({ date_format })`, `({ time_format })` or `({ language })` - a language
+  only when the IAM offers it (`ui_locales_supported`); one the IAM does not
+  have stays the site's own, for the visit. Refused, the site puts the
+  account's value back. The SDK updates `user()` from the answer at once, in
+  every tab; the tokens carry the change from their next refresh.
+- **Signed out, the device's.** A visitor's choices stay where they always
+  were - the site's own storage - and the account's take over at sign-in.
+- **No preferences, the site's own.** `preferences` is `null` from an IAM
+  before migration 015 or a sign-in without the `profile` scope; the site
+  then keeps its own settings as it did. A value the SDK does not know reads
+  as the default.
+
+A backend that wants them reads the same claim from the access token, as it
+was when the token was minted.
 
 ### The callback route
 
@@ -258,8 +296,9 @@ site must require sign-in.
 
 ### Users on the application's side
 
-The IAM owns identity. An application keeps only what is its own - progress,
-preferences - keyed by the user id, plus, if it wants to show names, a small
+The IAM owns identity - and the language, theme, dates and clock (above). An
+application keeps only what is its own - progress, its own settings - keyed by
+the user id, plus, if it wants to show names, a small
 copy of `preferred_username` refreshed from the token as requests arrive. It
 never stores passwords, and never decides who someone is from anything but a
 verified token.

@@ -2,8 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, sig
 import { RouterLink } from '@angular/router';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
+import { DateFormatChoice, TimeFormatChoice } from '../../../core/api/models';
 import { SessionService } from '../../../core/auth/session.service';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
+import { DATE_FORMATS, TIME_FORMATS, formatClock, formatDatePattern } from '../../../core/i18n/date-patterns';
 import { TranslationKey } from '../../../core/i18n/en';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
@@ -45,6 +47,11 @@ const QUICK_LINKS: QuickLink[] = [
  * The news from the sites - the announcements administrators send - is
  * switched here, the same switch the link at the end of every announcement
  * turns off.
+ *
+ * The theme, the dates and the clock are the account's too (migration 015):
+ * every anotoki site where the person uses the account follows them. The
+ * theme toggle saves through the theme service, as every toggle on these
+ * pages does; the two formats are saved here, the moment they are chosen.
  */
 @Component({
   selector: 'app-overview',
@@ -89,6 +96,36 @@ export class OverviewComponent {
   protected readonly hasNewsSwitch = computed(() => typeof this.user()?.news_mail === 'boolean');
   protected readonly newsMail = linkedSignal(() => this.user()?.news_mail ?? true);
   protected readonly savingNewsMail = signal(false);
+
+  /** The dates and the clock: not offered while the server keeps none (migration 015 pending). '' is "Automatic". */
+  protected readonly hasFormats = computed(() => !!this.user()?.preferences);
+  protected readonly dateFormat = linkedSignal<string>(() => this.user()?.preferences?.date_format ?? '');
+  protected readonly timeFormat = linkedSignal<string>(() => this.user()?.preferences?.time_format ?? '');
+  protected readonly savingFormat = signal(false);
+
+  /**
+   * Each order named by an example rather than by a pattern - "31.12.2026"
+   * says what is being chosen, "d.M.yyyy" only to somebody who knows already.
+   * The last day of the year, so the day can never be read as the month.
+   * "Automatic" shows what the page's language makes of the same day.
+   */
+  protected readonly dateFormatOptions = computed<SelectOption[]>(() => {
+    const locale = this._i18n.locale();
+    const sample = sampleMoment();
+    const automatic = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(sample);
+    return [{ value: '', label: `${this._i18n.t('overview.formatAutomatic')} (${automatic})` }, ...DATE_FORMATS.map((format) => ({ value: format, label: formatDatePattern(sample, format) }))];
+  });
+
+  protected readonly timeFormatOptions = computed<SelectOption[]>(() => {
+    const locale = this._i18n.locale();
+    const sample = sampleMoment();
+    const automatic = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(sample);
+    const label: Record<TimeFormatChoice, string> = { '24': this._i18n.t('overview.clock24'), '12': this._i18n.t('overview.clock12') };
+    return [
+      { value: '', label: `${this._i18n.t('overview.formatAutomatic')} (${automatic})` },
+      ...TIME_FORMATS.map((clock) => ({ value: clock, label: `${label[clock]} (${formatClock(sample, locale, clock)})` })),
+    ];
+  });
 
   /**
    * Nothing to choose between with fewer than two languages known - one on
@@ -168,6 +205,33 @@ export class OverviewComponent {
   }
 
   /**
+   * Saved the moment it is chosen, one at a time - both selects wait while a
+   * save is on its way. Refused, the select goes back to what the account has.
+   */
+  protected changeFormat(field: 'date_format' | 'time_format', value: string): void {
+    const preferences = this.user()?.preferences;
+    if (!preferences || (preferences[field] ?? '') === value || this.savingFormat()) {
+      return;
+    }
+
+    this.savingFormat.set(true);
+    const body = field === 'date_format' ? { date_format: (value || null) as DateFormatChoice | null } : { time_format: (value || null) as TimeFormatChoice | null };
+    this._accountApi.updateProfile(body).subscribe({
+      next: (user) => {
+        this.savingFormat.set(false);
+        this._session.set(user);
+        this._toast.success(this._i18n.t('overview.preferencesSaved'));
+      },
+      error: (error: ApiError) => {
+        this.savingFormat.set(false);
+        this.dateFormat.set(this.user()?.preferences?.date_format ?? '');
+        this.timeFormat.set(this.user()?.preferences?.time_format ?? '');
+        this._toast.error(errorText(error, (key) => this._i18n.t(key)));
+      },
+    });
+  }
+
+  /**
    * The page first, the account after. A language whose words cannot be had is
    * not saved: the account would then send mails, and open these pages, in a
    * language this browser has just failed to show. And when the account
@@ -219,4 +283,9 @@ export class OverviewComponent {
     this.savingLanguage.set(false);
     this._toast.error(errorText(error, (key) => this._i18n.t(key)));
   }
+}
+
+/** 31 December of this year, half past two in the afternoon: no order can make the day look like a month, and the hour shows which clock. */
+function sampleMoment(): Date {
+  return new Date(new Date().getFullYear(), 11, 31, 14, 30);
 }

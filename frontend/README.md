@@ -66,8 +66,9 @@ src/
       i18n/                translation.service.ts (the language, its bundle from
                            the database), en.ts (the keys, the last-resort English),
                            localization-drafts.service.ts, the `t` and `appDate`
-                           pipes, error texts, the page-title strategy
-      theme/               light / dark / automatic
+                           pipes (the account's date order and clock: date-patterns.ts),
+                           error texts, the page-title strategy
+      theme/               light / dark / automatic - the account's while signed in
       google/              Google Identity Services, loaded on demand
     ui/                    the UI kit (buttons, fields, dialog, toasts, QR code, …)
     layouts/               auth-layout (the night-sky sign-in pages' own frame),
@@ -138,7 +139,10 @@ scripts/
   (`layouts/shell`, a strip of links on a narrow screen).
 - **Theming** is custom properties only: both palettes in `styles.scss` define
   the same names. Components never contain a raw colour that works in one
-  theme only.
+  theme only. Signed in, the theme is the account's, which every anotoki site
+  follows (migration 015): `ThemeService` shows it and saves a toggle to it,
+  one save at a time, the latest choice last; signed out, it is the device's.
+  Either way the last one shown is in `localStorage`, for `theme-boot.js`.
 
 ## Deploying
 

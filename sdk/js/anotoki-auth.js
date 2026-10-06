@@ -3,7 +3,7 @@
 (function (global) {
   'use strict';
 
-  // anotoki-auth - the browser client for the anotoki IAM.            v1.1.1
+  // anotoki-auth - the browser client for the anotoki IAM.            v1.2.0
   //
   // OpenID Connect, authorization code flow with PKCE, for a site whose frontend
   // talks to its own backend with a bearer token. No dependencies and no build
@@ -28,8 +28,18 @@
   // signature is not. It arrives straight from the token endpoint over TLS, and it
   // only tells this page who signed in - the backend verifies the access token,
   // which is the one that grants anything.
+  //
+  // The account's preferences - the theme, the dates, the clock and the language,
+  // which every anotoki site follows - come with who signed in (user().preferences,
+  // user().locale), and savePreferences() changes them from the site, for every
+  // site at once.
 
-  const SDK_VERSION = '1.1.1';
+  const SDK_VERSION = '1.2.0';
+
+  /** What the IAM may say for each preference; anything else reads as the default. */
+  const THEMES = ['auto', 'light', 'dark'];
+  const DATE_FORMATS = ['dmy_dot', 'dmy_slash', 'mdy_slash', 'ymd_dash'];
+  const TIME_FORMATS = ['24', '12'];
 
   const DEFAULT_SCOPE = 'openid profile email';
 
@@ -88,7 +98,15 @@
       try {
         const raw = localStorage.getItem(storageKey);
         const parsed = raw ? JSON.parse(raw) : null;
-        return parsed && typeof parsed === 'object' ? parsed : null;
+        if (!parsed || typeof parsed !== 'object') {
+          return null;
+        }
+        // Kept by a copy of the SDK from before preferences: none known yet,
+        // and the next refresh brings them.
+        if (parsed.user && typeof parsed.user === 'object' && !('preferences' in parsed.user)) {
+          parsed.user.preferences = null;
+        }
+        return parsed;
       } catch {
         return undefined;
       }
@@ -262,6 +280,24 @@
         email_verified: claims.email_verified === true,
         locale: claims.locale ?? null,
         roles: Array.isArray(claims.roles) ? claims.roles.map(String) : [],
+        preferences: preferencesFrom(claims.preferences),
+      };
+    }
+
+    /**
+     * The account's theme, date order and clock, or null when the IAM sends
+     * none - an IAM from before preferences, or a scope without `profile` - and
+     * the site keeps to its own. A value this copy of the SDK does not know (a
+     * newer IAM's) reads as the default: "auto", or null for "automatic".
+     */
+    function preferencesFrom(value) {
+      if (!value || typeof value !== 'object') {
+        return null;
+      }
+      return {
+        theme: THEMES.includes(value.theme) ? value.theme : 'auto',
+        date_format: DATE_FORMATS.includes(value.date_format) ? value.date_format : null,
+        time_format: TIME_FORMATS.includes(value.time_format) ? value.time_format : null,
       };
     }
 
@@ -565,6 +601,88 @@
       return renewed && renewed !== token ? send(renewed) : response;
     }
 
+    /**
+     * Changes the account's preferences - for every anotoki site, not just this
+     * one. `changes` holds any of theme ("auto", "light", "dark"), date_format
+     * (one of the four orders, or null for automatic), time_format ("24", "12",
+     * or null) and language (a code the IAM offers). Resolves to the account's
+     * preferences and locale as they now stand, and puts them in user() at once,
+     * in every tab; the tokens carry them from their next refresh. Rejects with
+     * the IAM's error code: "login_required" when nobody is signed in,
+     * "insufficient_scope" for a sign-in without `profile`, "invalid_request"
+     * for a value the IAM does not take, "access_denied" when the site no
+     * longer lets the person in, "network" when the IAM cannot be reached.
+     */
+    async function savePreferences(changes) {
+      const sub = session?.user?.sub;
+      if (!sub) {
+        throw authError('login_required', 'Nobody is signed in');
+      }
+
+      // Only ever with this person's own token. Another tab may sign somebody
+      // else in while this one waits for a token, and a refresh takes up what
+      // that tab stored: a token that is no longer this person's is not sent,
+      // or the change would land on the other account.
+      const ownToken = async (refused) => {
+        const token = await (refused ? refresh(refused) : getAccessToken());
+        if (session?.user?.sub !== sub) {
+          throw authError('login_required', session?.user ? 'Somebody else signed in meanwhile' : 'Nobody is signed in');
+        }
+        return token;
+      };
+      const send = async (token) => {
+        try {
+          return await fetch(`${issuer}/api/oidc/preferences`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(changes ?? {}),
+          });
+        } catch {
+          throw authError('network', 'The IAM could not be reached');
+        }
+      };
+
+      const token = await ownToken(null);
+      if (!token) {
+        throw authError('network', 'The IAM could not be reached');
+      }
+      let response = await send(token);
+      if (response.status === 401) {
+        // One retry, and only with a token that is actually different - as fetch() does.
+        const renewed = await ownToken(token);
+        if (renewed && renewed !== token) {
+          response = await send(renewed);
+        }
+      }
+
+      let body = null;
+      try {
+        body = await response.json();
+      } catch {
+        body = null;
+      }
+      if (!response.ok) {
+        throw authError(body?.error ?? `http_${response.status}`, body?.error_description ?? 'The IAM refused the change');
+      }
+
+      const saved = { locale: body?.locale ?? null, preferences: preferencesFrom(body?.preferences) };
+      // Written over what is stored now - unless this tab or another signed out,
+      // or somebody else signed in, while the change was on its way: then the
+      // answer belongs to nobody on the page. Under the refresh lock: what is
+      // written back holds the refresh token too, and one another tab rotates
+      // between the read and the write would put a spent token back - whose next
+      // use the IAM takes for theft, and ends the session.
+      const merge = async () => {
+        const stored = readSession();
+        const current = stored === undefined ? session : stored;
+        if (current?.user?.sub === sub) {
+          writeSession({ ...current, user: { ...current.user, ...saved } });
+        }
+      };
+      await (typeof navigator !== 'undefined' && navigator.locks?.request ? navigator.locks.request(lockName, merge) : merge());
+      return saved;
+    }
+
     function onChange(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -581,6 +699,7 @@
       // refused the token it was given, so get a different one - or null.
       refresh: () => refresh(session?.access_token ?? null),
       fetch: authFetch,
+      savePreferences,
       onChange,
       isAuthenticated: () => Boolean(session?.refresh_token || accessTokenFresh(session, 0)),
       user: () => session?.user ?? null,

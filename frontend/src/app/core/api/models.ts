@@ -187,6 +187,26 @@ export interface AccountUser {
    * null while migration 013 is pending - the page shows no switch.
    */
   news_mail: boolean | null;
+  /**
+   * How the person reads every anotoki site - the theme, dates and clock
+   * (the language is `language`); null while migration 015 is pending, and
+   * the theme stays this device's.
+   */
+  preferences: AccountPreferences | null;
+}
+
+export type ThemeChoice = 'auto' | 'light' | 'dark';
+
+/** How dates are written: d.M.yyyy, dd/MM/yyyy, MM/dd/yyyy, yyyy-MM-dd. */
+export type DateFormatChoice = 'dmy_dot' | 'dmy_slash' | 'mdy_slash' | 'ymd_dash';
+
+export type TimeFormatChoice = '24' | '12';
+
+/** Kept by the IAM for every site; a date format or clock of null is automatic - as the language writes it. */
+export interface AccountPreferences {
+  theme: ThemeChoice;
+  date_format: DateFormatChoice | null;
+  time_format: TimeFormatChoice | null;
 }
 
 export type SessionMethod = 'password' | 'login_code' | 'google' | 'email_link';
@@ -252,6 +272,11 @@ export interface ProfileBody {
   language?: string;
   /** The news from the sites, on or off. */
   news_mail?: boolean;
+  theme?: ThemeChoice;
+  /** null: automatic. */
+  date_format?: DateFormatChoice | null;
+  /** null: automatic. */
+  time_format?: TimeFormatChoice | null;
 }
 
 export interface TwoFactorSetup {

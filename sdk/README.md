@@ -6,9 +6,9 @@ version changes.
 
 | File | For | Version |
 | --- | --- | --- |
-| `js/anotoki-auth.mjs` | The browser: sign-in with PKCE, token storage and refresh, logout. ES module. | 1.1.1 |
-| `js/anotoki-auth.js` | The same, as a classic script defining `window.AnotokiAuth`. **Generated** - `node sdk/js/build.mjs` after editing the `.mjs`. | 1.1.1 |
-| `js/anotoki-auth.d.ts` | Types, for TypeScript importing the `.mjs`. | 1.1.1 |
+| `js/anotoki-auth.mjs` | The browser: sign-in with PKCE, token storage and refresh, logout, the account's preferences. ES module. | 1.2.0 |
+| `js/anotoki-auth.js` | The same, as a classic script defining `window.AnotokiAuth`. **Generated** - `node sdk/js/build.mjs` after editing the `.mjs`. | 1.2.0 |
+| `js/anotoki-auth.d.ts` | Types, for TypeScript importing the `.mjs`. | 1.2.0 |
 | `php/anotoki_iam.php` | A site's backend: verifies access tokens against the IAM's published keys, and reads whether the IAM says the site requires sign-in. Plain functions, no dependencies, parses under PHP 7.4, nothing deprecated up to PHP 8.5. | 1.1.0 |
 
 The contract they implement is [../docs/integrating-an-app.md](../docs/integrating-an-app.md).
@@ -30,7 +30,10 @@ const { returnTo, error } = await auth.init();   // finishes a callback, or rest
 
 Then `auth.getAccessToken()`, `auth.fetch(url, init)`, `auth.login()`,
 `auth.logout()`, `auth.user()`, `auth.onChange(cb)`; for an HTTP layer of its
-own (an Angular interceptor), `auth.refresh()` after a 401. The `.d.ts` says what
+own (an Angular interceptor), `auth.refresh()` after a 401. `auth.user().preferences`
+is the account's theme, date order and clock, which every site follows, and
+`auth.savePreferences({ theme })` changes them for every site
+([../docs/integrating-an-app.md](../docs/integrating-an-app.md)). The `.d.ts` says what
 each does.
 
 Every anotoki site lands the sign-in on `/auth/callback`. A single-page app lets

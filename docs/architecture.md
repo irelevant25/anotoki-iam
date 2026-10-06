@@ -130,7 +130,7 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 
 | Table | Holds |
 | --- | --- |
-| `users` | Accounts: username and address (unique regardless of case), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator, news_mail - whether it gets the announcements), the language. The id is the `sub` every site keys its data on. |
+| `users` | Accounts: username and address (unique regardless of case), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator, news_mail - whether it gets the announcements), the language and how every site is to look - `theme`, `date_format`, `time_format` (015). The id is the `sub` every site keys its data on. |
 | `user_identities` | Who an account is at Google: provider + permanent subject. |
 | `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). |
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
@@ -237,6 +237,16 @@ origin cannot send without a CORS preflight those endpoints never answer, and an
 `Origin` other than the IAM's own is refused. The admin panel needs the
 `ADMIN` role of the application `iam`.
 
+## The account's preferences
+
+The theme, the date order and the clock are the account's (migration 015),
+as its language is: the `preferences` claim beside `locale` tells every site,
+and the account page - or a site, with the person's access token, through
+`POST /api/oidc/preferences` - changes them. Signed in, the IAM's own pages
+follow them like any site: `ThemeService` shows the account's theme and saves
+a toggle to it, and the `appDate` pipe writes the account's order and clock.
+Signed out, each device keeps its own theme, as before.
+
 ## The IAM's own words
 
 What the sign-in pages, the account page and the four mails say - and the
@@ -333,8 +343,10 @@ written down, not a refactor.
 10. **Revocation is at the refresh.** Signing out, disabling an account or taking
     a role away is felt by every site within one access-token lifetime; `userinfo`
     reflects it at once.
-11. **Every write needs the CSRF header** except the three protocol endpoints,
-    named exactly and compared on the percent-decoded path the router matches.
+11. **Every write needs the CSRF header** except the four endpoints the sites
+    call cross-origin with no cookie - token, userinfo, revoke, preferences -
+    named exactly and compared on the percent-decoded path the router matches;
+    none of the four ever reads the session cookie.
 12. **Two-factor holds on every way in, resets included**; an authenticator code
     is accepted once, and every miss counts against the limiter.
 13. **Proving an address on an account never confirmed clears it**: nothing its
@@ -357,7 +369,7 @@ written down, not a refactor.
 | `backend/setup.php` | The installer: writes `config/*.local.php`, builds the database, the accounts, the sites' production addresses. |
 | `backend/config/` | `config.php` (reading `*.local.php`, whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`. |
 | `backend/api/index.php` | Front controller: requires, middleware order, error handler. |
-| `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, logout, revoke, the public list of sites, the public "is sign-in required here?" answer. |
+| `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, a site's save of its reader's preferences, logout, revoke, the public list of sites, the public "is sign-in required here?" answer. |
 | `backend/api/routes/login.php` | Sign-in (password, emailed code, Google), registration, confirmation, resets, the pending request (accept/cancel), sign-out, stopping the news. |
 | `backend/api/routes/account.php` | The account page. |
 | `backend/api/routes/admin.php` | The admin panel. |

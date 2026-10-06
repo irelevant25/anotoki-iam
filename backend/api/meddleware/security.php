@@ -14,27 +14,32 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
  *                         X-IAM-Request (a custom header forces a CORS preflight,
  *                         which these endpoints never answer), and an Origin, when
  *                         the browser sends one, must be the IAM's own.
- *   applications          the token, userinfo and revocation endpoints, called
+ *   applications          the token, userinfo and revocation endpoints and a
+ *                         site's save of its reader's preferences, called
  *                         cross-origin from the sites' pages. CORS is echoed for
  *                         an origin some application has registered - no
- *                         credentials, no cookie; the token endpoint then also
- *                         checks the origin belongs to the client named.
+ *                         credentials, no cookie; the token endpoint and the
+ *                         preferences then also check the origin belongs to
+ *                         the client named, or the token's.
  *   anybody               discovery, the key set and the landing-page list are
  *                         public and cacheable: CORS "*".
  */
 
 /** Endpoints called by the sites' own pages, cross-origin, with no cookie. */
-const CORS_CLIENT_PATHS = ['/api/oidc/token', '/api/oidc/userinfo', '/api/oidc/revoke'];
+const CORS_CLIENT_PATHS = ['/api/oidc/token', '/api/oidc/userinfo', '/api/oidc/revoke', '/api/oidc/preferences'];
 
 /** Public documents anybody may fetch from anywhere. */
 const CORS_PUBLIC_PATHS = ['/.well-known/openid-configuration', '/.well-known/jwks.json', '/api/applications'];
 
 /**
- * The only writes that need no CSRF header: the protocol endpoints, which read
- * no cookie (the token, userinfo and revocation endpoints are called
- * cross-origin by the sites; logout is a GET).
+ * The only writes that need no CSRF header: the endpoints the sites call
+ * cross-origin, which read no cookie - the token, userinfo and revocation
+ * endpoints, and a site's save of its reader's preferences, whose proof is the
+ * person's access token (logout is a GET). None of them may ever read the
+ * session cookie: the header is what stands between a cookie and a page on a
+ * sibling subdomain.
  */
-const CSRF_EXEMPT_PATHS = ['/api/oidc/token', '/api/oidc/userinfo', '/api/oidc/revoke'];
+const CSRF_EXEMPT_PATHS = ['/api/oidc/token', '/api/oidc/userinfo', '/api/oidc/revoke', '/api/oidc/preferences'];
 
 /**
  * The path as the router sees it.

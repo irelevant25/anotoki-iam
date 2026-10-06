@@ -97,7 +97,7 @@ changes strings, never keys.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
   that no migration wrote. It also counts what the migrations leave (after
-  014: 495 keys, 463 of the pages, 990 strings): a migration that adds or
+  015: 502 keys, 470 of the pages, 1004 strings): a migration that adds or
   removes keys moves those numbers, and `tests/top-bar-strings.test.php` is
   the pattern for testing one on an installed IAM. A migration test that
   builds a database "up to" its file and applies what is pending applies every

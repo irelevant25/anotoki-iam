@@ -1,5 +1,13 @@
 RewriteEngine On
 
+# The sites' bearer tokens (userinfo, a site's save of its reader's
+# preferences) reach PHP only this way under CGI / FastCGI, which drop the
+# Authorization header; Slim reads it back as REDIRECT_HTTP_AUTHORIZATION. The
+# build analyzer's rule, as it runs on the same host - not CGIPassAuth, which
+# some hosts answer with a 500.
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # Everything goes through index.php. No other file under api/ is meant to be
 # requested: the route and helper files, called on their own, die with a fatal
 # error that names server paths. The first rule stops the rewrite looping on

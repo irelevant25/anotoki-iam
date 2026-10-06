@@ -32,6 +32,10 @@ The `.htaccess` from the Angular build passes `/api/` to `api/index.php`,
 rewrites `/.well-known/openid-configuration` and `/.well-known/jwks.json` to
 it too, lets real files (the installer among them) through, falls back to
 `index.html` for the app's own routes, and sets the security headers.
+`api/.htaccess` sends everything under it to `index.php`, and copies the
+`Authorization` header into the environment for a host that runs PHP as
+CGI / FastCGI, which drops it - without it no site's bearer token (userinfo, a
+site's save of its reader's preferences) would reach PHP.
 `config/`, `migrations/`, `storage/` and `vendor/` carry a deny-all `.htaccess`
 of their own.
 
@@ -250,6 +254,17 @@ account page shows no switch.
 **Migration 014** (the news, offered at registration) adds the words of the
 register page's box - "Send me news from anotoki sites", unticked - in English
 and Slovak; no schema. It goes with 013, in the same Apply.
+
+**Migration 015** (the theme, the dates and the clock are the account's - the
+owner's decision of 2026-10-06, `docs/decisions.md`) adds the three columns,
+`auto` and "automatic" for every account there is, the `preferences` claim and
+`POST /api/oidc/preferences`, and the words of the account page's Dates and
+Clock, in English and Slovak (rewording the language's and the appearance's
+hints where they are still 006's). Between the upload and Apply nothing
+changes: the account page keeps the theme per device, and the tokens carry no
+`preferences`, so a site with SDK 1.2.0 keeps its own settings until then. The
+sites follow it in any order after the upload - upload the IAM, Apply, then
+the sites.
 
 ### The sites' addresses
 

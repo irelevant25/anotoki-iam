@@ -211,6 +211,94 @@ function releaseWaitingAccounts(PDO $pdo): int
     return (int) $pdo->exec('UPDATE users SET approved = TRUE WHERE NOT approved AND NOT disabled');
 }
 
+// ── Display preferences ──────────────────────────────────────────────────────
+//
+// How the person reads every anotoki site (migration 015, the owner's
+// decision of 2026-10-06): the theme, how dates are written, the clock - and
+// the language, the account's already. Kept by the IAM, given to every site in
+// the `preferences` claim (and `locale`), and changed on the account page or by
+// a site for its signed-in person (POST /api/oidc/preferences).
+
+const PREFERENCE_THEMES = ['auto', 'light', 'dark'];
+const PREFERENCE_DATE_FORMATS = ['dmy_dot', 'dmy_slash', 'mdy_slash', 'ymd_dash'];
+const PREFERENCE_TIME_FORMATS = ['24', '12'];
+
+/**
+ * Whether migration 015's columns are there. A catalog query that cannot
+ * fail, asked afresh like the others: a build goes up before its migrations.
+ */
+function preferencesReady(PDO $pdo): bool
+{
+    return asBool($pdo->query(
+        "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'theme' AND NOT attisdropped)"
+    )->fetchColumn());
+}
+
+/**
+ * The account's theme, date format and clock as the sites are told them - or
+ * null for a row from before 015, which has no such columns. A date format or
+ * clock not chosen is null: each site writes them its own way.
+ *
+ * @return array{theme: string, date_format: ?string, time_format: ?string}|null
+ */
+function accountPreferences(array $user): ?array
+{
+    if (!array_key_exists('theme', $user)) {
+        return null;
+    }
+
+    return [
+        'theme' => in_array($user['theme'], PREFERENCE_THEMES, true) ? $user['theme'] : 'auto',
+        'date_format' => in_array($user['date_format'], PREFERENCE_DATE_FORMATS, true) ? $user['date_format'] : null,
+        'time_format' => in_array($user['time_format'], PREFERENCE_TIME_FORMATS, true) ? $user['time_format'] : null,
+    ];
+}
+
+/**
+ * What a body asks to change of the preferences, checked - the account page's
+ * and a site's alike: ['changes' => [column => value]], or ['error' => a
+ * sentence]. A field left out stays as it is. A date format or clock of null,
+ * '' or 'auto' is "automatic" again. The language must be one the IAM offers:
+ * a site that speaks one the IAM does not keeps it for its own page.
+ *
+ * @return array{changes: array<string, ?string>}|array{error: string}
+ */
+function preferenceChanges(PDO $pdo, array $body): array
+{
+    $changes = [];
+
+    if (array_key_exists('theme', $body)) {
+        if (!in_array($body['theme'], PREFERENCE_THEMES, true)) {
+            return ['error' => 'theme is one of ' . implode(', ', PREFERENCE_THEMES)];
+        }
+        $changes['theme'] = $body['theme'];
+    }
+
+    foreach (['date_format' => PREFERENCE_DATE_FORMATS, 'time_format' => PREFERENCE_TIME_FORMATS] as $field => $allowed) {
+        if (!array_key_exists($field, $body)) {
+            continue;
+        }
+        $value = $body[$field];
+        if ($value === null || $value === '' || $value === 'auto') {
+            $changes[$field] = null;
+        } elseif (is_string($value) && in_array($value, $allowed, true)) {
+            $changes[$field] = $value;
+        } else {
+            return ['error' => "$field is one of " . implode(', ', $allowed) . ', or null for automatic'];
+        }
+    }
+
+    if (array_key_exists('language', $body)) {
+        $language = is_string($body['language']) ? strtolower(trim($body['language'])) : '';
+        if (!in_array($language, languageCodes($pdo), true)) {
+            return ['error' => 'language is one of ' . implode(', ', languageCodes($pdo))];
+        }
+        $changes['language'] = $language;
+    }
+
+    return ['changes' => $changes];
+}
+
 /** The account as the IAM's own pages see it. */
 function accountPayload(PDO $pdo, array $user): array
 {
@@ -237,6 +325,9 @@ function accountPayload(PDO $pdo, array $user): array
         // Whether the account gets the announcements; null while migration
         // 013 is pending, and the account page shows no switch.
         'news_mail' => array_key_exists('news_mail', $user) ? asBool($user['news_mail']) : null,
+        // The theme, dates and clock every site follows; null while 015 is
+        // pending, and the account page shows the theme per device as before.
+        'preferences' => accountPreferences($user),
     ];
 }
 
@@ -279,6 +370,11 @@ function profileClaims(array $user, string $scope): array
         // language switched off in the admin panel is one no site is told
         // about any more, though the account keeps it for when it is back.
         $claims['locale'] = languageOrDefault($user['language']);
+        // How every site is to be read (migration 015): the theme, dates and
+        // clock. Left out while 015 is pending - a site then keeps its own.
+        if (($preferences = accountPreferences($user)) !== null) {
+            $claims['preferences'] = $preferences;
+        }
     }
 
     if (in_array('email', $scopes, true)) {

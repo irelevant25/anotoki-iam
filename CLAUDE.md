@@ -133,6 +133,16 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   column's default. Switching the setting off approves everybody waiting and
   switched on. Once 012 is applied, no build from before it goes on the host
   again: it would let every waiting account in.
+- **The theme, the dates and the clock are the account's** (migration 015,
+  the owner's decision of 2026-10-06; `docs/decisions.md`), beside its
+  language: `users.theme` / `date_format` / `time_format`, the `preferences`
+  claim beside `locale` (profile scope), changed on the account page or by a
+  site with the person's access token (`POST /api/oidc/preferences`, SDK
+  `savePreferences()`). That endpoint is the fourth CSRF-exempt,
+  CORS-for-sites path, beside token, userinfo and revoke - none of which may
+  ever read the session cookie. Signed in, every site and the IAM's own pages
+  follow the account (one theme everywhere, admin areas included); signed
+  out, each device keeps its own.
 - **Announcements** (migration 013, the owner's decision of 2026-10-06;
   `api/announcements.php`): news an administrator writes from a template (the
   `mail.newVersion|newRelease|newSurvey.*` strings) and sends - never by
@@ -161,7 +171,7 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   it with `IAM_NO_RUN` defined) and fixes the middleware order: security headers
   → not set up → CORS → error handler → CSRF → body parsing → routes.
 - Routes by audience: `routes/oidc.php` (applications: discovery, JWKS,
-  authorize, token, userinfo, logout, revoke), `routes/login.php` (the sign-in
+  authorize, token, userinfo, preferences, logout, revoke), `routes/login.php` (the sign-in
   pages), `routes/account.php` (`requireSession()`), `routes/admin.php`
   (`requireSession()` + `requireAdmin()` = ADMIN of the application `iam`).
 - Logic in plain function files beside them: `oidc.php` (requests, codes,

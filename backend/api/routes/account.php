@@ -78,6 +78,20 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             $changes['news_mail'] = pgBool($body['news_mail']);
         }
 
+        // The theme, dates and clock every site follows (migration 015),
+        // checked as a site's own save is (preferenceChanges()).
+        $preferences = array_intersect_key($body, array_flip(['theme', 'date_format', 'time_format']));
+        if ($preferences !== []) {
+            if (!preferencesReady($pdo)) {
+                return respondError($response, 503, 'preferences_unavailable', 'The display preferences are not in the database yet. Apply the pending migrations in the admin panel.');
+            }
+            $checked = preferenceChanges($pdo, $preferences);
+            if (isset($checked['error'])) {
+                return respondError($response, 422, 'invalid_preference', $checked['error']);
+            }
+            $changes += $checked['changes'];
+        }
+
         if ($changes !== []) {
             $sets = implode(', ', array_map(static fn(string $column): string => $column . ' = ?', array_keys($changes)));
             $pdo->prepare("UPDATE users SET $sets WHERE id = ?")->execute([...array_values($changes), (int) $user['id']]);

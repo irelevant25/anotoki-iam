@@ -5,7 +5,9 @@ every application that signs people in through it. Two halves:
 
 - **OpenID Connect** - the standard endpoints an application uses: discovery,
   keys, authorize, token, userinfo, logout, revoke. Anything that speaks OIDC
-  can use them; the SDKs in `sdk/` are the small first-party clients.
+  can use them; the SDKs in `sdk/` are the small first-party clients. Beside
+  them, anotoki's own `POST /api/oidc/preferences`, through which a site saves
+  its signed-in reader's theme, dates, clock and language.
 - **First-party JSON** - what the IAM's own pages call: signing in, the account
   page, the admin panel. Only the IAM frontend uses these, from its own origin,
   with the IAM session cookie.
@@ -57,10 +59,13 @@ header is present and is not the issuer's own origin are refused as well.
 Missing either: `403 { code: "csrf" }`.
 
 The OIDC endpoints are exempt: authorize and logout are top-level navigations
-(GETs), and token/userinfo/revoke are called cross-origin by applications,
-carrying no cookie. Exactly those three paths are exempt, compared with the path
-as the router sees it - percent-decoded - so `/%61pi/...` is no way around the
-guard; every other write anywhere needs the header.
+(GETs), and token/userinfo/revoke/preferences are called cross-origin by
+applications, carrying no cookie. Exactly those four paths are exempt, compared
+with the path as the router sees it - percent-decoded - so `/%61pi/...` is no
+way around the guard; every other write anywhere needs the header. None of the
+four reads the session cookie, and none may ever: the header is what stands
+between the cookie and a page on a sibling subdomain, which a browser counts
+as the same site.
 
 ---
 
@@ -89,7 +94,7 @@ Discovery. Public, cacheable (`Cache-Control: max-age=3600`).
   "code_challenge_methods_supported": ["S256"],
   "scopes_supported": ["openid", "profile", "email"],
   "claims_supported": ["sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "sid", "amr",
-                       "preferred_username", "email", "email_verified", "locale", "roles"],
+                       "preferred_username", "email", "email_verified", "locale", "preferences", "roles"],
   "prompt_values_supported": ["none", "login", "create"],
   "ui_locales_supported": ["en", "sk"],
   "authorization_response_iss_parameter_supported": true
@@ -233,7 +238,8 @@ Applications' backends verify it; see [integrating-an-app.md](integrating-an-app
   "preferred_username": "admin",
   "email": "admin@localhost",
   "email_verified": true,
-  "locale": "en"
+  "locale": "en",
+  "preferences": { "theme": "auto", "date_format": null, "time_format": null }
 }
 ```
 
@@ -250,6 +256,23 @@ language that was switched off, and `locale` says it again once it is back on.
 A token minted before a language was switched off or deleted carries it for
 that token's lifetime - a site checks `locale` against its own languages and
 treats anything else as its default.
+
+`preferences` (with the `profile` scope, in both tokens and in userinfo, once
+migration 015 is applied) is how the account wants every anotoki site to look:
+
+```ts
+{
+  theme: 'auto' | 'light' | 'dark';                                 // auto: as the operating system says
+  date_format: 'dmy_dot' | 'dmy_slash' | 'mdy_slash' | 'ymd_dash' | null;   // 6.10.2026, 06/10/2026, 10/06/2026, 2026-10-06
+  time_format: '24' | '12' | null;                                  // 14:30, 2:30 PM
+}
+```
+
+`null` is "automatic": the page language's own way. A site follows these for a
+signed-in person in place of its own settings, and keeps its own when the
+claim is absent (an IAM before 015, a sign-in without `profile`). A token
+carries them as they were when it was minted; userinfo reads them fresh, and
+`POST /api/oidc/preferences` answers them.
 
 **ID token** - header `{"alg":"RS256","typ":"JWT","kid":"..."}`. For the
 application's frontend to learn who signed in.
@@ -271,6 +294,7 @@ application's frontend to learn who signed in.
   "email": "admin@localhost",
   "email_verified": true,
   "locale": "en",
+  "preferences": { "theme": "auto", "date_format": null, "time_format": null },
   "roles": ["ADMIN"]
 }
 ```
@@ -280,10 +304,47 @@ code), `email` (an emailed code or link), `google`.
 
 ### `GET|POST /api/oidc/userinfo`
 
-`Authorization: Bearer <access token>`. CORS as for the token endpoint. Answers
+`Authorization: Bearer <access token>`. Answered cross-origin to any origin some
+application registered - a read, so not held to the token's own application's
+origins as the token endpoint is. Answers
 the claims above for the token's user - read fresh, so a changed username shows
 here before the next token. `401` with `WWW-Authenticate: Bearer error="invalid_token"`
 when the token is not good or its session has ended.
+
+### `POST /api/oidc/preferences`
+
+A site saves what its signed-in reader chose with the site's own controls -
+its theme toggle, its language switcher - to the account, and every site
+follows it (the JS SDK's `savePreferences()`). `Authorization: Bearer <access
+token>` from a sign-in - not one a script's personal token was exchanged for -
+carrying the `profile` scope. CORS as for the token endpoint: answered to an
+origin some application registered, and refused for an `Origin` that is not
+the token's own application's (no `Origin` at all - the site's backend - is
+the token's own business). No cookie is read, and no CSRF header is needed.
+The person must still be let into that site, by the rules a refresh keeps.
+
+`{ theme?, date_format?, time_format?, language? }` as a JSON object (a form
+body is read the same way), at least one:
+`theme` is `auto`, `light` or `dark`; `date_format` one of the four orders
+above or `null`; `time_format` `"24"`, `"12"` or `null` (`"auto"` is taken for
+`null` too); `language` a code the IAM offers (discovery's
+`ui_locales_supported`). Changes only those, on the
+token's own account, and answers the account as it now stands:
+
+```json
+{ "locale": "sk", "preferences": { "theme": "dark", "date_format": "ymd_dash", "time_format": null } }
+```
+
+The tokens carry the change from their next refresh.
+
+Errors (OAuth's shape): `401 invalid_token` as for userinfo; `400
+invalid_request` for an `Origin` that is not the token's application's, and for
+a body that is not an object, is empty, or names anything else or a value not
+on offer; `403 access_denied` for a personal token's access token, and for a
+person the site no longer lets in (the site switched off, their roles there
+keeping them out, the address unconfirmed); `403 insufficient_scope` for a
+token without `profile`; `503 temporarily_unavailable` while migration 015 is
+pending.
 
 ### `GET /api/oidc/logout`
 
@@ -651,13 +712,18 @@ interface AccountUser {
   force_password_change: boolean;
   is_admin: boolean;              // holds ADMIN in the IAM itself
   news_mail: boolean | null;      // gets the announcements; null while migration 013 is pending
+  preferences: {                  // what every anotoki site follows (the claim above); null while migration 015 is pending
+    theme: 'auto' | 'light' | 'dark';
+    date_format: 'dmy_dot' | 'dmy_slash' | 'mdy_slash' | 'ymd_dash' | null;
+    time_format: '24' | '12' | null;
+  } | null;
 }
 ```
 
 | Method + path | Body | Answer |
 | --- | --- | --- |
 | `GET /api/account` | | `AccountUser` |
-| `PUT /api/account/profile` | `{ username?, language?, news_mail? }` | `AccountUser` (409 username taken; `422 invalid_language` for a language not on offer; `news_mail` is true or false - `422 invalid_input` otherwise, `503 announcements_unavailable` while 013 is pending) |
+| `PUT /api/account/profile` | `{ username?, language?, news_mail?, theme?, date_format?, time_format? }` | `AccountUser` (409 username taken; `422 invalid_language` for a language not on offer; `news_mail` is true or false - `422 invalid_input` otherwise, `503 announcements_unavailable` while 013 is pending; the three preferences take the values of `POST /api/oidc/preferences` - `422 invalid_preference` otherwise, `503 preferences_unavailable` while 015 is pending) |
 | `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; `422` wrong current password |
 | `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change |
 | `PUT /api/account/password/enabled` | `{ enabled }` | `AccountUser` - `409 would_lock_account` / `no_password` |

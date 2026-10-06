@@ -8,8 +8,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 //
 // See docs/api.md for the contract. Everything an application needs is here:
 // discovery, the public keys, authorize, token, userinfo, logout and
-// revocation. The IAM's own pages (routes/login.php) finish what authorize
-// cannot do alone - showing a form.
+// revocation - and, anotoki's own, a site's save of its reader's preferences.
+// The IAM's own pages (routes/login.php) finish what authorize cannot do
+// alone - showing a form.
 // ---------------------------------------------------------------------------
 
 /** OAuth's error shape, as the token, userinfo and revocation endpoints must answer. */
@@ -93,7 +94,7 @@ $app->get('/.well-known/openid-configuration', function (Request $request, Respo
         'code_challenge_methods_supported' => ['S256'],
         'scopes_supported' => OIDC_SCOPES,
         'claims_supported' => ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'sid', 'amr',
-            'preferred_username', 'email', 'email_verified', 'locale', 'roles'],
+            'preferred_username', 'email', 'email_verified', 'locale', 'preferences', 'roles'],
         'prompt_values_supported' => ['none', 'login', 'create'],
         'ui_locales_supported' => languageCodes(),
         'authorization_response_iss_parameter_supported' => true,
@@ -283,10 +284,19 @@ $app->post('/api/oidc/token', function (Request $request, Response $response) {
 
 // ── Userinfo ─────────────────────────────────────────────────────────────────
 
-$userinfo = function (Request $request, Response $response) {
+/**
+ * Who the access token in the Authorization header speaks for - as userinfo
+ * and a site's save of its reader's preferences read it, in one place: the
+ * token verified (signature, typ, expiry, its session still live), its account
+ * switched on and not waiting for approval, its application there. Null for
+ * anything less; the caller answers 401 invalid_token.
+ *
+ * @return array{claims: array, user: array, application: array}|null
+ */
+function accessTokenHolder(PDO $pdo, Request $request): ?array
+{
     $header = $request->getHeaderLine('Authorization');
     $token = strncasecmp($header, 'Bearer ', 7) === 0 ? trim(substr($header, 7)) : '';
-    $pdo = iamDb();
     $claims = $token === '' ? null : verifyAccessTokenHere($pdo, $token);
     $user = $claims === null ? null : userById($pdo, (int) $claims['sub']);
     $application = $claims === null ? null : applicationByClientId((string) ($claims['client_id'] ?? $claims['aud'] ?? ''));
@@ -294,17 +304,103 @@ $userinfo = function (Request $request, Response $response) {
     // An account waiting for approval is never issued a token; one that holds
     // one anyway is refused here as it is everywhere else.
     if ($user === null || $application === null || asBool($user['disabled']) || accountAwaitsApproval($user)) {
-        return oauthError($response, 401, 'invalid_token', 'The access token is not valid')
-            ->withHeader('WWW-Authenticate', 'Bearer error="invalid_token"');
+        return null;
     }
 
-    return respondJson($response, ['sub' => (string) $user['id']]
-        + profileClaims($user, (string) ($claims['scope'] ?? ''))
-        + ['roles' => userRolesIn((int) $user['id'], (int) $application['id'])]);
+    return ['claims' => $claims, 'user' => $user, 'application' => $application];
+}
+
+function invalidAccessToken(Response $response): Response
+{
+    return oauthError($response, 401, 'invalid_token', 'The access token is not valid')
+        ->withHeader('WWW-Authenticate', 'Bearer error="invalid_token"');
+}
+
+$userinfo = function (Request $request, Response $response) {
+    $holder = accessTokenHolder(iamDb(), $request);
+
+    if ($holder === null) {
+        return invalidAccessToken($response);
+    }
+
+    return respondJson($response, ['sub' => (string) $holder['user']['id']]
+        + profileClaims($holder['user'], (string) ($holder['claims']['scope'] ?? ''))
+        + ['roles' => userRolesIn((int) $holder['user']['id'], (int) $holder['application']['id'])]);
 };
 
 $app->get('/api/oidc/userinfo', $userinfo);
 $app->post('/api/oidc/userinfo', $userinfo);
+
+// ── A site saves its reader's preferences ────────────────────────────────────
+
+/**
+ * POST /api/oidc/preferences {theme?, date_format?, time_format?, language?} -
+ * a site saves what its signed-in reader chose with the site's own controls
+ * (its theme toggle, its language switcher) to the account, so every site
+ * follows it (migration 015; docs/decisions.md, 2026-10-06). Answers the
+ * account's `locale` and `preferences` as they are now; every token carries
+ * them from its next refresh.
+ *
+ * The person's access token is the proof, as for userinfo, and it must carry
+ * the profile scope these claims are read with. No cookie is read, so it needs
+ * no CSRF header - a page elsewhere cannot put the person's token into a
+ * request - and it is answered cross-origin to a registered site's origin
+ * only, like the token, userinfo and revocation endpoints. It changes nothing
+ * but the four, and only the token's own account.
+ *
+ * Being a write, it asks more of the token than userinfo does (found by the
+ * security review): a sign-in behind it - a script's personal token has no
+ * reader whose choices there are to save, so a leaked one changes nothing
+ * here; the page asking, when one is, being the token's own site's, as at the
+ * token endpoint; and the person still allowed into that site - a site
+ * switched off, or somebody kept out of it, writes nothing with the tokens
+ * still held, by the rules a refresh keeps (applicationAccessRefusal()).
+ */
+$app->post('/api/oidc/preferences', function (Request $request, Response $response) {
+    $pdo = iamDb();
+    $holder = accessTokenHolder($pdo, $request);
+
+    if ($holder === null) {
+        return invalidAccessToken($response);
+    }
+    if (!originAllowedFor($request, $holder['application'])) {
+        return oauthError($response, 400, 'invalid_request', 'This origin is not registered for the client');
+    }
+    if (!isset($holder['claims']['sid'])) {
+        return oauthError($response, 403, 'access_denied', 'A token made for a script cannot change the preferences');
+    }
+    $refusal = applicationAccessRefusal($holder['application'], $holder['user']);
+    if ($refusal !== null) {
+        return oauthError($response, 403, 'access_denied', $refusal['error']);
+    }
+    if (!in_array('profile', explode(' ', (string) ($holder['claims']['scope'] ?? '')), true)) {
+        return oauthError($response, 403, 'insufficient_scope', 'The access token does not carry the profile scope')
+            ->withHeader('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="profile"');
+    }
+    if (!preferencesReady($pdo)) {
+        return oauthError($response, 503, 'temporarily_unavailable', 'The preferences are not in the database yet');
+    }
+
+    $body = $request->getParsedBody();
+    if (!is_array($body) || $body === [] || array_is_list($body)) {
+        return oauthError($response, 400, 'invalid_request', 'Send the preferences as a JSON object: {theme?, date_format?, time_format?, language?}');
+    }
+    $unknown = array_diff(array_map('strval', array_keys($body)), ['theme', 'date_format', 'time_format', 'language']);
+    if ($unknown !== []) {
+        return oauthError($response, 400, 'invalid_request', 'There is no preference called ' . textClip((string) reset($unknown), 40));
+    }
+    $checked = preferenceChanges($pdo, $body);
+    if (isset($checked['error'])) {
+        return oauthError($response, 400, 'invalid_request', $checked['error']);
+    }
+
+    $userId = (int) $holder['user']['id'];
+    $sets = implode(', ', array_map(static fn(string $column): string => $column . ' = ?', array_keys($checked['changes'])));
+    $pdo->prepare("UPDATE users SET $sets WHERE id = ?")->execute([...array_values($checked['changes']), $userId]);
+    $fresh = userById($pdo, $userId);
+
+    return respondJson($response, ['locale' => languageOrDefault($fresh['language']), 'preferences' => accountPreferences($fresh)]);
+});
 
 // ── Logout ───────────────────────────────────────────────────────────────────
 

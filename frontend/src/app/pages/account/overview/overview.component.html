@@ -82,6 +82,23 @@
                             <app-theme-toggle />
                             <p class="small muted">{{ "overview.appearanceHint" | t }}</p>
                         </div>
+                        @if (hasFormats()) {
+                            <div class="stack stack-sm">
+                                <app-select
+                                    [label]="'overview.dateFormat' | t"
+                                    [options]="dateFormatOptions()"
+                                    [disabled]="savingFormat()"
+                                    [(value)]="dateFormat"
+                                    (valueChange)="changeFormat('date_format', $event)" />
+                                <app-select
+                                    [label]="'overview.timeFormat' | t"
+                                    [options]="timeFormatOptions()"
+                                    [disabled]="savingFormat()"
+                                    [(value)]="timeFormat"
+                                    (valueChange)="changeFormat('time_format', $event)" />
+                                <p class="small muted">{{ "overview.formatsHint" | t }}</p>
+                            </div>
+                        }
                     </div>
                 </app-card>
 

@@ -63,9 +63,10 @@ API document is a contract the Angular frontend and all the sites depend on.
    for timestamps in answers, `respondError()` / `oauthError()` for refusals,
    `audit()` for every admin or security-relevant change.
 3. A new first-party write endpoint is protected by the CSRF middleware
-   automatically (every write but the three protocol endpoints, compared on the
-   decoded path); a new OIDC endpoint needs its CORS rule in
-   `meddleware/security.php` and must read no cookie.
+   automatically (every write but the four endpoints the sites call with a
+   token - token, userinfo, revoke, preferences - compared on the decoded
+   path); a new OIDC endpoint needs its CORS rule in `meddleware/security.php`
+   and must read no cookie.
 4. Anything that issues a code or a token goes through
    `applicationAccessRefusal()` and `signInRefusal()` - never around them.
 5. A new per-installation value goes into a `*.local.php`, is written by

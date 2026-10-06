@@ -1,4 +1,7 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
+import { AccountPreferences } from '../api/models';
+import { SessionService } from '../auth/session.service';
+import { formatClock, formatDatePattern } from './date-patterns';
 import { TranslationService } from './translation.service';
 
 export type DateStyle = 'date' | 'datetime' | 'time' | 'relative';
@@ -21,10 +24,14 @@ const relativeCache = new Map<string, Intl.RelativeTimeFormat>();
  * and falls back to the date beyond a week, where "41 days ago" stops meaning
  * anything. Impure for the same reason as the `t` pipe: the language can
  * change under a constant argument.
+ *
+ * A signed-in person's own date format and clock (the account's, which every
+ * anotoki site follows) win over the language's: `2026-09-27 10:15 AM`.
  */
 @Pipe({ name: 'appDate', pure: false })
 export class AppDatePipe implements PipeTransform {
   private readonly _i18n = inject(TranslationService);
+  private readonly _session = inject(SessionService);
 
   transform(value: string | null | undefined, style: DateStyle = 'datetime', fallback = ''): string {
     if (!value) {
@@ -37,13 +44,29 @@ export class AppDatePipe implements PipeTransform {
     }
 
     const locale = this._i18n.locale();
+    const chosen = this._session.user()?.preferences ?? null;
 
     if (style === 'relative') {
-      return formatRelative(date, locale) ?? formatter(locale, 'date').format(date);
+      return formatRelative(date, locale) ?? dayOf(date, locale, chosen);
+    }
+    if (style === 'date') {
+      return dayOf(date, locale, chosen);
+    }
+    if (style === 'time') {
+      return timeOf(date, locale, chosen);
     }
 
-    return formatter(locale, style).format(date);
+    // Neither chosen: the language's own way of putting the two together.
+    return chosen?.date_format || chosen?.time_format ? `${dayOf(date, locale, chosen)} ${timeOf(date, locale, chosen)}` : formatter(locale, 'datetime').format(date);
   }
+}
+
+function dayOf(date: Date, locale: string, chosen: AccountPreferences | null): string {
+  return chosen?.date_format ? formatDatePattern(date, chosen.date_format) : formatter(locale, 'date').format(date);
+}
+
+function timeOf(date: Date, locale: string, chosen: AccountPreferences | null): string {
+  return chosen?.time_format ? formatClock(date, locale, chosen.time_format) : formatter(locale, 'time').format(date);
 }
 
 function formatter(locale: string, style: Exclude<DateStyle, 'relative'>): Intl.DateTimeFormat {

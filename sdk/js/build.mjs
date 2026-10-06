@@ -14,7 +14,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, 'anotoki-auth.mjs'), 'utf8');
+// Read as LF whatever the checkout wrote: a CRLF blank line is "\r", which the
+// indenting below would turn into two spaces. Git sets the line endings.
+const source = readFileSync(join(here, 'anotoki-auth.mjs'), 'utf8').replace(/\r\n/g, '\n');
 
 const exportLine = /^export \{ createAuth, SDK_VERSION as version \};\s*$/m;
 if (!exportLine.test(source)) {

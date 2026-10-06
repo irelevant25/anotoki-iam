@@ -57,6 +57,8 @@ old ADMIN becomes ADMIN in every application that has one - below.)
 Theme, date format, the genshin site's per-area themes: each site keeps its own.
 The IAM keeps only the language, for its own pages and the mail it sends, and
 passes it as the `locale` claim so a site can start a newcomer in it.
+(Reversed 2026-10-06: the theme, the dates and the clock are the account's
+too, and every site follows them - below.)
 
 ## 2026-09-27 - The accounts moved with their ids
 
@@ -762,3 +764,59 @@ panel's **Announcements**:
   account back, with the rest of what the registrant set. Accounts an
   administrator makes, the import brings, and every one there was before 013
   keep the news on, as 013 left them - every announcement says how to stop it.
+
+## 2026-10-06 - The theme, the dates and the clock are the account's, for every site
+
+The owner: "the genshin impact has its own appereance, dates, clock and
+language settings. I think it should be in the iam only and apply for every
+project/application." Asked, the owner chose that a site's own controls save
+to the account for a signed-in person - not only the IAM's account page - and
+one theme everywhere: every site, every area of it, its admin area included
+(the genshin site had a theme of its own for its admin area). This reverses
+"Preferences stay with the sites" (2026-09-27). Migration 015:
+
+- **The account keeps them**, beside the language it already kept:
+  `users.theme` (`auto`, `light`, `dark`; `auto`, the operating system's,
+  for every account there is), `date_format` (the genshin site's four orders,
+  or null for the page language's own way) and `time_format` (`24`, `12`, or
+  null). Closed sets, CHECKs on the columns.
+- **The sites are told them in the tokens**: a `preferences` claim beside
+  `locale`, under the `profile` scope, in the access token, the ID token and
+  userinfo. A token says what was true when it was minted; a refresh brings a
+  new ID token. Left out while 015 is pending, and a site keeps its own.
+- **A site saves them with the person's access token**:
+  `POST /api/oidc/preferences` - the SDK's `savePreferences()`, 1.2.0. It is
+  the first endpoint through which a site writes to the account, so it is held
+  to the narrowest shape: the bearer token is the only proof (verified as
+  userinfo verifies it - the account switched on and not waiting); it needs
+  the `profile` scope the claims are read under; it changes the four
+  preferences and nothing else, on the token's own account only; it answers
+  cross-origin to a registered site's origin only. And, found by the security
+  review, more than userinfo asks, being a write: a sign-in behind the token
+  (a script's personal token has no reader whose choices there are to save,
+  so a leaked one changes nothing here); an `Origin`, when there is one, of
+  the token's own application, as at the token endpoint; and the person still
+  let into that site by the rules a refresh keeps - a site switched off, or
+  somebody kept out of it, writes nothing with the tokens still held. Not a
+  scope of its own: every site asking is a first-party one, and asks for
+  `profile` - a scope for the write would be one more thing each site must
+  ask for, guarding against nobody but the sites themselves. It reads no cookie, so it
+  joins token, userinfo and revoke as the fourth path exempt from the CSRF
+  header (`CSRF_EXEMPT_PATHS`, `CORS_CLIENT_PATHS` - rule 11 of
+  architecture.md): a page elsewhere cannot put the person's token into a
+  request, which is all the header guards against there. None of the four
+  may ever read the session cookie: the header is what stands between the
+  cookie and a page on a sibling subdomain, which a browser counts as the
+  same site. Not audited: how the pages look is not who gets in.
+- **Signed in, the account's; signed out, the device's.** The IAM's pages and
+  every site show the account's choices once somebody is signed in, and a
+  toggle anywhere saves to the account. A visitor - the sign-in pages, a site
+  that lets visitors in - keeps each device's own choice, as before, and the
+  account's takes over at sign-in. A device's earlier choice is not carried
+  into the account: which of a person's devices should win is not knowable,
+  and one choice made once fixes every site.
+- **The language stays the account's** as it was: a site saves it only when
+  the IAM offers it, and checks `locale` against its own languages.
+- **The sites follow**: each vendors SDK 1.2.0, reads `user().preferences`,
+  and saves its controls' choices through it; the genshin site drops its own
+  copy of these settings - its per-area themes with them.
