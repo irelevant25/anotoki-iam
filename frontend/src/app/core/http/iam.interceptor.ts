@@ -16,6 +16,19 @@ import { SESSION_PROBE, TRANSLATION_BUNDLE } from './http-context';
 const OWN_401_PREFIXES = ['/api/login/', '/api/register', '/api/password/', '/api/public/', '/api/logout'];
 
 /**
+ * The requests the anotoki family's migrations module makes itself
+ * (`@anotoki/lib/migrations`: the status, and the Migrations page's list, file
+ * and Apply). Their failures go back to it as they came, an
+ * HttpErrorResponse - it reads the status (409 is "busy") and the server's own
+ * `message` - once the rest has had its say: the CSRF header goes on Apply,
+ * and an ended session still means the sign-in page.
+ */
+function fromMigrationsModule(url: string): boolean {
+  const path = url.split(/[?#]/)[0];
+  return path === '/api/site-status' || path === '/api/admin/migrations' || path.startsWith('/api/admin/migrations/');
+}
+
+/**
  * The four things every request to the IAM's own API needs.
  *
  * 1. `X-IAM-Request: 1` on anything that is not a GET. It is the CSRF guard: a
@@ -29,13 +42,16 @@ const OWN_401_PREFIXES = ['/api/login/', '/api/register', '/api/password/', '/ap
  *    left to show the failure: sending somebody from /login to /login would
  *    only lose the request they were in the middle of.
  *
- * 3. A 503 `not_set_up` means the backend has no configuration yet, and no
- *    page can do anything: whatever asked, the page becomes /not-set-up, which
- *    points at the installer. `next` is the address in the browser's bar - on
- *    the first load the router has not taken it over yet.
+ * 3. A 503 `not_set_up` (the anotoki family's gate: `{ code, installed,
+ *    message, setup? }`) means the backend has no configuration, and no page
+ *    can do anything: whatever asked, the page becomes /not-set-up, which
+ *    shows the family's status page - with the installer only while the IAM
+ *    was never installed. `next` is the address in the browser's bar - on the
+ *    first load the router has not taken it over yet.
  *
  * 4. Every failure is reshaped into `{ status, code, message }` (ApiError), so
- *    pages decide on the contract's `code` and nothing else.
+ *    pages decide on the contract's `code` and nothing else - but the
+ *    migrations module's own requests, which get theirs as they came.
  *
  * The request for the site's words (TRANSLATION_BUNDLE) gets only the last of
  * these: whatever it fails with, the page stays where it is and reads in the
@@ -73,7 +89,7 @@ export const iamInterceptor: HttpInterceptorFn = (request, next) => {
         }
       }
 
-      return throwError(() => apiError);
+      return throwError(() => (fromMigrationsModule(request.url) ? error : apiError));
     }),
   );
 };

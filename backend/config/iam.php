@@ -64,8 +64,9 @@ function iamConfig(): array
     $local = localConfig('iam');
     $config = array_replace($tunables, is_array($local) ? $local : []);
 
-    // Empty until setup.php has written it. Nothing that reads it runs before
-    // then: the API's first middleware answers "not set up" instead.
+    // Empty until setup.php has written it. Nothing that reads it as an address
+    // runs before then: the API's gate answers "not set up" instead (only
+    // /api/site-status gets past it, and reads nothing of this file).
     $config['public_url'] = rtrim(trim((string) ($config['public_url'] ?? '')), '/');
 
     return $config;

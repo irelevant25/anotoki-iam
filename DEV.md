@@ -14,15 +14,19 @@ builds for the hosting. What is where inside each half, and its entry points:
 | Bun | 1.4+ | installs the Angular app's packages (`npm start` runs `bun ci` first) |
 
 `backend/vendor/` is committed (the hosting cannot run composer), so composer
-is only needed to change PHP dependencies.
+is only needed to change PHP dependencies - the anotoki family's library among
+them, `anotoki/lib`, whose Angular half `@anotoki/lib` comes from its GitHub
+release with the frontend's packages (updating both:
+[docs/operations.md](docs/operations.md)).
 
 ## First setup
 
 The IAM reads everything that belongs to one installation - the database, the
 master key, its public address, mail, Google - from `backend/config/*.local.php`.
 Those files are gitignored and required: without them the API answers every
-request with `503 not_set_up`, and the pages show "not set up yet". The
-installer writes them.
+request with `503 not_set_up`, and the pages show "not set up yet", with the
+way to the installer (on this computer always: only a real host's install
+locks it away for good). The installer writes them.
 
 ### 1. The installer
 

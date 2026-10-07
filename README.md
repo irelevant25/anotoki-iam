@@ -21,7 +21,8 @@ runs as its own subdomain.
   themselves (redirect URIs, origins, roles that may sign in), switches - new
   accounts can be made to wait for an administrator's approval -,
   announcements (news mailed to everybody, the holders of some roles or some
-  people, from a template, in every language), signing keys, migrations, an
+  people, from a template, in every language), signing keys, migrations (the
+  anotoki family's Migrations page), an
   audit log of every change - and the words: every sentence of the sign-in
   and account pages, of the IAM's own mails and of the announcements' templates is
   a string in the database, reworded there, and a new language is added
@@ -29,7 +30,9 @@ runs as its own subdomain.
 - **Installer**: `backend/setup.php` writes the configuration, builds the
   database and makes the first administrator, who holds ADMIN in the IAM and
   in every site - on a development machine as on a server. Until it has run, the IAM says it is not set up and does nothing
-  else.
+  else - and points at the installer only while it was never installed: a
+  real host's install locks itself, deletes itself, and is never offered
+  again.
 
 | Part | Folder | Stack |
 | --- | --- | --- |
@@ -78,9 +81,14 @@ fixed port it is registered with:
   the genshin site, and every administrator there when 007 ran - a grant at
   those moments: promoting or removing an administrator later changes no
   site's roles. 007 goes on an installed IAM after the sites are updated.
-- Migrations 001-014; an installed IAM gets the later ones through the
-  admin panel's Migrations page (or setup.php / `php migration.php` on this
-  computer). 008 is the top bar's words: three strings added, one gone; 009
+- Migrations 001-016, applied by the engine every anotoki site shares - the
+  family's library, anotoki-lib (`anotoki/lib` in `backend/vendor/`,
+  `@anotoki/lib` in the frontend); an installed IAM gets the later ones through
+  the admin panel's Migrations page (or setup.php / `php migration.php` on
+  this computer). Unlike the other sites, the IAM keeps working while an
+  update waits - every site signs in through it - and tells only its
+  administrators, in one line above the admin panel's pages. 008 is the top
+  bar's words: three strings added, one gone; 009
   calls the admin area the admin panel ("Admin console" was 006's word),
   as every anotoki site does.
 - New accounts can be made to wait for an administrator's approval

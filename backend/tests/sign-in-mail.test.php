@@ -399,7 +399,7 @@ test('with 016 pending signing in works as before and sets no cookie; Apply brin
         $admin = new Browser('10.17.10.3');
         same(200, signInFrom($admin, 'admin@example.test')->status, 'the admin signs in');
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, '016_account_deletion_and_new_sign_in_mail.sql', null], [$applied->status, $applied->json()['applied'][0] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same([200, '016_account_deletion_and_new_sign_in_mail.sql', null], [$applied->status, $applied->json()['applied'][0]['name'] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
 
         same(200, signInFrom($browser, 'early@example.test')->status, 'signed in again, in the same process');
         same([1, 0], [count(devicesOf($id)), count(newSignInMails('early@example.test'))], 'the first browser after 016: noted in silence');

@@ -1,124 +1,89 @@
 <?php
 
 /**
- * The migration engine, with no opinion on who is driving.
+ * The IAM's migrations, run by the anotoki family's engine: anotoki/lib's
+ * Migrator (vendor/anotoki/lib, namespace Anotoki\Lib\Migrations), which every
+ * anotoki site runs - so a migration reads and applies the same in each
+ * repository, and an update waiting behaves the same on each site.
  *
- * Reads php/migrations/{alias}/, applies the files a database has not seen,
- * and records each in its `migrations` table. It prints nothing and reads no
- * request, so the CLI (migration.php), the admin panel's "Apply pending" and
- * the first-run installer build a database the same way - which is the point of
- * there being one description of the schema. The same engine as the genshin
- * site's, so a migration reads the same in either repository.
+ * Here: the IAM's one set of files, migrations/iam, recorded in the
+ * `migrations` table as it always was (id, filename, applied_at - the engine
+ * reads and writes that shape as it is, and never changes it). The command
+ * line (migration.php), the installer (setup.php) and the admin panel's
+ * Migrations page all apply through iamMigrator(), which is the point of there
+ * being one description of the schema. Each file runs in a transaction of its
+ * own with its record, the run stops at the first file that fails, one apply
+ * runs at a time (the engine's advisory lock), and nothing is ever un-applied:
+ * the migrations that matter are irreversible anyway, and a rollback that half
+ * works is worse than none.
  *
- * Nothing here un-applies anything: the migrations that matter are
- * irreversible anyway, and a rollback that half works is worse than none.
+ * Beside it, the two things every way of building a database needs and the
+ * engine does not do: making the database itself (ensureDatabase()), and the
+ * first administrator of an empty one (createFirstAdmin()).
  */
 
-function migrationsRoot(): string
+// The library comes with Composer's autoloader. The installer and the command
+// line tools load this file without the API's front controller, so it brings
+// the autoloader itself.
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Anotoki\Lib\Migrations\Http\SiteState;
+use Anotoki\Lib\Migrations\MigrationSet;
+use Anotoki\Lib\Migrations\Migrator;
+
+/** migrations/iam: the IAM's one set of files, labelled `iam` on the Migrations page and in its answers. */
+function iamMigrationSet(): MigrationSet
 {
-    return dirname(__DIR__) . '/migrations';
+    return new MigrationSet('iam', dirname(__DIR__) . '/migrations/iam');
 }
 
 /**
- * Splits a SQL file into statements. A semicolon only ends one outside a quoted
- * string, a dollar-quoted block - how every function and DO block is written -
- * and a comment.
+ * The engine on a connection (which must throw on errors - every connection
+ * connectDatabase() makes does). `$options` are the Migrator's own (its
+ * hooks); the IAM passes none - its tests do, to build a database up to a
+ * file and no further.
  */
-function splitSqlStatements(string $sql): array
+function iamMigrator(PDO $pdo, array $options = []): Migrator
 {
-    $statements = [];
-    $current = '';
-    $length = strlen($sql);
-    $i = 0;
-
-    while ($i < $length) {
-        $character = $sql[$i];
-
-        if ($character === '/' && ($sql[$i + 1] ?? '') === '*') {
-            $end = strpos($sql, '*/', $i + 2);
-            $i = $end === false ? $length : $end + 2;
-            continue;
-        }
-
-        if ($character === '-' && ($sql[$i + 1] ?? '') === '-') {
-            $end = strpos($sql, "\n", $i + 2);
-            $i = $end === false ? $length : $end + 1;
-            continue;
-        }
-
-        if ($character === '$') {
-            $j = $i + 1;
-            while ($j < $length && $sql[$j] !== '$' && (ctype_alnum($sql[$j]) || $sql[$j] === '_')) {
-                $j++;
-            }
-
-            if (($sql[$j] ?? '') === '$') {
-                $tag = substr($sql, $i, $j - $i + 1);
-                $end = strpos($sql, $tag, $j + 1);
-
-                if ($end !== false) {
-                    $current .= substr($sql, $i, $end - $i + strlen($tag));
-                    $i = $end + strlen($tag);
-                    continue;
-                }
-            }
-        }
-
-        if ($character === "'") {
-            $current .= $character;
-            $i++;
-
-            while ($i < $length) {
-                $current .= $sql[$i];
-
-                if ($sql[$i] === "'") {
-                    if (($sql[$i + 1] ?? '') === "'") {
-                        $current .= $sql[++$i];
-                    } else {
-                        $i++;
-                        break;
-                    }
-                }
-
-                $i++;
-            }
-
-            continue;
-        }
-
-        if ($character === ';') {
-            if (trim($current) !== '') {
-                $statements[] = trim($current);
-            }
-            $current = '';
-            $i++;
-            continue;
-        }
-
-        $current .= $character;
-        $i++;
-    }
-
-    if (trim($current) !== '') {
-        $statements[] = trim($current);
-    }
-
-    return $statements;
+    return new Migrator($pdo, [iamMigrationSet()], $options);
 }
 
-/** The files for one database, in apply order - natural order, so 100 does not sort before 11. */
-function migrationFiles(string $alias): array
+/**
+ * Where the IAM stands, decided afresh whenever it is asked - by
+ * /api/site-status, and by the family's gate in front of every route
+ * (api/index.php) while the IAM is not set up:
+ *
+ * - not_set_up while config/*.local.php are missing or wrong
+ *   (iamSetUpProblems()); the installer is offered only while
+ *   storage/installed.lock - which a real host's install writes - is not
+ *   there, so an IAM installed once never sends anybody to a setup.php that
+ *   deleted itself;
+ * - update_pending while a file of migrations/iam waits to be applied;
+ * - unavailable while the database cannot be reached;
+ * - ready otherwise.
+ *
+ * The IAM does not block while an update waits (blockWhilePending false),
+ * unlike every other anotoki site: it is the door every site signs in through,
+ * and its administrator has to sign in through it to press Apply. Its features
+ * check their own tables meanwhile, as they always have (signInRulesReady(),
+ * translationsReady(), accountApprovalReady(), announcementsReady(),
+ * preferencesReady(), accountDeletionReady(), ...), and its administrators
+ * see a line in the admin panel saying an update waits.
+ */
+function iamSiteState(): SiteState
 {
-    $directory = migrationsRoot() . '/' . $alias;
+    static $state = null;
 
-    if (!is_dir($directory)) {
-        return [];
-    }
+    return $state ??= new SiteState(
+        settingsProblem: static function (): ?string {
+            $problems = iamSetUpProblems();
 
-    $files = array_map('basename', glob($directory . '/*.sql') ?: []);
-    natsort($files);
-
-    return array_values($files);
+            return $problems === [] ? null : implode('; ', $problems);
+        },
+        installed: static fn(): bool => is_file(iamStorageDir() . '/installed.lock'),
+        migrator: static fn(): Migrator => iamMigrator(iamDb()),
+        blockWhilePending: false,
+    );
 }
 
 /**
@@ -149,81 +114,6 @@ function ensureDatabase(array $config, string $name): bool
     $server->exec('CREATE DATABASE "' . str_replace('"', '""', $name) . '"');
 
     return true;
-}
-
-function ensureMigrationsTable(PDO $pdo): void
-{
-    $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS migrations (
-            id         SERIAL          PRIMARY KEY,
-            filename   VARCHAR(255)    NOT NULL UNIQUE,
-            applied_at TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
-        )'
-    );
-}
-
-function appliedMigrations(PDO $pdo): array
-{
-    return $pdo->query('SELECT filename FROM migrations')->fetchAll(PDO::FETCH_COLUMN);
-}
-
-function pendingMigrations(PDO $pdo, string $alias): array
-{
-    ensureMigrationsTable($pdo);
-
-    return array_values(array_diff(migrationFiles($alias), appliedMigrations($pdo)));
-}
-
-/**
- * Applies one file, all of it or none of it. PostgreSQL takes DDL inside a
- * transaction, and the row saying the file ran is written in the same one.
- */
-function applyMigration(PDO $pdo, string $alias, string $filename): void
-{
-    $statements = splitSqlStatements((string) file_get_contents(migrationsRoot() . '/' . $alias . '/' . $filename));
-
-    $pdo->beginTransaction();
-
-    try {
-        foreach ($statements as $index => $statement) {
-            try {
-                $pdo->exec($statement);
-            } catch (PDOException $e) {
-                throw new RuntimeException(
-                    'statement ' . ($index + 1) . ' of ' . count($statements) . ': ' . $e->getMessage()
-                    . "\n\n  " . implode("\n  ", array_slice(explode("\n", $statement), 0, 6))
-                );
-            }
-        }
-
-        $pdo->prepare('INSERT INTO migrations (filename) VALUES (?) ON CONFLICT DO NOTHING')->execute([$filename]);
-        $pdo->commit();
-    } catch (\Throwable $e) {
-        $pdo->rollBack();
-        throw $e;
-    }
-}
-
-/**
- * Every pending file, stopping at the first failure - each migration is written
- * expecting the ones before it to have run.
- *
- * @return array{applied: string[], failed: ?string, error: ?string}
- */
-function applyPendingMigrations(PDO $pdo, string $alias): array
-{
-    $applied = [];
-
-    foreach (pendingMigrations($pdo, $alias) as $filename) {
-        try {
-            applyMigration($pdo, $alias, $filename);
-            $applied[] = $filename;
-        } catch (\Throwable $e) {
-            return ['applied' => $applied, 'failed' => $filename, 'error' => $e->getMessage()];
-        }
-    }
-
-    return ['applied' => $applied, 'failed' => null, 'error' => null];
 }
 
 /**

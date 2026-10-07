@@ -496,10 +496,10 @@ test('before 006 is applied the IAM still runs: config, discovery, a site\'s sig
         // 006 is pending, and every migration written after it (007 on).
         $fromStrings = array_values(array_filter(migrationFiles('iam'), static fn(string $file): bool => strnatcmp($file, STRINGS_MIGRATION) >= 0));
         same(STRINGS_MIGRATION, $fromStrings[0] ?? null, 'the first of what is pending is 006');
-        same($fromStrings, $admin->get('/api/admin/migrations')->json()['pending'] ?? null, '006 and what came after it are what is pending');
+        same($fromStrings, migrationNames($admin->get('/api/admin/migrations')->json()['pending'] ?? []), '006 and what came after it are what is pending');
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, $fromStrings, null], [$applied->status, $applied->json()['applied'] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same([200, $fromStrings, null], [$applied->status, migrationNames($applied->json()['applied'] ?? []), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
 
         // From the next request on: the strings are there, and the mails are in the account's language.
         $bundle = (new Browser('10.8.0.1'))->get('/api/translations/sk');

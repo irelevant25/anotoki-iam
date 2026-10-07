@@ -40,9 +40,12 @@ site's save of its reader's preferences) would reach PHP.
 of their own.
 
 Until the installer has run, the API answers every request with
-`503 not_set_up` and the pages say "not set up yet": `config/` holds only the
-committed loaders, and every value that belongs to this installation comes from
-the files the installer writes.
+`503 not_set_up` and the pages say "not set up yet", with a link to the
+installer: `config/` holds only the committed loaders, and every value that
+belongs to this installation comes from the files the installer writes. Once
+it has run, `storage/installed.lock` is there, and nothing offers the installer
+again - should a `config/*.local.php` go missing later, the pages say the IAM
+"is not available right now" and keep asking by themselves.
 
 ### First install
 
@@ -129,7 +132,22 @@ working at step 3 and moves to a personal token (below).
 
 Upload the new build over the old one (never `config/*.local.php` - the build
 leaves them out), then **admin panel → Migrations → Apply pending**. There is
-no shell; the button runs the same engine as `php migration.php`.
+no shell; the button runs the same engine as `php migration.php` - the anotoki
+family's (anotoki/lib, below), the one every anotoki site's Migrations page
+runs.
+
+Between the upload and Apply the IAM keeps working - every way in, the account
+pages, the sites' sign-ins, the admin panel: it is the one anotoki site that
+does not close while an update waits, since every other site's administrator
+signs in through it to apply theirs. Its administrators see one line above
+every page of the admin panel, **"A database update is waiting. Migrations"**;
+nobody else is told anything. The Migrations page lists what is pending and
+what is applied (**View** shows a file's SQL), asks before it applies, and
+then says what happened: "Up to date", or which file stopped the run with what
+the database said - that file is rolled back whole, and the ones before it
+stand. **Back the database up first.** Only one apply runs at a time - the
+page, `php migration.php`, the installer: a second is told "Another database
+update is running" and applies nothing; look again in a moment.
 
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 without an address or a card on the landing page: a `localhost` address there
@@ -296,6 +314,33 @@ UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '30 days',
  WHERE id IN (/* the ids */) AND anonymized_at IS NULL;
 ```
 
+### The family's library (anotoki/lib)
+
+What the anotoki sites share lives in one library,
+[irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib), with two
+halves and one version: the PHP package `anotoki/lib` (in `backend/vendor/`,
+committed and uploaded like the rest of `vendor/`) and the Angular package
+`@anotoki/lib` (the release's tarball, in `frontend/package.json`). Today it
+is the migrations module: the engine, the gate that answers "not set up", the
+status the pages ask, the Migrations page and the admin line. The IAM's
+version is 0.1.0. Both halves come from GitHub, never from a copy on disk.
+
+To update it (its `CHANGELOG.md` says what changed - while it is 0.x, a minor
+version may break things), both halves together, on a development machine:
+
+```bash
+cd backend
+composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.1"); change it first for 0.2
+# frontend/package.json: "@anotoki/lib": the new release's .tgz URL, then
+cd ../frontend
+bun install                         # bun.lock
+npm install --package-lock-only     # package-lock.json, so the two lock files agree
+```
+
+The Composer update changes `composer.lock`, `vendor/anotoki/lib` and
+`vendor/composer/` - all of it goes with the change. Then the tests, the
+builds and the upload as for any update.
+
 ### The sites' addresses
 
 A fresh database registers the first-party applications with their development
@@ -390,7 +435,9 @@ php tests/run.php                          # every test, against throwaway datab
 
 | Symptom | Likely cause |
 | --- | --- |
-| Every request answers 503 `not_set_up`; the pages say "not set up yet" | The installer has not run, or a `config/*.local.php` is missing or wrong (on a real host: uploaded over, or deleted). On a development machine `setup.php` lists which; on a server, restore the file from your copy. |
+| Every request answers 503 `not_set_up`; the pages say "not set up yet" | The installer has not run, or a `config/*.local.php` is missing or wrong. On a development machine `setup.php` lists which. |
+| The pages say "The site is not available right now", on an installed IAM | A `config/*.local.php` is missing or wrong (uploaded over, or deleted) - the API answers 503 `not_set_up` with `installed: true` - or the database does not answer (`/api/site-status` says `unavailable`). Restore the file from your copy; the installer is gone and is not offered. The pages notice by themselves |
+| Migrations says "Another database update is running" | Another apply holds the lock - another administrator, `php migration.php`, the installer. Wait a moment and look again; nothing was applied |
 | "The active signing key cannot be decrypted" | The master key is not the one the key was made with. Restore the right `secret.local.php`; failing that, delete the rows of `signing_keys` (everybody signs in again) and re-enable two-factor for those who had it. |
 | `setup.php` says "Already installed" | `storage/installed.lock` is there. It deletes itself if it can; otherwise delete `setup.php` and `config/setup.local.php` by hand. |
 | A site says "invalid_redirect_uri" before any page | Its redirect URI is not registered exactly as it sends it (scheme, host, port, path, trailing slash) - or it was left blank at install. |

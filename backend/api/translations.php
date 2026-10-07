@@ -196,7 +196,7 @@ function translationsReady(PDO $pdo): bool
 /**
  * Not a 500 - this is expected between an upload and "Apply pending", and a
  * 500 would be logged on every page load - and not `not_set_up`, which sends
- * the IAM's pages to the installer's notice. The pages read their compiled
+ * the IAM's pages to their not-set-up page. The pages read their compiled
  * English meanwhile.
  */
 function translationsUnavailable(): array

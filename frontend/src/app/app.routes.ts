@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { sessionGuard } from './core/auth/guards';
+import { notSetUpTitle } from './pages/auth/not-set-up/not-set-up-title';
 
 /**
  * Three areas, each loaded only when it is visited:
@@ -57,7 +58,7 @@ export const routes: Routes = [
       { path: 'error', title: 'errorPage.pageTitle', loadComponent: () => import('./pages/auth/error/error-page.component').then((m) => m.ErrorPageComponent) },
       {
         path: 'not-set-up',
-        title: 'notSetUp.pageTitle',
+        title: notSetUpTitle,
         loadComponent: () => import('./pages/auth/not-set-up/not-set-up.component').then((m) => m.NotSetUpComponent),
       },
       { path: '**', title: 'notFound.pageTitle', loadComponent: () => import('./pages/auth/not-found/not-found.component').then((m) => m.NotFoundComponent) },

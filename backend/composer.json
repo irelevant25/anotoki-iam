@@ -1,7 +1,8 @@
 {
     "require": {
         "slim/slim": "^4.15",
-        "slim/psr7": "^1.8"
+        "slim/psr7": "^1.8",
+        "anotoki/lib": "^0.1"
     },
     "scripts": {
         "start": [
@@ -11,5 +12,11 @@
     },
     "scripts-descriptions": {
         "start": "The IAM's API and setup.php on http://localhost:8100: PHP's built-in server, with router.php"
-    }
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/irelevant25/anotoki-lib"
+        }
+    ]
 }

@@ -1,5 +1,7 @@
 <app-shell area="admin" [nav]="nav">
     @if (isAdmin()) {
+        <!-- The family's one line while a database update waits (@anotoki/lib): the IAM keeps working meanwhile, and says so only here. -->
+        <anotoki-update-banner />
         <router-outlet />
     } @else if (deletionPending()) {
         <!-- An administrator who asked for their own account's deletion administers nothing until they cancel it (403 account_deletion_pending). -->

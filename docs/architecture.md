@@ -68,8 +68,10 @@ tunables that are the same everywhere.
 
 They are required. Until `database`, `secret`, `iam` and `mail` are all there
 and sensible (`google` is optional), the API answers every request - discovery
-included - with `503 {code: "not_set_up", setup_url: "/setup.php"}`, and the
-pages show "not set up yet" with a link to the installer.
+included, all but `/api/site-status` - with the anotoki family's
+`503 {code: "not_set_up", installed, message, setup?}`, and the pages show
+"not set up yet" with a link to the installer - the link, and `setup`, only
+while the IAM was never installed (below).
 
 `backend/setup.php` writes them, and it is the way in on a development machine
 as much as on a server:
@@ -82,15 +84,72 @@ as much as on a server:
 | The sites | keep their development addresses | their production addresses replace the loopback ones; a blank one waits for the admin panel |
 | Afterwards | stays, re-runnable: shows what is saved, never a password or the key; a blank password keeps the saved one | `storage/installed.lock`, then it deletes itself and its token |
 
-Both build the database with the shared migration engine, keep an existing
-master key, keep whatever else the files hold, and either bring the genshin
-site's accounts over or make the first administrator. "Test connection" beside
+Both build the database with the anotoki family's migration engine (below),
+keep an existing master key, keep whatever else the files hold, and either
+bring the genshin site's accounts over or make the first administrator. "Test connection" beside
 the database fields is a small JSON request to the same page, under the same
 nonce or token, and answers in the words every anotoki setup page uses
 (`setupTestDatabase()`): connected and empty, updates to apply, or up to date;
 a database that does not exist yet, which Save creates when the user may
 create databases (`ensureDatabase()`) or which is to be made in the hosting
 panel first; a database there but closed to this user; no connection at all.
+
+## Migrations, and an update waiting: the family's module
+
+The schema is `backend/migrations/iam/*.sql`, applied by the engine every
+anotoki site shares: **anotoki/lib** (`irelevant25/anotoki-lib` on GitHub - a
+Composer package in `backend/vendor/anotoki/lib`, and `@anotoki/lib` in the
+frontend, one version for both), whose migrations module is also the gate in
+front of the API, the status the pages ask, the admin Migrations page and its
+routes. The IAM wires it in `backend/api/migration_runner.php` and
+`frontend/src/app/core/migrations/migrations.config.ts`.
+
+- **The engine** (`iamMigrator()`): one set, `iam`, recorded in the
+  `migrations` table as it always was (`id`, `filename`, `applied_at` - the
+  library reads that shape and never changes it). Each file in a transaction
+  of its own with its record; the run stops at the first that fails, which is
+  rolled back whole and named with the database's words (`statement N of M:
+  ...`). The command line, the installer and the admin panel apply through it,
+  one at a time: each takes the same advisory lock, and the second is told
+  another is running. A pooled (persistent) connection lets go of whatever
+  lock its last request left (`connectDatabase()`), so a request killed by its
+  time limit mid-apply cannot keep every later one "busy".
+- **Where the IAM stands** (`iamSiteState()`), decided afresh whenever it is
+  asked: `not_set_up` (a `config/*.local.php` missing or wrong),
+  `update_pending` (a file waits), `unavailable` (no database), `ready`.
+  `GET /api/site-status` says which - to anybody who asks, as on every anotoki
+  site. The gate answers every other path `503 not_set_up` while the IAM is
+  not set up - naming the installer only while `storage/installed.lock` is not
+  there, so an IAM installed once never sends anybody to a `setup.php` that
+  has deleted itself (the owner's rule). It is asked only then
+  (`api/index.php`): in any other state a site that does not block lets
+  everything through, and finding out which state it is would cost every
+  request a connection and two queries.
+- **The IAM does not block while an update waits** - the one anotoki site that
+  does not (`blockWhilePending: false`; `docs/decisions.md`). Every other site
+  closes behind a calm "being updated" page until its administrator applies
+  the update - and that administrator signs in through the IAM. So the IAM
+  keeps answering: its features check their own tables, as they always have
+  (`signInRulesReady()`, `translationsReady()`, `accountApprovalReady()`,
+  `announcementsReady()`, `preferencesReady()`, `accountDeletionReady()`,
+  `signInDevicesReady()`), and of its pages only the admin panel says so:
+  `<anotoki-update-banner>` - "A database update is waiting. Migrations" -
+  above every page of it, which asks the status once. (The status path itself
+  is public, as on every anotoki site: anybody may learn that an update
+  waits - a timing signal, not a way in; `docs/decisions.md`.)
+- **The Migrations page** is the family's `<anotoki-migrations-page>` at
+  `/admin/migrations` (English, as the admin panel is): what is pending and
+  applied (each file's SQL on View), what is recorded but missing, and
+  "Apply pending" behind a confirmation. Its routes,
+  `/api/admin/migrations[/file|/apply]`, sit in the admin group: the session
+  and the IAM's ADMIN - nothing a pending migration makes - and the CSRF header
+  on Apply. Applying is audited (`migrations.applied`), and the strings are
+  read again: a migration may have brought some.
+- **Not set up**: the pages' `/not-set-up` is the family's
+  `<anotoki-site-status>` in the IAM's own words - "This IAM is not set up
+  yet", "Open the installer" - with the developer's line, while it was never
+  installed; once installed, "The site is not available right now", asking
+  again by itself, and never the installer.
 
 ## A sign-in, end to end
 
@@ -429,7 +488,9 @@ written down, not a refactor.
 | --- | --- |
 | `backend/setup.php` | The installer: writes `config/*.local.php`, builds the database, the accounts, the sites' production addresses. |
 | `backend/config/` | `config.php` (reading `*.local.php`, whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`. |
-| `backend/api/index.php` | Front controller: requires, middleware order, error handler. |
+| `backend/api/index.php` | Front controller: requires, middleware order (the family's gate where "not set up" is answered), error handler. |
+| `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
+| `backend/vendor/anotoki/lib` | The anotoki family's library (Composer): the migration engine, the gate, the status and Migrations routes. Never edited here - updated by Composer (`docs/operations.md`). |
 | `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, a site's save of its reader's preferences, logout, revoke, the public list of sites, the public "is sign-in required here?" answer. |
 | `backend/api/routes/login.php` | Sign-in (password, emailed code, Google), registration, confirmation, resets, the pending request (accept/cancel), sign-out, stopping the news. |
 | `backend/api/routes/account.php` | The account page. |
@@ -446,6 +507,7 @@ written down, not a refactor.
 | `backend/api/announcements.php` | Announcements: the senders, the checks of a draft and of its links, who it reaches, the mail's layout, the batches, the token that stops the news. |
 | `backend/translations.php` | The strings from the command line: `--status`, `--export`, `--import`. Never uploaded. |
 | `frontend/src/app/core/i18n/` | `translation.service.ts` (which language, the bundle, the `t` pipe's strings), `en.ts` (the keys and the English of last resort), `localization-drafts.service.ts`. |
+| `frontend/src/app/core/migrations/` | How the pages use `@anotoki/lib/migrations`: who is the IAM's ADMIN, the sign-in, the language and the IAM's own not-set-up words, the account's dates. |
 | `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `shell` (the account pages and the admin panel: the top bar, the panel's side navigation, the page), `top-bar` (the anotoki family's one bar: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

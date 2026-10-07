@@ -1,7 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, map, of, throwError } from 'rxjs';
-import { ApiError, isApiError } from './api-error';
+import { Observable, map } from 'rxjs';
 import {
   AdminApplication,
   AdminLanguage,
@@ -39,9 +38,6 @@ import {
   LanguageChanges,
   LanguageDeleted,
   MessageResponse,
-  MigrationItem,
-  MigrationsApplyResult,
-  MigrationsStatus,
   NewLanguage,
   Paged,
   RoleGrant,
@@ -325,7 +321,9 @@ export class AdminApi {
     return this._http.put<TranslationGrid>(`/api/admin/translations/${encodeURIComponent(code)}/import`, values).pipe(map(toTranslationGrid));
   }
 
-  // ── Keys, migrations ───────────────────────────────────────────────────────
+  // ── Keys ───────────────────────────────────────────────────────────────────
+  // (The Migrations page is the anotoki family's - @anotoki/lib - and calls
+  // /api/admin/migrations itself.)
 
   keys(): Observable<SigningKey[]> {
     return this._http.get<KeysResponse>('/api/admin/keys').pipe(map((response) => response.keys ?? []));
@@ -340,59 +338,9 @@ export class AdminApi {
   deleteKey(kid: string): Observable<MessageResponse> {
     return this._http.delete<MessageResponse>(`/api/admin/keys/${encodeURIComponent(kid)}`);
   }
-
-  migrations(): Observable<MigrationsStatus> {
-    return this._http.get<{ applied?: unknown[]; pending?: unknown[] }>('/api/admin/migrations').pipe(
-      map((response) => ({
-        applied: (response.applied ?? []).map(toMigrationItem),
-        pending: (response.pending ?? []).map(toMigrationItem),
-      })),
-    );
-  }
-
-  /**
-   * Applies every pending file, stopping at the first that fails.
-   *
-   * A failed run answers 500 with the same body as a good one - what did
-   * apply, and which file stopped it - so that failure is turned back into a
-   * result here: the page reports it, it is not an error about the request.
-   */
-  applyMigrations(): Observable<MigrationsApplyResult> {
-    return this._http.post<MigrationsApplyResult>('/api/admin/migrations/apply', {}).pipe(
-      map((result) => ({ applied: result.applied ?? [], failed: result.failed ?? null, error: result.error ?? null })),
-      catchError((error: unknown) => {
-        if (isApiError(error) && typeof error.details['failed'] === 'string') {
-          return of(migrationFailure(error));
-        }
-        return throwError(() => error);
-      }),
-    );
-  }
 }
 
 /** The grid with its two lists there whatever came: the pages read both without asking. */
 function toTranslationGrid(grid: TranslationGrid): TranslationGrid {
   return { languages: grid.languages ?? [], keys: grid.keys ?? [] };
-}
-
-function migrationFailure(error: ApiError): MigrationsApplyResult {
-  const applied = error.details['applied'];
-  return {
-    applied: Array.isArray(applied) ? applied.map(String) : [],
-    failed: String(error.details['failed']),
-    error: error.message,
-  };
-}
-
-/** A row of the migrations table, or a bare file name from the pending list. */
-function toMigrationItem(entry: unknown): MigrationItem {
-  if (typeof entry === 'string') {
-    return { name: entry, applied_at: null };
-  }
-
-  const row = (entry ?? {}) as Record<string, unknown>;
-  const name = row['filename'] ?? row['name'] ?? '';
-  const appliedAt = row['applied_at'] ?? null;
-
-  return { name: String(name), applied_at: appliedAt === null ? null : String(appliedAt) };
 }

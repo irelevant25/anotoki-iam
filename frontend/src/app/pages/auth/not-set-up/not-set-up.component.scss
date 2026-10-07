@@ -1,18 +1,34 @@
-@use "../auth-page";
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  width: 100%;
+}
+
+// The family's status page is a card of its own, centred, with room around it;
+// in the sign-in pages' column the column is the room.
+anotoki-site-status {
+  padding: 0;
+}
 
 .developer {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding-top: 1.1rem;
-  border-top: 1px solid var(--border);
+  padding: 0 0.25rem;
 }
 
 // A command to copy: a block of its own, wrapping rather than widening the
-// card at 390 px. Colours and font are the global `code` rule's.
+// column at 390 px. Colours and font are the global `code` rule's.
 .command {
   display: block;
   padding: 0.6rem 0.75rem;
   border-radius: var(--radius);
   white-space: pre-wrap;
+}
+
+.checking {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
 }

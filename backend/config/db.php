@@ -76,6 +76,11 @@ function getDb(string $alias = 'iam'): PDO
  * processes alive between requests, and a pooled connection may still be
  * holding a transaction its last request died inside - hence the ROLLBACK,
  * which Postgres answers with a warning when there is nothing to roll back.
+ * Or the migration engine's advisory lock (anotoki/lib takes one for every
+ * apply, and lets it go in a `finally` that a request killed by its time
+ * limit never reaches): every later Apply would be told another is running
+ * until that pooled connection closed. No request holds an advisory lock
+ * from one request to the next, so whatever the last one left goes.
  *
  * The connect timeout keeps a wrong host from hanging a request - or the
  * installer's "Test connection" - for as long as the network cares to take.
@@ -88,7 +93,7 @@ function connectDatabase(array $config, string $name, ?bool $persistent = null):
     $pdo = new PDO($dsn, (string) $config['username'], (string) ($config['password'] ?? ''), $persistent ? [PDO::ATTR_PERSISTENT => true] : []);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $pdo->exec(($persistent ? 'ROLLBACK; ' : '') . "SET TIME ZONE 'UTC'; SET client_encoding = 'UTF8'");
+    $pdo->exec(($persistent ? 'ROLLBACK; SELECT pg_advisory_unlock_all(); ' : '') . "SET TIME ZONE 'UTC'; SET client_encoding = 'UTF8'");
 
     return $pdo;
 }

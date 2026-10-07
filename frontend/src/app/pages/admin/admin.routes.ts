@@ -63,7 +63,8 @@ export const ADMIN_ROUTES: Routes = [
         loadComponent: () => import('./localization/languages/languages.component').then((m) => m.LanguagesComponent),
       },
       { path: 'keys', title: 'Signing keys', loadComponent: () => import('./keys/keys.component').then((m) => m.KeysComponent) },
-      { path: 'migrations', title: 'Migrations', loadComponent: () => import('./migrations/migrations.component').then((m) => m.MigrationsComponent) },
+      // The anotoki family's Migrations page (@anotoki/lib), as every anotoki site has it.
+      { path: 'migrations', title: 'Migrations', loadComponent: () => import('@anotoki/lib/migrations').then((m) => m.MigrationsPageComponent) },
     ],
   },
 ];

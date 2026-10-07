@@ -9,8 +9,12 @@ declare(strict_types=1);
  * itself, builds the database from the migrations, and brings the genshin
  * site's accounts over or makes the first administrator. The IAM does not run
  * without what it writes: until then the API answers 503 `not_set_up` and the
- * pages point here. It is served at /setup.php - by router.php under
- * `php -S`, and from the web root on a server.
+ * pages point here - while storage/installed.lock is not there, never once a
+ * real host's install has written it and this file has gone. It is served at
+ * /setup.php - by router.php under `php -S`, and from the web root on a
+ * server. The database is built by the anotoki family's migration engine
+ * (anotoki/lib, through api/migration_runner.php), as the admin panel and the
+ * command line build it.
  *
  * TWO WAYS OF RUNNING
  *
@@ -664,8 +668,8 @@ function setupTestDatabase(array $connection, string $name): array
     try {
         $pdo = connectDatabase($connection, $name, false);
         $tables = (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")->fetchColumn();
-        $applied = (bool) $pdo->query("SELECT to_regclass('public.migrations') IS NOT NULL")->fetchColumn() ? appliedMigrations($pdo) : [];
-        $pending = count(array_diff(migrationFiles('iam'), $applied));
+        // Read only: a database with no migrations table yet has every file to apply.
+        $pending = count(iamMigrator($pdo)->applicable());
 
         return ['good', "Connected to the database \"{$name}\": "
             . ($tables === 0 ? 'it is empty - Save makes the tables.' : ($pending > 0 ? "{$pending} update(s) to apply - Save applies them." : 'it is up to date.'))];
@@ -870,9 +874,13 @@ function setupInstall(bool $local, array $connection, array $values, array $post
         throw new RuntimeException("Cannot connect to the database '{$name}': " . setupDriverMessage($error) . ' Create it (in your hosting panel, on a server) and check the connection details.');
     }
 
-    $result = applyPendingMigrations($pdo, 'iam');
+    $result = iamMigrator($pdo)->apply();
+    if ($result['busy']) {
+        // The admin panel's Apply, or the command line, on the same database this moment.
+        throw new RuntimeException('Another database update is running. Nothing was applied - save again in a moment.');
+    }
     if ($result['failed'] !== null) {
-        throw new RuntimeException("Migration {$result['failed']} failed: {$result['error']}");
+        throw new RuntimeException("Migration {$result['failed']['name']} failed: {$result['error']}");
     }
     $log[] = $result['applied'] === [] ? 'Database: up to date.' : 'Database: applied ' . count($result['applied']) . ' migration(s).';
 
@@ -1049,12 +1057,11 @@ function setupDatabaseState(array $saved): ?array
         $accounts = (bool) $pdo->query("SELECT to_regclass('public.users') IS NOT NULL")->fetchColumn()
             ? (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn()
             : 0;
-        $files = migrationFiles('iam');
-        $applied = (bool) $pdo->query("SELECT to_regclass('public.migrations') IS NOT NULL")->fetchColumn()
-            ? count(array_intersect($files, appliedMigrations($pdo)))
-            : 0;
+        $migrator = iamMigrator($pdo);
+        // The files recorded as applied (a record whose file is gone is not one of them).
+        $applied = count($migrator->status()['applied']);
 
-        return ['connected' => true, 'name' => $name, 'accounts' => $accounts, 'applied' => $applied, 'total' => count($files)];
+        return ['connected' => true, 'name' => $name, 'accounts' => $accounts, 'applied' => $applied, 'total' => count($migrator->files(iamMigrationSet()))];
     } catch (\Throwable $error) {
         return ['connected' => false, 'name' => $name, 'error' => setupDriverMessage($error)];
     }

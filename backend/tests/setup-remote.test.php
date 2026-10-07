@@ -119,6 +119,7 @@ test('the install: files, database, administrator, the sites\' production addres
     check(!is_file(setupTestContext()['self']), 'and so is the installer');
 
     $pdo = iamDb();
+    same([[], migrationFiles()], [pendingMigrations($pdo), appliedMigrations($pdo)], 'the database, built from nothing: every migration applied');
     $genshin = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'genshin'")->fetchColumn();
     same(['https://genshin.example.test/auth/callback'], applicationRedirectUris($genshin, 'login'), 'genshin signs in at its own address');
     same(['https://genshin.example.test/'], applicationRedirectUris($genshin, 'logout'), 'and lands there after signing out');
@@ -154,6 +155,31 @@ test('once installed it stays installed', function () {
     same(409, setupRequest('POST', REMOTE_SERVER, remoteForm('anything'))['status'], 'a post');
     same(409, setupRequest('POST', REMOTE_SERVER, json: ['action' => 'test_database'])['status'], 'a test');
     check(!is_file(IAM_CONFIG_DIR . '/setup.local.php'), 'and no new token is made');
+    same(['state' => 'ready', 'installed' => true], (new Browser('198.51.100.21'))->get('/api/site-status')->json(), 'the status: ready, and installed');
+});
+
+test('installed, with a configuration file lost: not available - and the installer, gone, is never offered again', function () {
+    // As an upload over the server's own files might leave it.
+    $file = IAM_CONFIG_DIR . DIRECTORY_SEPARATOR . 'mail.local.php';
+    $kept = (string) file_get_contents($file);
+    unlink($file);
+    forgetLocalConfig();
+
+    try {
+        $browser = new Browser('198.51.100.22');
+        foreach (['/api/public/config', '/.well-known/openid-configuration', '/api/account', '/api/admin/migrations'] as $path) {
+            $answer = $browser->get($path);
+            same([503, 'not_set_up', true], [$answer->status, $answer->json()['code'] ?? null, $answer->json()['installed'] ?? null], "GET {$path}");
+            check(!array_key_exists('setup', $answer->json()) && !str_contains($answer->body, 'setup.php'), "GET {$path} names no installer: " . $answer->body);
+            check(is_string($answer->json()['message'] ?? null), "GET {$path} says so in a sentence");
+        }
+        same(['state' => 'not_set_up', 'installed' => true], $browser->get('/api/site-status')->json(), 'the status: not set up, and installed');
+    } finally {
+        file_put_contents($file, $kept);
+        forgetLocalConfig();
+    }
+
+    same(200, (new Browser('198.51.100.23'))->get('/api/public/config')->status, 'with the file back, the IAM answers');
 });
 
 finishTests();

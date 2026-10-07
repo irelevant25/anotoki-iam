@@ -854,10 +854,10 @@ test('with 010 pending signing in works by the rule before it, the panel\'s appl
         $contract = (new Browser())->get('/api/public/applications/survey');
         same([503, 'sign_in_rules_unavailable', 'no-store'], [$contract->status, $contract->code(), $contract->header('Cache-Control')], 'the public contract has no switch to read yet: 503, kept by nobody');
         same(404, (new Browser())->get('/api/public/applications/nobody-here')->status, 'an unknown site is still 404');
-        same([RULES_MIGRATION, STATIC_MIGRATION], array_slice($admin->get('/api/admin/migrations')->json()['pending'] ?? [], 0, 2), 'the Migrations page shows 010 and 011 pending, first');
+        same([RULES_MIGRATION, STATIC_MIGRATION], array_slice(migrationNames($admin->get('/api/admin/migrations')->json()['pending'] ?? []), 0, 2), 'the Migrations page shows 010 and 011 pending, first');
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [RULES_MIGRATION, STATIC_MIGRATION], null], [$applied->status, array_slice($applied->json()['applied'] ?? [], 0, 2), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same([200, [RULES_MIGRATION, STATIC_MIGRATION], null], [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 2), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
 
         same(true, signInRulesReady($pdo), 'from the next request on, in the same process: the rules are there');
         $list = $admin->get('/api/admin/applications');

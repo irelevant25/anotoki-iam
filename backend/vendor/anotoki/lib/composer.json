@@ -1,0 +1,39 @@
+{
+    "name": "anotoki/lib",
+    "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes). The Angular half is @anotoki/lib.",
+    "type": "library",
+    "license": "proprietary",
+    "homepage": "https://github.com/irelevant25/anotoki-lib",
+    "require": {
+        "php": ">=8.2",
+        "ext-json": "*",
+        "ext-pdo": "*",
+        "psr/http-factory": "^1",
+        "psr/http-message": "^1.1 || ^2",
+        "psr/http-server-middleware": "^1",
+        "slim/slim": "^4.11"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11",
+        "slim/psr7": "^1.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "Anotoki\\Lib\\": "php/src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Anotoki\\Lib\\Tests\\": "php/tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "scripts-descriptions": {
+        "test": "The PHPUnit tests: PostgreSQL from ANOTOKI_LIB_TEST_DB_CONFIG or ANOTOKI_LIB_TEST_PG* (README.md)"
+    }
+}

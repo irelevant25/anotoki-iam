@@ -13,6 +13,26 @@
 /// (4.5:1) against the surfaces they sit on, in both palettes.
 ////
 
+/// The anotoki family's library (@anotoki/lib: the Migrations page, the update
+/// line, the not-set-up page) draws with --anotoki-* properties; these are the
+/// IAM's own tokens under its names. Each palette sets them where it sets its
+/// own, so they follow it into dark.
+@mixin anotoki-lib-tokens {
+  --anotoki-bg: var(--bg);
+  --anotoki-surface: var(--surface);
+  --anotoki-text: var(--text);
+  --anotoki-muted: var(--muted);
+  --anotoki-border: var(--border);
+  --anotoki-primary: var(--primary);
+  --anotoki-primary-contrast: var(--primary-contrast);
+  --anotoki-danger: var(--danger);
+  --anotoki-danger-contrast: var(--danger-contrast);
+  --anotoki-success: var(--success);
+  --anotoki-warning: var(--warning);
+  --anotoki-radius: var(--radius);
+  --anotoki-font-mono: var(--font-mono);
+}
+
 @mixin palette-light {
   color-scheme: light;
 
@@ -67,6 +87,8 @@
   // The anotoki mark (a navy picture) in the top bar: the family's soft
   // shadow; in dark a light halo, or it sinks into the bar.
   --mark-shadow: drop-shadow(0 2px 6px rgb(0 0 0 / 18%));
+
+  @include anotoki-lib-tokens;
 }
 
 @mixin palette-dark {
@@ -121,6 +143,8 @@
   --shadow-lg: 0 6px 16px rgb(0 0 0 / 35%), 0 28px 64px rgb(0 0 0 / 45%);
 
   --mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%));
+
+  @include anotoki-lib-tokens;
 }
 
 :root {

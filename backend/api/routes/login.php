@@ -1,5 +1,6 @@
 <?php
 
+use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -172,6 +173,14 @@ $app->get('/api/public/config', function (Request $request, Response $response) 
         'languages' => languageCodes(),
     ]);
 });
+
+// Where the IAM stands - `{state, installed}`, nothing else - in the anotoki
+// family's words (anotoki/lib, iamSiteState()): ready, not_set_up,
+// update_pending or unavailable. The gate lets it through in every state, so
+// the pages can always ask; the admin panel's line "A database update is
+// waiting" reads it. Public and first-party: no cookie is read, and it is in
+// neither CORS list.
+MigrationsRoutes::status($app, iamSiteState());
 
 // The pages' words in one language, with English under them and the languages
 // on offer (translationBundle()). The same for everybody, so nobody is asked

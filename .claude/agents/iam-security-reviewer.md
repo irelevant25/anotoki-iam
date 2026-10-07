@@ -90,7 +90,9 @@ the files you were given). You do not edit anything.
 - **Configuration & the installer** (`backend/setup.php`, `backend/config/`):
   per-installation values only from `config/*.local.php`, no committed fallback
   and no environment variable; the API answers `not_set_up` before anything
-  reads configuration. Development mode only when REMOTE_ADDR is loopback, the
+  reads configuration (the family's gate, anotoki/lib's `SiteGate`: only
+  `/api/site-status` passes, and the installer is named only while
+  `storage/installed.lock` is not there). Development mode only when REMOTE_ADDR is loopback, the
   Host is localhost and no forwarding header is present (try `Host: localhost`
   from outside, a rebound name on 127.0.0.1, `X-Forwarded-For`); its nonce
   checked on every POST, JSON "Test connection" included, with Origin and

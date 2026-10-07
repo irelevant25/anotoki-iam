@@ -9,8 +9,9 @@
  * routes on the original path. In development, router.php does the same for
  * PHP's built-in server.
  *
- * Until setup.php has written config/*.local.php, every request is answered
- * 503 `not_set_up` (setUpRequiredMiddleware()) and nothing else runs.
+ * Until setup.php has written config/*.local.php, every request but
+ * /api/site-status is answered 503 `not_set_up` by the family's gate
+ * (anotoki/lib's SiteGate, iamSiteState()) and nothing else runs.
  */
 
 // The hosting prints PHP's warnings into the page (display_errors is on there),
@@ -52,6 +53,7 @@ require_once __DIR__ . '/migration_runner.php';
 require_once __DIR__ . '/meddleware/security.php';
 require_once __DIR__ . '/meddleware/auth.php';
 
+use Anotoki\Lib\Migrations\Http\SiteGate;
 use Slim\Factory\AppFactory;
 
 /**
@@ -76,9 +78,9 @@ function buildIamApp(): \Slim\App
     require __DIR__ . '/routes/admin.php';
 
     // Added in this order, so they run the other way round: security headers
-    // first, then the not-set-up answer (before anything could read a
-    // configuration that is not there), CORS, the error handler, CSRF, and
-    // the body parser innermost around the routes.
+    // first, then the not-set-up answer (the family's gate - before anything
+    // could read a configuration that is not there), CORS, the error handler,
+    // CSRF, and the body parser innermost around the routes.
     $app->add(csrfMiddleware());
 
     $errorMiddleware = $app->addErrorMiddleware(false, true, true);
@@ -100,7 +102,21 @@ function buildIamApp(): \Slim\App
     });
 
     $app->add(corsMiddleware());
-    $app->add(setUpRequiredMiddleware());
+    // The anotoki family's gate (anotoki/lib): /api/site-status always passes;
+    // until the IAM is set up everything else is 503 `not_set_up`, naming the
+    // installer only while it was never installed (iamSiteState()). An update
+    // waiting closes nothing here - the IAM does not block - so the paths open
+    // while one waits change nothing today; they are the admin Migrations
+    // routes, exactly, as on every other site.
+    //
+    // It is asked only while the IAM is not set up: in every other state a
+    // site that does not block passes everything, and the gate would learn
+    // which state it is by a connection and two queries on every request -
+    // discovery, the token endpoint, a 404 - and, with the database host gone,
+    // a connect timeout before the route's own. Its answers are the gate's.
+    $gate = new SiteGate(iamSiteState(), $app->getResponseFactory(), ['~^/api/admin/migrations(/file|/apply)?$~D']);
+    $app->add(static fn(\Psr\Http\Message\ServerRequestInterface $request, \Psr\Http\Server\RequestHandlerInterface $handler): \Psr\Http\Message\ResponseInterface
+        => iamSetUpProblems() === [] ? $handler->handle($request) : $gate->process($request, $handler));
     $app->add(securityHeadersMiddleware());
 
     return $built = $app;

@@ -34,8 +34,8 @@ uploaded: `build-dist.php` leaves them, the tests and `setup.php` out.
 
 ```
 api/
-  index.php               the Slim app: security headers -> not set up -> CORS -> errors -> CSRF -> body -> routes
-  meddleware/             auth.php (requireSession, requireAdmin), security.php (headers, CSRF, CORS, not set up)
+  index.php               the Slim app: security headers -> not set up (the family's gate) -> CORS -> errors -> CSRF -> body -> routes
+  meddleware/             auth.php (requireSession, requireAdmin), security.php (headers, CSRF, CORS)
   routes/                 by audience: oidc.php (the sites), login.php (sign-in pages),
                           account.php (requireSession), admin.php (+ requireAdmin: ADMIN of `iam`)
   oidc.php, session.php, applications.php, accounts.php, keys.php, jwt.php, crypto.php,
@@ -43,7 +43,9 @@ api/
   one_time_token.php, google_identity.php, housekeeping.php, helpers.php,
   announcements.php, account_deletion.php, sign_in_devices.php
                           the logic, in plain function files beside the routes
-  migration_runner.php    the migration engine (CLI, installer, admin panel), createFirstAdmin()
+  migration_runner.php    the anotoki family's library wired in: iamMigrator() - its migration engine, for the
+                          CLI, the installer and the admin panel - and iamSiteState() - where the IAM stands,
+                          for the gate and /api/site-status; ensureDatabase(), createFirstAdmin()
   legacy_import.php       bringing the genshin site's accounts over
 config/
   config.php, db.php, iam.php, mail.php, secret.php, google.php
@@ -52,7 +54,8 @@ config/
 migrations/iam/           NNN_name.sql - the schema and the seeded data; never edit an applied one
 storage/                  cache/, mail in development (storage/mail/*.eml), the setup nonce, the install lock
 tests/                    run.php, lib.php, setup_lib.php, translation_keys.php and one *.test.php per area
-vendor/                   Slim and its dependencies, committed
+vendor/                   Slim, the anotoki family's library (anotoki/lib, from GitHub - never edited here) and
+                          their dependencies, committed
 ```
 
 ## Commands
@@ -61,6 +64,7 @@ vendor/                   Slim and its dependencies, committed
 composer start                            # http://localhost:8100: the API, and the installer at /setup.php
 php tests/run.php                         # every test file, each in a process of its own
 php migration.php --status                # what the configured database has applied and what is pending
+composer update anotoki/lib --prefer-dist # the family's library: with the frontend's @anotoki/lib (../docs/operations.md)
 php translations.php --status             # the keys the pages use against the database's strings
 php build-dist.php                        # -> dist/ for the hosting
 ```
@@ -80,8 +84,9 @@ folder. Only the PostgreSQL server is borrowed, from this machine's
 | File | Covers |
 | --- | --- |
 | `oidc.test.php` | the sign-in flow the sites depend on, and the attacks each protocol rule stops |
-| `setup.test.php` | the installer on this computer: the nonce, "Test connection", saving, running again |
-| `setup-remote.test.php` | the installer on a real host: the token, https, production addresses, lock and removal |
+| `setup.test.php` | the IAM before it is set up (`503 not_set_up`, naming the installer; the status), and the installer on this computer: the nonce, "Test connection", saving - the database built from nothing -, running again |
+| `setup-remote.test.php` | the installer on a real host: the token, https, production addresses, lock and removal; an installed IAM that loses a configuration file, never naming the installer again |
+| `migrations.test.php` | the anotoki family's migrations module in the IAM: `/api/site-status` (ready, unavailable, an update waiting), an update waiting closing nothing - every way in, a site's sign-in, the account page, the admin panel -, the admin Migrations routes (the list, a file's SQL and no path past it, Apply and its audit; who may; the CSRF header; one apply at a time), the command line building a database from nothing, `--status`, `--dry-run`, waiting its turn, and a pooled connection letting go of the lock a dead request left |
 | `import.test.php` | the genshin site's accounts brought over |
 | `survey-application.test.php` | migration 005 on IAMs installed before it, and the survey site signing in |
 | `every-site.test.php` | migration 007 on a fresh IAM and on one shaped like an installed one; the first administrator's ADMIN in every application |
@@ -97,7 +102,10 @@ folder. Only the PostgreSQL server is borrowed, from this machine's
 
 Beside them, not tests themselves (`run.php` runs `*.test.php` only): `lib.php`
 (the harness - throwaway databases, the in-process `Browser`, fixtures,
-`buildIamThrough()` / `applyMigrationsThrough()` for a database up to one migration),
+`buildIamThrough()` / `applyMigrationsThrough()` for a database up to one migration,
+and `appliedMigrations()`, `pendingMigrations()`, `applyMigration()`, ... - the
+names the IAM's own engine had, now a few lines each over the library's
+`Migrator`, `iamMigrator()`),
 `setup_lib.php` (the installer driven in-process) and `translation_keys.php`
 (the frontend's keys and English, shared with `translations.php`).
 

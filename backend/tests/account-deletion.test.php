@@ -1117,7 +1117,7 @@ test('with 016 pending everything answers as before, asking waits for Apply, and
         same(1, $admin->get('/api/admin/stats')->json()['admins'] ?? null, 'the administrators counted as before');
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, DELETION_MIGRATION, null], [$applied->status, $applied->json()['applied'][0] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same([200, DELETION_MIGRATION, null], [$applied->status, $applied->json()['applied'][0]['name'] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
         same(200, askDeletion($early)->status, 'from the next request on, in the same process');
     } finally {
         useIamDatabase($main);

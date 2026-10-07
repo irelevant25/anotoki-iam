@@ -25,13 +25,24 @@ The packages come from `bun.lock`, so bun has to be installed. `bun ci` stops
 when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
+One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
+its GitHub release, named in `package.json` - whose `@anotoki/lib/migrations`
+draws the admin panel's Migrations page, its "A database update is waiting"
+line and the not-set-up page (its PHP half is the backend's `anotoki/lib`).
+A new version: its release's URL in `package.json`, then `bun install` and
+`npm install --package-lock-only`, so that `package-lock.json` agrees - with
+the backend's half, together (`../docs/operations.md`).
+
 The unit tests run with Angular's `@angular/build:unit-test` (`angular.json`'s
 `test` target, `tsconfig.spec.json`), which needs `vitest` and `jsdom` in
 `devDependencies` (the survey site's versions: `vitest` ^4, `jsdom` ^28) and,
 once they are, a `"test": "ng test --watch=false"` script for `npm test`.
-The specs: the top bar's (`layouts/top-bar/top-bar.component.spec.ts`), and
-the admin panel's "Cannot sign in" rule (`pages/admin/users/sign-in-check.ts`,
-the same as the server's `blocked_in`; `sign-in-check.spec.ts`).
+The specs: the top bar's (`layouts/top-bar/top-bar.component.spec.ts`), the
+admin panel's "Cannot sign in" rule (`pages/admin/users/sign-in-check.ts`,
+the same as the server's `blocked_in`; `sign-in-check.spec.ts`), and the
+address the not-set-up page sends the browser back to - a path that stays on
+this site, as the browser reads it (`core/auth/next-path.ts`'s
+`sameOriginPath()`; `next-path.spec.ts`).
 
 `npm start` needs the backend beside it, set up once through its installer
 (`../DEV.md`):
@@ -41,7 +52,9 @@ cd ../backend && composer start
 ```
 
 Until the backend is set up, every API call answers 503 `not_set_up` and every
-page becomes `/not-set-up`, which links to the installer.
+page becomes `/not-set-up` - the family's status page, in the IAM's words -
+which links to the installer while the IAM was never installed (on this
+computer, always).
 
 The browser only ever talks to `http://localhost:4300` - the dev server proxies
 the API (`proxy.conf.json`) - so the session cookie, the `Origin` check and the
@@ -60,7 +73,12 @@ src/
                            public.api.ts, login.api.ts, account.api.ts, admin.api.ts
       http/                the interceptor: X-IAM-Request on non-GETs, 401 handling,
                            503 not_set_up to /not-set-up, errors reshaped to
-                           { status, code, message }
+                           { status, code, message } (but the migrations module's
+                           own, which it reads as they come)
+      migrations/          the family's migrations module (@anotoki/lib/migrations)
+                           wired in: who is ADMIN, the sign-in, the words, the dates.
+                           No gate, no check at boot: the IAM keeps working while
+                           an update waits
       auth/                the session signal, the guard, `next` validation,
                            the remembered-device token
       i18n/                translation.service.ts (the language, its bundle from
@@ -84,7 +102,8 @@ src/
                            announcements (the history and senders, the composer,
                            one announcement and its sending), logs,
                            settings, translations and languages (localization/),
-                           keys, migrations
+                           keys; /admin/migrations is the family's page
+                           (@anotoki/lib), and its update line sits above them all
 public/
   anotoki.png, favicon.png
   theme-boot.js            applies the stored theme before first paint (no inline scripts)
@@ -139,7 +158,8 @@ scripts/
   (`layouts/shell`, a strip of links on a narrow screen).
 - **Theming** is custom properties only: both palettes in `styles.scss` define
   the same names. Components never contain a raw colour that works in one
-  theme only. Signed in, the theme is the account's, which every anotoki site
+  theme only. The family's library draws with `--anotoki-*`, which both
+  palettes map onto their own tokens. Signed in, the theme is the account's, which every anotoki site
   follows (migration 015): `ThemeService` shows it and saves a toggle to it,
   one save at a time, the latest choice last; signed out, it is the device's.
   Either way the last one shown is in `localStorage`, for `theme-boot.js`.

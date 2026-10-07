@@ -35,11 +35,25 @@ the IAM frontend. The examples use the development one:
 - Times are ISO-8601 strings in UTC (`2026-09-27T10:15:00Z`).
 - User ids are integers. In tokens the same id is the `sub` claim, as a decimal
   string (`"1"`).
-- **Before the installer has run**, every endpoint - discovery and the protocol
-  endpoints included, whatever the method - answers
-  `503 { "error": "...", "code": "not_set_up", "setup_url": "/setup.php" }`
-  and does nothing else. The IAM's pages show "not set up yet" for it; an
-  application sees a failed sign-in.
+- **Before the installer has run** - and whenever a `config/*.local.php` is
+  missing or wrong - every endpoint but `/api/site-status` (below) -
+  discovery and the protocol endpoints included, whatever the method - answers
+  503 and does nothing else, in the anotoki family's words and shape (the gate
+  of the family's library, anotoki/lib, which every anotoki site answers with;
+  `Cache-Control: no-store`):
+
+  ```json
+  { "code": "not_set_up", "installed": false, "message": "This site is not set up yet. Its setup page connects it to its database.", "setup": "/setup.php" }
+  ```
+
+  `setup`, the installer's path, is there only while the IAM was never
+  installed: `installed` is false until a real host's install has finished
+  (`storage/installed.lock`, which it writes - on a development machine it
+  never is). An IAM installed once never names the installer again, which has
+  deleted itself:
+  `{ "code": "not_set_up", "installed": true, "message": "The site is not available right now. Try again in a few minutes." }`.
+  The IAM's pages show their not-set-up page for either; an application sees
+  a failed sign-in.
 
 ### The session cookie
 
@@ -537,6 +551,32 @@ migration 006 or while the database cannot be reached. The pages give a new
 account the reader's language settled against this list, even while they are
 still showing the compiled English.
 
+### `GET /api/site-status`
+
+Where the IAM stands, in the anotoki family's words - every anotoki site
+answers this path the same way (anotoki/lib):
+
+```json
+{ "state": "update_pending", "installed": false }
+```
+
+These two fields and nothing else; `Cache-Control: no-store`, no cookie read,
+in neither CORS list. It is the one path that answers in every state, before
+the installer has run too: the pages ask it to know what to show. It is
+public, as on every anotoki site: anybody may learn that an update waits or
+that the database does not answer - a timing signal, which opens nothing
+(`docs/decisions.md`).
+
+| `state` | |
+| --- | --- |
+| `ready` | everything set up and applied |
+| `update_pending` | a file of `migrations/iam` waits to be applied. The IAM goes on answering everything meanwhile - unlike every other anotoki site, it does not block while an update waits: it is the door they all sign in through, and its administrator signs in through it to press Apply. Its features check their own tables, as ever. The admin panel's line "A database update is waiting" reads this |
+| `not_set_up` | a `config/*.local.php` is missing or wrong: every other path answers `503 not_set_up` (Conventions, above) |
+| `unavailable` | set up, but the database does not answer; the other paths answer as they would without it |
+
+`installed` is whether a real host's install has finished
+(`storage/installed.lock`); once it is true, nothing offers the installer.
+
 ### `GET /api/translations/{code}`
 
 The pages' words in one language. The same for everybody: no cookie is read or
@@ -574,7 +614,7 @@ neither CORS list - only the IAM's own pages read it. Nothing else lives under
 `404 not_found` for a code that is not `xx` or `xx-yy` in small letters (`EN`,
 `en-GB`, `en_gb` are no codes), before any query. `503 translations_unavailable`
 while migration 006 is pending, or English has no strings at all: not
-`not_set_up`, which would send the pages to the installer's notice - they keep
+`not_set_up`, which would send the pages to their not-set-up page - they keep
 the English compiled into the build meanwhile.
 
 Caching: `ETag` (an MD5 of the body, in quotes) and `Cache-Control: no-cache`,
@@ -1485,13 +1525,49 @@ string's old and new text whole).
 | `GET /api/admin/keys` | `{ keys: { kid, alg, status: 'active'\|'retired', created_at, retired_at }[] }` |
 | `POST /api/admin/keys/rotate` | a new active key; the old one is retired but stays in the JWKS a day |
 | `DELETE /api/admin/keys/{kid}` | drops a retired key from the JWKS |
-| `GET /api/admin/migrations` | `{ applied: [...], pending: [...] }` |
-| `POST /api/admin/migrations/apply` | `{ applied, failed, error }` |
+| `GET /api/admin/migrations` | `MigrationsStatus` (below) |
+| `GET /api/admin/migrations/file?set=iam&name={file}` | `{ set, name, sql }` - the file's SQL as it is on disk |
+| `POST /api/admin/migrations/apply` | `ApplyResult` (below) |
 
 Settings: `login_enabled`, `registration_enabled`, `registration_approval`
 (since migration 012; off by default), `google_login_enabled` (booleans). A save
 that switches `registration_approval` off approves every account still waiting
 and switched on.
+
+**Migrations** are the anotoki family's (anotoki/lib, the same three routes on
+every anotoki site; the admin panel's Migrations page is the family's page,
+`@anotoki/lib/migrations`), under this group's checks: the session, the IAM's
+`ADMIN` - none of which needs a table a pending migration makes - and the CSRF
+header on Apply. The engine applies the files of `migrations/iam` the IAM has
+not recorded yet, in order, each in a transaction of its own with its record
+in the `migrations` table, and stops at the first that fails (rolled back
+whole: the files after it never run). One apply at a time, whoever starts it -
+this page, `php migration.php`, the installer: each takes the same lock.
+
+```ts
+interface MigrationsStatus {
+  sets: string[];   // ['iam']: the IAM has one set of files
+  applied: { set: string; name: string; applied_at: string | null }[];  // recorded and on disk, in the order they ran; ISO 8601 UTC
+  pending: { set: string; name: string; ready: boolean; blocked: boolean }[];  // in the order they will run; the IAM has no drafts: ready true, blocked false
+  missing: { set: string; name: string; applied_at: string | null }[];  // recorded as applied, but the file is not there
+}
+
+interface ApplyResult {
+  applied: { set: string; name: string }[];
+  failed: { set: string; name: string } | null;  // the file that stopped the run
+  error: string | null;  // "statement N of M: <what PostgreSQL said>" and the statement's first six lines
+  note: string | null;   // always null here
+}
+```
+
+- `GET .../file` answers `404 { code: "not_found", message }` for anything
+  that is not one of the set's files - no path is followed.
+- Apply answers `200` whether or not a file failed (the page shows which, and
+  what the database said), and `409 { code: "busy", message }` - nothing
+  applied - while another apply runs.
+- Every apply that was not busy is audited, `migrations.applied`, with
+  `{ applied: string[], failed: string | null, error: string | null }` (the
+  files' names) - one with nothing to apply too.
 
 ### Public
 

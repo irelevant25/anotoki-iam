@@ -1,5 +1,7 @@
 <?php
 
+use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
+use Anotoki\Lib\Migrations\Migrator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -1553,24 +1555,19 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
     // ── Migrations ───────────────────────────────────────────────────────────
 
-    $group->get('/migrations', function (Request $request, Response $response) {
-        $pdo = iamDb();
-        $pending = pendingMigrations($pdo, 'iam');
-        $applied = $pdo->query('SELECT filename, applied_at FROM migrations ORDER BY id')->fetchAll();
-
-        return respondJson($response, [
-            'applied' => array_map(static fn(array $row): array => isoTimes($row, ['applied_at']), $applied),
-            'pending' => $pending,
-        ]);
-    });
-
-    $group->post('/migrations/apply', function (Request $request, Response $response) {
-        $result = applyPendingMigrations(iamDb(), 'iam');
+    // The anotoki family's Migrations page's routes (anotoki/lib's
+    // MigrationsRoutes, its page in the frontend): the files and what the
+    // database has of them, a file's SQL, and Apply - under this group's
+    // checks, which need nothing a pending migration makes (sessions, users,
+    // roles are 001's). The CSRF header guards Apply like every write here.
+    MigrationsRoutes::admin($group, '/migrations', static fn(): Migrator => iamMigrator(iamDb()), static function (Request $request, array $result): void {
         // A migration may have brought the languages table, or a language.
         languageCodes(null, true);
-        audit($request, (int) actor($request)['id'], 'migrations.applied', null, null, $result);
-
-        return respondJson($response, $result, $result['failed'] === null ? 200 : 500);
+        audit($request, (int) actor($request)['id'], 'migrations.applied', null, null, [
+            'applied' => array_column($result['applied'], 'name'),
+            'failed' => $result['failed']['name'] ?? null,
+            'error' => $result['error'],
+        ]);
     });
 })->add(requireSignInRules())->add(requireAdmin())->add(requireSession());
 

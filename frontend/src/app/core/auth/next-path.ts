@@ -23,6 +23,35 @@ export function safeNext(value: string | null | undefined): string {
   return value;
 }
 
+/**
+ * A path on this site to send the browser to with `location` - '/' for
+ * anything else.
+ *
+ * safeNext()'s look at the string is enough for the router, which never
+ * leaves the site; `location` does. The browser drops tabs and line breaks
+ * from an address and takes a backslash for a slash, so `/\t/evil.example`
+ * - one slash, then a tab - is `//evil.example` to it: another host. So the
+ * value is resolved the way the browser will resolve it (URL), against this
+ * origin, and kept only while it stays here. What comes out is normalised,
+ * and a normalised path can start with two slashes too (`/.//evil.example`),
+ * which `location` would again read as a host: refused as well.
+ */
+export function sameOriginPath(value: string | null | undefined, origin: string = location.origin): string {
+  if (!value || !value.startsWith('/')) {
+    return '/';
+  }
+
+  let url: URL;
+  try {
+    url = new URL(value, origin);
+  } catch {
+    return '/';
+  }
+
+  const path = url.pathname + url.search + url.hash;
+  return url.origin === origin && !path.startsWith('//') ? path : '/';
+}
+
 /** Whether a URL belongs to the part of the site that needs a session. */
 export function isSessionArea(url: string): boolean {
   const path = url.split(/[?#]/)[0];

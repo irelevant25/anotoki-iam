@@ -25,7 +25,9 @@ API document is a contract the Angular frontend and all the sites depend on.
   redirect-URI and origin validators), `accounts.php`, `keys.php`, `jwt.php`,
   `crypto.php`, `settings.php`, `audit.php`, `totp.php`, `trusted_device.php`,
   `one_time_token.php`, `google_identity.php`, `mail.php`, `legacy_import.php`,
-  `migration_runner.php`, and `translations.php` (languages, strings, the
+  `migration_runner.php` (the family's library wired in: `iamMigrator()`, the
+  engine from `vendor/anotoki/lib` - never edited here -, `iamSiteState()` for
+  the gate and `/api/site-status`), and `translations.php` (languages, strings, the
   bundle, `translationsCheck()`; `languageCodes()` is in `helpers.php`).
 - `backend/config/` - `config.php` (`localConfig()`, `iamSetUpProblems()`,
   `iamStorageDir()`, `loopbackHost()`), and a loader per `*.local.php`: `db.php`,

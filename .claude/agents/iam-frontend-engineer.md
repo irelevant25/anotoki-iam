@@ -22,7 +22,11 @@ call exactly those endpoints and must handle exactly those refusal codes.
   When the backend changes a shape, change it here in the same change.
 - `frontend/src/app/core/` - session state, the interceptor (`X-IAM-Request` on
   writes; 401 outside the sign-in endpoints → `/login?next=…`; 503
-  `not_set_up` → `/not-set-up`), translations (`i18n/translation.service.ts`:
+  `not_set_up` → `/not-set-up`; the migrations module's own requests get their
+  HttpErrorResponse back), the anotoki family's migrations module wired in
+  (`migrations/migrations.config.ts`, `@anotoki/lib/migrations`: the admin
+  Migrations page, the update line in the admin layout, the not-set-up page's
+  `<anotoki-site-status>` - no gate, the IAM never blocks), translations (`i18n/translation.service.ts`:
   which language, and its bundle from `GET /api/translations/{code}`;
   `i18n/en.ts`: the typed list of keys and the English shown only while no
   bundle is in memory; `i18n/localization-drafts.service.ts`: the admin

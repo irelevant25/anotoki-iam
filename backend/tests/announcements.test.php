@@ -970,7 +970,7 @@ test('with 013 pending the account page and the rest of the panel work, the anno
         same([403, 'forbidden'], [($r = $person->get('/api/admin/announcements'))->status, $r->code()], 'to anybody not an administrator, what it always says - not that 013 is pending');
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [NEWS_MIGRATION], null], [$applied->status, array_slice($applied->json()['applied'] ?? [], 0, 1), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same([200, [NEWS_MIGRATION], null], [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 1), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
         same(true, announcementsReady($pdo), 'from the next request on, in the same process');
         same(200, $admin->get('/api/admin/announcements/compose')->status, 'the composer answers');
         same(false, $person->put('/api/account/profile', ['news_mail' => false])->json()['news_mail'] ?? null, 'the switch works');

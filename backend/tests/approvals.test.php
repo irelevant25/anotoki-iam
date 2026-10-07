@@ -541,7 +541,7 @@ test('with 012 pending signing up and signing in work as before, so do the panel
             'there is no switch to turn on yet');
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [APPROVAL_MIGRATION], null], [$applied->status, array_slice($applied->json()['applied'] ?? [], 0, 1), $applied->json()['failed'] ?? null], 'Apply pending, 012 first: ' . $applied->body);
+        same([200, [APPROVAL_MIGRATION], null], [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 1), $applied->json()['failed'] ?? null], 'Apply pending, 012 first: ' . $applied->body);
         same(true, accountApprovalReady($pdo), 'from the next request on, in the same process');
         same([200, []], [($r = $admin->get('/api/admin/approvals'))->status, $r->json()['accounts'] ?? null], 'the approvals answer, nobody waiting');
         same(true, asBool(userRow(userIdOf('windowed'))['approved']), 'the account made in the window is approved');

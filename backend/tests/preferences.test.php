@@ -337,7 +337,7 @@ test('with 015 pending the account page and the tokens answer as before, and the
         $admin = new Browser('10.15.8.2');
         same(200, $admin->signIn('admin@example.test', 'correct horse')->status, 'the admin signs in');
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [PREFERENCES_MIGRATION], null], [$applied->status, array_slice($applied->json()['applied'] ?? [], 0, 1), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same([200, [PREFERENCES_MIGRATION], null], [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 1), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
         same(200, savePreferences(['theme' => 'dark'], $tokens['access_token'])->status, 'from the next request on, in the same process');
     } finally {
         useIamDatabase($main);

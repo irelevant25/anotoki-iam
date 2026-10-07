@@ -23,13 +23,16 @@
  *
  *   php create-admin.php you@example.com
  *
- * The engine lives in api/migration_runner.php, shared with the admin panel's
- * "Apply pending" button and with setup.php, so a database built any of the
- * three ways is the same database.
+ * The engine is the anotoki family's (anotoki/lib's Migrator, iamMigrator() in
+ * api/migration_runner.php), shared with the admin panel's Migrations page and
+ * with setup.php, so a database built any of the three ways is the same
+ * database - and only one of them applies at a time.
  */
 
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/api/migration_runner.php';
+
+use Anotoki\Lib\Migrations\MigrationSet;
 
 function colour(string $colour, string $text): string
 {
@@ -64,29 +67,43 @@ if ($name === '') {
 
 say('cyan', "\n== iam ({$name})");
 
+// Each file is named as it starts and said to be done once the next one
+// starts - or the run ends - which is after its transaction committed.
+$current = null;
+$migrator = null;
+
 try {
     if (!$statusOnly && !$dryRun && ensureDatabase($config, $name)) {
         say('green', '  Database created.');
     }
 
     $pdo = iamDb();
-    ensureMigrationsTable($pdo);
-    $applied = appliedMigrations($pdo);
+    $migrator = iamMigrator($pdo, [
+        'beforeFile' => static function (PDO $pdo, MigrationSet $set, string $file) use (&$current): void {
+            if ($current !== null) {
+                say('green', 'done');
+            }
+            echo '  ' . $file . ' ... ';
+            $current = $file;
+        },
+    ]);
+    // Read only: --status and --dry-run make nothing, not even the table.
+    $status = $migrator->status();
 } catch (\Throwable $e) {
     say('red', '  Cannot reach it: ' . $e->getMessage());
     exit(1);
 }
 
-$files = migrationFiles('iam');
-$pending = array_values(array_diff($files, $applied));
+$files = $migrator->files(iamMigrationSet());
+$pending = array_column($status['pending'], 'name');
 
-foreach (array_diff($applied, $files) as $file) {
-    say('red', "  ! {$file} is recorded as applied but is not in migrations/iam/");
+foreach ($status['missing'] as $record) {
+    say('red', "  ! {$record['name']} is recorded as applied but is not in migrations/iam/");
 }
 
 if ($statusOnly) {
     foreach ($files as $file) {
-        $done = in_array($file, $applied, true);
+        $done = !in_array($file, $pending, true);
         echo '  ' . ($done ? colour('green', 'v') : colour('yellow', '.')) . ' ' . $file . ($done ? '' : colour('yellow', '   pending')) . "\n";
     }
     printf("  %d applied, %d pending\n", count($files) - count($pending), count($pending));
@@ -97,26 +114,50 @@ if (!$pending) {
     say('green', '  Up to date - ' . count($files) . ' migrations.');
 }
 
-foreach ($pending as $file) {
-    if ($dryRun) {
+if ($dryRun) {
+    foreach (array_column($migrator->applicable(), 'name') as $file) {
         say('yellow', '  would apply ' . $file);
-        continue;
+    }
+    exit(0);
+}
+
+if ($pending) {
+    try {
+        $result = $migrator->apply();
+    } catch (\Throwable $e) {
+        // The connection itself failed: nothing the engine reports as a failed file.
+        if ($current !== null) {
+            echo "\n";
+        }
+        say('red', '  ' . $e->getMessage());
+        exit(1);
     }
 
-    echo '  ' . $file . ' ... ';
+    if ($result['busy']) {
+        say('red', '  Another database update is running (the admin panel, or the installer). Nothing was applied - run this again in a moment.');
+        exit(1);
+    }
 
-    try {
-        applyMigration($pdo, 'iam', $file);
-        say('green', 'done');
-    } catch (\Throwable $e) {
+    if ($result['failed'] !== null) {
+        // Failed before its first line was written: the file before it committed.
+        if ($current !== $result['failed']['name']) {
+            if ($current !== null) {
+                say('green', 'done');
+            }
+            echo '  ' . $result['failed']['name'] . ' ... ';
+        }
         say('red', 'FAILED');
-        say('red', '    ' . $e->getMessage());
+        say('red', '    ' . $result['error']);
         say('yellow', '    Nothing from this file was applied. The migrations before it stand.');
         exit(1);
     }
+
+    if ($current !== null) {
+        say('green', 'done');
+    }
 }
 
-if (!$dryRun && (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn() === 0) {
+if ((int) $pdo->query('SELECT count(*) FROM users')->fetchColumn() === 0) {
     say('yellow', "\n  There are no accounts yet. Either bring the genshin site's over:");
     echo "    php import-legacy.php --from=users\n";
     say('yellow', '  or start with a first administrator:');

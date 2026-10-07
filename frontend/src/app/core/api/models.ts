@@ -900,29 +900,6 @@ export interface KeysResponse {
   keys: SigningKey[];
 }
 
-/**
- * One migration, flattened.
- *
- * `applied` arrives as rows of the migrations table (`filename`, `applied_at`)
- * and `pending` as bare file names; the admin API service reads both into this.
- */
-export interface MigrationItem {
-  name: string;
-  applied_at: string | null;
-}
-
-export interface MigrationsStatus {
-  applied: MigrationItem[];
-  pending: MigrationItem[];
-}
-
-/** What applying answers: the files that ran, and the one that stopped the run, if any. */
-export interface MigrationsApplyResult {
-  applied: string[];
-  failed: string | null;
-  error: string | null;
-}
-
 export interface RotatedKey {
   message: string;
   kid: string;

@@ -20,8 +20,10 @@
 //                                 Google button is not drawn
 //
 // Without the required ones the IAM does not run. The API answers every
-// request with 503 `not_set_up`, the pages say so, and both point at
-// setup.php. An identity provider that guessed the rest - a database called
+// request with 503 `not_set_up` (all but /api/site-status, which says so
+// itself - the anotoki family's gate, api/migration_runner.php), the pages say
+// so, and both point at setup.php while the IAM was never installed
+// (storage/installed.lock). An identity provider that guessed the rest - a database called
 // anotoki_iam on 127.0.0.1, a sender at localhost, an issuer nobody chose -
 // would be signing tokens for an address nobody configured.
 // ---------------------------------------------------------------------------
@@ -29,7 +31,9 @@
 /**
  * Thrown by whatever needs a per-installation value that is not there: the
  * command-line tools say it and stop; the API never gets that far, because
- * its first middleware answers 503 before any handler runs.
+ * its gate answers 503 before any handler runs - but /api/site-status's,
+ * which reads only whether the files are complete (iamSetUpProblems()) and
+ * whether the install's lock is there.
  */
 final class IamNotSetUp extends RuntimeException
 {

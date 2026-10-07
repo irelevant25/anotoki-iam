@@ -29,6 +29,10 @@ class ComposerStaticInite76b0dba920fa56f9d890196703e6a81
             'Fig\\Http\\Message\\' => 17,
             'FastRoute\\' => 10,
         ),
+        'A' =>
+        array (
+            'Anotoki\\Lib\\' => 12,
+        ),
     );
 
     public static $prefixDirsPsr4 = array (
@@ -65,6 +69,10 @@ class ComposerStaticInite76b0dba920fa56f9d890196703e6a81
         'FastRoute\\' =>
         array (
             0 => __DIR__ . '/..' . '/nikic/fast-route/src',
+        ),
+        'Anotoki\\Lib\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/anotoki/lib/php/src',
         ),
     );
 

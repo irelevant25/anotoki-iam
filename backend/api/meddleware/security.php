@@ -128,25 +128,6 @@ function csrfMiddleware(): callable
 }
 
 /**
- * No configuration, no IAM: every request, discovery and preflights included,
- * is answered 503 `not_set_up` until setup.php has written config/*.local.php.
- *
- * The answer points at the installer and says nothing more: which file is
- * missing is for whoever opens setup.php, not for every caller of the API.
- * The IAM's own pages turn it into their "not set up yet" page.
- */
-function setUpRequiredMiddleware(): callable
-{
-    return function (Request $request, RequestHandler $handler): Response {
-        if (iamSetUpProblems() === []) {
-            return $handler->handle($request);
-        }
-
-        return respondError(new \Slim\Psr7\Response(), 503, 'not_set_up', 'This IAM is not set up yet. Open /setup.php to set it up.', ['setup_url' => '/setup.php']);
-    };
-}
-
-/**
  * Baseline headers on every answer. A route that set one knows its own needs
  * better, so each is only filled in where it is missing.
  */

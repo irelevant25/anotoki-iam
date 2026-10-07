@@ -34,6 +34,7 @@ php reset-password.php <email> [pw] [--clear-2fa]
 php translations.php --status             # the pages' keys against the database's; each language's coverage
 php translations.php --export sk [file]   # a language's own strings as flat JSON; --import sk file puts them back
 php build-dist.php                        # -> backend/dist/ for upload
+composer update anotoki/lib --prefer-dist # the family's library, with frontend/package.json's @anotoki/lib URL (docs/operations.md)
 
 # Frontend (from frontend/)
 npm start                                 # bun ci (the packages in bun.lock), then ng serve on :4300, proxying /api, /.well-known and /setup.php to :8100
@@ -56,10 +57,15 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `config/config.php` (`localConfig()`). The committed `config/*.php` hold the
   loaders and the tunables that are the same everywhere; there is no template
   to fall back on.
-- They are **required**: `setUpRequiredMiddleware()` answers every request with
-  `503 {code: "not_set_up", setup_url: "/setup.php"}` until `iamSetUpProblems()`
-  is empty, and the frontend turns that into `/not-set-up`. The CLI tools stop
-  with `requireSetUpOnCli()`.
+- They are **required**: the anotoki family's gate (anotoki/lib's `SiteGate`
+  over `iamSiteState()`, `api/migration_runner.php`; asked only while the IAM
+  is not set up, so a set-up IAM does no database work for it) answers every
+  request but `/api/site-status` with `503 {code: "not_set_up", installed, message,
+  setup?}` until `iamSetUpProblems()` is empty - `setup: "/setup.php"` only
+  while `storage/installed.lock` is not there (the owner's rule: an IAM
+  installed once never offers the installer again) - and the frontend turns
+  that into `/not-set-up` (the family's `<anotoki-site-status>`, in the IAM's
+  `notSetUp.*` words). The CLI tools stop with `requireSetUpOnCli()`.
 - **`backend/setup.php` writes them**, in development too. On this computer
   (loopback `REMOTE_ADDR`, a localhost `Host`, no forwarding headers): no token,
   a nonce in the form (`storage/setup-nonce`) plus Origin / Sec-Fetch-Site
@@ -202,7 +208,9 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   strings, the bundle, every check of a string), and the carried-over `totp.php`,
   `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php`
   (whose words now come from the database, `MAIL_FALLBACK` the last resort),
-  `account_deletion.php` and `sign_in_devices.php` (016).
+  `account_deletion.php` and `sign_in_devices.php` (016), and
+  `migration_runner.php` (the family's library wired in: `iamMigrator()`,
+  `iamSiteState()`; beside them `ensureDatabase()`, `createFirstAdmin()`).
 - Files under `storage/` go through `iamStorageDir()`, config through
   `localConfig()` - the tests point both at temp folders (`IAM_CONFIG_DIR`,
   `IAM_STORAGE_DIR`, constants only code can define). No environment variables.
@@ -214,10 +222,22 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - Every admin change and security-relevant self-service change writes
   `audit()`.
 - **Migrations are the schema**: `backend/migrations/iam/NNN_name.sql`, applied
-  in order by the shared engine (`api/migration_runner.php` - CLI, installer and
-  the admin panel's "Apply pending" all use it). Never edit an applied
-  migration. A migration that changes data carries a `DO $$ … $$` gate that
-  fails loudly.
+  in order by the anotoki family's engine, anotoki/lib's `Migrator`
+  (`iamMigrator()` in `api/migration_runner.php` - CLI, installer and the
+  admin panel's Migrations page all use it, one apply at a time; the table
+  `migrations` stays as it is). Never edit an applied migration. A migration
+  that changes data carries a `DO $$ … $$` gate that fails loudly. **An update
+  waiting closes nothing** (`blockWhilePending: false`, the one anotoki site
+  that does not block - every site signs in through it): each feature checks
+  its own tables (`*Ready()`), and only the IAM's administrators are told, by
+  `<anotoki-update-banner>` in the admin panel (`docs/decisions.md`).
+- **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
+  `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
+  `frontend/package.json` (the release's tarball), one version, updated
+  together (`docs/operations.md`). Never edit the vendored copy: a change goes
+  to the library and comes back as a release. Its routes here:
+  `GET /api/site-status` (first-party, public, no CORS) and
+  `/api/admin/migrations[/file|/apply]` inside the admin group.
 - **Tests** (`backend/tests/*.test.php`, `lib.php`, `setup_lib.php`) drive the
   real app and the installer in-process with a `Browser` that keeps cookies,
   each file with its own temp configuration and `iam_test_*` databases, borrowing
@@ -250,14 +270,21 @@ a decision for `docs/decisions.md`, not a refactor.
   (`core/api/`, mirroring `docs/api.md`), the session state, the HTTP
   interceptor (adds `X-IAM-Request: 1` to every write; sends a 401 outside the
   sign-in endpoints to `/login?next=…`; sends a 503 `not_set_up` to
-  `/not-set-up`), translations (`i18n/translation.service.ts`: the language
+  `/not-set-up`; hands the migrations module's own requests their
+  HttpErrorResponse back - the library's `siteStatusInterceptor` runs inside
+  it), the family's migrations module (`migrations/migrations.config.ts`:
+  `provideAnotokiMigrations`, no gate and no boot check), translations
+  (`i18n/translation.service.ts`: the language
   and its bundle from `GET /api/translations/{code}`; `i18n/en.ts`: the keys
   and the English shown only while no bundle is in memory; the `t` pipe), theme.
 - `frontend/src/app/ui/` - the app's own small UI kit; build on it.
 - Pages: the sign-in flow (`/login`, `/register`, `/confirm-email`,
   `/forgot-password`, `/reset-password`, `/logout`, `/error`, `/not-set-up`),
   the account page (`/account/**`), the admin panel (`/admin/**`, English
-  only).
+  only; `/admin/migrations` is the family's `<anotoki-migrations-page>`, and
+  `<anotoki-update-banner>` sits above the panel's pages). The library's
+  components draw with `--anotoki-*`, mapped onto the IAM's tokens in
+  `styles.scss` for both palettes.
 - **The top bar** (`layouts/top-bar`, in `layouts/shell`) is the anotoki
   family's one bar; the survey site's `layouts/top-bar` is the reference.
   One row: brand, the account pages as links, the language (`app-language-switcher

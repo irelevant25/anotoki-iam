@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
+import { UpdateBannerComponent } from '@anotoki/lib/migrations';
 import { SessionService } from '../../core/auth/session.service';
 import { NavItem, ShellComponent } from '../../layouts/shell/shell.component';
 import { ButtonComponent } from '../../ui/button/button.component';
@@ -31,10 +32,16 @@ const NAV: NavItem[] = [
  *
  * An account whose deletion is pending is no administrator meanwhile
  * (`is_admin` false): it is told so, and where the deletion is cancelled.
+ *
+ * Above every page, for the administrators: the anotoki family's one line
+ * "A database update is waiting" with a link to Migrations, while one waits
+ * (`<anotoki-update-banner>`, which asks the server once). The IAM goes on
+ * working meanwhile - it is the door every site signs in through - so nobody
+ * else is told anything.
  */
 @Component({
   selector: 'app-admin-layout',
-  imports: [RouterLink, RouterOutlet, ShellComponent, ButtonComponent, EmptyStateComponent],
+  imports: [RouterLink, RouterOutlet, UpdateBannerComponent, ShellComponent, ButtonComponent, EmptyStateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss',

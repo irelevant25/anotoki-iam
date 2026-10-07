@@ -55,17 +55,26 @@ function localForm(string $nonce, array $overrides = []): array
 test('with no configuration the API answers not_set_up to everything, and points at the installer', function () {
     $browser = new Browser();
 
-    foreach (['/api/public/config', '/.well-known/openid-configuration', '/.well-known/jwks.json', '/api/account'] as $path) {
+    foreach (['/api/public/config', '/.well-known/openid-configuration', '/.well-known/jwks.json', '/api/account', '/api/translations/en', '/api/admin/migrations'] as $path) {
         $answer = $browser->get($path);
         same(503, $answer->status, "GET {$path}");
         same('not_set_up', $answer->json()['code'] ?? null, "GET {$path} code");
-        same('/setup.php', $answer->json()['setup_url'] ?? null, "GET {$path} points at the installer");
+        // The family's answer (anotoki/lib's gate): never installed, so the installer is named.
+        same([false, '/setup.php'], [$answer->json()['installed'] ?? null, $answer->json()['setup'] ?? null], "GET {$path} points at the installer");
+        check(is_string($answer->json()['message'] ?? null), "GET {$path} says so in a sentence");
+        same('no-store', $answer->header('Cache-Control'), "GET {$path} is not kept");
     }
 
     same(503, $browser->post('/api/login/password', ['email' => 'a@b.test', 'password' => 'whatever'])->status, 'a sign-in');
+    same(503, $browser->post('/api/admin/migrations/apply')->status, 'an Apply');
     same(503, $browser->request('OPTIONS', '/api/oidc/token', ['headers' => ['Origin' => 'http://localhost:4200']])->status, 'a preflight');
     check(!str_contains($browser->get('/api/public/config')->body, 'local.php'), 'the answer names no file');
     same(4, count(iamSetUpProblems()), 'four files missing, Google optional');
+
+    // The status path is the one way through: how the pages learn what to show.
+    $status = $browser->get('/api/site-status', ['headers' => ['Origin' => 'http://localhost:4200']]);
+    same([200, ['state' => 'not_set_up', 'installed' => false]], [$status->status, $status->json()], 'the status says so itself');
+    same(['no-store', ''], [$status->header('Cache-Control'), $status->header('Access-Control-Allow-Origin')], 'not kept, and in no CORS list');
 });
 
 test('the development setup is this computer, straight: anything else is a real host', function () {
@@ -215,8 +224,14 @@ test('saving writes every file, builds the database, brings the accounts over, a
     check(is_file(setupTestContext()['self']), 'the installer stays');
     check(!is_file(IAM_STORAGE_DIR . '/installed.lock'), 'and is not locked');
 
+    // Built from nothing by the family's engine: every file, recorded in the table the engine always kept.
+    same([], pendingMigrations(iamDb()), 'nothing pending');
+    same(migrationFiles(), migrationNames(iamMigrator(iamDb())->status()['applied']), 'every migration applied, in order');
+    same(count(migrationFiles()), (int) iamDb()->query('SELECT count(*) FROM migrations')->fetchColumn(), 'each recorded once');
+
     $browser = new Browser();
     same(200, $browser->get('/api/public/config')->status, 'the API answers');
+    same(['state' => 'ready', 'installed' => false], $browser->get('/api/site-status')->json(), 'ready - and, on this computer, never installed');
     same(TEST_ISSUER, $browser->get('/.well-known/openid-configuration')->json()['issuer'] ?? null, 'as the issuer entered');
     same(200, $browser->signIn('owner@example.test', 'owner password')->status, 'the imported admin signs in with the old password');
     same(true, $browser->get('/api/account')->json()['is_admin'] ?? null, 'and administers the IAM');

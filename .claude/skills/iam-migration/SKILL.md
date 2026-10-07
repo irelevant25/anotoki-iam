@@ -10,10 +10,13 @@ description: >
 # Write an IAM migration
 
 `backend/migrations/iam/NNN_name.sql`, the next free number, a short snake_case
-name. The engine (`backend/api/migration_runner.php`) applies each file in one
+name. The engine - the anotoki family's, anotoki/lib's `Migrator`, wired in
+`backend/api/migration_runner.php` (`iamMigrator()`) - applies each file in one
 transaction and records it; the same engine runs from the CLI, from `setup.php`
-(every time it saves) and from the admin panel's Migrations page, so a file
-must work unattended on a host with no shell.
+(every time it saves) and from the admin panel's Migrations page, one apply at
+a time, so a file must work unattended on a host with no shell. The IAM keeps
+answering while a file waits (it does not block, unlike the other sites), so
+code that reads what a migration makes checks for it first (`*Ready()`).
 
 ## House style
 
@@ -123,8 +126,8 @@ changes strings, never keys.
   keys, so a later gate that checks every key, or a total, fails on a live IAM
   for something the owner did on purpose.
 - **One string on a line**, an apostrophe written twice and nothing else
-  escaped: that is all the statement splitter (`api/migration_runner.php`)
-  knows of a string. A mail string is one line, no address, within its length
+  escaped: the house's form, which the statement splitter (anotoki/lib's
+  `Splitter`) and a reader both take at a glance. A mail string is one line, no address, within its length
   (`translationsCheck()` is the rule; a migration is not checked by it, so keep
   to it by hand).
 

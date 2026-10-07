@@ -19,6 +19,8 @@
 
 declare(strict_types=1);
 
+use Anotoki\Lib\Migrations\MigrationSet;
+
 const TEST_ISSUER = 'http://localhost:4300';
 
 /** The name of this run's database, and the folders it writes to. */
@@ -144,7 +146,7 @@ function bootTests(bool $configured = true): void
     if ($configured) {
         ensureDatabase(testServer(), $environment['db']);
 
-        $result = applyPendingMigrations(iamDb(), 'iam');
+        $result = applyPendingMigrations(iamDb());
         if ($result['failed'] !== null) {
             fwrite(STDERR, "migration {$result['failed']} failed: {$result['error']}\n");
             exit(1);
@@ -379,34 +381,106 @@ function adminOf(PDO $pdo, int $userId): array
 /** Every first-party site, as migrations 002 and 005 register them. */
 const FIRST_PARTY_SITES = ['build-analyzer', 'genshin', 'japanese-academy', 'piano-academy', 'survey'];
 
+// ── The migrations, through the IAM's engine ─────────────────────────────────
+//
+// The engine is the anotoki family's (anotoki/lib's Migrator, iamMigrator()),
+// which replaced the IAM's own. The tests were written against the names the
+// IAM's engine had, and keep them: each is a few lines over iamMigrator(), so
+// a test builds its databases exactly as the command line, the installer and
+// the admin panel do, and reads as it did. Answers carry file names, as the
+// tests read them ('016_x.sql'; the engine's own name {set, name} pairs).
+
+/** The engine's answer to an apply, as the tests read it: the files' names, and the failed one's. */
+function migrationResult(array $result): array
+{
+    if ($result['busy']) {
+        throw new LogicException('Another apply holds the migrations lock');
+    }
+
+    return ['applied' => migrationNames($result['applied']), 'failed' => $result['failed']['name'] ?? null, 'error' => $result['error']];
+}
+
+/** The names of files as the engine and the admin routes list them ({set, name, ...} each). */
+function migrationNames(array $files): array
+{
+    return array_column($files, 'name');
+}
+
+/** The files of migrations/iam, in the order they run (`iam` is the one set there is). */
+function migrationFiles(string $set = 'iam'): array
+{
+    // The engine lists them; it needs a connection to exist, not to list.
+    static $server = null;
+    $server ??= connectDatabase(testServer(), 'postgres', false);
+
+    return iamMigrator($server)->files(iamMigrationSet());
+}
+
+/** Every file the database records as applied - one whose file is gone too, as the table holds it. */
+function appliedMigrations(PDO $pdo): array
+{
+    $status = iamMigrator($pdo)->status();
+
+    return migrationNames(array_merge($status['applied'], $status['missing']));
+}
+
+/** The files the database lacks, in the order they would run. */
+function pendingMigrations(PDO $pdo, string $set = 'iam'): array
+{
+    return migrationNames(iamMigrator($pdo)->status()['pending']);
+}
+
+/** The bookkeeping table, made where it is missing - as an apply makes it. */
+function ensureMigrationsTable(PDO $pdo): void
+{
+    iamMigrator($pdo)->ensureTable();
+}
+
+/**
+ * Applies every pending file, stopping at the first that fails.
+ *
+ * @return array{applied: string[], failed: ?string, error: ?string}
+ */
+function applyPendingMigrations(PDO $pdo, string $set = 'iam'): array
+{
+    return migrationResult(iamMigrator($pdo)->apply());
+}
+
 /**
  * Applies what is pending up to and including $lastFile, and nothing after
- * it, the way the runner applies each file. A migration's own test asserts
- * the state its file leaves - "apply what is pending" would apply every later
- * file too, and a later one (010's MEMBER for everyone) rewrite it.
+ * it, the way the engine applies each file: the files after it are drafts to
+ * the engine (its `ready` hook), which it never applies. A migration's own
+ * test asserts the state its file leaves - "apply what is pending" would apply
+ * every later file too, and a later one (010's MEMBER for everyone) rewrite it.
  *
  * @return array{applied: string[], failed: ?string, error: ?string}
  */
 function applyMigrationsThrough(PDO $pdo, string $lastFile): array
 {
-    if (!in_array($lastFile, migrationFiles('iam'), true)) {
+    if (!in_array($lastFile, migrationFiles(), true)) {
         throw new LogicException("There is no migration {$lastFile}");
     }
 
-    $applied = [];
-    foreach (pendingMigrations($pdo, 'iam') as $file) {
-        if (strnatcmp($file, $lastFile) > 0) {
-            break;
-        }
-        try {
-            applyMigration($pdo, 'iam', $file);
-            $applied[] = $file;
-        } catch (\Throwable $e) {
-            return ['applied' => $applied, 'failed' => $file, 'error' => $e->getMessage()];
-        }
-    }
+    $migrator = iamMigrator($pdo, ['ready' => static fn(MigrationSet $set, string $name): bool => strnatcmp($name, $lastFile) <= 0]);
 
-    return ['applied' => $applied, 'failed' => null, 'error' => null];
+    return migrationResult($migrator->apply());
+}
+
+/**
+ * Applies one file, the next one pending, whole or not at all; throws when it
+ * fails - or when it is not the next one, which the engine would not apply on
+ * its own either.
+ */
+function applyMigration(PDO $pdo, string $set, string $file): void
+{
+    $result = applyMigrationsThrough($pdo, $file);
+
+    if ($result['failed'] !== null) {
+        throw new RuntimeException("{$result['failed']}: {$result['error']}");
+    }
+    if ($result['applied'] !== [$file]) {
+        throw new LogicException("{$file} is not the next migration to apply - applied " . json_encode($result['applied']));
+    }
 }
 
 /**
@@ -419,7 +493,6 @@ function buildIamThrough(string $suffix, string $lastFile): PDO
     $name = throwawayDatabase(testEnvironment()['db'] . $suffix);
     ensureDatabase(testServer(), $name);
     $pdo = connectDatabase(testServer(), $name, false);
-    ensureMigrationsTable($pdo);
 
     $result = applyMigrationsThrough($pdo, $lastFile);
     same(null, $result['failed'], "built through {$lastFile} (" . ($result['error'] ?? '') . ')');

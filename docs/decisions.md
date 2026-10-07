@@ -943,3 +943,63 @@ and only from a new device or browser. So:
   claiming an account never confirmed: whoever held the account must not
   keep a browser its owner is never told about. The browser that takes it
   back is noted next, as the first.
+
+## 2026-10-07 - The family's migrations module; the IAM does not close while an update waits
+
+The owner, on the sites behaving differently while a migration waits:
+
+> When there is a new migration, some sites behave differently than others.
+> Japanese won't let me go to the admin or anywhere if I am not logged in, but
+> I cannot log in because a migration is waiting. Genshin gives me no warning.
+> Piano and survey show me a setup error with buttons to the setup page or the
+> migrations page. This needs to be consistent. I do not want logged-in users
+> or visitors to see the error about what is going on. The admin should see
+> it. If the setup was already done it should never offer that button again,
+> especially as setup.php is no longer there.
+
+So what the sites share went into one library, anotoki-lib
+(`irelevant25/anotoki-lib`: a Composer package and a release tarball for
+Angular, one version), starting with the migrations - one engine, one gate,
+one status, one Migrations page on every site. The IAM took 0.1.0:
+
+- **The engine is the library's** (`Migrator`) in place of the IAM's own,
+  which it grew from: the same files, the same `migrations` table, read and
+  written as it is; each file in a transaction of its own; the run stops at
+  the first failure. New with it: one apply at a time (an advisory lock - and
+  a pooled connection lets go of one its last request left), a file's SQL on
+  the Migrations page, and an Apply that failed answers 200 with what failed
+  (it was a 500).
+- **The IAM does not block** (`blockWhilePending: false`), where every other
+  site now closes to everybody but its ADMIN - who still reaches Migrations -
+  until the update is applied. The IAM is the door every site signs in
+  through: closed, it would keep every site's administrator from applying
+  their own update, and its own administrator from applying the IAM's. It
+  always kept working while an update waited, each feature checking its own
+  tables, and still does; only its administrators are told, by one line
+  above the admin panel's pages.
+- **The installer is offered only while the IAM was never installed**
+  (`storage/installed.lock`, which a real host's install writes and a
+  development machine never does). An installed IAM that loses its
+  configuration says it is not available right now - never "open the
+  installer": setup.php has deleted itself. The 503 `not_set_up` is the
+  family's answer now, `{code, installed, message, setup?}` in place of
+  `{error, code, setup_url}`, and `/api/site-status` answers in every state.
+- **The not-set-up page keeps the IAM's words** where it has them - the
+  database's `notSetUp.*`, reworded on the Translations page - and takes the
+  family's for the rest (the installed IAM's "not available" page). It goes
+  back to the page that sent it there by itself once the IAM answers, so that
+  address is resolved as the browser will read it and kept only while it
+  stays on the IAM (`sameOriginPath()`): a crafted `?next=` is no way off-site.
+- **The gate is asked only while the IAM is not set up.** A site that does
+  not block passes everything in every other state, and the library's gate
+  would learn which state it is from the database on every request - a
+  connection and two queries in front of discovery and the token endpoint,
+  and a second connect timeout when the database host is gone. Its answers
+  are the same; the status path still asks the database.
+- **The status stays public**, as the family has it: anybody may learn that
+  an update waits, or that the database does not answer - the window between
+  an upload and Apply, while the IAM runs on the fallbacks each feature keeps
+  for its missing tables. Those are built to be safe, so it is a timing
+  signal, not a way in; telling only administrators would need the banner to
+  read an admin route instead - a change to the family's module, for every
+  site or none.

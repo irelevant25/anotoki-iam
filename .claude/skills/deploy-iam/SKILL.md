@@ -32,7 +32,8 @@ backend/setup.php            ->  /          (first install only)
 
 Never upload `config/*.local.php` from a development machine - the build leaves
 them out and the server writes its own. Until it has, the IAM answers
-`503 not_set_up` to everything.
+`503 not_set_up` to everything but `/api/site-status` - naming the installer
+until the install has written `storage/installed.lock`, never after.
 
 ## First install
 
@@ -67,6 +68,11 @@ in its `users` database.
 ## Later updates
 
 Upload the new build over the old; admin panel → Migrations → Apply pending.
+Meanwhile the IAM keeps working (it does not block while an update waits - the
+other sites sign in through it); its administrators see "A database update is
+waiting" above the admin panel's pages. The Migrations page is the anotoki
+family's (anotoki/lib, `vendor/anotoki/lib` - uploaded with `vendor/`); one
+apply at a time.
 
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 with no address - never a `localhost` one there. Admin panel →
