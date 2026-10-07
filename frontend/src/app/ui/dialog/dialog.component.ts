@@ -3,9 +3,12 @@ import { TPipe } from '../../core/i18n/t.pipe';
 import { IconComponent } from '../icon/icon.component';
 import { uniqueId } from '../unique-id';
 
-const FOCUSABLE = ['a[href]', 'button:not([disabled])', 'input:not([disabled]):not([type="hidden"])', 'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])'].join(
-  ',',
-);
+// Nothing taken out of the tab order on purpose (tabindex="-1") - the hidden
+// address a password manager files a password under is no place to start
+// typing, nor to Tab to.
+const FOCUSABLE = ['a[href]', 'button:not([disabled])', 'input:not([disabled]):not([type="hidden"])', 'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]']
+  .map((selector) => `${selector}:not([tabindex="-1"])`)
+  .join(',');
 
 /**
  * A modal dialog on the native `<dialog>` element.

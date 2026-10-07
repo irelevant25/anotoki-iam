@@ -11,9 +11,15 @@
         @case ("error") {
             <app-alert tone="danger" [announce]="true" [heading]="'security.twoFactor.setupFailed' | t">{{ loadError() }}</app-alert>
         }
+        @case ("sign-in-again") {
+            <app-fresh-sign-in [anchor]="anchor" />
+        }
         @case ("scan") {
             @if (setup(); as secret) {
                 <form id="totp-enable-form" class="stack" novalidate (submit)="$event.preventDefault(); enable()">
+                    @if (freshSignIn()) {
+                        <app-fresh-sign-in [anchor]="anchor" />
+                    }
                     <div class="scan">
                         <app-qr-code class="qr" [value]="secret.uri" [label]="'ui.qrCode' | t" />
                         <div class="stack stack-sm scan-text">
@@ -41,7 +47,9 @@
         @switch (step()) {
             @case ("scan") {
                 <button appButton variant="secondary" [disabled]="busy()" (click)="closed.emit(false)">{{ "common.cancel" | t }}</button>
-                <button appButton type="submit" form="totp-enable-form" variant="primary" [loading]="busy()">{{ "security.twoFactor.turnOn" | t }}</button>
+                @if (!freshSignIn()) {
+                    <button appButton type="submit" form="totp-enable-form" variant="primary" [loading]="busy()">{{ "security.twoFactor.turnOn" | t }}</button>
+                }
             }
             @case ("codes") {
                 <button appButton variant="primary" [disabled]="!saved()" (click)="finish()">{{ "common.done" | t }}</button>
@@ -59,3 +67,15 @@
         }
     </div>
 </app-dialog>
+
+<!-- The password, once the code is typed: beside the dialog above rather than in it, so its keys stay its own. -->
+@if (askProof()) {
+    <app-proof-dialog
+        [heading]="'security.twoFactor.setupTitle' | t"
+        [action]="'security.twoFactor.turnOn' | t"
+        [anchor]="anchor"
+        [send]="enableWith"
+        (done)="enabled($event)"
+        (refused)="proofRefused($event)"
+        (closed)="askProof.set(false)" />
+}

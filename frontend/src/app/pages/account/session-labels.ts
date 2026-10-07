@@ -16,6 +16,7 @@ const ENDED: Record<string, TranslationKey> = {
   replaced: 'sessions.ended.replaced',
   ended_by_admin: 'sessions.ended.ended_by_admin',
   account_disabled: 'sessions.ended.account_disabled',
+  account_deletion: 'sessions.ended.account_deletion',
 };
 
 /** How a session was signed in, as a key - the stored method names are the backend's, not words. */

@@ -260,6 +260,29 @@
             </div>
         }
 
+        @case ("deletion-pending") {
+            <header class="auth-head">
+                <span class="auth-icon is-warning"><app-icon name="clock" [size]="22" /></span>
+                <h1 tabindex="-1" appAutofocus>{{ "errorPage.deletionPendingTitle" | t }}</h1>
+                <p>{{ "errorPage.deletionPendingText" | t }}</p>
+            </header>
+            @if (formError()) {
+                <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+            }
+            <div class="actions">
+                <!-- Where the deletion is cancelled. -->
+                <a appButton variant="primary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+                <button appButton variant="secondary" [block]="true" [loading]="busy()" (click)="useAnotherAccount()">
+                    <app-icon name="users" [size]="16" />
+                    {{ "login.denied.otherAccount" | t }}
+                </button>
+                <button appButton variant="secondary" [block]="true" [disabled]="busy()" (click)="cancel()">
+                    <app-icon name="arrowLeft" [size]="16" />
+                    {{ "login.backTo" | t: { app: application()?.name ?? "" } }}
+                </button>
+            </div>
+        }
+
         @case ("app-disabled") {
             <header class="auth-head">
                 <span class="auth-icon is-warning"><app-icon name="ban" [size]="22" /></span>

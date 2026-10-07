@@ -20,6 +20,9 @@ const COPY: Record<string, ErrorCopy> = {
   invalid_redirect_uri: { title: 'errorPage.invalidRedirectTitle', text: 'errorPage.invalidRedirectText', retryable: false },
   application_disabled: { title: 'errorPage.appDisabledTitle', text: 'errorPage.appDisabledText', retryable: false },
   invalid_request: { title: 'errorPage.invalidRequestTitle', text: 'errorPage.invalidRequestText', retryable: false },
+  // Not a fault: the person asked for the account's deletion. The way on is the
+  // page's own link to the account, where the deletion is cancelled.
+  account_deletion_pending: { title: 'errorPage.deletionPendingTitle', text: 'errorPage.deletionPendingText', retryable: false },
   server_error: { title: 'errorPage.serverTitle', text: 'errorPage.serverText', retryable: true },
   network: { title: 'errorPage.networkTitle', text: 'errorPage.networkText', retryable: true },
 };
@@ -31,8 +34,11 @@ const OTHER: ErrorCopy = { title: 'errorPage.otherTitle', text: 'errorPage.other
  *
  * The authorize endpoint lands here when it cannot trust the application's
  * redirect address (an unknown client, an unregistered URI, a switched-off
- * application), and the session guard does when the server cannot be reached.
- * The code is shown too, small, for whoever gets asked about it.
+ * application), and when the account signed in here is being deleted
+ * (`account_deletion_pending`: nothing goes to any site until the deletion is
+ * cancelled, on the account page); the session guard does when the server
+ * cannot be reached. The code is shown too, small, for whoever gets asked
+ * about it.
  */
 @Component({
   selector: 'app-error-page',

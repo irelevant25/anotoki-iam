@@ -2,9 +2,10 @@
 
 Every anotoki site signs people in the same way: the site's frontend sends the
 browser to the IAM, gets tokens back, and sends the access token to its own
-backend, which checks it without calling the IAM. The backend asks the IAM one
-thing, at most once a minute: whether the site requires signing in ("Is
-sign-in required here?" below). This page is the whole contract;
+backend, which checks it without calling the IAM. The backend asks the IAM two
+things: whether the site requires signing in, at most once a minute ("Is
+sign-in required here?" below), and now and then which accounts were deleted
+("When a person deletes their account"). This page is the whole contract;
 [api.md](api.md) has the endpoint details.
 
 ```
@@ -304,11 +305,37 @@ never stores passwords, and never decides who someone is from anything but a
 verified token.
 
 Revocation: an access token is good until it expires (10 minutes by default).
-Signing out at the IAM, disabling an account, or taking away the last role it
-holds there that may sign in (its MEMBER, usually) stops the next refresh -
-and a personal token's next exchange, however long before it was made - so
-the application is back to anonymous within one token lifetime. Any other role
-taken away - a site's ADMIN or EDITOR - is gone from the next access token.
+Signing out at the IAM, disabling an account, asking for its deletion, or
+taking away the last role it holds there that may sign in (its MEMBER,
+usually) stops the next refresh - and a personal token's next exchange,
+however long before it was made - so the application is back to anonymous
+within one token lifetime. Any other role taken away - a site's ADMIN or
+EDITOR - is gone from the next access token.
+
+### When a person deletes their account
+
+A person can delete their anotoki account (the owner's decision of
+2026-10-07, [decisions.md](decisions.md)). From the moment they ask it is
+closed: the IAM issues nothing more for it - a sign-in started at the site
+lands on the IAM's own page, which says why, and the next refresh fails with
+`invalid_grant` - so the site sees the person signed out within one token
+lifetime, as for any revocation, and needs nothing new for it. They may
+change their mind for thirty days; then the IAM deletes everything it knew
+of them and keeps only the id, which is never anybody else's.
+
+The site keeps what the person made there - progress, answers, contributions
+- but not who they were. Its **backend** reads
+`GET {issuer}/api/public/anonymized-accounts` ([api.md](api.md)): the ids
+(`sub`) deleted, and when. For each, it scrubs its own copies of the person's
+name, address and anything else that says who it was (the
+`preferred_username` copy above, a cached email) and keeps the rows keyed by
+the id, nobody's now. Ask with `since` alone, from the newest
+`anonymized_at` already handled - the time is inclusive, and going back a day
+costs nothing - and within that one run follow `next` until it is `null`;
+never keep `next` for the run after (times are whole seconds, and an id of
+the same second can come later). Once an hour is plenty. The anotoki sites
+will read it through a shared module; until a site does, nothing in it stops
+working.
 
 ## 4. Running without the IAM
 

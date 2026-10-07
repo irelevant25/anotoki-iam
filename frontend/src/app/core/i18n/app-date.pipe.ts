@@ -34,31 +34,37 @@ export class AppDatePipe implements PipeTransform {
   private readonly _session = inject(SessionService);
 
   transform(value: string | null | undefined, style: DateStyle = 'datetime', fallback = ''): string {
-    if (!value) {
-      return fallback;
-    }
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-
-    const locale = this._i18n.locale();
-    const chosen = this._session.user()?.preferences ?? null;
-
-    if (style === 'relative') {
-      return formatRelative(date, locale) ?? dayOf(date, locale, chosen);
-    }
-    if (style === 'date') {
-      return dayOf(date, locale, chosen);
-    }
-    if (style === 'time') {
-      return timeOf(date, locale, chosen);
-    }
-
-    // Neither chosen: the language's own way of putting the two together.
-    return chosen?.date_format || chosen?.time_format ? `${dayOf(date, locale, chosen)} ${timeOf(date, locale, chosen)}` : formatter(locale, 'datetime').format(date);
+    return formatAppDate(value, style, this._i18n.locale(), this._session.user()?.preferences ?? null, fallback);
   }
+}
+
+/**
+ * What the pipe writes, for a sentence put together in code - a toast's
+ * `{date}`: `value` in the language's `locale`, the way `chosen` (the
+ * account's preferences) says, when it says.
+ */
+export function formatAppDate(value: string | null | undefined, style: DateStyle, locale: string, chosen: AccountPreferences | null, fallback = ''): string {
+  if (!value) {
+    return fallback;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  if (style === 'relative') {
+    return formatRelative(date, locale) ?? dayOf(date, locale, chosen);
+  }
+  if (style === 'date') {
+    return dayOf(date, locale, chosen);
+  }
+  if (style === 'time') {
+    return timeOf(date, locale, chosen);
+  }
+
+  // Neither chosen: the language's own way of putting the two together.
+  return chosen?.date_format || chosen?.time_format ? `${dayOf(date, locale, chosen)} ${timeOf(date, locale, chosen)}` : formatter(locale, 'datetime').format(date);
 }
 
 function dayOf(date: Date, locale: string, chosen: AccountPreferences | null): string {

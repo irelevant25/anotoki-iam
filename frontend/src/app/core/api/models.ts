@@ -180,7 +180,7 @@ export interface AccountUser {
   recovery_codes_remaining: number;
   trusted_devices: number;
   force_password_change: boolean;
-  /** Holds ADMIN in the IAM itself. */
+  /** Holds ADMIN in the IAM itself - false while the account's deletion is pending: it administers nothing then. */
   is_admin: boolean;
   /**
    * Gets the announcements administrators send (the news from the sites);
@@ -193,6 +193,13 @@ export interface AccountUser {
    * the theme stays this device's.
    */
   preferences: AccountPreferences | null;
+  /**
+   * When the account is deleted, while its owner's request to delete it is
+   * pending (`POST /api/account/deletion`) - thirty days after it was asked
+   * for. Meanwhile it signs in to no site, only to the IAM, where the
+   * deletion is cancelled. Null otherwise, and while migration 016 is pending.
+   */
+  deletion_due_at: string | null;
 }
 
 export type ThemeChoice = 'auto' | 'light' | 'dark';
@@ -331,6 +338,14 @@ export interface AdminUser {
   last_login_at: string | null;
   created_at: string;
   updated_at: string | null;
+  /** Its owner asked for its deletion: when it is due. Null otherwise, and while migration 016 is pending. Only the owner asks or cancels. */
+  deletion_due_at: string | null;
+  /**
+   * Deleted then, at its owner's request: the row is a placeholder (`deleted-{id}`),
+   * switched off, and every change to it is refused `409 account_anonymized` -
+   * its id is every site's `sub`, reserved for good. `roles` and `blocked_in` are [].
+   */
+  anonymized_at: string | null;
 }
 
 export interface AdminIdentity {
@@ -485,7 +500,7 @@ export type AnnouncementTemplate = 'newVersion' | 'newRelease' | 'newSurvey' | '
 
 export type AnnouncementStatus = 'sending' | 'sent' | 'stopped';
 
-/** One person's mail: waiting for its batch, sent, failed, or skipped - switched off or the news stopped since the list was made. */
+/** One person's mail: waiting for its batch, sent, failed, or skipped - switched off, being deleted or the news stopped since the list was made. */
 export type RecipientStatus = 'pending' | 'sent' | 'failed' | 'skipped';
 
 /** What an administrator writes in one language. `body` is paragraphs, an empty line between two. */
@@ -560,10 +575,15 @@ export interface AnnouncementAudience {
   user_ids: number[];
 }
 
-/** How many an audience reaches, why the others are left out (each once, for the first reason), and how many read which language. */
+/**
+ * How many an audience reaches, why the others are left out, and how many
+ * read which language. Each person left out is counted once, for the first
+ * reason, in the order disabled, deleting (the account's deletion is asked
+ * for - migration 016; 0 before it), unconfirmed, waiting, news_off.
+ */
 export interface AudienceCount {
   recipients: number;
-  left_out: { disabled: number; unconfirmed: number; waiting: number; news_off: number };
+  left_out: { disabled: number; unconfirmed: number; waiting: number; news_off: number; deleting: number };
   languages: Record<string, number>;
 }
 

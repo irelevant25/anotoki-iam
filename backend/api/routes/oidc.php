@@ -8,7 +8,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 //
 // See docs/api.md for the contract. Everything an application needs is here:
 // discovery, the public keys, authorize, token, userinfo, logout and
-// revocation - and, anotoki's own, a site's save of its reader's preferences.
+// revocation - and, anotoki's own, a site's save of its reader's preferences,
+// whether a site requires signing in, and the ids of the deleted accounts.
 // The IAM's own pages (routes/login.php) finish what authorize cannot do
 // alone - showing a form.
 // ---------------------------------------------------------------------------
@@ -190,13 +191,25 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
     // needs a page. Straight back with a code.
     if ($signIn !== null && !in_array('create', $prompts, true)) {
         $user = $signIn['user'];
-        $ready = sessionSatisfiesRequest($signIn['session'], $authRequest)
-            && applicationAccessRefusal($application, $user) === null
-            && !asBool($user['force_password_change']);
+        $satisfied = sessionSatisfiesRequest($signIn['session'], $authRequest);
+        $refusal = applicationAccessRefusal($application, $user);
+        $ready = $satisfied && $refusal === null && !asBool($user['force_password_change']);
 
         if ($ready && completeAuthRequest($pdo, $id)) {
             touchSession($pdo, $signIn['session']);
             return redirectTo($response, issueAuthorizationCode($pdo, $authRequest, $user, $signIn['session']));
+        }
+
+        // The account signed in here is being deleted (api/account_deletion.php):
+        // nothing goes to any site, and only the IAM can say why and offer the
+        // way back - its own page, worded for the person, with the account
+        // page a click away, where the deletion is cancelled. Not for
+        // prompt=none, which never shows a page; nor when the request asks
+        // for credentials again (prompt=login, max_age), which may bring
+        // another account - the sign-in page's accept refuses this one the same way.
+        if ($satisfied && ($refusal['code'] ?? null) === 'account_deletion_pending' && !in_array('none', $prompts, true)) {
+            completeAuthRequest($pdo, $id);
+            return redirectTo($response, iamPageUrl('/error', ['code' => 'account_deletion_pending']));
         }
     }
 
@@ -288,8 +301,8 @@ $app->post('/api/oidc/token', function (Request $request, Response $response) {
  * Who the access token in the Authorization header speaks for - as userinfo
  * and a site's save of its reader's preferences read it, in one place: the
  * token verified (signature, typ, expiry, its session still live), its account
- * switched on and not waiting for approval, its application there. Null for
- * anything less; the caller answers 401 invalid_token.
+ * switched on, not waiting for approval and not being deleted, its application
+ * there. Null for anything less; the caller answers 401 invalid_token.
  *
  * @return array{claims: array, user: array, application: array}|null
  */
@@ -302,8 +315,10 @@ function accessTokenHolder(PDO $pdo, Request $request): ?array
     $application = $claims === null ? null : applicationByClientId((string) ($claims['client_id'] ?? $claims['aud'] ?? ''));
 
     // An account waiting for approval is never issued a token; one that holds
-    // one anyway is refused here as it is everywhere else.
-    if ($user === null || $application === null || asBool($user['disabled']) || accountAwaitsApproval($user)) {
+    // one anyway is refused here as it is everywhere else. So is one whose
+    // deletion is pending: an access token minted before it was asked for,
+    // under the session it kept at the IAM to cancel it, reads nothing here.
+    if ($user === null || $application === null || asBool($user['disabled']) || accountAwaitsApproval($user) || accountDeletionPending($user)) {
         return null;
     }
 
@@ -396,7 +411,12 @@ $app->post('/api/oidc/preferences', function (Request $request, Response $respon
 
     $userId = (int) $holder['user']['id'];
     $sets = implode(', ', array_map(static fn(string $column): string => $column . ' = ?', array_keys($checked['changes'])));
-    $pdo->prepare("UPDATE users SET $sets WHERE id = ?")->execute([...array_values($checked['changes']), $userId]);
+    $saved = $pdo->prepare("UPDATE users SET $sets WHERE id = ?" . liveAccountSql($pdo));
+    $saved->execute([...array_values($checked['changes']), $userId]);
+    // Deleted since the token was read: there is no holder any more.
+    if ($saved->rowCount() === 0) {
+        return invalidAccessToken($response);
+    }
     $fresh = userById($pdo, $userId);
 
     return respondJson($response, ['locale' => languageOrDefault($fresh['language']), 'preferences' => accountPreferences($fresh)]);
@@ -526,4 +546,42 @@ $app->get('/api/public/applications/{client_id}', function (Request $request, Re
         'name' => $application['name'],
         'login_required' => asBool($application['login_required']),
     ])->withHeader('Cache-Control', 'public, max-age=60');
+});
+
+// ── The accounts that were deleted ───────────────────────────────────────────
+
+/**
+ * GET /api/public/anonymized-accounts?since=&after= - the ids of the accounts
+ * deleted at their owners' request (api/account_deletion.php), and when, for
+ * the sites' backends: each scrubs its own copies of the person's name and
+ * address under those ids and keeps the rest of its data, nobody's now (the
+ * owner's decision of 2026-10-07).
+ *
+ * Ids and times and nothing else, in the order they went, 500 at most, with
+ * `next` - the last one's time and id - when there may be more. `since` is
+ * inclusive: a site asks again from the newest time it has handled, and an id
+ * seen twice costs nothing. Before 016 every answer is empty: nobody was
+ * deleted then.
+ *
+ * No session, no token, in no CORS list - a browser never needs it - and
+ * cacheable for a minute. It rides housekeeping (the host has no cron), so the
+ * sites asking is itself what keeps the deletions on time.
+ */
+$app->get('/api/public/anonymized-accounts', function (Request $request, Response $response) {
+    $query = $request->getQueryParams();
+    $sinceText = field($query, 'since');
+    $afterText = field($query, 'after');
+
+    $since = $sinceText === '' ? null : anonymizedSince($sinceText);
+    if ($sinceText !== '' && $since === null) {
+        return respondError($response, 400, 'invalid_request', 'since is an ISO-8601 time, like 2026-11-06T10:00:00Z');
+    }
+    if ($afterText !== '' && ($since === null || !preg_match('/^[1-9][0-9]{0,9}$/D', $afterText) || (int) $afterText > 2147483647)) {
+        return respondError($response, 400, 'invalid_request', 'after is an account id, sent with the since it came with');
+    }
+
+    iamHousekeeping();
+
+    return respondJson($response, anonymizedAccountsPage(iamDb(), $since, $afterText === '' ? null : (int) $afterText))
+        ->withHeader('Cache-Control', 'public, max-age=60');
 });

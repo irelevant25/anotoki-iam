@@ -1,0 +1,13 @@
+// As far above the page as the page's own parts are apart (.page), and
+// rounded like the notice inside it, so the focus ring it takes follows it.
+:host {
+  display: block;
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius);
+}
+
+.error {
+  margin-top: 0.35rem;
+  color: var(--danger);
+  font-weight: 600;
+}

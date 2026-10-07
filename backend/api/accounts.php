@@ -19,10 +19,13 @@
  * So nothing the registrant set may keep working once the address's owner
  * arrives: the password, two-factor and its recovery codes, remembered
  * devices, every session and token, and any outside identity - and a yes to
- * the news from the sites, which was the registrant's to give, not theirs. The
- * account is then the owner's alone, and they add back whatever ways in they
- * want. An account confirmed all along is left as it is: its credentials were
- * set by somebody who had proved the address.
+ * the news from the sites, which was the registrant's to give, not theirs;
+ * the browsers the registrant signed in from are forgotten too, so a later
+ * sign-in from one of them is mailed to the owner; and a deletion of the
+ * account the registrant asked for is cancelled - it was never the owner's
+ * request. The account is then the owner's alone, and they add back whatever
+ * ways in they want. An account confirmed all along is left as it is: its
+ * credentials were set by somebody who had proved the address.
  *
  * Call it with the account as it was before anything confirmed it.
  */
@@ -43,9 +46,24 @@ function claimUnconfirmedAccount(PDO $pdo, \Psr\Http\Message\ServerRequestInterf
     $pdo->prepare('DELETE FROM user_recovery_codes WHERE user_id = ?')->execute([$userId]);
     $pdo->prepare('DELETE FROM user_identities WHERE user_id = ?')->execute([$userId]);
     revokeTrustedDevices($pdo, $userId);
+    forgetSignInDevices($pdo, $userId);
     revokeSessionsFor($pdo, $userId, SESSION_REVOKED_CLAIMED);
     revokePersonalTokens($pdo, $userId, SESSION_REVOKED_CLAIMED);
     audit($request, $userId, 'account.address_claimed', 'user', $userId);
+
+    // The registrant's deletion request goes with the rest (016): the owner
+    // did not ask for it. Never once the account is deleted - then there is
+    // nothing left to keep.
+    if (accountDeletionReady($pdo)) {
+        $cancelled = $pdo->prepare(
+            'UPDATE users SET deletion_requested_at = NULL, deletion_due_at = NULL
+              WHERE id = ? AND deletion_due_at IS NOT NULL AND anonymized_at IS NULL RETURNING id'
+        );
+        $cancelled->execute([$userId]);
+        if ($cancelled->fetchColumn() !== false) {
+            audit($request, $userId, 'account.deletion_cancelled', 'user', $userId, ['by' => 'address_claimed']);
+        }
+    }
 }
 
 function userById(PDO $pdo, int $id): ?array
@@ -93,6 +111,66 @@ function emailTaken(PDO $pdo, string $email, ?int $exceptId = null): bool
 function passwordLoginAvailable(array $user): bool
 {
     return $user['password'] !== null && asBool($user['password_login_enabled']);
+}
+
+/** Without a password to ask for, a sign-in this recent (the session's auth_time) is the proof. */
+const ACCOUNT_PROOF_RECENT_SIGN_IN = 900;
+
+/** Whether the session's sign-in - credentials last presented, its auth_time - is recent enough to stand for the person. */
+function recentSignIn(array $session): bool
+{
+    return strtotime((string) $session['auth_time']) + ACCOUNT_PROOF_RECENT_SIGN_IN >= time();
+}
+
+/** The refusal of a sign-in too old to stand for the person, where there is no password to ask for instead. */
+function reauthenticationRequired(): array
+{
+    return ['status' => 403, 'code' => 'reauthentication_required', 'error' => 'Sign in again first: without a password, this needs a sign-in of the last 15 minutes'];
+}
+
+/**
+ * The proof the account page asks before what a session alone must not do:
+ * deleting the account, and every change of how the account signs in that
+ * would let a session make that proof for itself - a first password (then the
+ * deletion asks for the password the session just chose), Google connected
+ * (the session's holder's own Google, for a fresh sign-in of their own), and
+ * password sign-in switched on or off (which proof the account asks for) -
+ * or lock the owner out: two-factor switched on with the holder's own
+ * authenticator, the recovery codes theirs too. One rule for all of them, so
+ * none is the way around another:
+ *
+ *   - the account's password, wherever it is a way in (passwordLoginAvailable()):
+ *     whoever holds a session left open somewhere does not know it;
+ *   - otherwise a sign-in of the last fifteen minutes - the session's own
+ *     auth_time, which only credentials presented afresh set.
+ *
+ * Limited like a sign-in, wrong passwords counted (with `$method`), so a
+ * stolen session is no way to guess at the password either.
+ *
+ * @return array{proof: 'password'|'recent_sign_in'}|array{status: int, code: string, error: string}
+ */
+function accountProof(PDO $pdo, \Psr\Http\Message\ServerRequestInterface $request, array $user, array $session, mixed $password, string $method): array
+{
+    if (loginAttemptsExceeded($pdo, $request, (string) $user['email'])) {
+        return ['status' => 429, 'code' => 'too_many_attempts', 'error' => 'Too many attempts. Wait a few minutes and try again.'];
+    }
+
+    if (passwordLoginAvailable($user)) {
+        $given = is_string($password) ? $password : '';
+        // 422, not 401, as for a change of password: the session is fine.
+        if ($given === '' || !password_verify($given, (string) $user['password'])) {
+            recordLoginAttempt($pdo, $request, (string) $user['email'], (int) $user['id'], $method, 'bad_password');
+            return ['status' => 422, 'code' => 'wrong_password', 'error' => 'The current password is not right'];
+        }
+
+        return ['proof' => 'password'];
+    }
+
+    if (!recentSignIn($session)) {
+        return reauthenticationRequired();
+    }
+
+    return ['proof' => 'recent_sign_in'];
 }
 
 // ── Approval of new accounts ─────────────────────────────────────────────────
@@ -321,13 +399,18 @@ function accountPayload(PDO $pdo, array $user): array
         'recovery_codes_remaining' => $totp ? recoveryCodesRemaining($pdo, $id) : 0,
         'trusted_devices' => $totp ? trustedDeviceCount($pdo, $id) : 0,
         'force_password_change' => asBool($user['force_password_change']),
-        'is_admin' => isIamAdmin($id),
+        // Not while the account's deletion is pending: it administers nothing
+        // then (requireAdmin()), and the pages offer no admin panel.
+        'is_admin' => isIamAdmin($id) && !accountDeletionPending($user),
         // Whether the account gets the announcements; null while migration
         // 013 is pending, and the account page shows no switch.
         'news_mail' => array_key_exists('news_mail', $user) ? asBool($user['news_mail']) : null,
         // The theme, dates and clock every site follows; null while 015 is
         // pending, and the account page shows the theme per device as before.
         'preferences' => accountPreferences($user),
+        // When the account is deleted, while its deletion is pending (016);
+        // null otherwise, and while 016 is pending.
+        'deletion_due_at' => accountDeletionPending($user) ? isoTime((string) $user['deletion_due_at']) : null,
     ];
 }
 

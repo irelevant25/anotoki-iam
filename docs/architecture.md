@@ -130,7 +130,8 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 
 | Table | Holds |
 | --- | --- |
-| `users` | Accounts: username and address (unique regardless of case), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator, news_mail - whether it gets the announcements), the language and how every site is to look - `theme`, `date_format`, `time_format` (015). The id is the `sub` every site keys its data on. |
+| `users` | Accounts: username and address (unique regardless of case), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator, news_mail - whether it gets the announcements), the language and how every site is to look - `theme`, `date_format`, `time_format` (015), and a deletion its owner asked for - `deletion_requested_at`, `deletion_due_at`, then `anonymized_at` (016). The id is the `sub` every site keys its data on: a deleted account's row stays, a placeholder, so it is never anybody else's. |
+| `user_sign_in_devices` | The browsers an account signed in from at the IAM (016): the SHA-256 of the account's id and the browser's device cookie, first and last seen, the browser in a few words. Decides whether a sign-in is mailed; opens nothing. |
 | `user_identities` | Who an account is at Google: provider + permanent subject. |
 | `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). |
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
@@ -185,6 +186,58 @@ nothing. Accounts an administrator makes never wait (the column's default),
 and switching the setting off approves everybody still waiting. The sites see
 nothing of it: a person waiting never gets as far as a code.
 
+## Deleting an account
+
+A person deletes their own account on the account page (migration 016,
+`api/account_deletion.php`; the owner's decision of 2026-10-07): with the
+password - or, without one, a sign-in of the last fifteen minutes - they ask,
+and it is closed at once and deleted thirty days later unless they cancel.
+That proof is `accountProof()`, and the changes that would let a session make
+it for itself - a first password, Google connected, password sign-in switched
+on or off - ask for it too, as does two-factor switched on (with the holder's
+own authenticator it would lock the owner out; its setup turns away an account
+without a password whose sign-in is too old before making a secret, so nobody
+scans a code enable would refuse).
+
+- **Closed at once.** Every other session ends, every refresh and personal
+  token is revoked, and `applicationAccessRefusal()` answers
+  `account_deletion_pending` on every way to a site - authorize sends the
+  browser to the IAM's own page, accept refuses, the code exchange and every
+  refresh are `invalid_grant`, userinfo and a site's save of preferences know
+  no holder; announcements leave it out. The IAM's own sign-in keeps working,
+  by every way in, because the account page is where it is cancelled; the
+  admin panel does not
+  (`requireAdmin()`), and the last-admin rule counts no administrator whose
+  deletion is pending (`iamAdminCount()`), so the last one who stays can
+  never leave or be removed. The person is mailed when they ask and when they
+  cancel.
+- **Deleted when due**, by housekeeping (`anonymizeDueAccounts()`), each
+  account in a transaction of its own: everything of the person goes -
+  sessions, tokens, devices, identities, roles, its sign-in attempts and
+  mails - or is scrubbed, the events kept - the audit log's IP addresses,
+  names and addresses, an announcement's address - and the row becomes a
+  placeholder, switched off, that nothing changes again: its id stays
+  reserved. Once committed, the address it had gets the last mail. A request
+  that read the account a moment before writes nothing back onto the row (its
+  writes ask for one not anonymized - `liveAccountSql()` - and
+  `users_anonymized_check` keeps a placeholder without a way in), and what it
+  leaves elsewhere is swept at every run (`anonymizedLeftovers()`).
+- **The sites** read the deleted ids at `GET /api/public/anonymized-accounts`
+  and scrub their own copies of the person's name and address, keeping the
+  rest of their data under the id, nobody's now.
+
+## A mail for a sign-in from a new browser
+
+Every sign-in that opens a session (`completeSignIn()`, every way in, past
+two-factor) notes the browser it came from (`api/sign_in_devices.php`): a
+cookie of its own, `anotoki_iam_device`, a random secret for 400 days whose
+hash, with the account's id, the account keeps. A browser the account has
+not signed in from before is mailed about - once, at the IAM, never per site
+and never for a site's single sign-on or refresh - unless it is the account's
+first (every account's first sign-in after 016, and a new account's), which is
+noted in silence. The cookie opens nothing and is not the two-factor
+remembered device. A reset, or an address claimed, forgets the browsers.
+
 ## Announcements
 
 The admin panel's **Announcements** (migration 013, `api/announcements.php`)
@@ -206,7 +259,7 @@ writes it and presses Send.
   under it; a mail address in the words, at that domain.
 - **Who.** Everybody, the holders of some roles, some people - and of them only
   those who can be written to: switched on, the address confirmed, approved,
-  and `news_mail` on. The list is made when Send is pressed, and each person
+  not being deleted, and `news_mail` on. The list is made when Send is pressed, and each person
   asked again as their mail goes. A person signing up is offered the news in
   a box left unticked (migration 014) - with Google from the register page
   too; an account made any other way by its owner gets none until they switch
@@ -249,7 +302,7 @@ Signed out, each device keeps its own theme, as before.
 
 ## The IAM's own words
 
-What the sign-in pages, the account page and the four mails say - and the
+What the sign-in pages, the account page and the IAM's own mails say - and the
 announcements' templates - lives in the database (migration 006), so a word can be reworded and a language added in the
 admin panel with no build and no upload. The admin panel itself is English,
 written in its templates.
@@ -337,12 +390,14 @@ written down, not a refactor.
    and per source.
 8. **Every way in checks the same switches** (login enabled, account disabled,
    an account waiting for approval, a role that may sign in) - a switch on one
-   door is a lock on one of five.
+   door is a lock on one of five. An account whose deletion is pending is
+   refused on every way to a site, and let in at the IAM only to cancel it.
 9. **An account always keeps a way in**, and an admin cannot lock themselves out
-   or remove the last admin.
-10. **Revocation is at the refresh.** Signing out, disabling an account or taking
-    a role away is felt by every site within one access-token lifetime; `userinfo`
-    reflects it at once.
+   or remove the last admin - nor ask for their own deletion as the last one;
+   an administrator whose deletion is pending counts as none.
+10. **Revocation is at the refresh.** Signing out, disabling an account, asking
+    for its deletion or taking a role away is felt by every site within one
+    access-token lifetime; `userinfo` reflects it at once.
 11. **Every write needs the CSRF header** except the four endpoints the sites
     call cross-origin with no cookie - token, userinfo, revoke, preferences -
     named exactly and compared on the percent-decoded path the router matches;
@@ -351,7 +406,8 @@ written down, not a refactor.
     is accepted once, and every miss counts against the limiter.
 13. **Proving an address on an account never confirmed clears it**: nothing its
     registrant set survives the owner's arrival. **A reset takes an account back
-    completely** - sessions, personal tokens, devices, outside identities.
+    completely** - sessions, personal tokens, devices, outside identities, the
+    browsers it signed in from.
 14. **Plain http only for this computer** in redirect URIs and web origins, and
     **no loopback address survives a real host's install**: the development
     addresses a fresh database is seeded with go as the production ones arrive,
@@ -361,6 +417,11 @@ written down, not a refactor.
     server's own files on a real host; on this computer a nonce, and only when
     the connection, the Host header and the absence of forwarding headers all
     say it is this computer. A real host's install locks itself and goes.
+16. **A deleted account stays deleted.** Its row stays, a placeholder, so its
+    id - every site's `sub` - is never anybody else's, and nothing switches it
+    on again or gives it a password or an address: not the admin panel
+    (`409 account_anonymized`), not the command line. Nothing of the person
+    is left in it or tied to it.
 
 ## Where the code lives
 
@@ -377,6 +438,8 @@ written down, not a refactor.
 | `backend/api/session.php` | The session cookie, sliding expiry, revocation, the limiter. |
 | `backend/api/keys.php`, `jwt.php`, `crypto.php` | Keys (made on first use), signing, encryption. |
 | `backend/api/applications.php`, `accounts.php`, `settings.php` | The rules about who may use what. |
+| `backend/api/account_deletion.php` | An account's deletion: asked, cancelled, done when due (housekeeping), and the public list of deleted ids. |
+| `backend/api/sign_in_devices.php` | The browsers an account signed in from, the device cookie, and the mail for a new one. |
 | `backend/api/totp.php`, `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php` | Carried over from the genshin site, rules intact. |
 | `backend/api/legacy_import.php` | The one-time move of the genshin site's accounts. |
 | `backend/api/translations.php` | The languages, the strings, the bundle, the admin panel's grid and every check of a string (`translationsCheck()`). |
@@ -384,5 +447,5 @@ written down, not a refactor.
 | `backend/translations.php` | The strings from the command line: `--status`, `--export`, `--import`. Never uploaded. |
 | `frontend/src/app/core/i18n/` | `translation.service.ts` (which language, the bundle, the `t` pipe's strings), `en.ts` (the keys and the English of last resort), `localization-drafts.service.ts`. |
 | `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `shell` (the account pages and the admin panel: the top bar, the panel's side navigation, the page), `top-bar` (the anotoki family's one bar: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). |
-| `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, at most hourly, from the busy endpoints - the host has no cron. |
+| `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

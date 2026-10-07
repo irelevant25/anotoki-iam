@@ -1,6 +1,16 @@
 <app-shell area="admin" [nav]="nav">
     @if (isAdmin()) {
         <router-outlet />
+    } @else if (deletionPending()) {
+        <!-- An administrator who asked for their own account's deletion administers nothing until they cancel it (403 account_deletion_pending). -->
+        <div class="no-access">
+            <app-empty-state
+                icon="clock"
+                heading="Your account is being deleted"
+                text="While its deletion is pending, the admin panel is closed to it. To use the panel again, cancel the deletion on your account page.">
+                <a appButton variant="primary" routerLink="/account">Go to your account</a>
+            </app-empty-state>
+        </div>
     } @else {
         <div class="no-access">
             <app-empty-state icon="lock" heading="You don't have access" text="The admin panel is for administrators of the anotoki IAM. Your account can still manage itself.">

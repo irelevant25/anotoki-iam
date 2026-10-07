@@ -77,6 +77,7 @@ const MIRA: AccountUser = {
   is_admin: true,
   news_mail: true,
   preferences: null,
+  deletion_due_at: null,
 };
 
 /** Whatever page the router draws: the bar only needs it to be somewhere. */

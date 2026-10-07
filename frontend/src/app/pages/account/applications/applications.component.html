@@ -53,7 +53,7 @@
                                 <app-icon name="externalLink" [size]="15" />
                             </a>
                         } @else if (!app.can_use) {
-                            <app-badge tone="warning" [dot]="true" [attr.title]="'apps.noAccessHint' | t">{{ "apps.noAccess" | t }}</app-badge>
+                            <app-badge tone="warning" [dot]="true" [attr.title]="(deletionPending() ? 'error.accountDeletionPending' : 'apps.noAccessHint') | t">{{ "apps.noAccess" | t }}</app-badge>
                         }
                     </div>
                 </li>

@@ -820,3 +820,126 @@ one theme everywhere: every site, every area of it, its admin area included
 - **The sites follow**: each vendors SDK 1.2.0, reads `user().preferences`,
   and saves its controls' choices through it; the genshin site drops its own
   copy of these settings - its per-area themes with them.
+
+## 2026-10-07 - An account is deleted on its owner's request, thirty days later; a sign-in from a new browser is mailed
+
+Two decisions of the owner, one migration (016).
+
+**Deleting an account.** The owner: the account's data "will not be deleted
+immediately but after 30 days", and the sites "keep everything but just
+change the account to anonymous one so no one will know whose data it is";
+the person can cancel within the thirty days by signing in and pressing
+Cancel. So:
+
+- **Closed at once, deleted in thirty days.** The GDPR's right to erasure asks
+  for it "without undue delay" (art. 17), and an answer within a month (art.
+  12(3)). The thirty days are the person's own: a month in which a click
+  undoes it, which a deletion done on the spot - or by somebody holding the
+  session for a minute - could not offer. Meanwhile nothing of the account is
+  used: every other session ends, every refresh and personal token is
+  revoked, nothing is issued to any site (`account_deletion_pending` on
+  every way to a site), so each site loses the person within one access
+  token's lifetime, and no announcement is mailed to it. The IAM's own
+  sign-in keeps working, by every way in, because that is where Cancel is;
+  its admin panel does not.
+- **Asked with proof.** The password, wherever it is a way in - a session left
+  open somewhere must not be enough to close an account - and, without one, a
+  sign-in of the last fifteen minutes. Wrong passwords count against the
+  sign-in limiter, as everywhere. Asking and cancelling are both mailed:
+  either done with a stolen session is news the owner must get. Cancelling is
+  never limited - nobody about to lose an account is told to wait to keep it.
+- **No session makes that proof for itself** (found by the security review).
+  A session could give a Google-only account a password of its holder's
+  choosing, connect its holder's own Google to sign in afresh with, or switch
+  password sign-in off so a fresh sign-in is all the deletion asks - so a
+  first password, Google connected and password sign-in switched on or off
+  ask for the same proof themselves; and so does two-factor switched on,
+  which with the holder's own authenticator, and its recovery codes, would
+  lock the owner out until an administrator reset it (its setup, which opens
+  nothing, already turns away an account without a password whose sign-in is
+  too old - before a QR code is drawn that enable would refuse). One rule for
+  all five (`accountProof()`), asked before anything else is read; and a
+  change of password counts its wrong current passwords like a sign-in, so a
+  stolen session cannot guess its way to the password either.
+- **Only the person.** An administrator can neither ask nor cancel for
+  anybody (not asked for). The last administrator of the IAM cannot ask, and
+  an administrator who asked is no administrator meanwhile - not counted by
+  the last-admin rule, so two cannot leave at once and the one who stays
+  cannot be removed. A deletion asked for on an account whose address nobody
+  proved goes when the address's owner claims it, with everything else the
+  registrant set (rule 13; found by the security review).
+- **Anonymized, not deleted.** When it is due, housekeeping deletes or scrubs
+  everything of the person (api.md, "Deleting the account", says what, table
+  by table): sessions, tokens, devices, identities, roles, the attempts and
+  mails of the account or its address; IP addresses, names and addresses out
+  of the audit log, whose events stay; an announcement's address. The row
+  stays, a placeholder (`deleted-{id}`, `deleted-{id}@deleted.invalid` - a
+  domain that never delivers), switched off for good: its id is the `sub`
+  every site keys its data on, and is never anybody else's; every foreign key
+  still holds; and the admin panel changes nothing about it - switched on
+  again, it would be somebody signing in as an id whose data every site has
+  made nobody's. The address is free: it can make a new account, with a new
+  id. Then, once that is committed, the address it had is mailed once more,
+  "Your anotoki account is deleted" - after, not before (found by the
+  security review): never for a deletion that did not happen, never twice.
+- **What races it puts nothing back** (found by the security review). A
+  request that read the account a moment before it went and writes after -
+  a reset link asked for, a sign-in, an administrator's "switch on", a new
+  application's MEMBER - finds no row to write to (every such write asks for
+  one not anonymized), is issued no link or code, and the database itself
+  keeps an anonymized row switched off, unconfirmed, without password,
+  password sign-in or two-factor (`users_anonymized_check`). An anonymization
+  takes the IAM's administrators' lock and the MEMBER triggers' lock before
+  the account's row, in that order like every other path, so it and a role
+  change or a new application go one after the other. What such a request
+  leaves elsewhere is swept at every run.
+- **The sites keep the data, not the person.** `GET
+  /api/public/anonymized-accounts` lists the deleted ids and when - ids and
+  times, nothing else, cacheable, in no CORS list - and each site's backend
+  scrubs its own copies of the name and address under them (a shared module
+  is to come). Anybody may learn that an id was deleted and when; nobody,
+  the IAM included, can learn whose it was.
+- **No cron.** The host has none, so housekeeping rides ordinary traffic -
+  the sites' authorize and token calls, every IAM page's first request and
+  every account page, and the sites reading the list - and runs at most once
+  an hour: a deletion is done within the hour after it is due. One account a
+  transaction, one at a time, so the list's times rise as they were
+  committed - to the second, which is why a site asks again from the newest
+  second it has seen (inclusive) rather than keeping a paging cursor.
+- **Backups.** They are kept for disasters and age out on their own schedule;
+  they are never restored to bring an account back. A restore of one older
+  than a deletion is followed by deleting again every account deleted since -
+  the sites' own lists of the ids they scrubbed say which.
+
+**A mail for a sign-in from a new browser.** The owner: "Not based on login
+to the project but iam in general so there will be no duplicate emails" -
+and only from a new device or browser. So:
+
+- **At the IAM's sign-in, once per browser.** Every way in ends in one place
+  (`completeSignIn()`, past two-factor), and that is where it is decided -
+  never at a site's single sign-on or refresh, which open no session. A
+  person using five sites from one browser hears of it once.
+- **A cookie of its own, no credential.** `anotoki_iam_device`, a random
+  secret for 400 days, HttpOnly and SameSite=Lax; the table keeps the SHA-256
+  of the account's id and the secret, so it cannot match two accounts that
+  share a browser. It opens nothing and skips nothing - not the two-factor
+  "remembered device", which it is kept apart from: the worst a stolen copy
+  does is spare its thief one mail, for a sign-in it already had every
+  credential for.
+- **The first browser in silence.** An account with no browser noted - every
+  account on the day 016 is applied, and every new account - has its first
+  one noted without a mail: otherwise release day would mail everybody, and a
+  new account would be told about its own first sign-in.
+- **The mail says when, which and where to look** - the time in UTC, the
+  browser and its system by name from a fixed list (never the user agent as
+  sent: it is whatever the browser chose to say, a link included), the page
+  of every place the account is signed in, and "if it was not you, change
+  your password". At most five an hour: a client that keeps no cookie is a
+  new browser every time, and the password alone must not be a way to bury
+  the owner's mailbox - counted by the browsers mailed about, and taken under
+  the account's lock, so two sign-ins at once cannot both take the last one.
+  A mail that cannot be sent stops no sign-in.
+- **A reset forgets the browsers**, and so does the owner of an address
+  claiming an account never confirmed: whoever held the account must not
+  keep a browser its owner is never told about. The browser that takes it
+  back is noted next, as the first.

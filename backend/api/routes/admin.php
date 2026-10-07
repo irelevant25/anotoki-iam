@@ -58,15 +58,24 @@ function blockedFromSql(string $user, string $application): string
  * account is blocked from (blockedFromSql()) - needs 010's may_sign_in; while
  * 010 is pending it is empty, so the users pages keep working in the minutes
  * between an upload and Apply. `approved` needs 012, and reads as true while
- * it is pending: nobody can wait before it.
+ * it is pending: nobody can wait before it. The deletion's two times need
+ * 016, and are null while it is pending; an anonymized account holds no role
+ * anywhere, and is blocked nowhere - there is nobody to block.
  */
 function adminUserSelect(PDO $pdo): string
 {
+    $deletion = accountDeletionReady($pdo);
     $blockedIn = signInRulesReady($pdo)
         ? "COALESCE((SELECT json_agg(a.client_id ORDER BY a.sort_order, a.client_id) FROM applications a
                       WHERE a.system = FALSE AND a.enabled AND " . blockedFromSql('u', 'a') . "), '[]')"
         : "'[]'";
+    if ($deletion) {
+        $blockedIn = "CASE WHEN u.anonymized_at IS NOT NULL THEN '[]' ELSE {$blockedIn} END";
+    }
     $approved = accountApprovalReady($pdo) ? 'u.approved' : 'TRUE';
+    $deletionColumns = $deletion
+        ? 'CASE WHEN u.anonymized_at IS NULL THEN u.deletion_due_at END AS deletion_due_at, u.anonymized_at'
+        : 'NULL::timestamptz AS deletion_due_at, NULL::timestamptz AS anonymized_at';
 
     return "SELECT u.id, u.username, u.email, u.email_confirmed, u.language, u.disabled, u.totp_enabled,
         u.force_password_change, (u.password IS NOT NULL) AS has_password, u.last_login_at, u.created_at, u.updated_at,
@@ -76,7 +85,8 @@ function adminUserSelect(PDO $pdo): string
                     FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
                     JOIN applications a ON a.id = r.application_id WHERE ur.user_id = u.id), '[]') AS roles,
         {$blockedIn} AS blocked_in,
-        {$approved} AS approved
+        {$approved} AS approved,
+        {$deletionColumns}
    FROM users u";
 }
 
@@ -100,6 +110,11 @@ function adminUserShape(array $row): array
         'last_login_at' => isoTime($row['last_login_at']),
         'created_at' => isoTime($row['created_at']),
         'updated_at' => isoTime($row['updated_at']),
+        // The deletion its owner asked for: when it is due, while it is
+        // pending; when it was done. An anonymized account changes no more
+        // (anonymizedRefusal()).
+        'deletion_due_at' => isoTime($row['deletion_due_at']),
+        'anonymized_at' => isoTime($row['anonymized_at']),
     ];
 }
 
@@ -191,8 +206,11 @@ function grantsIamAdmin(PDO $pdo, array $roleIds): bool
  * Switches an account off: every session and refresh token it holds ends, on
  * every site. Refused for the last administrator of the IAM - checked under
  * lockIamAdmins(), so two administrators switching each other off at the same
- * moment cannot both win. Whether the account may be switched off by this
- * actor at all (not themselves) is the caller's.
+ * moment cannot both win. "The last" is whether any other would be left
+ * (iamAdminCount() besides it), so an administrator on their way out - their
+ * deletion pending - can be switched off while one who stays remains. Whether
+ * the account may be switched off by this actor at all (not themselves) is
+ * the caller's.
  *
  * @return array{status: int, code: string, error: string}|null
  */
@@ -200,7 +218,7 @@ function switchOffAccount(PDO $pdo, int $id): ?array
 {
     lockIamAdmins($pdo);
     try {
-        if (isIamAdmin($id) && iamAdminCount() <= 1) {
+        if (isIamAdmin($id) && iamAdminCount($id) === 0) {
             $pdo->rollBack();
             return ['status' => 422, 'code' => 'last_admin', 'error' => 'This is the only IAM administrator left'];
         }
@@ -448,6 +466,9 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         if ($target === null) {
             return respondError($response, 404, 'not_found', 'Not found');
         }
+        if ($refusal = anonymizedRefusal($target)) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+        }
 
         $changes = [];
 
@@ -499,7 +520,12 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
 
         $sets = implode(', ', array_map(static fn(string $column): string => $column . ' = ?', array_keys($changes)));
-        $pdo->prepare("UPDATE users SET $sets WHERE id = ?")->execute([...array_values($changes), $id]);
+        $updated = $pdo->prepare("UPDATE users SET $sets WHERE id = ?" . liveAccountSql($pdo));
+        $updated->execute([...array_values($changes), $id]);
+        // Deleted since it was read above: nothing written onto the placeholder.
+        if ($updated->rowCount() === 0 && ($refusal = anonymizedRefusal(userById($pdo, $id) ?? []))) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+        }
         audit($request, (int) actor($request)['id'], 'user.updated', 'user', $id, array_keys($changes));
 
         return respondJson($response, adminUser($pdo, $id));
@@ -514,17 +540,25 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         $id = (int) $args['id'];
         $body = requestBody($request);
         $password = (string) ($body['password'] ?? '');
+        $target = userById($pdo, $id);
 
-        if (userById($pdo, $id) === null) {
+        if ($target === null) {
             return respondError($response, 404, 'not_found', 'Not found');
+        }
+        if ($refusal = anonymizedRefusal($target)) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
         }
         if ($refusal = passwordRefusal($password)) {
             return respondError($response, 422, 'invalid_password', $refusal);
         }
 
         $force = array_key_exists('force_password_change', $body) ? !empty($body['force_password_change']) : true;
-        $pdo->prepare('UPDATE users SET password = ?, password_login_enabled = TRUE, force_password_change = ? WHERE id = ?')
-            ->execute([password_hash($password, PASSWORD_DEFAULT), pgBool($force), $id]);
+        $set = $pdo->prepare('UPDATE users SET password = ?, password_login_enabled = TRUE, force_password_change = ? WHERE id = ?' . liveAccountSql($pdo));
+        $set->execute([password_hash($password, PASSWORD_DEFAULT), pgBool($force), $id]);
+        // Deleted since it was read above: no password goes onto the placeholder.
+        if ($set->rowCount() === 0 && ($refusal = anonymizedRefusal(userById($pdo, $id) ?? []))) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+        }
 
         $session = $request->getAttribute('session');
         $keep = (int) actor($request)['id'] === $id ? (int) $session['id'] : null;
@@ -550,9 +584,15 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
 
         $enabled = (bool) $body['enabled'];
+        $target = userById($pdo, $id);
 
-        if (userById($pdo, $id) === null) {
+        if ($target === null) {
             return respondError($response, 404, 'not_found', 'Not found');
+        }
+        // Switched on again, an anonymized account would be its old id back -
+        // the `sub` whose data every site has made nobody's.
+        if ($refusal = anonymizedRefusal($target)) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
         }
 
         // Locking yourself out of the only admin account is a five-second
@@ -566,7 +606,13 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
                 return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
             }
         } else {
-            $pdo->prepare('UPDATE users SET disabled = FALSE WHERE id = ?')->execute([$id]);
+            // Decided in the UPDATE too: deleted since it was read above, it
+            // stays switched off.
+            $on = $pdo->prepare('UPDATE users SET disabled = FALSE WHERE id = ?' . liveAccountSql($pdo));
+            $on->execute([$id]);
+            if ($on->rowCount() === 0 && ($refusal = anonymizedRefusal(userById($pdo, $id) ?? []))) {
+                return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+            }
         }
 
         audit($request, (int) actor($request)['id'], $enabled ? 'user.enabled' : 'user.disabled', 'user', $id);
@@ -596,6 +642,9 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
         if ($target === null) {
             return respondError($response, 404, 'not_found', 'Not found');
+        }
+        if ($refusal = anonymizedRefusal($target)) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
         }
         $approved = approveAccount($pdo, $id);
         if ($approved === null) {
@@ -627,6 +676,9 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         if ($target === null) {
             return respondError($response, 404, 'not_found', 'Not found');
         }
+        if ($refusal = anonymizedRefusal($target)) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
+        }
         if (!accountAwaitsApproval($target) || asBool($target['disabled'])) {
             return respondError($response, 409, 'not_waiting', $target['username'] . (asBool($target['disabled']) ? ' is switched off already' : ' is not waiting for approval'));
         }
@@ -645,9 +697,13 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     $group->delete('/users/{id:[0-9]+}/2fa', function (Request $request, Response $response, array $args) {
         $pdo = iamDb();
         $id = (int) $args['id'];
+        $target = userById($pdo, $id);
 
-        if (userById($pdo, $id) === null) {
+        if ($target === null) {
             return respondError($response, 404, 'not_found', 'Not found');
+        }
+        if ($refusal = anonymizedRefusal($target)) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
         }
 
         $pdo->prepare('UPDATE users SET totp_enabled = FALSE, totp_secret = NULL WHERE id = ?')->execute([$id]);
@@ -668,6 +724,9 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
         if ($target === null) {
             return respondError($response, 404, 'not_found', 'Not found');
+        }
+        if ($refusal = anonymizedRefusal($target)) {
+            return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
         }
         if (!is_array($grants)) {
             return respondError($response, 422, 'invalid_input', 'roles must be a list of { client_id, role }');
@@ -693,9 +752,15 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
         lockIamAdmins($pdo);
         try {
-            if (!$keepsAdmin && isIamAdmin($id) && iamAdminCount() <= 1) {
+            if (!$keepsAdmin && isIamAdmin($id) && iamAdminCount($id) === 0) {
                 $pdo->rollBack();
                 return respondError($response, 422, 'last_admin', 'This is the only IAM administrator left');
+            }
+            // Read again under the lock an anonymization takes too: deleted
+            // since it was read above, it is given no role.
+            if ($refusal = anonymizedRefusal(userById($pdo, $id) ?? [])) {
+                $pdo->rollBack();
+                return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
             }
 
             $pdo->prepare('DELETE FROM user_roles WHERE user_id = ?')->execute([$id]);

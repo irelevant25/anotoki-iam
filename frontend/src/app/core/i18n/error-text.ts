@@ -39,6 +39,8 @@ const BY_CODE: Record<string, TranslationKey> = {
   username_taken: 'error.usernameTaken',
   email_taken: 'error.emailTaken',
   approval_pending: 'error.approvalPending',
+  account_deletion_pending: 'error.accountDeletionPending',
+  reauthentication_required: 'deletion.freshSignIn',
 };
 
 /**

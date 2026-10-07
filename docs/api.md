@@ -7,7 +7,9 @@ every application that signs people in through it. Two halves:
   keys, authorize, token, userinfo, logout, revoke. Anything that speaks OIDC
   can use them; the SDKs in `sdk/` are the small first-party clients. Beside
   them, anotoki's own `POST /api/oidc/preferences`, through which a site saves
-  its signed-in reader's theme, dates, clock and language.
+  its signed-in reader's theme, dates, clock and language, and the two public
+  answers a site's backend reads: whether it requires signing in, and which
+  accounts were deleted.
 - **First-party JSON** - what the IAM's own pages call: signing in, the account
   page, the admin panel. Only the IAM frontend uses these, from its own origin,
   with the IAM session cookie.
@@ -48,6 +50,31 @@ database keeps only its SHA-256. A "keep me signed in" session sets `Max-Age`
 browser closes and the session dies after a day of inactivity (a week at most).
 
 Applications never see this cookie. They get tokens.
+
+### The device cookie
+
+Every sign-in that opens a session (password, emailed code, Google, a
+confirmation or reset link - each past two-factor) also sets
+`anotoki_iam_device` (migration 016): `HttpOnly`, `SameSite=Lax`, `Secure`
+over HTTPS, `Path=/`, `Max-Age=34560000` (400 days), set again at every
+sign-in so a browser in use keeps it. Its value is a random secret; the
+database keeps the SHA-256 of the account's id and that secret, so one
+browser is a different row for every account signed in from it.
+
+It opens nothing: it is not a session, not the two-factor remembered device
+(`device_token`), and no endpoint reads it but the sign-in. It says only
+whether the account has signed in from this browser before. When it has
+not, and the account has signed in from another browser already, the
+account's address is mailed "New sign-in to your anotoki account" - when (in
+UTC), the browser and its system in a few words from a fixed list ("Firefox ·
+Windows"; never the user agent as sent), and the account's Sessions page -
+at most five such mails an hour (counted by the browsers mailed about, under
+the account's lock). An account's first browser - every
+account's first sign-in once 016 is applied, and a new account's - is noted
+without a mail. A site's single sign-on and its refreshes open no session
+and mail nothing. A password reset, and the owner of an address claiming an
+account never confirmed, forget every browser the account knew (the browser
+that does it is then its first). Before migration 016 no such cookie is set.
 
 ### CSRF
 
@@ -143,9 +170,19 @@ What happens:
    may use the application: straight back with a code -
    `302 {redirect_uri}?code=...&state=...&iss={issuer}`. No page is shown; this
    is single sign-on.
-4. `prompt=none` and step 3 did not apply: back with `?error=login_required`
-   (or `consent_required` never - first-party applications need no consent).
-5. Otherwise the request is stored for 30 minutes and the browser goes to
+4. Signed in already, the sign-in satisfies `prompt`/`max_age`, but the
+   account's deletion is pending (`POST /api/account/deletion`, below): no
+   code, and nothing goes back to the application. The request is spent and
+   the browser goes to `{issuer}/error?code=account_deletion_pending`, the
+   IAM's own page, which says so in the person's words and leads to the
+   account page, where the deletion is cancelled. Not for `prompt=none`
+   (step 5), which never shows a page; and a request that asks for
+   credentials again (`prompt=login`, an older sign-in than `max_age`) goes to
+   the sign-in page as usual, where accept refuses this account the same way.
+5. `prompt=none` and step 3 did not apply: back with `?error=login_required`
+   when nobody is signed in here, `?error=interaction_required` when somebody
+   is (or `consent_required` never - first-party applications need no consent).
+6. Otherwise the request is stored for 30 minutes and the browser goes to
    `{issuer}/login?request={id}` (or `/register?request={id}` for
    `prompt=create`), with `&lang={code}` when `ui_locales` named an offered
    language. The IAM
@@ -206,8 +243,11 @@ old one is spent. Presenting a spent token again ends the whole chain it belongs
 to (reuse detection) - except within 60 seconds of its rotation, when the same
 successor is handed out again, so two tabs refreshing at once do not sign
 somebody out. A refresh fails with `invalid_grant` once the IAM session behind it
-has ended, the account is disabled, or the account may no longer use the
-application; the application should then treat the person as signed out.
+has ended, the account is disabled, its deletion is asked for (which revokes
+every refresh and personal token of the account at once), or the account may
+no longer use the application; the application should then treat the person
+as signed out. A code given before the deletion was asked for is refused the
+same way at its exchange.
 
 A **personal access token** (`iam_pat_...`, made on the account page for
 scripts) is exchanged the same way. It is never rotated, the answer has no
@@ -309,7 +349,8 @@ application registered - a read, so not held to the token's own application's
 origins as the token endpoint is. Answers
 the claims above for the token's user - read fresh, so a changed username shows
 here before the next token. `401` with `WWW-Authenticate: Bearer error="invalid_token"`
-when the token is not good or its session has ended.
+when the token is not good, its session has ended, or its account is switched
+off, waiting for approval or being deleted.
 
 ### `POST /api/oidc/preferences`
 
@@ -337,7 +378,8 @@ token's own account, and answers the account as it now stands:
 
 The tokens carry the change from their next refresh.
 
-Errors (OAuth's shape): `401 invalid_token` as for userinfo; `400
+Errors (OAuth's shape): `401 invalid_token` as for userinfo (an account
+being deleted included); `400
 invalid_request` for an `Origin` that is not the token's application's, and for
 a body that is not an object, is empty, or names anything else or a value not
 on offer; `403 access_denied` for a personal token's access token, and for a
@@ -405,6 +447,56 @@ roles or addresses.
 
 The OIDC error code `login_required` (authorize, `prompt=none`, above) is
 unrelated: the same two words for "nobody is signed in here".
+
+### `GET /api/public/anonymized-accounts`
+
+The accounts deleted at their owners' request (migration 016; "Deleting the
+account" below), for the sites' **backends**: each site scrubs its own copies
+of the person's name and address under those ids - `preferred_username`,
+`email`, anything else that says who it was - and keeps the rest of its data,
+nobody's now. The ids are never anybody's again: the IAM keeps the row, a
+placeholder. No session, no token, no CSRF header; in no CORS list (a
+browser never needs it).
+
+| Parameter | |
+| --- | --- |
+| `since` | optional: an ISO-8601 time from `1970-01-01T00:00:00Z` on - `2026-11-06T10:00:00Z`, a fraction of a second and an offset allowed (send `+` as `%2B`), or a date alone (midnight UTC). The accounts anonymized at or after it - **inclusive**. Left out: from the beginning |
+| `after` | optional, only with `since`, and only as `next` gives it: an account id. Together they say where the next answer of the same paging run starts: anonymized after `since`, or at `since` with an id above `after` |
+
+```json
+{
+  "accounts": [
+    { "sub": "123", "anonymized_at": "2026-11-06T10:00:00Z" },
+    { "sub": "130", "anonymized_at": "2026-11-06T10:00:00Z" }
+  ],
+  "next": { "since": "2026-11-06T10:00:00Z", "after": "130" }
+}
+```
+
+- `accounts`: in the order they went - by `anonymized_at`, then by id - at
+  most 500. `sub` is the id as the tokens carry it (a decimal string);
+  `anonymized_at` is whole seconds, UTC. These two fields and nothing else.
+- `next`: when there may be more, the `since` and `after` of the next
+  answer - ask `?since={next.since}&after={next.after}` until it is `null`.
+  It is for one paging run, straight after the answer it came with, and is
+  not kept: times are whole seconds, and an account anonymized later in the
+  same second as `next.since` may have a lower id than `next.after`.
+- How a site keeps up between runs: remember the newest `anonymized_at`
+  handled, and ask from it next time with `since` alone. `since` is inclusive
+  on purpose - the ids of that second come again, and one seen twice costs
+  nothing - so going back a day is harmless, and is the safe way to start.
+- `Cache-Control: public, max-age=60`. `400 invalid_request` for a `since`
+  that is not such a time, is before 1970-01-01 UTC (`0000-01-01` included),
+  or is a date that does not exist (`2026-02-30`), and for an `after` that is
+  not an id or comes without `since` (`no-store`).
+  Before migration 016 every answer is `{ "accounts": [], "next": null }`:
+  nobody was deleted then. `503 not_set_up` before the installer.
+
+What it gives away: that an id was deleted, and when - to anybody who asks.
+Nothing about who it was: the IAM itself no longer knows.
+
+The request also runs housekeeping (the host has no cron), so the sites
+asking is itself part of what keeps the deletions on time.
 
 ---
 
@@ -534,6 +626,7 @@ Refusals, all `403` unless noted:
 | `email_not_confirmed` | account not confirmed yet | resend the confirmation |
 | `password_change_required` | an admin set this password | the change-password form, then accept again |
 | `access_denied` | this account holds no role in this application that may sign in (its MEMBER taken away, or MEMBER not allowed to sign in there and no other role) | "Use another account" / "Back to {app}" |
+| `account_deletion_pending` | the account's deletion is asked for (`POST /api/account/deletion`): nothing is issued to any site until it is cancelled | "Go to your account" (where it is cancelled) / "Use another account" / "Back to {app}" |
 | `application_disabled` | switched off in the admin panel | "Back" |
 
 ### `POST /api/login/request/{id}/cancel`
@@ -560,7 +653,8 @@ on it beyond `error`.
 ```
 
 `200 { "user": AccountUser, "device_token": string | null }` and the session
-cookie is set. Refusals:
+cookie is set - and the device cookie, which may mail the account about a new
+browser (above); so on every way in below that opens a session. Refusals:
 
 | Status | `code` | |
 | --- | --- | --- |
@@ -609,7 +703,9 @@ waiting, with no session: `403 approval_pending` with `"created": true` beside
 
 Attaching to an account whose address was never confirmed first removes
 everything its registrant set - password, two-factor, recovery codes,
-remembered devices, sessions, tokens, other identities, and a yes to the news -
+remembered devices, sessions, tokens, other identities, a yes to the news,
+the browsers it signed in from, and a deletion of the account it asked for
+(cancelled, audited `account.deletion_cancelled` with `{ by: "address_claimed" }`) -
 since whoever registered it need not own the address Google has just vouched
 for. The same happens when a reset link reaches such an account's mailbox.
 
@@ -710,13 +806,14 @@ interface AccountUser {
   recovery_codes_remaining: number;
   trusted_devices: number;
   force_password_change: boolean;
-  is_admin: boolean;              // holds ADMIN in the IAM itself
+  is_admin: boolean;              // holds ADMIN in the IAM itself - false while the account's deletion is pending
   news_mail: boolean | null;      // gets the announcements; null while migration 013 is pending
   preferences: {                  // what every anotoki site follows (the claim above); null while migration 015 is pending
     theme: 'auto' | 'light' | 'dark';
     date_format: 'dmy_dot' | 'dmy_slash' | 'mdy_slash' | 'ymd_dash' | null;
     time_format: '24' | '12' | null;
   } | null;
+  deletion_due_at: string | null; // when the account is deleted, while its deletion is pending (below); null otherwise, and while migration 016 is pending
 }
 ```
 
@@ -724,13 +821,13 @@ interface AccountUser {
 | --- | --- | --- |
 | `GET /api/account` | | `AccountUser` |
 | `PUT /api/account/profile` | `{ username?, language?, news_mail?, theme?, date_format?, time_format? }` | `AccountUser` (409 username taken; `422 invalid_language` for a language not on offer; `news_mail` is true or false - `422 invalid_input` otherwise, `503 announcements_unavailable` while 013 is pending; the three preferences take the values of `POST /api/oidc/preferences` - `422 invalid_preference` otherwise, `503 preferences_unavailable` while 015 is pending) |
-| `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; `422` wrong current password |
-| `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change |
-| `PUT /api/account/password/enabled` | `{ enabled }` | `AccountUser` - `409 would_lock_account` / `no_password` |
-| `POST /api/account/google` | `{ credential }` | `AccountUser` - `409` already connected elsewhere |
+| `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; `422 wrong_password` for a wrong current password, each one counted by the sign-in limiter: `429 too_many_attempts` past it (ten from one address in 15 minutes), the right one included |
+| `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change. Asks for the proof below - for an account with no password, a sign-in of the last 15 minutes: `403 reauthentication_required` otherwise. `409 password_already_set`, `422 invalid_password` |
+| `PUT /api/account/password/enabled` | `{ enabled, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, to switch password sign-in off; a sign-in of the last 15 minutes to switch it on. `409 would_lock_account` / `no_password` first |
+| `POST /api/account/google` | `{ credential, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, while password sign-in is on; else a sign-in of the last 15 minutes. `400 invalid_token` for a credential that does not verify, `409` already connected elsewhere |
 | `DELETE /api/account/google` | | `AccountUser` - `409 would_lock_account` |
-| `POST /api/account/2fa/setup` | | `{ secret, uri }` (otpauth URI for the QR code) |
-| `POST /api/account/2fa/enable` | `{ code }` | `{ recovery_codes: string[] }` - other sessions end |
+| `POST /api/account/2fa/setup` | | `{ secret, uri }` (otpauth URI for the QR code) - a new secret each time, replacing one still waiting; nothing changes until enable confirms it. `409 totp_already_on` first; then, for an account whose password is not a way in, `403 reauthentication_required` while its sign-in is more than 15 minutes old - before a secret is made, since enable would refuse that sign-in (the proof below). An account whose password is a way in sets up from a sign-in of any age |
+| `POST /api/account/2fa/enable` | `{ code, password? }` | `{ recovery_codes: string[] }` - other sessions end. `409 totp_already_on` / `totp_not_started` first; then the proof below, before the code is read: `password`, the current one, while password sign-in is on, else a sign-in of the last 15 minutes (`429 too_many_attempts`, `422 wrong_password`, `403 reauthentication_required`); then `400 totp_invalid` for a wrong code |
 | `POST /api/account/2fa/disable` | `{ code }` | `AccountUser` |
 | `POST /api/account/2fa/recovery` | `{ code }` | `{ recovery_codes }` |
 | `DELETE /api/account/devices` | | `{ ended }` |
@@ -741,6 +838,8 @@ interface AccountUser {
 | `GET /api/account/tokens` | | `{ tokens: PersonalToken[] }` |
 | `POST /api/account/tokens` | `{ name, client_id, expires_in_days }` | `201 { token: "iam_pat_...", entry: PersonalToken }` - the token is shown this once |
 | `DELETE /api/account/tokens/{id}` | | `{ message }` |
+| `POST /api/account/deletion` | `{ password? }` | `AccountUser`, `deletion_due_at` set - the deletion is asked for (below) |
+| `DELETE /api/account/deletion` | | `AccountUser`, `deletion_due_at` null - the deletion is cancelled (below) |
 
 ```ts
 interface SessionEntry {
@@ -784,12 +883,167 @@ interface PersonalToken {
 }
 ```
 
+`SessionEntry.revoked_reason` is one of `signed_out`, `signed_out_elsewhere`,
+`password_changed`, `security_change`, `replaced`, `ended_by_admin`,
+`account_disabled`, `address_claimed`, `account_deletion` (ended when the
+account's deletion was asked for from another browser) - or one a session
+brought over from the genshin site kept (`migrated`, its own reasons), or
+one a later version adds: a page shows a reason it does not know as "Ended".
+
+### The proof a session alone cannot give
+
+A session left open on somebody else's computer must not be enough to
+delete the account - nor to make the proof the deletion asks for: give a
+password-less account a password the session's holder chose, connect their own
+Google to sign in afresh with, or switch password sign-in off so that a fresh
+sign-in is all it takes - nor to lock the owner out, switching two-factor on
+with the holder's own authenticator and keeping its recovery codes. So these
+five ask for one proof, the same one (`accountProof()`):
+
+| Endpoint | |
+| --- | --- |
+| `POST /api/account/deletion` | `{ password? }` |
+| `POST /api/account/password/set` | (the account has no password: always the recent sign-in) |
+| `PUT /api/account/password/enabled` | `{ enabled, password? }` |
+| `POST /api/account/google` | `{ credential, password? }` |
+| `POST /api/account/2fa/enable` | `{ code, password? }` |
+
+Setting two-factor up (`POST /api/account/2fa/setup`) asks for no proof of its
+own: it only keeps a secret waiting, which opens nothing until enable confirms
+it. But an account with no password to ask for is turned away there already
+with enable's `403 reauthentication_required` while its sign-in is more than 15
+minutes old - before a secret is made, so that nobody scans a QR code enable
+would then refuse (and the next setup replace). It reads no password and counts
+nothing for the limiter. An account whose password is a way in sets up from a
+sign-in of any age and gives the password at enable.
+
+- An account whose password is a way in (`has_password` and
+  `password_login_enabled`): `password`, its current password.
+- Any other: a sign-in of the last 15 minutes - the session's own; a
+  `password` sent is not read.
+
+| Status | `code` | |
+| --- | --- | --- |
+| 422 | `wrong_password` | the password is wrong or missing; counted by the sign-in limiter, as a wrong password at the sign-in is |
+| 403 | `reauthentication_required` | no password to ask for, and the session's sign-in is more than 15 minutes old: sign out and in again, then send it again within 15 minutes |
+| 429 | `too_many_attempts` | the sign-in limiter (ten failures from one address against the account, or fifty from the address, in 15 minutes), before anything is read |
+
+The deletion, the first password, the switch and two-factor check what they
+are about first (their own `409` / `422`), then the proof - two-factor before
+it reads the code; connecting Google asks for the proof first (after `403
+google_disabled`), then reads the credential. The audit entry of each says
+which proof it was (`details.proof`: `password` or `recent_sign_in`):
+`account.deletion_requested`, `account.password_set`,
+`account.password_login_on` / `_off`, `account.google_connected`,
+`account.2fa_on`.
+
+### Deleting the account
+
+The owner's decision of 2026-10-07 (migration 016, `docs/decisions.md`): the
+account is deleted thirty days after its owner asks, and can be kept until
+then; the sites keep what was made on them, under no name. Only the account
+itself asks and cancels - an administrator can do neither for anybody.
+
+**`POST /api/account/deletion`** `{ password? }` - session and CSRF header,
+as every write here. The proof is the one above ("The proof a session alone
+cannot give"):
+
+- an account with a password and password sign-in on (`has_password` and
+  `password_login_enabled`): `password`, its current password;
+- any other (Google only, or password sign-in switched off): a sign-in of the
+  last 15 minutes - the session's own; a `password` sent is not read.
+
+Nothing the session can change gives it that proof: a first password, Google
+connected and password sign-in switched on or off ask for the same proof
+themselves.
+
+Then, in one transaction: `deletion_due_at` is thirty days from now; every
+other session of the account ends (`revoked_reason: account_deletion`), and
+every refresh and personal token is revoked - this session's included. The
+account is closed at once: nothing is issued to any site again (authorize's
+`account_deletion_pending` page, accept's `403 account_deletion_pending`, the
+code exchange and every refresh `invalid_grant`, userinfo and
+`POST /api/oidc/preferences` `401`, a new personal token `403
+account_deletion_pending`), so every site loses the person within one access
+token's lifetime; no announcement goes to it either (`left_out.deleting`).
+The IAM's own sign-in keeps working by every way in - that
+is where the deletion is cancelled - but its admin panel does not (`403
+account_deletion_pending`, and `is_admin` is false). The account's address is
+mailed "Your anotoki account will be deleted" - the day, and the account page
+- in its language, when the address is confirmed. Audited
+`account.deletion_requested` (`{ due, proof: "password" | "recent_sign_in" }`).
+
+| Status | `code` | |
+| --- | --- | --- |
+| 200 | | `AccountUser`, `deletion_due_at` set |
+| 422 | `wrong_password` | the password is wrong or missing (an account that signs in with one); a counted attempt, as at the sign-in |
+| 403 | `reauthentication_required` | no password to ask for, and the sign-in is more than 15 minutes old: sign out and in again, then ask within 15 minutes |
+| 409 | `last_admin` | the account is the last administrator of the IAM: another must be made one first. An administrator whose own deletion is pending does not count |
+| 409 | `deletion_already_requested` | it is asked for already |
+| 429 | `too_many_attempts` | the sign-in limiter: wrong passwords here count, and each request (a mail) too |
+| 503 | `account_deletion_unavailable` | migration 016 is pending |
+
+**`DELETE /api/account/deletion`** - session and CSRF header. Until the
+account is deleted (thirty days, give or take the hour housekeeping may take)
+the deletion is cancelled: `deletion_due_at` back to null, audited
+`account.deletion_cancelled`, and the address mailed "Your anotoki account
+will not be deleted" - news its owner must get when it was not them. What the
+request ended stays ended: the person signs in to the sites again. `200
+AccountUser`; `409 deletion_not_requested` when nothing is asked; `503
+account_deletion_unavailable` while 016 is pending. Never limited.
+
+**When it is due**, housekeeping deletes it (it runs on ordinary traffic, at
+most an hour apart), in one transaction - and once that is committed the
+address the account had is mailed "Your anotoki account is deleted": the last
+mail, with no link, its words in the account's language read before the
+commit, logged under the placeholder address and no account. Never for a
+deletion that did not happen, and never twice. In the transaction:
+
+- gone: its sessions, codes, refresh and personal tokens, remembered
+  two-factor devices, the browsers it signed in from, one-time mailed tokens,
+  recovery codes, outside identities (Google), every role, the sign-in
+  attempts and email log rows of the account or its address, and sign-in
+  requests that carried the address as a hint;
+- scrubbed, the event kept: the audit log's rows by the account - and about
+  it with nobody else acting - lose their IP, its rows about the account lose
+  the names and addresses in their details, a personal token's name goes from
+  its row; an announcement's row for the person keeps whether it went, not
+  where;
+- the row stays, so its id - every site's `sub` - is never anybody else's:
+  username `deleted-{id}`, address `deleted-{id}@deleted.invalid` (a reserved
+  domain that never delivers), no password or two-factor, English, `auto`,
+  no news, unconfirmed, switched off, `anonymized_at` set. Audited
+  `account.anonymized`, by nobody.
+
+The address is free again then: it can make a new account, with an id of its
+own. The admin panel shows such a row and changes nothing about it (`409
+account_anonymized`). The sites learn the ids at
+`GET /api/public/anonymized-accounts` (above).
+
+A request that read the account a moment before it went, and writes after,
+puts nothing back. The database keeps an anonymized row switched off,
+unconfirmed, with no password, no password sign-in and no two-factor
+(`users_anonymized_check`); every write to the row asks for one that is not
+anonymized, and finds none - a reset or confirmation link answers `400
+invalid_token`, an account page write `401 no_session`, an admin write `409
+account_anonymized`, a site's save of preferences `401 invalid_token`; no
+reset link or sign-in code is issued - one asked for while the anonymization
+holds the account waits for it and then reads the row again - so none is
+mailed. One issued a moment before the anonymization began is deleted with
+the rest; its mail may still go, to the address the account had, with a link
+or code that opens nothing. What such a request leaves elsewhere - a session,
+a token, an identity, a role, a mail logged, an audit entry with the person's
+IP or name - goes at the next housekeeping run.
+
 ---
 
 ## First-party: the admin panel
 
 Every endpoint needs the session cookie **and** the `ADMIN` role in the
 application `iam`; otherwise `401 no_session` / `403 { code: "forbidden" }`.
+An administrator whose own account's deletion is pending administers nothing
+until they cancel it: `403 { code: "account_deletion_pending" }` on every
+endpoint here.
 
 ### Users
 
@@ -811,6 +1065,20 @@ application `iam`; otherwise `401 no_session` / `403 { code: "forbidden" }`.
 
 Self-lockout rules carry over: an admin cannot disable themselves or take the
 IAM `ADMIN` role from themselves, and the last IAM admin cannot be removed.
+"The last" counts the administrators switched on and not on their way out -
+one whose deletion is pending is not counted (nor in `stats.admins` and
+`filters.admins`), so the one who stays can never be switched off or lose the
+role, while the one leaving can.
+
+**Deleted accounts** (migration 016): an account deleted at its owner's
+request (the account page's "Deleting the account") stays as a row with
+`anonymized_at` set, a placeholder name and address, no roles, switched off.
+Every change to it is refused `409 account_anonymized` - `PUT
+/api/admin/users/{id}`, `/password`, `/enabled`, `/roles`, `DELETE .../2fa`,
+`approve`, `decline` - since switched on again or given a password it would be
+somebody signing in as an id every site has made nobody's.
+`deletion_due_at` is set while an account's own deletion is pending; nobody
+can ask for or cancel it here.
 
 **Approval of new accounts** (migration 012). While Settings → New accounts
 need approval (`registration_approval`) is on, an account made by
@@ -882,6 +1150,8 @@ interface AdminUser {
   last_login_at: string | null;
   created_at: string;
   updated_at: string | null;
+  deletion_due_at: string | null;   // its owner asked for its deletion: when it is due; null otherwise (and while 016 is pending)
+  anonymized_at: string | null;     // deleted then: the row is a placeholder, and changes no more; blocked_in and roles are []
 }
 
 interface FilterApplication {
@@ -914,11 +1184,19 @@ interface AdminUserDetail {
 | `GET /api/admin/emails?kind=&status=&recipient=&from=&to=&page=` | `{ total, page, pageSize, items: EmailLogEntry[] }` |
 | `GET /api/admin/emails/filters` | `{ kinds, statuses }` |
 | `GET /api/admin/audit?actor=&action=&target_type=&page=` | `{ total, page, pageSize, items: AuditEntry[] }` |
-| `GET /api/admin/stats` | `{ users, disabled, admins, active_sessions, applications, signins_24h, failed_24h, emails_24h, awaiting_approval }` - the last: accounts waiting for approval and switched on (0 while 012 is pending) |
+| `GET /api/admin/stats` | `{ users, disabled, admins, active_sessions, applications, signins_24h, failed_24h, emails_24h, awaiting_approval }` - `admins`: switched on and not on their way out (a pending deletion); `disabled` includes the deleted accounts; the last: accounts waiting for approval and switched on (0 while 012 is pending) |
 
 `AdminSession` is a `SessionEntry` plus `user_id`, `username`, `email`.
-`EmailLogEntry` is `{ id, recipient, kind, subject, status, error, user_id, username, created_at }`.
-`AuditEntry` is `{ id, actor_id, actor_username, action, target_type, target_id, details, ip, created_at }`.
+`EmailLogEntry` is `{ id, recipient, kind, subject, status, error, user_id, username, created_at }`;
+the kinds of migration 016 are `account_deletion_requested`,
+`account_deletion_cancelled`, `account_deleted` (logged under the deleted
+account's placeholder address and no `user_id`: the log keeps no address of
+a deleted account, and every other row of it goes with the account) and
+`new_sign_in`, each logged with its subject.
+`AuditEntry` is `{ id, actor_id, actor_username, action, target_type, target_id, details, ip, created_at }`;
+016 adds `account.deletion_requested` (`{ due, proof }`),
+`account.deletion_cancelled` and `account.anonymized` (`{ requested_at }`,
+by nobody).
 
 ### Announcements
 
@@ -960,7 +1238,7 @@ interface Audience { everybody: boolean; roles: RoleGrant[]; user_ids: number[] 
 
 interface AudienceCount {
   recipients: number;
-  left_out: { disabled: number; unconfirmed: number; waiting: number; news_off: number };  // each person once, the first reason
+  left_out: { disabled: number; unconfirmed: number; waiting: number; news_off: number; deleting: number };  // each person once, the first reason - in the order disabled, deleting (its deletion asked for, migration 016; 0 before it), unconfirmed, waiting, news_off
   languages: Record<string, number>;  // how many read which language (one switched off counts as English)
 }
 
@@ -1019,8 +1297,10 @@ so a process that dies between the two sends that one again on the next
 batch. A failed email log write does not (a savepoint keeps it apart).
 
 Who gets it: only accounts switched on, with the address confirmed, approved,
-and the news on - asked when the list is made and again as each mail goes (one
-that no longer can is `skipped`); the address it goes to is the account's at
+not being deleted (migration 016: an account whose owner asked for its
+deletion gets no news in its last thirty days), and the news on - asked when
+the list is made and again as each mail goes (one that no longer can is
+`skipped`); the address it goes to is the account's at
 that moment. Each mail is `multipart/alternative` (plain text and HTML, both
 base64) with a `List-Unsubscribe` header naming the person's `/unsubscribe`
 page, from the chosen sender (Reply-To the same), logged in the email log as
@@ -1111,7 +1391,7 @@ A new application's `application.created` entry holds what it starts with,
 ### Languages and strings
 
 The IAM's own words (`api/translations.php`): the languages it offers and the
-strings of its pages and its four mails. Keys are the code's - migrations
+strings of its pages and its mails. Keys are the code's - migrations
 write them, these routes only change strings. English is what every other
 language falls back to, key by key.
 
@@ -1172,7 +1452,7 @@ and `error` (and `placeholder` where it is about one, `keys` for unknown keys):
 
 | `code` | |
 | --- | --- |
-| `invalid_value` | not `{ key: { language: text } }` (an import: not a flat object); a value that is not text; a page's string over 2,000 characters; a mail's string with a line break or a tab, a mail subject over 150 characters or another mail string over 400; a mail string of more bytes than one line of mail may have - 900, less 400 for every `{username}` in a greeting (the longest name there can be, kept for each: 500 with one, 100 with two, none with three) |
+| `invalid_value` | not `{ key: { language: text } }` (an import: not a flat object); a value that is not text; a page's string over 2,000 characters; a mail's string with a line break or a tab, a mail subject over 150 characters or another mail string over 400; a mail string of more bytes than one line of mail may have - 900, less 400 for every `{username}` in a greeting (the longest name there can be, kept for each: 500 with one, 100 with two, none with three), and less 10 for every `{date}` |
 | `unknown_key` | a key the IAM does not have, empty or not (with `keys`: every such key sent) |
 | `unknown_language` | a language the IAM does not have |
 | `fallback_required` | a blank English string: every other language falls back to it |
@@ -1184,8 +1464,11 @@ and `error` (and `placeholder` where it is about one, `keys` for unknown keys):
 
 A mail's placeholders are the code's (`MAIL_KEYS` in `api/mail.php`), not the
 stored English: greetings take `{username}`, validity lines `{hours}` or
-`{minutes}`, the sign-in code's subject `{code}`. There is no placeholder for a
-mail's link or code - that line is never part of a string.
+`{minutes}`, the sign-in code's subject `{code}`, the deletion mail's intro
+`{date}` (the day it is due, as the account writes dates - `2026-11-06` when
+it chose none). There is no placeholder for a mail's link or code - that line
+is never part of a string - nor for the new sign-in mail's time and browser,
+which the server writes on lines of their own.
 
 The audit log records `language.created` (`name`, `native_name`, `enabled`),
 `language.updated` (what changed), `language.deleted` (`name`, `accounts`,
@@ -1220,3 +1503,6 @@ cacheable. The anotoki.eu landing page keeps its own list.
 
 `GET /api/public/applications/{client_id}` - whether a site requires signing
 in, for the sites' backends: under OpenID Connect above.
+
+`GET /api/public/anonymized-accounts` - the ids of the accounts deleted at
+their owners' request, for the sites' backends: under OpenID Connect above.

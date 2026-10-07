@@ -52,6 +52,20 @@ if (!$user) {
     exit(1);
 }
 
+// An account deleted at its owner's request (migration 016) is never let back
+// in: its id is the `sub` whose data every site has made nobody's.
+$hasDeletion = (bool) $pdo->query(
+    "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'anonymized_at' AND NOT attisdropped)"
+)->fetchColumn();
+if ($hasDeletion) {
+    $anonymized = $pdo->prepare('SELECT anonymized_at FROM users WHERE id = ?');
+    $anonymized->execute([$user['id']]);
+    if ($anonymized->fetchColumn() !== null) {
+        echo "That account was deleted at its owner's request; its id stays reserved and nobody signs in to it again.\n";
+        exit(1);
+    }
+}
+
 if ($given !== null && (strlen($given) < 8 || strlen($given) > 72)) {
     echo "The password needs 8 to 72 characters.\n";
     exit(1);

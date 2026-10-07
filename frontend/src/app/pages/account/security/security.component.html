@@ -11,10 +11,13 @@
             </app-alert>
         }
 
-        <app-card [heading]="'security.methods' | t" [subheading]="'security.keepOne' | t">
+        <app-card [heading]="'security.methods' | t" [subheading]="'security.keepOne' | t" [headingId]="anchors.methods">
             <div class="methods">
                 @if (methodsError()) {
                     <app-alert tone="danger" [announce]="true">{{ methodsError() }}</app-alert>
+                }
+                @if (methodsFreshSignIn()) {
+                    <app-fresh-sign-in [anchor]="anchors.methods" />
                 }
 
                 <!-- Password -->
@@ -83,7 +86,7 @@
         </app-card>
 
         <!-- Two-factor -->
-        <app-card [heading]="'security.twoFactor.title' | t">
+        <app-card [heading]="'security.twoFactor.title' | t" [headingId]="anchors.twoFactor">
             <div cardActions>
                 @if (me.totp_enabled) {
                     <app-badge tone="success" [dot]="true">{{ "overview.twoFactorOn" | t }}</app-badge>
@@ -143,6 +146,19 @@
                 </div>
             </app-card>
         }
+
+        <!-- Deleting the account. While it is asked for, the notice above every account page says when, and cancels it. -->
+        @if (!me.deletion_due_at) {
+            <app-card tone="danger" [heading]="'deletion.title' | t" [headingId]="anchors.deletion">
+                <div class="deletion">
+                    <p class="deletion-lead">{{ "deletion.lead" | t }}</p>
+                    <button appButton variant="danger" (click)="open('delete-account')">
+                        <app-icon name="trash" [size]="16" />
+                        {{ "deletion.submit" | t }}
+                    </button>
+                </div>
+            </app-card>
+        }
     </div>
 
     @switch (dialog()) {
@@ -152,6 +168,27 @@
         @case ("set-password") {
             <app-password-dialog mode="set" (closed)="dialogClosed($event)" />
         }
+        @case ("password-off") {
+            <!-- Switching it off: the password first, while it is a way in. -->
+            <app-proof-dialog
+                [heading]="'security.password.title' | t"
+                [action]="'common.confirm' | t"
+                [anchor]="anchors.methods"
+                [send]="switchPasswordOff"
+                (done)="passwordSwitched($event)"
+                (closed)="passwordOffDismissed()" />
+        }
+        @case ("connect-google") {
+            <!-- Google has handed over the account chosen: the password first, while it is a way in. -->
+            <app-proof-dialog
+                [heading]="'security.google.title' | t"
+                [action]="'common.confirm' | t"
+                [anchor]="anchors.methods"
+                [send]="connectGoogleWith"
+                [explain]="googleRefusal"
+                (done)="googleConnected($event)"
+                (closed)="googleDialogClosed()" />
+        }
         @case ("setup-2fa") {
             <app-two-factor-setup-dialog (closed)="dialogClosed($event)" />
         }
@@ -160,6 +197,10 @@
         }
         @case ("regenerate-2fa") {
             <app-two-factor-code-dialog mode="regenerate" (closed)="dialogClosed($event)" />
+        }
+        @case ("delete-account") {
+            <!-- It puts the account it is answered with in the session itself. -->
+            <app-deletion-dialog (closed)="dialog.set(null)" />
         }
     }
 }

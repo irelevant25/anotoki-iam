@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { SessionService } from '../../core/auth/session.service';
 import { NavItem, ShellComponent } from '../../layouts/shell/shell.component';
@@ -28,6 +28,9 @@ const NAV: NavItem[] = [
  * in place of the page, at the address they asked for - no redirect, so the
  * same link works the moment the role is granted. The pages are never created
  * for them, so nothing asks the API for what it would refuse anyway.
+ *
+ * An account whose deletion is pending is no administrator meanwhile
+ * (`is_admin` false): it is told so, and where the deletion is cancelled.
  */
 @Component({
   selector: 'app-admin-layout',
@@ -37,6 +40,9 @@ const NAV: NavItem[] = [
   styleUrl: './admin-layout.component.scss',
 })
 export class AdminLayoutComponent {
+  private readonly _session = inject(SessionService);
+
   protected readonly nav = NAV;
-  protected readonly isAdmin = inject(SessionService).isAdmin;
+  protected readonly isAdmin = this._session.isAdmin;
+  protected readonly deletionPending = computed(() => !!this._session.user()?.deletion_due_at);
 }

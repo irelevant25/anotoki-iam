@@ -33,7 +33,8 @@ import { SignInHandoffService } from '../sign-in-handoff.service';
  * The steps of signing in. Every refusal the backend can give maps to one of
  * them, so the person always sees what to do next rather than a bare "no".
  */
-type Step = 'loading' | 'load-error' | 'expired' | 'form' | 'code' | 'totp' | 'unconfirmed' | 'other-way' | 'change-password' | 'pending' | 'denied' | 'app-disabled' | 'continuing';
+type Step =
+  'loading' | 'load-error' | 'expired' | 'form' | 'code' | 'totp' | 'unconfirmed' | 'other-way' | 'change-password' | 'pending' | 'denied' | 'deletion-pending' | 'app-disabled' | 'continuing';
 
 /** The sign-in being attempted, kept so the two-factor step can send the whole of it again with the code. */
 type PendingSignIn = { kind: 'password'; email: string; password: string } | { kind: 'code'; email: string; code: string } | { kind: 'google'; credential: string; newsMail?: boolean };
@@ -384,6 +385,11 @@ export class LoginComponent implements OnInit {
           this.changeErrors.set({ current: this.t('error.wrongPassword') });
         } else if (error.code === 'invalid_password') {
           this.changeErrors.set({ next: this.t('error.invalidPassword') });
+        } else if (error.code === 'reauthentication_required') {
+          // A first password takes a sign-in of the last fifteen minutes, and
+          // this one is older - the page found the person signed in already.
+          // Signed out, they sign in again here and come back to this step.
+          this._signInAgainHere(user.email);
         } else if (error.status === 401) {
           this._session.clear();
           this.startOver();
@@ -405,7 +411,7 @@ export class LoginComponent implements OnInit {
     this.goTo('form');
   }
 
-  /** Signs out of the account that may not use the application, and offers the form again. */
+  /** Signs out of the account that may not use the application (or is being deleted), and offers the form again. */
   protected useAnotherAccount(): void {
     this.busy.set(true);
     this._loginApi.logout().subscribe({
@@ -414,6 +420,24 @@ export class LoginComponent implements OnInit {
         this._session.clear();
         this.email.set('');
         this.startOver();
+      },
+      error: (error: ApiError) => {
+        this.busy.set(false);
+        this.formError.set(this._errorText(error));
+      },
+    });
+  }
+
+  /** Signs out, and offers the form again for the same address, saying why: a sign-in too old for what it was asked to do. */
+  private _signInAgainHere(email: string): void {
+    this.busy.set(true);
+    this._loginApi.logout().subscribe({
+      next: () => {
+        this.busy.set(false);
+        this._session.clear();
+        this.email.set(email);
+        this.startOver();
+        this.notice.set(this.t('deletion.freshSignIn'));
       },
       error: (error: ApiError) => {
         this.busy.set(false);
@@ -617,6 +641,11 @@ export class LoginComponent implements OnInit {
         return;
       case 'access_denied':
         this.goTo('denied');
+        return;
+      case 'account_deletion_pending':
+        // The account signed in is being deleted at its owner's request: no
+        // site gets it until the deletion is cancelled, on the account page.
+        this.goTo('deletion-pending');
         return;
       case 'application_disabled':
         this.goTo('app-disabled');

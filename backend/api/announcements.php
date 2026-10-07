@@ -18,8 +18,9 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
  *
  * What keeps it honest:
  *
- *   - Only people who can be written to (ANNOUNCEMENT_REACHABLE): switched on,
- *     the address confirmed, approved, and the news not switched off - on the
+ *   - Only people who can be written to (announcementReachable()): switched
+ *     on, the address confirmed, approved, not on their way out (a deletion
+ *     asked for, migration 016), and the news not switched off - on the
  *     account page, or by the link at the end of every announcement
  *     (newsUnsubscribeToken()). Asked when the list is made, and again for
  *     each mail as it goes.
@@ -86,6 +87,16 @@ const MAIL_SENDER_NAME_MAX = 60;
  * no account yet, as far as its owner is concerned), and the news on.
  */
 const ANNOUNCEMENT_REACHABLE = 'NOT u.disabled AND u.email_confirmed AND u.approved AND u.news_mail';
+
+/**
+ * ANNOUNCEMENT_REACHABLE - and, once migration 016 is there, not on the way
+ * out: an account whose owner asked for its deletion is closed, and is sent
+ * no news in its last thirty days (a deleted one is switched off already).
+ */
+function announcementReachable(PDO $pdo): string
+{
+    return ANNOUNCEMENT_REACHABLE . (accountDeletionReady($pdo) ? ' AND u.deletion_due_at IS NULL' : '');
+}
 
 // ── Ready? ───────────────────────────────────────────────────────────────────
 
@@ -729,27 +740,32 @@ function announcementAudienceMatch(array $audience): array
 
 /**
  * How many an audience reaches, and why the others are left out - each
- * counted once, for the first reason that holds - and how many read which
- * language (one switched off is read as English, as everywhere).
+ * counted once, for the first reason that holds: switched off, on the way
+ * out (a deletion asked for), unconfirmed, waiting, the news off - and how
+ * many read which language (one switched off is read as English, as
+ * everywhere).
  *
- * @return array{recipients: int, left_out: array{disabled: int, unconfirmed: int, waiting: int, news_off: int}, languages: array<string, int>}
+ * @return array{recipients: int, left_out: array{disabled: int, unconfirmed: int, waiting: int, news_off: int, deleting: int}, languages: array<string, int>}
  */
 function announcementAudienceCount(PDO $pdo, array $audience): array
 {
     [$match, $params] = announcementAudienceMatch($audience);
+    $reachable = announcementReachable($pdo);
+    $deleting = accountDeletionReady($pdo) ? 'u.deletion_due_at IS NOT NULL' : 'FALSE';
 
     $counts = $pdo->prepare(
-        "SELECT count(*) FILTER (WHERE " . ANNOUNCEMENT_REACHABLE . ") AS recipients,
+        "SELECT count(*) FILTER (WHERE $reachable) AS recipients,
                 count(*) FILTER (WHERE u.disabled) AS disabled,
-                count(*) FILTER (WHERE NOT u.disabled AND NOT u.email_confirmed) AS unconfirmed,
-                count(*) FILTER (WHERE NOT u.disabled AND u.email_confirmed AND NOT u.approved) AS waiting,
-                count(*) FILTER (WHERE NOT u.disabled AND u.email_confirmed AND u.approved AND NOT u.news_mail) AS news_off
+                count(*) FILTER (WHERE NOT u.disabled AND $deleting) AS deleting,
+                count(*) FILTER (WHERE NOT u.disabled AND NOT ($deleting) AND NOT u.email_confirmed) AS unconfirmed,
+                count(*) FILTER (WHERE NOT u.disabled AND NOT ($deleting) AND u.email_confirmed AND NOT u.approved) AS waiting,
+                count(*) FILTER (WHERE NOT u.disabled AND NOT ($deleting) AND u.email_confirmed AND u.approved AND NOT u.news_mail) AS news_off
            FROM users u WHERE $match"
     );
     $counts->execute($params);
     $row = $counts->fetch();
 
-    $languages = $pdo->prepare("SELECT u.language, count(*) AS people FROM users u WHERE $match AND " . ANNOUNCEMENT_REACHABLE . ' GROUP BY u.language');
+    $languages = $pdo->prepare("SELECT u.language, count(*) AS people FROM users u WHERE $match AND $reachable GROUP BY u.language");
     $languages->execute($params);
     $read = [];
     foreach ($languages->fetchAll() as $language) {
@@ -765,6 +781,9 @@ function announcementAudienceCount(PDO $pdo, array $audience): array
             'unconfirmed' => (int) $row['unconfirmed'],
             'waiting' => (int) $row['waiting'],
             'news_off' => (int) $row['news_off'],
+            // Last in the answer, first among the reasons after "switched
+            // off": added by 016, after the four the composer had.
+            'deleting' => (int) $row['deleting'],
         ],
         'languages' => $read,
     ];
@@ -806,7 +825,7 @@ function announcementCreate(PDO $pdo, array $draft, array $audience, int $actorI
         $recipients = $pdo->prepare(
             "INSERT INTO announcement_recipients (announcement_id, user_id, email, language)
              SELECT ?::int, u.id, u.email, CASE WHEN u.language IN (" . implode(', ', array_fill(0, count($versions), '?')) . ") THEN u.language ELSE 'en' END
-               FROM users u WHERE $match AND " . ANNOUNCEMENT_REACHABLE
+               FROM users u WHERE $match AND " . announcementReachable($pdo)
         );
         $recipients->execute([$id, ...$versions, ...$params]);
         $count = $recipients->rowCount();
@@ -1217,7 +1236,7 @@ function announcementSendBatch(PDO $pdo, int $id): array
 
     $status = $pdo->prepare('SELECT status FROM announcements WHERE id = ? FOR SHARE');
     $next = $pdo->prepare(
-        "SELECT r.user_id, r.language, u.email, (" . ANNOUNCEMENT_REACHABLE . ") AS reachable
+        "SELECT r.user_id, r.language, u.email, (" . announcementReachable($pdo) . ") AS reachable
            FROM announcement_recipients r JOIN users u ON u.id = r.user_id
           WHERE r.announcement_id = ? AND r.status = 'pending'
           ORDER BY r.user_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED"

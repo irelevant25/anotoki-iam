@@ -266,6 +266,36 @@ changes: the account page keeps the theme per device, and the tokens carry no
 sites follow it in any order after the upload - upload the IAM, Apply, then
 the sites.
 
+**Migration 016** (an account deleted at its owner's request, and a mail for
+a sign-in from a new browser - the owner's decisions of 2026-10-07,
+`docs/decisions.md`) adds the deletion's three dates to every account (none
+set), the table of the browsers accounts signed in from (empty), the words of
+the account page's deletion, its notice, the refusal page and the four mails
+(asked, cancelled, deleted, a new browser) in English and Slovak, and makes a
+new application give MEMBER to every account but a deleted one. Apply it right
+after the upload. Until then nothing changes: asking for a deletion answers
+that the update must be applied first, signing in sets no device cookie and
+mails nobody, and the public list of deleted ids is empty. After it, each
+account's first sign-in notes its browser without a mail - nobody is mailed
+on release day; a second browser after that is. The sites need nothing new to
+keep working: an account being deleted is simply refused to them. Each reads
+`/api/public/anonymized-accounts` once its shared module arrives, and scrubs
+its own copies of the names and addresses there.
+
+Deleted accounts are made nobody's by housekeeping, which runs on ordinary
+traffic (the sites' sign-ins and refreshes, the IAM's own pages, the sites
+reading the list), at most an hour after one is due - no cron. **A database
+backup is never restored to bring an account back.** If one older than a
+deletion must be restored, note first which ids were deleted since - the list
+(`GET /api/public/anonymized-accounts?since=` the backup's time), or the sites'
+own records of what they scrubbed - and after the restore set them due again,
+for housekeeping to delete within the hour:
+
+```sql
+UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '30 days', deletion_due_at = CURRENT_TIMESTAMP
+ WHERE id IN (/* the ids */) AND anonymized_at IS NULL;
+```
+
 ### The sites' addresses
 
 A fresh database registers the first-party applications with their development
@@ -322,6 +352,9 @@ checks and loads such a file into a development database.
 | Add an address announcements can come from | Admin panel → Announcements → Senders. Only at the domain the IAM sends from - and the mailbox must exist on the host. The installation's own (noreply, support) are config/mail.local.php's - never at a public mail provider: that domain is what counts as the anotoki sites' in an announcement's links |
 | Keep announcements inside the host's hourly mail limit | `'hourly_limit' => 300` (the host's number) in config/mail.local.php: announcements then use nine tenths of it, counting every mail the IAM sent in the last hour, and wait on their page for room. The installer keeps the key when it runs again. Without it the composer warns, as an announcement could use up what the host allows - sign-in codes with it |
 | Approve every new account before it can sign in | Admin panel → Settings → **New accounts need approval**. Accounts made with the form or with Google then wait on Admin panel → **Approvals** (the dashboard counts them): Approve mails them (once their address is confirmed), Decline switches the account off - not while its address is unconfirmed, as its registrant may not own it. Accounts made in the panel never wait; switching it off lets in everybody still waiting (a declined account stays declined) |
+| Somebody wants their account deleted | They do it themselves: the account page → **Delete my account**, with their password (or, without one, right after signing in). It is closed at once - signed out everywhere, refused by every site - mailed, and deleted thirty days later unless they cancel it on the same page. Nobody can ask or cancel for them, an administrator included; the last administrator of the IAM must make another one first. Then the row stays as `deleted-{id}`, switched off, and nothing about it can be changed |
+| See whose deletion is pending, and who was deleted | Admin panel → Users: an account's deletion date while it is pending; the time it was deleted, and its placeholder name, after |
+| Somebody got a "New sign-in" mail they do not recognise | Change the password (the account page → Security, or "Forgot password" - a reset also forgets every browser the account knew); everywhere else is signed out with it. The account page → Sessions shows where the account is signed in |
 | Rotate the signing key | Admin panel → Keys → Rotate. Tokens signed by the old key keep working until they expire; sites refetch the key set by themselves. Remove the retired key after a day. |
 | A script needs to call a site's API | The account page → Tokens for scripts |
 | Reword a sentence of the pages or a mail | Admin panel → Translations: edit, Save. Readers get it at their next page load; the change is in the audit log |
@@ -365,6 +398,10 @@ php tests/run.php                          # every test, against throwaway datab
 | A site accepts nobody's token | The site's configured issuer is not exactly the IAM's public URL, or its client id is wrong, or it cannot reach `/.well-known/jwks.json`. |
 | "access_denied" for somebody who should get in | They hold no role there that may sign in: their MEMBER was taken away (give it back under Users → the person → Roles), or the site's MEMBER may not sign in (the site was members-only before 010, or unticked since) and they hold none of its other roles - tick MEMBER, or give them a role that may sign in. |
 | Somebody signed up and is told "Waiting for approval" | Settings → New accounts need approval is on: approve them on Admin panel → Approvals (or their page under Users). A declined account is switched off: switch it on under Users, and it waits again |
+| Somebody can sign in at the IAM but no site lets them in: "Your account is being deleted" | They asked for their account's deletion. They cancel it on the account page (the notice at its top), and sign in to the sites again |
+| An administrator is refused by the admin panel: "This account is being deleted" | They asked for their own account's deletion: cancelling it on the account page gives the panel back. Meanwhile they do not count as an administrator - the last one who stays cannot be removed |
+| Setting a first password, connecting Google, switching password sign-in on or off, or turning two-factor on asks to "sign in again" | Those changes - like deleting the account - ask for the password where the account signs in with one, and otherwise a sign-in of the last 15 minutes: a session left open somewhere must not be able to make that proof for itself, nor lock the owner out. Sign out, sign in again, and do it within 15 minutes |
+| Nobody is mailed about new browsers | Expected for each account's first browser after migration 016 (and a new account's first); from the second on, a new browser is mailed - at most five an hour per account |
 | A site's admin area refuses its owner | They hold neither its ADMIN nor its EDITOR: Admin panel → Users → the person → Roles. An account made in the admin panel, or made the IAM's ADMIN there, gets no site's ADMIN by itself; the installer's administrator, `create-admin.php`'s, an imported one and every administrator there when 007 ran were given all of them. |
 | Somebody no longer an administrator still administers a site | Taking the IAM's ADMIN away takes nothing else: remove their ADMIN (and EDITOR) on each site too - Admin panel → Users → the person → Roles. |
 | Sign-in mail never arrives | `mail.local.php` still has the `file` driver (mail is in `storage/mail/`), or the sender is not a real mailbox on the hosted domain. |

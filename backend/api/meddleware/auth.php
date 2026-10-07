@@ -30,7 +30,9 @@ function currentSignIn(Request $request): ?array
     $user = userById($pdo, (int) $session['user_id']);
 
     // An account waiting for approval never gets a session (signInRefusal());
-    // should it hold one anyway, it is not let in by it.
+    // should it hold one anyway, it is not let in by it. One whose deletion
+    // is pending is: its account page is where the deletion is cancelled -
+    // and applicationAccessRefusal() issues nothing with it to any site.
     if ($user === null || asBool($user['disabled']) || accountAwaitsApproval($user)) {
         return null;
     }
@@ -41,6 +43,12 @@ function currentSignIn(Request $request): ?array
 function requireSession(): callable
 {
     return function (Request $request, RequestHandler $handler): Response {
+        // The account and admin pages are ordinary traffic housekeeping rides
+        // on (the host has no cron) - before the session is read, so an
+        // account whose deletion has just come due is signed out by it rather
+        // than served once more.
+        iamHousekeeping();
+
         $signIn = currentSignIn($request);
 
         if ($signIn === null) {
@@ -57,7 +65,14 @@ function requireSession(): callable
     };
 }
 
-/** Must come after requireSession() in the chain (added before it). */
+/**
+ * Must come after requireSession() in the chain (added before it).
+ *
+ * An administrator whose own deletion is pending (api/account_deletion.php)
+ * administers nothing until they cancel it: the account is closed but for
+ * cancelling, and iamAdminCount() no longer counts them - so the last-admin
+ * rule holds through the day their account goes.
+ */
 function requireAdmin(): callable
 {
     return function (Request $request, RequestHandler $handler): Response {
@@ -65,6 +80,10 @@ function requireAdmin(): callable
 
         if (!$user || !isIamAdmin((int) $user['id'])) {
             return respondError(new \Slim\Psr7\Response(), 403, 'forbidden', 'Only IAM administrators can do this');
+        }
+
+        if (accountDeletionPending($user)) {
+            return respondError(new \Slim\Psr7\Response(), 403, 'account_deletion_pending', 'This account is being deleted - cancel the deletion on the account page to use the admin panel again');
         }
 
         return $handler->handle($request);

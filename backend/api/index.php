@@ -44,6 +44,8 @@ require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/translations.php';
 require_once __DIR__ . '/announcements.php';
 require_once __DIR__ . '/accounts.php';
+require_once __DIR__ . '/account_deletion.php';
+require_once __DIR__ . '/sign_in_devices.php';
 require_once __DIR__ . '/oidc.php';
 require_once __DIR__ . '/housekeeping.php';
 require_once __DIR__ . '/migration_runner.php';

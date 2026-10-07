@@ -31,6 +31,8 @@ const SESSION_REVOKED_REPLACED = 'replaced';
 const SESSION_REVOKED_ADMIN = 'ended_by_admin';
 const SESSION_REVOKED_DISABLED = 'account_disabled';
 const SESSION_REVOKED_CLAIMED = 'address_claimed';
+/** The person asked for the account to be deleted (api/account_deletion.php): every other session, and every token. */
+const SESSION_REVOKED_DELETION = 'account_deletion';
 
 /** last_seen_at is rewritten at most this often; nothing reads it more finely. */
 const SESSION_TOUCH_INTERVAL = 60;
@@ -312,6 +314,16 @@ const ATTEMPT_METHOD_ACCOUNT_TOTP = 'account_totp';
 
 /** The `method` of an authenticator code asked for by a password reset. */
 const ATTEMPT_METHOD_PASSWORD_RESET = 'password_reset';
+
+/** The `method` of the password a deletion of the account is asked with, and of its mail (16 characters: the column's width). */
+const ATTEMPT_METHOD_ACCOUNT_DELETION = 'account_deletion';
+
+/**
+ * The `method` of the current password the account page asks for anything
+ * else - a change of password, Google connected, password sign-in switched on
+ * or off (accountProof()).
+ */
+const ATTEMPT_METHOD_ACCOUNT_PASSWORD = 'account_password';
 
 function recordLoginAttempt(PDO $pdo, Request $request, string $email, ?int $userId, string $method, string $outcome): void
 {

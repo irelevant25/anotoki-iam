@@ -9,18 +9,21 @@ runs as its own subdomain.
 
 - **Sign-in**: password, a six-digit code by email, or Google; two-factor with
   an authenticator app and recovery codes; remembered devices; "keep me signed
-  in"; forgotten passwords; confirmed addresses.
+  in"; forgotten passwords; confirmed addresses; a mail when the account signs
+  in from a new browser.
 - **Single sign-on**: signed in once, every other site bounces through without
   a form. Signing out ends it everywhere.
 - **Account page**: username and language, password, Google, two-factor,
-  sessions, the sites you can use, tokens for scripts.
+  sessions, the sites you can use, tokens for scripts - and deleting the
+  account: closed at once, deleted thirty days later unless cancelled, the
+  sites keeping what was made there under no name.
 - **Admin panel**: accounts, per-site roles, sessions, the mail log, the sites
   themselves (redirect URIs, origins, roles that may sign in), switches - new
   accounts can be made to wait for an administrator's approval -,
   announcements (news mailed to everybody, the holders of some roles or some
   people, from a template, in every language), signing keys, migrations, an
   audit log of every change - and the words: every sentence of the sign-in
-  and account pages, of the four mails and of the announcements' templates is
+  and account pages, of the IAM's own mails and of the announcements' templates is
   a string in the database, reworded there, and a new language is added
   there, with no build. English and Slovak come with it.
 - **Installer**: `backend/setup.php` writes the configuration, builds the

@@ -64,12 +64,14 @@ const TRANSLATION_MAIL_VALUE_MAX = 400;
  * for the string: mailFill() fills each one, and nothing stops a greeting from
  * naming its reader twice. So the bytes a mail string may have are the first
  * number less the second for each {username} in it - 500 with one, 100 with
- * two, and with three there is no room left at all. The other values - a
- * number of hours or minutes, the code - are no longer than the placeholders
- * they stand in for.
+ * two, and with three there is no room left at all. A {date} (the deletion
+ * mail's day, mailDate()) is ten bytes at most - "2026-11-06" - and its ten
+ * are kept the same way. The other values - a number of hours or minutes,
+ * the code - are no longer than the placeholders they stand in for.
  */
 const TRANSLATION_MAIL_LINE_OCTETS = 900;
 const TRANSLATION_MAIL_USERNAME_OCTETS = 400;
+const TRANSLATION_MAIL_DATE_OCTETS = 10;
 
 /** A placeholder in a string: {name}. The same expression as the frontend's (core/i18n) and mailFill()'s. */
 const TRANSLATION_PLACEHOLDER = '/\{([A-Za-z][A-Za-z0-9_]*)\}/';
@@ -816,9 +818,10 @@ function translationsCheck(mixed $values, array $keys, array $languages, array $
                 // And in bytes: the string is one line of the message as
                 // sent. Where the key takes the username, room is kept for it
                 // as often as the string names it - every {username} is
-                // filled, and each may become 400 bytes.
+                // filled, and each may become 400 bytes. A {date}'s ten, too.
                 $named = in_array('username', $placeholders, true) ? substr_count($text, '{username}') : 0;
-                $room = TRANSLATION_MAIL_LINE_OCTETS - $named * TRANSLATION_MAIL_USERNAME_OCTETS;
+                $dated = in_array('date', $placeholders, true) ? substr_count($text, '{date}') : 0;
+                $room = TRANSLATION_MAIL_LINE_OCTETS - $named * TRANSLATION_MAIL_USERNAME_OCTETS - $dated * TRANSLATION_MAIL_DATE_OCTETS;
                 if (strlen($text) > $room) {
                     return $invalid(
                         'invalid_value',

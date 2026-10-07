@@ -37,8 +37,25 @@ function outstandingTokenCount(PDO $pdo, int $userId, string $purpose): int
 }
 
 /**
+ * The condition a token's insert asks of its account (016): the account's row
+ * there and not anonymized - read with a key-share lock, so an anonymization
+ * holding the row at that moment is waited for, and the row read again once
+ * it is committed: then there is no account to issue for. The lock is the
+ * insert's own and goes with its statement's transaction.
+ */
+function tokenAccountSql(PDO $pdo): string
+{
+    return 'EXISTS (SELECT 1 FROM users WHERE id = ?' . liveAccountSql($pdo) . ' FOR KEY SHARE)';
+}
+
+/**
  * Issues a link token and hands back the part that goes in the mail, or null
- * when the account already holds as many as it may.
+ * when the account already holds as many as it may - or is deleted
+ * (tokenAccountSql()), even by an anonymization still committing when this
+ * asks: then no token is kept and nothing is mailed. A token issued a moment
+ * before an anonymization starts is deleted by it; the caller may still mail
+ * it - to the address the account had a moment before - and the link opens
+ * nothing (findOneTimeToken()).
  *
  * `$context` travels with it - the application a registration started from,
  * so the confirmation can offer the way back.
@@ -53,20 +70,22 @@ function issueOneTimeToken(PDO $pdo, int $userId, string $purpose, int $lifetime
     // and back into a URL without anything needing escaping.
     $token = randomHex(32);
 
-    $pdo->prepare(
+    $insert = $pdo->prepare(
         "INSERT INTO user_tokens (user_id, purpose, token_hash, context, expires_at)
-              VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))"
-    )->execute([$userId, $purpose, sha256($token), $context === null ? null : json_encode($context), $lifetimeSeconds]);
+         SELECT ?, ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
+          WHERE " . tokenAccountSql($pdo)
+    );
+    $insert->execute([$userId, $purpose, sha256($token), $context === null ? null : json_encode($context), $lifetimeSeconds, $userId]);
 
-    return $token;
+    return $insert->rowCount() === 1 ? $token : null;
 }
 
 /**
  * The row a link token names, if it is live and for this purpose.
  *
  * Null for every way a token can fail - never existed, wrong purpose, expired,
- * used - on purpose: telling those apart would tell somebody holding a guess
- * that the guess was nearly right.
+ * used, its account deleted since (016) - on purpose: telling those apart
+ * would tell somebody holding a guess that the guess was nearly right.
  */
 function findOneTimeToken(PDO $pdo, string $token, string $purpose): ?array
 {
@@ -74,9 +93,12 @@ function findOneTimeToken(PDO $pdo, string $token, string $purpose): ?array
         return null;
     }
 
+    $live = accountDeletionReady($pdo)
+        ? ' AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = user_tokens.user_id AND u.anonymized_at IS NOT NULL)'
+        : '';
     $statement = $pdo->prepare(
         'SELECT * FROM user_tokens
-          WHERE token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP'
+          WHERE token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP' . $live
     );
     $statement->execute([sha256($token), $purpose]);
 
@@ -112,7 +134,11 @@ function tokenContext(array $token): array
 }
 
 /**
- * A six-digit sign-in code, or null when the account holds five already.
+ * A six-digit sign-in code, or null when the account holds five already - or
+ * is deleted (tokenAccountSql()), even by an anonymization still committing
+ * when this asks: then nothing is mailed. One issued a moment before an
+ * anonymization starts is deleted by it; its mail may still go, to the
+ * address the account had, and the code signs nobody in.
  *
  * The hash mixes in the account id: six digits collide, and the index on the
  * hash is unique. It is also what makes a code only ever a code for one
@@ -126,12 +152,14 @@ function issueLoginCode(PDO $pdo, int $userId, int $lifetimeSeconds): ?string
 
     $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-    $pdo->prepare(
+    $insert = $pdo->prepare(
         "INSERT INTO user_tokens (user_id, purpose, token_hash, expires_at)
-              VALUES (?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))"
-    )->execute([$userId, TOKEN_LOGIN_CODE, loginCodeHash($userId, $code), $lifetimeSeconds]);
+         SELECT ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
+          WHERE " . tokenAccountSql($pdo)
+    );
+    $insert->execute([$userId, TOKEN_LOGIN_CODE, loginCodeHash($userId, $code), $lifetimeSeconds, $userId]);
 
-    return $code;
+    return $insert->rowCount() === 1 ? $code : null;
 }
 
 function loginCodeHash(int $userId, string $code): string

@@ -14,6 +14,8 @@ import { DialogComponent } from '../../../ui/dialog/dialog.component';
 import { PasswordFieldComponent } from '../../../ui/password-field/password-field.component';
 import { ToastService } from '../../../ui/toast/toast.service';
 import { PASSWORD_MAX_BYTES, passwordBytes } from '../../auth/auth-helpers';
+import { FreshSignInComponent } from '../fresh-sign-in.component';
+import { SECURITY_ANCHORS } from './security-anchors';
 
 /**
  * Changing the password (current, new, new again) or setting a first one on
@@ -23,10 +25,14 @@ import { PASSWORD_MAX_BYTES, passwordBytes } from '../../auth/auth-helpers';
  * before it happens rather than discovered afterwards on another laptop. A
  * hidden address field lets a password manager file the new password under
  * the right account.
+ *
+ * A first password asks for the proof a session alone cannot give (docs/api.md):
+ * there is no password to ask for, so a sign-in of the last fifteen minutes -
+ * an older one brings the way to sign in again, back to the ways in.
  */
 @Component({
   selector: 'app-password-dialog',
-  imports: [TPipe, AlertComponent, ButtonComponent, DialogComponent, PasswordFieldComponent],
+  imports: [TPipe, AlertComponent, ButtonComponent, DialogComponent, PasswordFieldComponent, FreshSignInComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './password-dialog.component.html',
   styleUrl: './password-dialog.component.scss',
@@ -41,6 +47,7 @@ export class PasswordDialogComponent {
   private readonly _i18n = inject(TranslationService);
   private readonly _toast = inject(ToastService);
 
+  protected readonly anchor = SECURITY_ANCHORS.methods;
   protected readonly email = computed(() => this._session.user()?.email ?? '');
   protected readonly passwordMin = toSignal(
     inject(PublicApi)
@@ -59,9 +66,14 @@ export class PasswordDialogComponent {
   protected readonly nextError = signal<string | null>(null);
   protected readonly againError = signal<string | null>(null);
   protected readonly formError = signal<string | null>(null);
+  /** A first password asked for with a sign-in too old to stand for the person (`reauthentication_required`): they sign in again first. */
+  protected readonly freshSignIn = signal(false);
   protected readonly busy = signal(false);
 
   protected submit(): void {
+    if (this.freshSignIn()) {
+      return;
+    }
     this.currentError.set(null);
     this.nextError.set(null);
     this.againError.set(null);
@@ -117,6 +129,8 @@ export class PasswordDialogComponent {
       this.currentError.set(text);
     } else if (error.code === 'invalid_password') {
       this.nextError.set(text);
+    } else if (error.code === 'reauthentication_required') {
+      this.freshSignIn.set(true);
     } else {
       this.formError.set(text);
     }

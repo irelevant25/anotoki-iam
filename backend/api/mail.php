@@ -1,8 +1,10 @@
 <?php
 
 /**
- * Sending mail: the four messages the IAM sends by itself, and the
- * announcements an administrator writes (api/announcements.php).
+ * Sending mail: the messages the IAM sends by itself - a confirmation, a
+ * reset, a sign-in code, an approval, an account's deletion asked for,
+ * cancelled and done, a sign-in from a new browser - and the announcements an
+ * administrator writes (api/announcements.php).
  *
  * Two drivers, chosen in config/mail.local.php (config/mail.php describes it):
  * `mail` hands the message to PHP's mail(), which is what the hosting
@@ -26,12 +28,14 @@
  *     two a notice of an administrator's approval has no use for. That line
  *     is never part of a string and there is no placeholder for it, so no
  *     rewording can drop the link, move it, or put another one in its place.
+ *     (A deleted account's last mail has no such line; a new sign-in's has
+ *     the time and the browser there, and its link as a last line.)
  *   - Which placeholders a string has is said by MAIL_KEYS - the code, not the
  *     stored English - and only those are filled in.
  *   - The panel refuses an address in a mail's words, a line break in any of
  *     them, a brace that is not a placeholder, a long subject, and a string
- *     too long for one line of mail once its {username}s are filled
- *     (translationsCheck()). For the subject sending relies on none of that:
+ *     too long for one line of mail once its {username}s and {date}s are
+ *     filled (translationsCheck()). For the subject sending relies on none of that:
  *     sendMail() makes it one line, and short, whatever it was handed.
  *   - The English of every string is kept here too (MAIL_FALLBACK), for a
  *     database that has no strings yet - a build is uploaded before its
@@ -48,12 +52,17 @@ const MAIL_KIND_LOGIN_CODE = 'login_code';
 const MAIL_KIND_ACCOUNT_APPROVED = 'account_approved';
 const MAIL_KIND_ANNOUNCEMENT = 'announcement';
 const MAIL_KIND_ANNOUNCEMENT_TEST = 'announcement_test';
+const MAIL_KIND_DELETION_REQUESTED = 'account_deletion_requested';
+const MAIL_KIND_DELETION_CANCELLED = 'account_deletion_cancelled';
+const MAIL_KIND_ACCOUNT_DELETED = 'account_deleted';
+const MAIL_KIND_NEW_SIGN_IN = 'new_sign_in';
 
 /**
  * Kinds whose subject holds nothing secret. Default-deny: the sign-in code is in
  * its message's subject, so an unlisted kind is logged with no subject at all.
  */
-const MAIL_SUBJECT_SAFE_KINDS = [MAIL_KIND_CONFIRMATION, MAIL_KIND_PASSWORD_RESET, MAIL_KIND_ACCOUNT_APPROVED, MAIL_KIND_ANNOUNCEMENT, MAIL_KIND_ANNOUNCEMENT_TEST];
+const MAIL_SUBJECT_SAFE_KINDS = [MAIL_KIND_CONFIRMATION, MAIL_KIND_PASSWORD_RESET, MAIL_KIND_ACCOUNT_APPROVED, MAIL_KIND_ANNOUNCEMENT, MAIL_KIND_ANNOUNCEMENT_TEST,
+    MAIL_KIND_DELETION_REQUESTED, MAIL_KIND_DELETION_CANCELLED, MAIL_KIND_ACCOUNT_DELETED, MAIL_KIND_NEW_SIGN_IN];
 
 const MAIL_SENDER_NOREPLY = 'noreply';
 const MAIL_SENDER_SUPPORT = 'support';
@@ -106,12 +115,34 @@ const MAIL_KEYS = [
     // What every announcement ends with.
     'mail.news.footer' => [],
     'mail.news.stop' => [],
+    // An account's deletion (api/account_deletion.php): asked for - {date} the
+    // day it is due -, cancelled, and done, the last mail to the address.
+    'mail.deletionRequested.subject' => [],
+    'mail.deletionRequested.greeting' => ['username'],
+    'mail.deletionRequested.intro' => ['date'],
+    'mail.deletionRequested.ignore' => [],
+    'mail.deletionCancelled.subject' => [],
+    'mail.deletionCancelled.greeting' => ['username'],
+    'mail.deletionCancelled.intro' => [],
+    'mail.deletionCancelled.ignore' => [],
+    'mail.deleted.subject' => [],
+    'mail.deleted.greeting' => ['username'],
+    'mail.deleted.intro' => [],
+    'mail.deleted.closing' => [],
+    // A sign-in from a browser the account has not signed in from before
+    // (api/sign_in_devices.php). The time and the browser are the server's
+    // lines, never a string's: a user agent is whatever the browser says.
+    'mail.newSignIn.subject' => [],
+    'mail.newSignIn.greeting' => ['username'],
+    'mail.newSignIn.intro' => [],
+    'mail.newSignIn.ignore' => [],
 ];
 
 /**
- * The English of every mail string, as migrations 006, 012 and 013 seed it (a
- * test holds the two together). Used string by string whenever the database
- * has nothing to say: no tables yet, a query that failed, a row that is gone.
+ * The English of every mail string, as migrations 006, 012, 013 and 016 seed
+ * it (a test holds the two together). Used string by string whenever the
+ * database has nothing to say: no tables yet, a query that failed, a row that
+ * is gone.
  */
 const MAIL_FALLBACK = [
     'mail.confirm.subject' => 'Confirm your anotoki account',
@@ -146,6 +177,22 @@ const MAIL_FALLBACK = [
     'mail.newSurvey.button' => 'Take the survey',
     'mail.news.footer' => 'You get this email because you have an anotoki account.',
     'mail.news.stop' => 'Stop the news from anotoki sites',
+    'mail.deletionRequested.subject' => 'Your anotoki account will be deleted',
+    'mail.deletionRequested.greeting' => 'Hello {username},',
+    'mail.deletionRequested.intro' => 'You asked for your anotoki account to be deleted, and it will be on {date}. Until then it signs you in to no anotoki site. To keep it, sign in on your account page and cancel the deletion:',
+    'mail.deletionRequested.ignore' => 'If you did not ask for this, somebody else has been signed in to your account: cancel the deletion there, then change your password.',
+    'mail.deletionCancelled.subject' => 'Your anotoki account will not be deleted',
+    'mail.deletionCancelled.greeting' => 'Hello {username},',
+    'mail.deletionCancelled.intro' => 'The deletion of your anotoki account was cancelled, and it stays as it is. Sign in to the anotoki sites again to use them. Your account page:',
+    'mail.deletionCancelled.ignore' => 'If you did not cancel it, somebody else has been signed in to your account: change your password, and ask for the deletion again if you still want it.',
+    'mail.deleted.subject' => 'Your anotoki account is deleted',
+    'mail.deleted.greeting' => 'Hello {username},',
+    'mail.deleted.intro' => 'As you asked, your anotoki account is deleted: its name, its address, its password and its sign-ins are gone. The anotoki sites keep what was made on them, under no name.',
+    'mail.deleted.closing' => 'This is the last email we send to this address. Thank you for having been with us.',
+    'mail.newSignIn.subject' => 'New sign-in to your anotoki account',
+    'mail.newSignIn.greeting' => 'Hello {username},',
+    'mail.newSignIn.intro' => 'Your anotoki account was just signed in to from a browser or device it has not been used on before:',
+    'mail.newSignIn.ignore' => 'If it was you, there is nothing to do. If it was not, change your password now, and end that sign-in on the page that shows every place your account is signed in:',
 ];
 
 /**
@@ -284,15 +331,19 @@ function mailFill(string $key, string $text, array $values): string
 /**
  * A whole message: ['subject' => ..., 'body' => ...].
  *
- * $mail is 'confirm', 'reset', 'loginCode' or 'approved'. $line is the
- * message's middle line - the link, or the code - put in here and never by a
- * string. $after names the paragraphs under it: the link's or the code's
+ * $mail is 'confirm', 'reset', 'loginCode', 'approved', 'deletionRequested',
+ * 'deletionCancelled', 'deleted' or 'newSignIn'. $line is the message's
+ * middle line - the link, or the code - put in here and never by a string;
+ * '' for a message that has none (the account deleted: there is nothing left
+ * to go to). $after names the paragraphs under it: the link's or the code's
  * validity and the line for somebody who did not ask for it, which a notice
- * of an administrator's approval has no use for.
+ * of an administrator's approval has no use for. $closing is a second line of
+ * the server's, after them - the new sign-in mail's link, under the paragraph
+ * that says what it is for.
  *
  * @return array{subject: string, body: string}
  */
-function mailMessage(string $mail, array $words, string $line, array $values, array $after = ['validity', 'ignore']): array
+function mailMessage(string $mail, array $words, string $line, array $values, array $after = ['validity', 'ignore'], ?string $closing = null): array
 {
     $part = static function (string $name) use ($mail, $words, $values): string {
         $key = 'mail.' . $mail . '.' . $name;
@@ -300,10 +351,34 @@ function mailMessage(string $mail, array $words, string $line, array $values, ar
         return mailFill($key, (string) ($words[$key] ?? MAIL_FALLBACK[$key]), $values);
     };
 
+    $paragraphs = [$part('greeting'), $part('intro'), $line, ...array_map($part, $after), $closing ?? ''];
+
     return [
         'subject' => $part('subject'),
-        'body' => implode("\n\n", [$part('greeting'), $part('intro'), $line, ...array_map($part, $after)]) . "\n",
+        'body' => implode("\n\n", array_filter($paragraphs, static fn(string $paragraph): bool => $paragraph !== '')) . "\n",
     ];
+}
+
+/**
+ * A day as the account writes dates (its `date_format`, migration 015), and
+ * as an ISO date when it chose none: a mail cannot know the page language's
+ * own way, and 2026-11-06 reads the same in every language. Ten characters at
+ * most, digits and separators - TRANSLATION_MAIL_DATE_OCTETS keeps the room.
+ */
+function mailDate(array $user, int $timestamp): string
+{
+    return gmdate(match ($user['date_format'] ?? null) {
+        'dmy_dot' => 'j.n.Y',
+        'dmy_slash' => 'd/m/Y',
+        'mdy_slash' => 'm/d/Y',
+        default => 'Y-m-d',
+    }, $timestamp);
+}
+
+/** A moment, in UTC and saying so: the account's date, then its clock (24 hours unless it chose 12). */
+function mailTime(array $user, int $timestamp): string
+{
+    return mailDate($user, $timestamp) . ' ' . gmdate(($user['time_format'] ?? null) === '12' ? 'g:i A' : 'H:i', $timestamp) . ' UTC';
 }
 
 /**
@@ -315,10 +390,13 @@ function mailMessage(string $mail, array $words, string $line, array $values, ar
  * typed. `$headers` adds headers of the caller's (List-Unsubscribe), each
  * kept to one line.
  *
+ * `$loggedAs` is the recipient the email log keeps, when not `$to`: the last
+ * mail to a deleted account's address is logged under its placeholder.
+ *
  * @param string|array{from: string, from_name?: string} $sender
  * @param array<string, string> $headers
  */
-function sendMail(string $to, string $subject, string $body, string $kind, ?int $userId = null, string|array $sender = MAIL_SENDER_NOREPLY, ?string $html = null, array $headers = []): bool
+function sendMail(string $to, string $subject, string $body, string $kind, ?int $userId = null, string|array $sender = MAIL_SENDER_NOREPLY, ?string $html = null, array $headers = [], ?string $loggedAs = null): bool
 {
     // One line, and not a long one - here, whatever was checked when the words
     // were saved: a subject is a header, a line break in a header starts the
@@ -367,7 +445,7 @@ function sendMail(string $to, string $subject, string $body, string $kind, ?int 
         }
         try {
             $pdo->prepare('INSERT INTO email_log (recipient, kind, subject, status, user_id) VALUES (?, ?, ?, ?, ?)')
-                ->execute([$to, $kind, in_array($kind, MAIL_SUBJECT_SAFE_KINDS, true) ? $subject : null, $ok ? 'sent' : 'failed', $userId]);
+                ->execute([$loggedAs ?? $to, $kind, in_array($kind, MAIL_SUBJECT_SAFE_KINDS, true) ? $subject : null, $ok ? 'sent' : 'failed', $userId]);
         } catch (\Throwable $e) {
             if ($nested) {
                 $pdo->exec('ROLLBACK TO SAVEPOINT email_log');
@@ -446,4 +524,69 @@ function sendAccountApprovedMail(array $user): bool
     $text = mailMessage('approved', mailWordsFor($user), iamPageUrl('/login'), ['username' => $user['username']], []);
 
     return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_ACCOUNT_APPROVED, $user['id'] ?? null, MAIL_SENDER_SUPPORT);
+}
+
+/**
+ * The person asked for their account to be deleted (api/account_deletion.php):
+ * the day it goes, and the account page, where it is cancelled. From support@,
+ * like the deletion's other two: somebody who did not ask for it will answer.
+ */
+function sendAccountDeletionRequestedMail(array $user, int $due): bool
+{
+    $text = mailMessage('deletionRequested', mailWordsFor($user), iamPageUrl('/account'), [
+        'username' => $user['username'],
+        'date' => mailDate($user, $due),
+    ], ['ignore']);
+
+    return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_DELETION_REQUESTED, $user['id'] ?? null, MAIL_SENDER_SUPPORT);
+}
+
+/** The deletion was cancelled - news the owner must get when it was not them who did it. */
+function sendAccountDeletionCancelledMail(array $user): bool
+{
+    $text = mailMessage('deletionCancelled', mailWordsFor($user), iamPageUrl('/account'), ['username' => $user['username']], ['ignore']);
+
+    return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_DELETION_CANCELLED, $user['id'] ?? null, MAIL_SENDER_SUPPORT);
+}
+
+/**
+ * The account is deleted: the words of the last mail to the address, put
+ * together while its name and language are still known - inside the
+ * anonymization's transaction (anonymizeAccount()). No link: there is nothing
+ * left to go to.
+ *
+ * @return array{subject: string, body: string}
+ */
+function accountDeletedMessage(array $user): array
+{
+    return mailMessage('deleted', mailWordsFor($user), '', ['username' => $user['username']], ['closing']);
+}
+
+/**
+ * Sends it, once the anonymization is committed: to the address the account
+ * had, logged under the placeholder it has now and under no account - the
+ * email log keeps no address of a deleted account, and the row stays as the
+ * record that the person was told.
+ *
+ * @param array{subject: string, body: string} $message
+ */
+function sendAccountDeletedMail(string $to, array $message, string $placeholder): bool
+{
+    return sendMail($to, $message['subject'], $message['body'], MAIL_KIND_ACCOUNT_DELETED, null, MAIL_SENDER_SUPPORT, null, [], $placeholder);
+}
+
+/**
+ * The account signed in from a browser it had not signed in from before
+ * (api/sign_in_devices.php): when, and the browser in a few words - from a
+ * fixed list (signInDeviceLabel()), never the user agent itself, which is
+ * whatever the browser chose to say: written out, it would be a stranger's
+ * words, a link among them, in a mail the IAM sends. Then the page of every
+ * place the account is signed in.
+ */
+function sendNewSignInMail(array $user, ?string $device, int $when): bool
+{
+    $details = '    ' . mailTime($user, $when) . ($device !== null ? "\n    " . $device : '');
+    $text = mailMessage('newSignIn', mailWordsFor($user), $details, ['username' => $user['username']], ['ignore'], iamPageUrl('/account/sessions'));
+
+    return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_NEW_SIGN_IN, $user['id'] ?? null);
 }

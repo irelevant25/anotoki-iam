@@ -269,7 +269,7 @@ test('the composer starts from the templates in every language, the senders, the
 test('who it reaches: everybody, roles, people - and who is left out, and why, each once', function () {
     $pdo = iamDb();
     $admin = admin();
-    [$editor, $off, $unconfirmed, $waiting, $disabled, $slovak] = readers('aud', 6);
+    [$editor, $off, $unconfirmed, $waiting, $disabled, $slovak, $leaving] = readers('aud', 7);
     grantRole($editor, 'genshin', 'EDITOR');
     $pdo->prepare('UPDATE users SET news_mail = FALSE WHERE id = ?')->execute([$off]);
     $pdo->prepare('UPDATE users SET email_confirmed = FALSE WHERE id = ?')->execute([$unconfirmed]);
@@ -277,19 +277,22 @@ test('who it reaches: everybody, roles, people - and who is left out, and why, e
     // Switched off and unconfirmed: counted as switched off, the first reason.
     $pdo->prepare('UPDATE users SET disabled = TRUE, email_confirmed = FALSE WHERE id = ?')->execute([$disabled]);
     $pdo->prepare("UPDATE users SET language = 'sk' WHERE id = ?")->execute([$slovak]);
+    // Its deletion asked for (016), and unconfirmed besides: counted as on its way out, the reason before.
+    $pdo->prepare("UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP, deletion_due_at = CURRENT_TIMESTAMP + INTERVAL '30 days', email_confirmed = FALSE WHERE id = ?")->execute([$leaving]);
 
     $count = static fn(array $audience): array => $admin->post('/api/admin/announcements/audience', ['audience' => $audience])->json();
 
     $everybody = $count(['everybody' => true]);
     $total = (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn();
-    same(['disabled' => 1, 'unconfirmed' => 1, 'waiting' => 1, 'news_off' => 1], $everybody['left_out'], 'everybody: one left out for each reason');
-    same($total - 4, $everybody['recipients'], 'and the rest reached');
+    same(['disabled' => 1, 'unconfirmed' => 1, 'waiting' => 1, 'news_off' => 1, 'deleting' => 1], $everybody['left_out'], 'everybody: one left out for each reason');
+    same($total - 5, $everybody['recipients'], 'and the rest reached');
     same(1, $everybody['languages']['sk'] ?? null, 'one reads Slovak');
 
-    same(['recipients' => 1, 'left_out' => ['disabled' => 0, 'unconfirmed' => 0, 'waiting' => 0, 'news_off' => 0], 'languages' => ['en' => 1]],
+    same(['recipients' => 1, 'left_out' => ['disabled' => 0, 'unconfirmed' => 0, 'waiting' => 0, 'news_off' => 0, 'deleting' => 0], 'languages' => ['en' => 1]],
         $count(['roles' => [['client_id' => 'genshin', 'role' => 'EDITOR']]]), 'the genshin site\'s editors');
-    same(['recipients' => 2, 'left_out' => ['disabled' => 1, 'unconfirmed' => 0, 'waiting' => 0, 'news_off' => 1], 'languages' => ['en' => 1, 'sk' => 1]],
-        $count(['roles' => [['client_id' => 'genshin', 'role' => 'editor']], 'user_ids' => [$off, $disabled, $slovak, $editor]]), 'roles and people together, each person once');
+    same(['recipients' => 2, 'left_out' => ['disabled' => 1, 'unconfirmed' => 0, 'waiting' => 0, 'news_off' => 1, 'deleting' => 1], 'languages' => ['en' => 1, 'sk' => 1]],
+        $count(['roles' => [['client_id' => 'genshin', 'role' => 'editor']], 'user_ids' => [$off, $disabled, $slovak, $editor, $leaving]]), 'roles and people together, each person once');
+    $pdo->prepare('UPDATE users SET deletion_requested_at = NULL, deletion_due_at = NULL WHERE id = ?')->execute([$leaving]);
 
     foreach ([
         [[], 'no_audience'],

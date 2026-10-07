@@ -150,17 +150,34 @@ function lockIamAdmins(PDO $pdo): void
  */
 const IAM_ADMINS_LOCK = 4260917;
 
-/** How many accounts can administer the IAM and are not switched off. */
-function iamAdminCount(): int
+/**
+ * The lock the MEMBER triggers take (010, 011, 016) before they give an
+ * account or an application its MEMBER; an anonymization takes it before it
+ * takes every role, so the two never cross (anonymizeAccount()).
+ */
+const MEMBER_ROLES_LOCK = 4260918;
+
+/**
+ * How many accounts administer the IAM: holding its ADMIN, switched on, and
+ * not on their way out - an administrator whose own deletion is pending
+ * administers nothing any more (requireAdmin()) and is gone when it is done,
+ * so the last-admin rule must not count them as one who stays. `$besides`
+ * leaves one account out: "would any be left without this one?" is the
+ * question every last-admin check asks.
+ */
+function iamAdminCount(?int $besides = null): int
 {
-    $statement = iamDb()->prepare(
+    $pdo = iamDb();
+    $leaving = accountDeletionReady($pdo) ? ' AND u.deletion_due_at IS NULL AND u.anonymized_at IS NULL' : '';
+
+    $statement = $pdo->prepare(
         "SELECT count(DISTINCT ur.user_id) FROM user_roles ur
            JOIN application_roles r ON r.id = ur.role_id
            JOIN applications a ON a.id = r.application_id
-           JOIN users u ON u.id = ur.user_id AND u.disabled = FALSE
-          WHERE a.client_id = ? AND r.name = 'ADMIN'"
+           JOIN users u ON u.id = ur.user_id AND u.disabled = FALSE{$leaving}
+          WHERE a.client_id = ? AND r.name = 'ADMIN' AND ur.user_id <> ?"
     );
-    $statement->execute([IAM_CLIENT_ID]);
+    $statement->execute([IAM_CLIENT_ID, $besides ?? 0]);
 
     return (int) $statement->fetchColumn();
 }
@@ -222,6 +239,11 @@ function userMaySignInTo(int $userId, int $applicationId): bool
  * refused `approval_pending`. It never has a session to get this far with:
  * this is the same switch on one more door.
  *
+ * An account whose deletion is pending (api/account_deletion.php) is refused
+ * `account_deletion_pending`: it keeps its session at the IAM - that is where
+ * it is cancelled - and nothing at all is issued with it to any site, so
+ * every site loses the person at the next refresh.
+ *
  * @return array{status: int, code: string, error: string}|null
  */
 function applicationAccessRefusal(array $application, array $user): ?array
@@ -240,6 +262,10 @@ function applicationAccessRefusal(array $application, array $user): ?array
 
     if (accountAwaitsApproval($user)) {
         return ['status' => 403, 'code' => 'approval_pending', 'error' => 'This account is waiting for an administrator\'s approval'];
+    }
+
+    if (accountDeletionPending($user)) {
+        return ['status' => 403, 'code' => 'account_deletion_pending', 'error' => 'This account is being deleted - cancel the deletion on the account page to use it again'];
     }
 
     if (rolesKeepOut($application, (int) $user['id'])) {

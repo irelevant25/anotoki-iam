@@ -119,6 +119,7 @@ export const en = {
   'error.invalidUsername': 'That username cannot be used.',
   'error.notFound': 'That no longer exists.',
   'error.approvalPending': 'This account is waiting for an administrator’s approval.',
+  'error.accountDeletionPending': 'This account is being deleted. To use it again, cancel the deletion on your account page.',
 
   // ── Sign in ────────────────────────────────────────────────────────────────
   'login.pageTitle': 'Sign in',
@@ -295,6 +296,8 @@ export const en = {
   'errorPage.networkText': 'Check your connection and try again.',
   'errorPage.otherTitle': 'Something went wrong',
   'errorPage.otherText': 'The request could not be completed.',
+  'errorPage.deletionPendingTitle': 'Your account is being deleted',
+  'errorPage.deletionPendingText': 'You asked for it to be deleted, so it signs in to no anotoki site any more. To keep it, go to your account and cancel the deletion.',
   'errorPage.code': 'Error code: {code}',
 
   // ── Not found ──────────────────────────────────────────────────────────────
@@ -463,6 +466,20 @@ export const en = {
   'security.devices.forgetText': 'Every browser will be asked for a two-factor code the next time it signs in, this one included.',
   'security.devices.forgotten': 'Every device will be asked for a code again.',
 
+  // ── Account: deleting the account ──────────────────────────────────────────
+  'deletion.title': 'Delete your account',
+  'deletion.lead':
+    'Your account is deleted 30 days after you ask. From that moment it signs you in to no anotoki site; after the 30 days your name, your address, your password and your sign-ins are gone for good. The anotoki sites keep what you made on them, under no name.',
+  'deletion.passwordLead': 'Type your password to confirm it is you.',
+  'deletion.freshSignIn': 'To confirm it is you, sign in again first - then come back here within 15 minutes.',
+  'deletion.submit': 'Delete my account',
+  'deletion.requested': 'Your account will be deleted on {date}. We have emailed you how to keep it.',
+  'deletion.lastAdmin': 'You are the only administrator of the IAM. Make somebody else an administrator before you delete your account.',
+  'deletion.pendingTitle': 'Your account will be deleted on {date}',
+  'deletion.pendingText': 'Until then it signs you in to no anotoki site. Changed your mind? Cancel the deletion and your account stays.',
+  'deletion.cancel': 'Cancel the deletion',
+  'deletion.cancelled': 'The deletion is cancelled. Sign in to the anotoki sites again to use them.',
+
   // ── Account: sessions ──────────────────────────────────────────────────────
   'sessions.pageTitle': 'Sessions',
   'sessions.title': 'Where you are signed in',
@@ -504,6 +521,7 @@ export const en = {
   'sessions.ended.replaced': 'Replaced by a new sign-in',
   'sessions.ended.ended_by_admin': 'Ended by an administrator',
   'sessions.ended.account_disabled': 'Account switched off',
+  'sessions.ended.account_deletion': 'Ended by the request to delete the account',
   'sessions.ended.other': 'Ended',
 
   // ── Account: applications ──────────────────────────────────────────────────

@@ -30,6 +30,7 @@ export const RECIPIENT_LABELS: Record<RecipientStatus, { label: string; tone: Ba
 export function leftOutText(count: AudienceCount): string[] {
   const reasons: [number, string, string][] = [
     [count.left_out.disabled, 'is switched off', 'are switched off'],
+    [count.left_out.deleting, 'is being deleted', 'are being deleted'],
     [count.left_out.unconfirmed, 'has not confirmed the address', 'have not confirmed their address'],
     [count.left_out.waiting, 'is waiting for approval', 'are waiting for approval'],
     [count.left_out.news_off, 'has stopped the news', 'have stopped the news'],

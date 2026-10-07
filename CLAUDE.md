@@ -164,6 +164,26 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   from the master key (HKDF - its name is in every link mailed, so it never
   changes), POSTed with the CSRF header after the page asks - no RFC 8058
   one-click, which would need a CSRF exemption.
+- **An account is deleted thirty days after its owner asks** (migration 016,
+  the owner's decisions of 2026-10-07; `api/account_deletion.php`):
+  `POST /api/account/deletion` (the password, or without one a sign-in of the
+  last 15 minutes) closes it at once - other sessions and every token end,
+  every way to a site answers `account_deletion_pending`, it is no longer an
+  administrator - while the IAM's own sign-in keeps working so its owner can
+  cancel (`DELETE /api/account/deletion`); both are mailed. A first password,
+  Google connected and password sign-in switched on or off ask for the same
+  proof (`accountProof()`), so a session alone cannot make one. When due,
+  housekeeping (ordinary traffic; no cron) mails "deleted", then anonymizes:
+  everything of the person deleted or scrubbed, the row kept as a placeholder
+  nothing revives (`409 account_anonymized`), its id never anybody else's. The
+  sites keep their data, anonymous: they read the ids at
+  `GET /api/public/anonymized-accounts` and scrub their own copies of the name
+  and address. A backup is never restored to bring an account back.
+- **A sign-in from a new browser is mailed** (016, `api/sign_in_devices.php`):
+  the IAM's sign-in itself, never a site's single sign-on or a refresh. The
+  browser is known by the `anotoki_iam_device` cookie (only a hash kept; it
+  opens nothing); an account's first browser is noted in silence, so release
+  day mails nobody; at most five an hour; a reset forgets the browsers.
 
 ## Backend layout & conventions
 
@@ -181,7 +201,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `crypto.php`, `settings.php`, `audit.php`, `translations.php` (languages,
   strings, the bundle, every check of a string), and the carried-over `totp.php`,
   `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php`
-  (whose words now come from the database, `MAIL_FALLBACK` the last resort).
+  (whose words now come from the database, `MAIL_FALLBACK` the last resort),
+  `account_deletion.php` and `sign_in_devices.php` (016).
 - Files under `storage/` go through `iamStorageDir()`, config through
   `localConfig()` - the tests point both at temp folders (`IAM_CONFIG_DIR`,
   `IAM_STORAGE_DIR`, constants only code can define). No environment variables.
@@ -214,7 +235,7 @@ with family revocation on reuse; hashes only for secrets that open things,
 master-key ciphertext for TOTP secrets and signing keys; identical answers for
 known and unknown addresses; the limiter on every mail-sending and sign-in
 endpoint; the same switches on every way in; no self-lockout, no removing the
-last admin; the CSRF header on every first-party write; no loopback address
+last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; no loopback address
 left on a real host's install, nor seeded into a live IAM by a later migration;
 the installer's proof (token, or nonce on this computer only). Changing one is
 a decision for `docs/decisions.md`, not a refactor.

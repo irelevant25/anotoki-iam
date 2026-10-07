@@ -130,12 +130,13 @@ function totpVerify(string $secret, string $code, ?int $now = null): bool
 
 /**
  * Takes a step as used, if no code from it or a later one has been accepted.
- * Conditional, so two requests racing with the same code cannot both win.
+ * Conditional, so two requests racing with the same code cannot both win -
+ * and no code is accepted for an account deleted meanwhile (liveAccountSql()).
  */
 function totpSpendStep(PDO $pdo, int $userId, int $step): bool
 {
     $statement = $pdo->prepare(
-        'UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)'
+        'UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)' . liveAccountSql($pdo)
     );
     $statement->execute([$step, $userId, $step]);
 

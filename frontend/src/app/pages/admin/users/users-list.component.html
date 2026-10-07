@@ -90,44 +90,56 @@
                                     </div>
                                 </td>
                                 <td>
+                                    <!-- A deleted account is a placeholder: being one is all there is to say about it. -->
                                     <span class="badges">
-                                        @if (user.disabled) {
-                                            <app-badge tone="danger">Switched off</app-badge>
-                                        }
-                                        @if (!user.approved) {
-                                            <app-badge tone="warning">{{ user.disabled ? "Not approved" : "Awaiting approval" }}</app-badge>
-                                        }
-                                        @if (!user.email_confirmed) {
-                                            <app-badge tone="warning">Unconfirmed</app-badge>
-                                        }
-                                        @if (isIamAdmin(user)) {
-                                            <app-badge tone="primary">IAM admin</app-badge>
-                                        }
-                                        @if (user.totp_enabled) {
-                                            <app-badge tone="success">2FA</app-badge>
-                                        }
-                                        @if (user.google_connected) {
-                                            <app-badge>Google</app-badge>
-                                        }
-                                        @if (user.force_password_change) {
-                                            <app-badge tone="warning">Must change password</app-badge>
-                                        }
-                                        @if (!user.has_password) {
-                                            <app-badge>No password</app-badge>
+                                        @if (user.anonymized_at) {
+                                            <app-badge>Anonymized</app-badge>
+                                        } @else {
+                                            @if (user.disabled) {
+                                                <app-badge tone="danger">Switched off</app-badge>
+                                            }
+                                            @if (user.deletion_due_at) {
+                                                <app-badge tone="danger">Deletion due {{ user.deletion_due_at | appDate: "date" }}</app-badge>
+                                            }
+                                            @if (!user.approved) {
+                                                <app-badge tone="warning">{{ user.disabled ? "Not approved" : "Awaiting approval" }}</app-badge>
+                                            }
+                                            @if (!user.email_confirmed) {
+                                                <app-badge tone="warning">Unconfirmed</app-badge>
+                                            }
+                                            @if (isIamAdmin(user)) {
+                                                <app-badge tone="primary">IAM admin</app-badge>
+                                            }
+                                            @if (user.totp_enabled) {
+                                                <app-badge tone="success">2FA</app-badge>
+                                            }
+                                            @if (user.google_connected) {
+                                                <app-badge>Google</app-badge>
+                                            }
+                                            @if (user.force_password_change) {
+                                                <app-badge tone="warning">Must change password</app-badge>
+                                            }
+                                            @if (!user.has_password) {
+                                                <app-badge>No password</app-badge>
+                                            }
                                         }
                                     </span>
                                 </td>
                                 <td>
                                     @let shown = roleCells().get(user.id);
                                     <span class="badges">
-                                        @for (name of shown?.blocked ?? []; track name) {
-                                            <app-badge tone="warning">Cannot sign in: {{ name }}</app-badge>
-                                        }
-                                        @for (grant of shown?.grants ?? []; track grant.client_id + grant.role) {
-                                            <app-badge [mono]="true">{{ grantLabel(grant) }}</app-badge>
-                                        }
-                                        @if (!shown?.grants?.length && !shown?.blocked?.length) {
-                                            <span class="muted">Member</span>
+                                        @if (user.anonymized_at) {
+                                            <span class="muted">None</span>
+                                        } @else {
+                                            @for (name of shown?.blocked ?? []; track name) {
+                                                <app-badge tone="warning">Cannot sign in: {{ name }}</app-badge>
+                                            }
+                                            @for (grant of shown?.grants ?? []; track grant.client_id + grant.role) {
+                                                <app-badge [mono]="true">{{ grantLabel(grant) }}</app-badge>
+                                            }
+                                            @if (!shown?.grants?.length && !shown?.blocked?.length) {
+                                                <span class="muted">Member</span>
+                                            }
                                         }
                                     </span>
                                 </td>

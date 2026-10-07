@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AccountApplication } from '../../../core/api/models';
+import { SessionService } from '../../../core/auth/session.service';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
@@ -19,6 +20,9 @@ import { PageHeaderComponent } from '../../../ui/page-header/page-header.compone
  * each. A members-only site nobody invited the account to is not listed at
  * all (the backend leaves it out); one it has roles in but may not use right
  * now - switched off, say - is, with "No access".
+ *
+ * While the account's deletion is pending, every site says no access for that
+ * reason, not for want of an invitation - and the page says so.
  */
 @Component({
   selector: 'app-applications',
@@ -30,13 +34,21 @@ import { PageHeaderComponent } from '../../../ui/page-header/page-header.compone
 export class ApplicationsComponent {
   private readonly _accountApi = inject(AccountApi);
   private readonly _i18n = inject(TranslationService);
+  private readonly _session = inject(SessionService);
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly applications = signal<AccountApplication[]>([]);
+  protected readonly deletionPending = computed(() => !!this._session.user()?.deletion_due_at);
 
   constructor() {
-    this.load();
+    // Loaded again when the deletion is asked for or cancelled - the notice
+    // above every account page cancels it - since every site's answer goes
+    // with it.
+    effect(() => {
+      this.deletionPending();
+      untracked(() => this.load());
+    });
   }
 
   protected load(): void {

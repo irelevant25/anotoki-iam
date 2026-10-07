@@ -402,7 +402,8 @@ test('two-factor: setup, enable, then every sign-in asks; a recovery code works 
     check(!str_contains((string) iamDb()->query("SELECT totp_secret FROM users WHERE id = $userId")->fetchColumn(), $secret), 'the secret is stored encrypted');
 
     $step = intdiv(time(), 30);
-    $enabled = $browser->post('/api/account/2fa/enable', ['code' => totpCode($secret, $step)]);
+    // With the password: a session alone does not switch two-factor on (accountProof()).
+    $enabled = $browser->post('/api/account/2fa/enable', ['code' => totpCode($secret, $step), 'password' => 'correct horse']);
     same(200, $enabled->status, 'enabled');
     $recovery = $enabled->json()['recovery_codes'];
     same(10, count($recovery), 'ten recovery codes');

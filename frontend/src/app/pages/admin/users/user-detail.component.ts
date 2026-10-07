@@ -35,6 +35,11 @@ import { SetPasswordDialogComponent } from './set-password-dialog.component';
  *
  * An account waiting for an administrator's approval is approved or declined
  * here as on the Approvals page.
+ *
+ * An account's deletion is its owner's alone to ask for and cancel: the page
+ * only says when it is due. Once done, the account is a placeholder that
+ * changes no more - its buttons stay, switched off, under a note that says
+ * why.
  */
 @Component({
   selector: 'app-user-detail',
@@ -79,6 +84,8 @@ export class UserDetailComponent {
 
   protected readonly account = computed(() => this.detail()?.account ?? null);
   protected readonly isSelf = computed(() => this.account()?.id === this._session.user()?.id);
+  /** Deleted at its owner's request: a placeholder the server refuses every change to (409 `account_anonymized`), so the page offers none. */
+  protected readonly anonymized = computed(() => !!this.account()?.anonymized_at);
 
   // ── Roles ──────────────────────────────────────────────────────────────────
   private readonly _savedRoles = computed(() => (this.account()?.roles ?? []).map(grantKey).sort());

@@ -1,0 +1,12 @@
+<app-proof-dialog
+    [heading]="'deletion.title' | t"
+    [lead]="'deletion.lead' | t"
+    [action]="'deletion.submit' | t"
+    actionIcon="trash"
+    [danger]="true"
+    [anchor]="anchor"
+    [send]="send"
+    [explain]="explain"
+    (done)="requested($event)"
+    (refused)="refused($event)"
+    (closed)="closed.emit(false)" />

@@ -64,6 +64,12 @@ function signInRefusalResponse(Response $response, ?array $user): ?Response
  * Any session this browser already had is ended first ('replaced'): signing in
  * again - as the same person or somebody else - should not leave the previous
  * sign-in running behind the new one.
+ *
+ * Every way in ends here - password, emailed code, Google, a confirmation or
+ * reset link, each past its second factor - so this is also where the browser
+ * is noted, and the account mailed when it has not signed in from it before
+ * (noteSignInDevice(), api/sign_in_devices.php). Never on a site's single
+ * sign-on or refresh, which open no session.
  */
 function completeSignIn(Request $request, Response $response, array $user, string $method, array $body, int $status = 200, array $extra = []): Response
 {
@@ -84,11 +90,11 @@ function completeSignIn(Request $request, Response $response, array $user, strin
 
     $fresh = userById($pdo, (int) $user['id']);
 
-    return withSessionCookie(
+    return noteSignInDevice($pdo, $request, withSessionCookie(
         respondJson($response, ['user' => accountPayload($pdo, $fresh), 'device_token' => $deviceToken] + $extra, $status),
         $opened['secret'],
         $remember
-    );
+    ), $fresh);
 }
 
 /**
@@ -147,6 +153,10 @@ function contextFromRequestId(PDO $pdo, string $requestId): ?array
 // ── What the pages need first ────────────────────────────────────────────────
 
 $app->get('/api/public/config', function (Request $request, Response $response) {
+    // Every page of the IAM asks this first: ordinary traffic for housekeeping
+    // to ride on (the host has no cron). It never fails the request.
+    iamHousekeeping();
+
     $google = googleClientId() !== null && googleLoginEnabled();
 
     return respondJson($response, [
@@ -338,9 +348,10 @@ $app->post('/api/login/password', function (Request $request, Response $response
     }
 
     // A hash made with older settings is quietly brought up to date while the
-    // plain password is at hand - the only moment it ever is.
+    // plain password is at hand - the only moment it ever is. Never onto an
+    // account deleted meanwhile (liveAccountSql()).
     if (password_needs_rehash((string) $user['password'], PASSWORD_DEFAULT)) {
-        $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')->execute([password_hash($password, PASSWORD_DEFAULT), (int) $user['id']]);
+        $pdo->prepare('UPDATE users SET password = ? WHERE id = ?' . liveAccountSql($pdo))->execute([password_hash($password, PASSWORD_DEFAULT), (int) $user['id']]);
     }
 
     return completeSignIn($request, $response, $user, SESSION_METHOD_PASSWORD, $body);
@@ -491,8 +502,13 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
 
         attachIdentity($pdo, (int) $user['id'], IDENTITY_GOOGLE, $subject, $email);
         // Google has just vouched for the address, which is what the
-        // confirmation link is for.
-        $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ?')->execute([(int) $user['id']]);
+        // confirmation link is for. Not for an account deleted meanwhile: its
+        // row is a placeholder, and the identity just attached is swept.
+        $confirmed = $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ?' . liveAccountSql($pdo));
+        $confirmed->execute([(int) $user['id']]);
+        if ($confirmed->rowCount() === 0) {
+            return respondError($response, 403, 'account_disabled', 'This account has been switched off');
+        }
 
         if ($stop !== null) {
             return respondError($response, $stop['status'], $stop['code'], $stop['error']);
@@ -611,10 +627,12 @@ $app->post('/api/register/confirm', function (Request $request, Response $respon
         return respondError($response, 400, 'invalid_token', 'That link is no longer valid');
     }
 
-    $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ?')->execute([(int) $token['user_id']]);
+    // An account deleted since the link was mailed has no address to confirm.
+    $confirmed = $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ?' . liveAccountSql($pdo));
+    $confirmed->execute([(int) $token['user_id']]);
     $user = userById($pdo, (int) $token['user_id']);
 
-    if ($user === null) {
+    if ($user === null || $confirmed->rowCount() === 0) {
         return respondError($response, 400, 'invalid_token', 'That link is no longer valid');
     }
 
@@ -688,7 +706,9 @@ $app->post('/api/password/reset', function (Request $request, Response $response
     $token = findOneTimeToken($pdo, field($body, 'token'), TOKEN_PASSWORD_RESET);
     $before = $token === null ? null : userById($pdo, (int) $token['user_id']);
 
-    if ($before === null) {
+    // A link of an account deleted since it was mailed opens nothing: the row
+    // is a placeholder, and no password or confirmed address goes back on it.
+    if ($before === null || accountAnonymized($before)) {
         return respondError($response, 400, 'invalid_token', 'That link is no longer valid');
     }
 
@@ -718,9 +738,13 @@ $app->post('/api/password/reset', function (Request $request, Response $response
     claimUnconfirmedAccount($pdo, $request, $before);
 
     // The address is confirmed on the way past: reading the mail proves the
-    // mailbox as well as the confirmation link does.
-    $pdo->prepare('UPDATE users SET password = ?, email_confirmed = TRUE, force_password_change = FALSE WHERE id = ?')
-        ->execute([password_hash($password, PASSWORD_DEFAULT), $userId]);
+    // mailbox as well as the confirmation link does. Not on an account
+    // deleted while this was on its way (liveAccountSql()).
+    $reset = $pdo->prepare('UPDATE users SET password = ?, email_confirmed = TRUE, force_password_change = FALSE WHERE id = ?' . liveAccountSql($pdo));
+    $reset->execute([password_hash($password, PASSWORD_DEFAULT), $userId]);
+    if ($reset->rowCount() === 0) {
+        return respondError($response, 400, 'invalid_token', 'That link is no longer valid');
+    }
 
     // A reset is how somebody takes an account back, and it should take it back
     // completely: the other reset links, every session and remembered device,
@@ -728,12 +752,15 @@ $app->post('/api/password/reset', function (Request $request, Response $response
     // somebody who held the account for a while could have attached their own
     // Google to it. A Google account under this same address attaches itself
     // again at its next sign-in; one under another address is connected again
-    // from the account page.
+    // from the account page. The browsers it signed in from are forgotten too,
+    // so a sign-in from one of the holder's is mailed; this one is noted next,
+    // as the account's first again.
     revokeOneTimeTokens($pdo, $userId, TOKEN_PASSWORD_RESET);
     revokeSessionsFor($pdo, $userId, SESSION_REVOKED_PASSWORD);
     revokePersonalTokens($pdo, $userId, SESSION_REVOKED_PASSWORD);
     $pdo->prepare('DELETE FROM user_identities WHERE user_id = ?')->execute([$userId]);
     revokeTrustedDevices($pdo, $userId);
+    forgetSignInDevices($pdo, $userId);
     audit($request, $userId, 'account.password_reset', 'user', $userId);
 
     $user = userById($pdo, $userId);

@@ -76,6 +76,12 @@ must work unattended on a host with no shell.
   words>`, which leaves a rewording of the owner's alone. Never add a
   fourth role: the admin panel cannot remove one. Every application is a
   public client: never seed `type` or a secret.
+- **An anonymized account's row stays one** (`users_anonymized_check`, 016):
+  switched off, unconfirmed, with no password, no password sign-in, no TOTP
+  secret and no two-factor. A migration that updates those columns
+  (`password`, `password_login_enabled`, `totp_secret`, `totp_enabled`,
+  `email_confirmed`, `disabled`) on every row fails on the anonymized ones -
+  it must exclude them: `WHERE anonymized_at IS NULL`.
 - **Test it on a database shaped like an installed one**, not only on a fresh
   one: build the migrations before it, add what an owner would have (an
   administrator, grants, edits made in the admin panel), then apply -
@@ -97,7 +103,7 @@ changes strings, never keys.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
   that no migration wrote. It also counts what the migrations leave (after
-  015: 502 keys, 470 of the pages, 1004 strings): a migration that adds or
+  016: 533 keys, 485 of the pages, 1066 strings): a migration that adds or
   removes keys moves those numbers, and `tests/top-bar-strings.test.php` is
   the pattern for testing one on an installed IAM. A migration test that
   builds a database "up to" its file and applies what is pending applies every
