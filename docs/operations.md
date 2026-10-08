@@ -109,6 +109,56 @@ The ranges are Cloudflare's own list (https://www.cloudflare.com/ips/, v4 and
 v6); refresh it when they change theirs. The header is believed only on
 connections from those ranges.
 
+### The sign-in hint's domain
+
+Every sign-in also sets the sign-in hint, the cookie by which a site that lets
+visitors in signs a person who is signed in at the IAM in without a click
+([api.md](api.md), "The sign-in hint cookie"). On a real host it is set for
+the parent of the IAM's host - `anotoki.eu` for `iam.anotoki.eu` - worked out
+from the public address, so every site under that domain reads it: nothing to
+set. Only while a site switched on signs in under that domain (one of its
+redirect URIs, Admin panel → Applications); otherwise the hint stays the
+IAM's host's alone, and the error log says why. A site under another domain
+never gets it, and signs nobody in by itself. It comes with the build, no
+migration: a session from before it gets its hint at its next single sign-on
+or account page, and until a site reads it nothing changes.
+
+**The domain must be wholly the owner's.** The hint goes with every request
+to every host under it, and any script on any page there can read it. On a
+hosting's own domain - a free subdomain of the provider's, where webmail, a
+control panel or other customers live beside the sites - that is the
+provider's hosts too: switch the hint off there instead
+(`'hint_cookie_name' => null` in `config/iam.local.php`).
+
+To name another domain - one the IAM's host is under - put it in
+`config/iam.local.php` by hand (the installer keeps what it finds there):
+
+```php
+'hint_cookie_domain' => 'anotoki.eu',
+```
+
+A domain the IAM's host is not under, a single label, an address or
+`localhost` is passed over: the hint is then the IAM's host's alone. Each such
+thing is said in the error log at most once a day (a stamp in
+`storage/cache/` remembers when). An IAM whose host has three labels on a
+public suffix (`example.co.uk`) must name its own host there - one label less
+is `co.uk`, which browsers refuse. A second IAM under the same domain (a test
+one) gives its hint another name - `'hint_cookie_name' =>
+'anotoki_signed_in_test'`, and the sites it serves are told - or the two
+overwrite each other's hint.
+
+### The session cookie's name
+
+On HTTPS the session cookie is `__Host-anotoki_iam` (since 2026-10-07; plain
+`anotoki_iam` before, and on a development machine still): a name only the
+IAM's own host can set, read by that exact name - look-alikes and a name sent
+twice are no session. Nothing to do and nobody signed out - a browser from
+before is read under the old name and moved to the new one at its next visit
+to the IAM or sign-in to a site. Until the old name is no longer read, a
+browser with no session at the IAM can still be handed a session planted under
+it by another host under the domain. A later release stops reading the old
+name once every session from before has ended (90 days).
+
 ### Moving the genshin site over - the order matters
 
 1. Install the IAM with the import (above). Every account arrives with its id,
@@ -449,6 +499,7 @@ php tests/run.php                          # every test, against throwaway datab
 | An administrator is refused by the admin panel: "This account is being deleted" | They asked for their own account's deletion: cancelling it on the account page gives the panel back. Meanwhile they do not count as an administrator - the last one who stays cannot be removed |
 | Setting a first password, connecting Google, switching password sign-in on or off, or turning two-factor on asks to "sign in again" | Those changes - like deleting the account - ask for the password where the account signs in with one, and otherwise a sign-in of the last 15 minutes: a session left open somewhere must not be able to make that proof for itself, nor lock the owner out. Sign out, sign in again, and do it within 15 minutes |
 | Nobody is mailed about new browsers | Expected for each account's first browser after migration 016 (and a new account's first); from the second on, a new browser is mailed - at most five an hour per account |
+| A site that lets visitors in does not sign in somebody who is signed in at the IAM | The site has not taken the family's library's sign-in yet; or it is not under the hint's domain, or no site switched on is, so the hint is the IAM's host's alone ("The sign-in hint's domain" above - the error log says so, once a day); or the hint is switched off (`hint_cookie_name` null); or, in development, the site is opened as `127.0.0.1` instead of `localhost`. Each hint is tried once per site: signing in at the IAM again makes a new one |
 | A site's admin area refuses its owner | They hold neither its ADMIN nor its EDITOR: Admin panel → Users → the person → Roles. An account made in the admin panel, or made the IAM's ADMIN there, gets no site's ADMIN by itself; the installer's administrator, `create-admin.php`'s, an imported one and every administrator there when 007 ran were given all of them. |
 | Somebody no longer an administrator still administers a site | Taking the IAM's ADMIN away takes nothing else: remove their ADMIN (and EDITOR) on each site too - Admin panel → Users → the person → Roles. |
 | Sign-in mail never arrives | `mail.local.php` still has the `file` driver (mail is in `storage/mail/`), or the sender is not a real mailbox on the hosted domain. |

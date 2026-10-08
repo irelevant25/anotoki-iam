@@ -847,8 +847,11 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
         revokeSession($pdo, (int) $session['id'], SESSION_REVOKED_ADMIN);
         audit($request, (int) actor($request)['id'], 'session.ended', 'session', (int) $session['id'], ['user_id' => (int) $session['user_id']]);
+        $ended = respondJson($response, ['message' => 'Session ended']);
 
-        return respondJson($response, ['message' => 'Session ended']);
+        // The administrator's own session, from this very browser: answered
+        // as a sign-out is, its cookie and its sign-in hint gone with it.
+        return (int) $session['id'] === (int) $request->getAttribute('session')['id'] ? withoutSignInHint(withoutSessionCookie($ended)) : $ended;
     });
 
     // ── Email log ────────────────────────────────────────────────────────────

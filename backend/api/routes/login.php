@@ -71,6 +71,13 @@ function signInRefusalResponse(Response $response, ?array $user): ?Response
  * is noted, and the account mailed when it has not signed in from it before
  * (noteSignInDevice(), api/sign_in_devices.php). Never on a site's single
  * sign-on or refresh, which open no session.
+ *
+ * And where the sign-in hint every anotoki site reads is set, a new value for
+ * the new session (api/session.php) - but not for an account no site lets in
+ * (signInHintAllowed(), read afresh: its deletion pending - it signs in only
+ * to cancel it - or switched off or deleted while this sign-in was on its
+ * way). A hint this browser still has then belongs to the session just
+ * replaced, and goes with it.
  */
 function completeSignIn(Request $request, Response $response, array $user, string $method, array $body, int $status = 200, array $extra = []): Response
 {
@@ -91,11 +98,20 @@ function completeSignIn(Request $request, Response $response, array $user, strin
 
     $fresh = userById($pdo, (int) $user['id']);
 
-    return noteSignInDevice($pdo, $request, withSessionCookie(
+    $answer = withSessionCookie(
         respondJson($response, ['user' => accountPayload($pdo, $fresh), 'device_token' => $deviceToken] + $extra, $status),
         $opened['secret'],
-        $remember
-    ), $fresh);
+        $opened['session']
+    );
+
+    if (signInHintAllowed($fresh)) {
+        $answer = withSignInHint($answer, $opened['session']);
+    } elseif (signInHintSent($request)) {
+        $answer = withoutSignInHint($answer);
+    }
+
+    // A session cookie this browser still had under its old name goes.
+    return noteSignInDevice($pdo, $request, withSessionCookieRenamed($request, $answer), $fresh);
 }
 
 /**
@@ -250,8 +266,12 @@ $app->post('/api/login/request/{id}/accept', function (Request $request, Respons
     $pdo = iamDb();
     $signIn = currentSignIn($request);
 
+    // Nobody signed in here: a sign-in hint this browser carries is stale, as
+    // at every answer with no session behind it (api/session.php).
     if ($signIn === null) {
-        return respondError($response, 401, 'no_session', 'Sign in first');
+        $refusal = respondError($response, 401, 'no_session', 'Sign in first');
+
+        return signInHintSent($request) ? withoutSignInHint($refusal) : $refusal;
     }
 
     $authRequest = liveAuthRequest($pdo, (string) $args['id']);
@@ -802,7 +822,8 @@ $app->get('/api/logout/request/{id}', function (Request $request, Response $resp
 /**
  * POST /api/logout - ends this browser's session and every refresh token
  * issued under it, on every site. Answers the same whether or not there was
- * one: somebody asking to be signed out is asking for a state, and it holds.
+ * one: somebody asking to be signed out is asking for a state, and it holds -
+ * no session cookie, and no sign-in hint for any site to act on.
  */
 $app->post('/api/logout', function (Request $request, Response $response) {
     $pdo = iamDb();
@@ -818,7 +839,7 @@ $app->post('/api/logout', function (Request $request, Response $response) {
         $redirect = $logout['redirect_uri'] !== null ? redirectWith((string) $logout['redirect_uri'], ['state' => $logout['state']]) : null;
     }
 
-    return withoutSessionCookie(respondJson($response, ['message' => 'Signed out', 'redirect' => $redirect]));
+    return withoutSignInHint(withoutSessionCookie(respondJson($response, ['message' => 'Signed out', 'redirect' => $redirect])));
 });
 
 // ── Stopping the news ────────────────────────────────────────────────────────

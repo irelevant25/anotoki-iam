@@ -23,9 +23,28 @@ function iamConfig(): array
     static $tunables = [
         // The session cookie. Secure is decided from public_url unless set: an
         // https installation never sends it in the clear, and a plain-http
-        // development server could not set it at all otherwise.
+        // development server could not set it at all otherwise. Wherever it is
+        // Secure its name gets the __Host- prefix (api/session.php), and the
+        // device cookie is named after the name here, never the prefixed one.
         'cookie_name' => 'anotoki_iam',
         'cookie_secure' => null,
+
+        // The sign-in hint (api/session.php): a cookie that says only that
+        // somebody signed in at the IAM in this browser, which the anotoki
+        // sites' pages read to decide whether a silent sign-in is worth a hop.
+        // It opens nothing. Its domain is the parent of the issuer's host
+        // (iam.anotoki.eu -> anotoki.eu), so that every site under it reads it:
+        // null means exactly that, derived from public_url - and a loopback
+        // issuer gets none (localhost's cookies ignore ports, so every dev
+        // server on this computer reads the host-only one). iam.local.php may
+        // name another domain the issuer's host is under; anything else is
+        // passed over, and the hint is host-only - as it is while no site
+        // switched on signs in under the domain. The domain must be wholly
+        // the owner's (docs/operations.md); a hint_cookie_name of null switches
+        // the hint off. A second IAM under the same domain (a test one) gives
+        // its hint another name, or the two IAMs overwrite each other's.
+        'hint_cookie_name' => 'anotoki_signed_in',
+        'hint_cookie_domain' => null,
 
         // A session that was asked to be remembered: signed out after thirty
         // days without use, and after ninety whatever happens. One that was

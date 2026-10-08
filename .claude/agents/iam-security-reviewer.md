@@ -33,11 +33,33 @@ the files you were given). You do not edit anything.
   documented; the SDK checks the same.
 - **Refresh**: rotation, reuse detection outside the leeway, death with the
   session, roles that may sign in re-checked at every refresh.
-- **Sessions & CSRF**: the cookie is HttpOnly, SameSite=Lax, Secure on https;
-  every first-party write passes the CSRF middleware, whose exemptions are exact
-  paths compared on the percent-decoded path the router matches (try
-  `/%61pi/...`); OIDC endpoints read no cookie except authorize/logout; CORS is
-  echoed only for registered origins and never with credentials.
+- **Sessions & CSRF**: the cookie is HttpOnly, SameSite=Lax, Secure on https
+  and then named `__Host-anotoki_iam` (Path=/, never a Domain); it is read,
+  set, expired and renamed only through `api/session.php`
+  (`sessionSecretFrom()`, `withSessionCookie()`, `withoutSessionCookie()` -
+  both names -, `withSessionCookieRenamed()`), by its exact name from the raw
+  Cookie header - never the URL-decoding cookie params (try
+  `__%48ost-anotoki_iam` sent first) - either name twice is no session, and
+  when the `__Host-` cookie comes the bare `anotoki_iam` is never read (try a
+  planted one beside it); every first-party write passes the CSRF middleware,
+  whose exemptions are exact paths compared on the percent-decoded path the
+  router matches (try `/%61pi/...`); OIDC endpoints read no cookie except
+  authorize/logout; CORS is echoed only for registered origins and never with
+  credentials.
+- **The sign-in hint** (`anotoki_signed_in`, `api/session.php`): never proof
+  - nothing may read it as more than "was it sent", no endpoint may let it
+  stand in for a session, and its value is random per session, kept
+  nowhere, never derived from the session's secret, hash, sid or the
+  account. It is the only IAM cookie with a Domain or readable by script,
+  and its Domain is one the issuer is under with an application switched on
+  signing in under it (never a loopback name, never on a loopback issuer).
+  No hint while an account's deletion is pending, nor for one switched off,
+  waiting or deleted (`signInHintAllowed()`) - set nowhere for it, cleared
+  where seen. Cleared on every answer with no session behind it and by
+  ending this browser's own session; a handler's own set or clear is not
+  overruled by `requireSession()`, which sets one only for a session still
+  live after the handler. No CSRF or CORS exemption comes with it, and the
+  four cross-origin endpoints neither read nor rename any cookie.
 - **Second factor**: asked on every way in, resets included; an authenticator
   code accepted once (`totp_last_step`); every miss a counted attempt; an
   unconfirmed account's credentials cleared when its address is proved

@@ -50,9 +50,10 @@ const SIGN_IN_DEVICE_LIFETIME = 400 * 86400;
  */
 const SIGN_IN_DEVICE_MAILS_PER_HOUR = 5;
 
+/** `anotoki_iam_device`: named after the session cookie's configured name, never its __Host- one - a browser keeps the cookie it has. */
 function signInDeviceCookieName(): string
 {
-    return sessionCookieName() . '_device';
+    return sessionCookieBaseName() . '_device';
 }
 
 /** Whether migration 016's table is there. A catalog query that cannot fail, asked afresh: the admin panel's Apply runs in this same process. */

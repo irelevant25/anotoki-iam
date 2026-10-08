@@ -35,11 +35,24 @@ function accountAnswer(Response $response, int $userId): Response
 /**
  * The account was deleted while this request was on its way (its write found
  * no row: liveAccountSql()). Nothing of it is written, and its session is
- * gone with it: the answer a request with no session gets.
+ * gone with it: the answer a request with no session gets - the sign-in hint
+ * cleared with the session cookie.
  */
 function accountGone(Response $response): Response
 {
-    return withoutSessionCookie(respondError($response, 401, 'no_session', 'Sign in first'));
+    return withoutSignInHint(withoutSessionCookie(respondError($response, 401, 'no_session', 'Sign in first')));
+}
+
+/**
+ * A new sign-in hint once a forced change of password is done (the password
+ * changed, or a first one set): while it was due, every site that tried the
+ * hint was answered interaction_required and noted not to try that value
+ * again - a new one is how the sites learn to try once more, as after a
+ * deletion cancelled (api/session.php). Not for an account no site lets in.
+ */
+function withSignInHintAfterForcedChange(Response $response, array $userBefore, array $session): Response
+{
+    return asBool($userBefore['force_password_change']) && signInHintAllowed($userBefore) ? withSignInHint($response, $session) : $response;
 }
 
 /** accountProof()'s refusal, answered; null when the proof was given. */
@@ -170,7 +183,7 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         revokeTrustedDevices($pdo, (int) $user['id']);
         audit($request, (int) $user['id'], 'account.password_changed', 'user', $user['id']);
 
-        return respondJson($response, ['message' => 'Password changed. Everywhere else has been signed out.']);
+        return withSignInHintAfterForcedChange(respondJson($response, ['message' => 'Password changed. Everywhere else has been signed out.']), $user, currentSession($request));
     });
 
     // A first password, on an account with none. Also the one way an account
@@ -207,7 +220,7 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         }
         audit($request, (int) $user['id'], 'account.password_set', 'user', $user['id'], ['proof' => $proof['proof']]);
 
-        return accountAnswer($response, (int) $user['id']);
+        return withSignInHintAfterForcedChange(accountAnswer($response, (int) $user['id']), $user, currentSession($request));
     });
 
     // {enabled, password?}: which proof the account asks for is what this
@@ -477,8 +490,12 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         }
 
         revokeSession($pdo, (int) $args['id'], SESSION_REVOKED_ELSEWHERE);
+        $ended = respondJson($response, ['message' => 'Session ended']);
 
-        return respondJson($response, ['message' => 'Session ended']);
+        // This browser's own session (the page does not offer it - that is
+        // signing out - but the API takes it): answered as a sign-out is, its
+        // cookie and its sign-in hint gone with it.
+        return (int) $args['id'] === (int) currentSession($request)['id'] ? withoutSignInHint(withoutSessionCookie($ended)) : $ended;
     });
 
     $group->delete('/sessions', function (Request $request, Response $response) {
@@ -630,7 +647,9 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             sendAccountDeletionRequestedMail($user, (int) strtotime($result['due']));
         }
 
-        return accountAnswer($response, (int) $user['id']);
+        // No site lets the account in from now on, so no site is to try: the
+        // sign-in hint goes (api/session.php). The session stays, for Cancel.
+        return withoutSignInHint(accountAnswer($response, (int) $user['id']));
     });
 
     // The deletion cancelled, until it is done - and mailed: a deletion asked
@@ -653,7 +672,9 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             sendAccountDeletionCancelledMail($user);
         }
 
-        return accountAnswer($response, (int) $user['id']);
+        // The session is the person's again, and so are the sites: a new
+        // sign-in hint, which every site that lets visitors in tries afresh.
+        return withSignInHint(accountAnswer($response, (int) $user['id']), currentSession($request));
     });
 })->add(requireSession());
 

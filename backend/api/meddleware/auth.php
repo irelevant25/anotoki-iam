@@ -53,15 +53,40 @@ function requireSession(): callable
 
         if ($signIn === null) {
             $refusal = respondError(new \Slim\Psr7\Response(), 401, 'no_session', 'Sign in first');
-            // A cookie naming a session that is over is only clutter now.
-            return sessionSecretFrom($request) !== null ? withoutSessionCookie($refusal) : $refusal;
+            // A cookie naming a session that is over is only clutter now - and
+            // a sign-in hint with no session behind it would send every site
+            // that reads it on a hop for nothing (api/session.php).
+            $refusal = sessionSecretFrom($request) !== null ? withoutSessionCookie($refusal) : $refusal;
+            $refusal = signInHintSent($request) ? withoutSignInHint($refusal) : $refusal;
+
+            return withSessionCookieRenamed($request, $refusal);
         }
 
         touchSession(iamDb(), $signIn['session']);
 
-        return $handler->handle(
+        $response = $handler->handle(
             $request->withAttribute('user', $signIn['user'])->withAttribute('session', $signIn['session'])
         );
+
+        // The sign-in hint, unless the handler decided about it itself (asking
+        // for the deletion clears it, cancelling it sets a new one, ending this
+        // very session clears it with the cookie). An account no site lets in -
+        // its deletion pending - has none: one that reached this browser
+        // anyway, through a request that raced the deletion, goes here. Every
+        // IAM page asks for the account first, so a live session whose browser
+        // has none - opened before the hint was, or a browser that lost it -
+        // gets one here: only while the session is still live after the
+        // handler, which may have ended it.
+        if (!signInHintInResponse($response)) {
+            if (!signInHintAllowed($signIn['user'])) {
+                $response = signInHintSent($request) ? withoutSignInHint($response) : $response;
+            } elseif (!signInHintSent($request) && sessionLive(sessionById(iamDb(), (int) $signIn['session']['id']))) {
+                $response = withSignInHint($response, $signIn['session']);
+            }
+        }
+
+        // A browser from before the session cookie's __Host- name gets it now.
+        return withSessionCookieRenamed($request, $response);
     };
 }
 

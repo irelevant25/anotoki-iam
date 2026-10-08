@@ -574,8 +574,10 @@ anotoki site, the IAM included. `frontend/src/index.html` loads its script,
 and the policy (`frontend/scripts/prepare-deploy.mjs`) names its origin beside
 Google's, in `script-src` and `connect-src`. The counter sets no cookie,
 stores nothing in the browser, and sends its reports without credentials (the
-script's own request carries no cookie of the IAM's: its one cookie is
-host-only).
+script's own request carries no cookie of the IAM's that opens anything: the
+session cookie is host-only. Since the owner's decision of 2026-10-07, below,
+the sign-in hint goes with it - a random value that says nothing of the
+person and opens nothing).
 
 - **No query string, no fragment** (`data-exclude-search="true"`,
   `data-exclude-hash="true"`): a confirm or reset link carries its token in
@@ -1003,3 +1005,123 @@ one status, one Migrations page on every site. The IAM took 0.1.0:
   signal, not a way in; telling only administrators would need the banner to
   read an admin route instead - a change to the family's module, for every
   site or none.
+
+## 2026-10-07 - A sign-in hint for the family's sites - the IAM's first cookie with a Domain, and the only one a script reads
+
+The owner chose automatic sign-in on the anotoki sites by a hint cookie, over
+one hop to the IAM on every new visit: signing in at the IAM also sets a
+harmless "someone is signed in" cookie every anotoki site can read, and a site
+that sees it while it has no session of its own signs the person in with one
+`prompt=none` hop to the IAM and back. A hop on every new visit would send
+every visitor without an account, and every search engine, to the IAM and
+back; with the hint nobody is sent anywhere who never signed in. The sites'
+half - the hop and its loop protection - comes later, in the family's
+library; until a site reads the cookie, it changes nothing.
+
+- **`anotoki_signed_in`, with nothing in it.** A random value per session
+  (sixteen bytes), kept nowhere and derived from nothing - not the session's
+  secret, its hash or its `sid`, not the account or its address. It proves
+  nothing, and nothing reads it as proof: the IAM looks only at whether it was
+  sent, to clear it or set it again, and a site only decides by it whether a
+  silent sign-in is worth a hop. Who the person is comes from the code that
+  hop brings back - the same authorize, PKCE, exact redirect URI and
+  `applicationAccessRefusal()` as any sign-in: no new way in. A new value
+  means a new sign-in, which is what the sites' "each value tried once" keys
+  on.
+- **Read by script, and sent to every anotoki host**: the IAM's first cookie
+  with a `Domain` - the parent of the issuer's host (`anotoki.eu` for
+  `iam.anotoki.eu`), derived from the issuer at every request, since an
+  installed IAM has no installer left to ask; `hint_cookie_domain` in
+  `config/iam.local.php` names another domain the issuer is under, and
+  anything else there is passed over. Either way only while a site switched
+  on signs in under that domain (found by the security review): an IAM on a
+  hosting's subdomain would otherwise hand the hint to every customer of the
+  hosting. Not `HttpOnly`, as the sites' pages read it; `SameSite=Lax`;
+  `Secure` with the session cookie; it lasts as long as the session can. On a
+  development machine it is host-only `localhost`, which every dev server's
+  port reads - and a loopback issuer never sets a `Domain`.
+- **The session cookie stays host-only and `HttpOnly`**, and never gets a
+  `Domain`: one with a domain would go with every request to every sibling
+  host - and on HTTPS it is now `__Host-` (the next entry). No new CSRF or
+  CORS exemption either - the hint gives a page nothing to send.
+- **Set** by every way in (`completeSignIn()`), and again where a live session
+  finds the browser without one - a site's single sign-on, the account pages -
+  so sessions from before it get one too; a new one where the sites are to
+  try again - a deletion cancelled, a forced change of password done. Never
+  for an account no site lets in, and one that reaches such an account's
+  browser anyway - a request racing the deletion - is cleared wherever the IAM
+  sees it, `interaction_required` included. **Cleared** by both sign-outs,
+  ending this browser's own session, a deletion asked for, every answer with
+  no session behind it - the 401s, and any authorize that carries it with no
+  session behind it, `prompt=none` answered `login_required` among them - so
+  the first site that tries a stale hint cleans it up for every site.
+  **Kept** on `interaction_required`: that session is good for other sites,
+  and the site that asked keeps its own note not to try the same value again.
+- **What it costs.** A session ended elsewhere or run out leaves the hint
+  stale until that browser next reaches the IAM: one wasted hop, by the first
+  site that tries. A sibling host can set or delete it (cookie tossing): at
+  worst a hop the sites' own limits allow, or no automatic sign-in. On a
+  shared browser where somebody is signed in at the IAM, a site signs the next
+  person in as them without a click - single sign-on already does so at one.
+  And privacy, plainly: the value lives as long as the session can - up to 90
+  days for a remembered one - and goes with every request to every host under
+  `anotoki.eu`: the landing page, `umami.anotoki.eu`, every site's API, which
+  could tell one browser's requests apart within one sign-in. Any script on
+  any anotoki page can read it, not only the site's own: the visitor
+  counter's, Google's sign-in script on the IAM's sign-in page, anything a
+  site embeds. And on shared hosting some hosts under the domain may be the
+  hosting's, not the owner's - webmail, a control panel - which is why the
+  domain must be the owner's alone (operations.md). It tells all of them only
+  that somebody signed in, never who; it is set only once somebody has.
+- **It changes what the visitor counter's entry says** (2026-10-06, above):
+  "its one cookie is host-only" held of the session cookie, and still does;
+  the hint, and only the hint, now goes with the counter's script request
+  too. The landing page still sets no cookie; it receives this one.
+
+## 2026-10-07 - The session cookie's __Host- name (a hardening)
+
+Not the owner's words: a hardening the security review of the sign-in hint
+asked for, decided by the coordinator of that work. The session cookie was
+host-only and `HttpOnly`, yet a sibling subdomain could still plant one under
+the same name for the whole domain (`anotoki_iam=...; Domain=anotoki.eu;
+Path=/api`). The browser sends the cookie with the longer path first, and PHP
+keeps the first of two cookies with one name - so a page on any anotoki host,
+or the hosting itself on shared hosting, could stand a session of its own in
+for the browser's: sign a person into the planter's account, or keep them in
+it after they signed in themselves. Older than the hint, which made those
+hosts no more trusted but more numerous in what they receive.
+
+- **`__Host-anotoki_iam` on HTTPS.** A browser keeps a cookie of exactly that
+  name only when the host itself sets it - `Secure`, `Path=/`, no `Domain`.
+  The IAM reads it by that exact name, from the `Cookie` header as sent (found
+  by the delta review): Slim's parser, which builds the cookie params,
+  URL-decodes names and keeps the first of each, so `__%48ost-anotoki_iam` - a
+  name no prefix rule covers, which any host under the domain may set, sent
+  first by a longer path - came out as `__Host-anotoki_iam` and stood in for
+  the real one. Either name sent twice is no session: only the IAM's own host
+  sets a `__Host-` cookie, so two mean something is wrong. When the `__Host-`
+  cookie comes, the bare name is not read at all. Plain-http development keeps
+  `anotoki_iam`: a `__Host-` cookie must be `Secure` (`cookie_secure` on gives
+  it the prefix there too).
+- **Nobody is signed out.** A browser from before carries `anotoki_iam`: it
+  is read while no `__Host-` cookie comes, and the next answer that uses the
+  session - the account pages (every IAM page asks for the account first), a
+  site's single sign-on, a sign-in - sets the same secret under the new name,
+  for as long as the session lasts, and expires the old one with the
+  attributes it was set with. Every sign-out and every refusal that drops the
+  cookie expires both names. The device cookie keeps its name,
+  `anotoki_iam_device`: under a new one every browser would be a new one, and
+  everybody would be mailed.
+- **What stays until the bare name is no longer read**: a browser with no
+  `__Host-` cookie - nobody signed in at the IAM there - still takes a bare
+  `anotoki_iam`, so one planted there can still sign that browser into the
+  planter's session, as before; it never overrides the browser's own, and a
+  sign-in ends it. The sign-in hint makes it worse: planted beside it, it
+  makes a site that lets visitors in hop to the IAM, which signs the visitor
+  into the planter's account there without a click. Whether to close it
+  sooner is the owner's decision; until then a later release stops reading
+  the bare name, once every session from before has ended - ninety days at
+  most.
+- **One place.** The cookie is read (`sessionSecretFrom()`), set, expired and
+  renamed in `api/session.php` and nowhere else; the four endpoints the sites
+  call cross-origin read no cookie, and rename none.

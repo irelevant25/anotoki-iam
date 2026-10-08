@@ -187,6 +187,19 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
     $authRequest = liveAuthRequest($pdo, $id);
     $signIn = currentSignIn($request);
 
+    // The sign-in hint (api/session.php) is only ever looked at, never
+    // believed: what this request gets depends on the session alone. A hint
+    // that arrives with no session behind it is stale - the session ended
+    // elsewhere, ran out, or its account was switched off - so it goes, for
+    // every site at once: the prompt=none a site hops with on seeing it is
+    // answered login_required, and the site's next page sees no hint. So does
+    // one with a session whose account no site lets in (its deletion
+    // pending). Every answer from here on goes through $answer: that, and a
+    // browser from before the session cookie's __Host- name given it.
+    $dropHint = signInHintSent($request) && ($signIn === null || !signInHintAllowed($signIn['user']));
+    $answer = static fn(Response $given): Response
+        => withSessionCookieRenamed($request, $dropHint ? withoutSignInHint($given) : $given);
+
     // Single sign-on: already signed in here, and nothing about this request
     // needs a page. Straight back with a code.
     if ($signIn !== null && !in_array('create', $prompts, true)) {
@@ -197,7 +210,13 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
 
         if ($ready && completeAuthRequest($pdo, $id)) {
             touchSession($pdo, $signIn['session']);
-            return redirectTo($response, issueAuthorizationCode($pdo, $authRequest, $user, $signIn['session']));
+            $back = redirectTo($response, issueAuthorizationCode($pdo, $authRequest, $user, $signIn['session']));
+
+            // A live session whose browser has no hint - one opened before the
+            // hint was, or a browser that lost it - gets one here, at its next
+            // sign-on to a site. Nothing is issued to an account whose deletion
+            // is pending, so it never gets one this way.
+            return $answer(signInHintSent($request) ? $back : withSignInHint($back, $signIn['session']));
         }
 
         // The account signed in here is being deleted (api/account_deletion.php):
@@ -209,7 +228,7 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
         // another account - the sign-in page's accept refuses this one the same way.
         if ($satisfied && ($refusal['code'] ?? null) === 'account_deletion_pending' && !in_array('none', $prompts, true)) {
             completeAuthRequest($pdo, $id);
-            return redirectTo($response, iamPageUrl('/error', ['code' => 'account_deletion_pending']));
+            return $answer(redirectTo($response, iamPageUrl('/error', ['code' => 'account_deletion_pending'])));
         }
     }
 
@@ -217,14 +236,18 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
         completeAuthRequest($pdo, $id);
         // OIDC's error code `login_required` ("nobody is signed in here"), not
         // the application's `login_required` switch the public contract below
-        // publishes - the same two words, unrelated.
+        // publishes - the same two words, unrelated. The hint stays with
+        // interaction_required - the session is good for other sites, and the
+        // site that asked keeps its own note not to try this hint again -
+        // unless the account is one no site lets in ($dropHint).
         $error = $signIn === null ? 'login_required' : 'interaction_required';
-        return redirectTo($response, errorRedirect($authRequest, $error, 'Signing in needs a page this request asked not to show'));
+
+        return $answer(redirectTo($response, errorRedirect($authRequest, $error, 'Signing in needs a page this request asked not to show')));
     }
 
     $page = in_array('create', $prompts, true) ? '/register' : '/login';
 
-    return redirectTo($response, iamPageUrl($page, ['request' => $id, 'lang' => $language]));
+    return $answer(redirectTo($response, iamPageUrl($page, ['request' => $id, 'lang' => $language])));
 });
 
 // ── Token ────────────────────────────────────────────────────────────────────
@@ -450,8 +473,12 @@ $app->get('/api/oidc/logout', function (Request $request, Response $response) {
 
     $signIn = currentSignIn($request);
 
+    // Nobody signed in here: a sign-in hint this browser still carries is
+    // stale, and goes - no site is to sign anybody in by it.
     if ($signIn === null) {
-        return redirectTo($response, $landing ?? iamPageUrl('/logout', ['done' => 1]));
+        $away = redirectTo($response, $landing ?? iamPageUrl('/logout', ['done' => 1]));
+
+        return signInHintSent($request) ? withoutSignInHint($away) : $away;
     }
 
     // The application proved which sign-in it means: end it without asking.
@@ -461,7 +488,7 @@ $app->get('/api/oidc/logout', function (Request $request, Response $response) {
 
     if ($proven) {
         revokeSession($pdo, (int) $signIn['session']['id'], SESSION_REVOKED_SIGNOUT);
-        return withoutSessionCookie(redirectTo($response, $landing ?? iamPageUrl('/logout', ['done' => 1])));
+        return withoutSignInHint(withoutSessionCookie(redirectTo($response, $landing ?? iamPageUrl('/logout', ['done' => 1]))));
     }
 
     // Otherwise a link on somebody else's page could sign people out: ask.

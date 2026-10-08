@@ -191,6 +191,54 @@ nothing but "Signing in…"). `init()` recognises it by its path plus the `code`
 `error` and `state` query parameters, exchanges the code, and hands back
 `returnTo` - the address the person was on when they pressed "Sign in".
 
+### Signing a visitor in by the hint
+
+A site that lets visitors in (`login_required` off) can sign in, without a
+click, a person who is signed in at the IAM (the owner's decision of
+2026-10-07, [decisions.md](decisions.md)). Every sign-in at the IAM sets a
+cookie the site's pages can read, `anotoki_signed_in` - for every host under
+the IAM's parent domain on a real host (`anotoki.eu`; only while a site
+registered at the IAM signs in under it, so a site elsewhere never gets it),
+host-only `localhost` in development ([api.md](api.md), "The sign-in hint
+cookie"). The anotoki sites will do this through the family's library; this
+is what it does:
+
+- **The hint is only a reason to try.** It says that somebody signed in at the
+  IAM in this browser - never who, and never anything a page shows, sends to
+  the site's API, or decides a person by. Who the person is comes from the
+  tokens the try brings back.
+- **The try is one silent sign-in**: `login({ prompt: 'none', returnTo })` -
+  the same authorize, PKCE, state and nonce as any sign-in. A live session at
+  the IAM comes straight back with a code; none comes back
+  `error=login_required` (and the IAM clears the stale hint for every site);
+  a session this site may not use, `error=interaction_required`. An error
+  that comes back is never shown: the page stays a visitor's. But not every
+  try comes back: for a client the IAM does not know, one switched off, or a
+  redirect URI not registered exactly, authorize trusts no address to send
+  anything to and shows its own `/error` page instead - `prompt=none` or not
+  (api.md, authorize, step 1). So a site tries only while the IAM answers its
+  public `GET /api/public/applications/{client_id}` with a 200 - a 404 means
+  unknown or switched off - and only from its registered callback.
+- **Only from a top-level page in a browser** - not in a frame, not while
+  prerendering, not on the callback route - and only when the cookie is there
+  in the hint's shape (`^[A-Za-z0-9_-]{16,64}$`) and the IAM answers its
+  discovery document. No cookie, no hop: a visitor without an account and a
+  search engine are never sent anywhere.
+- **Loop protection.** Each hint value is tried once: a marker naming it is
+  written to the site's storage - and read back - before the hop, and no
+  storage means no hop. Whatever the value, at most one try a minute. A value
+  the site signed in under whose refresh then fails `invalid_grant` counts as
+  tried, and so does the value when the person signs out on the site. A new
+  value is a new sign-in at the IAM, worth one more try.
+- **A site never writes or deletes the cookie.** It is the IAM's, shared by
+  every site under the domain: one site writing it would defeat every other
+  site's "once per value" and the IAM's own clearing of a stale hint. What a
+  site remembers about it - its marker - lives in its own storage.
+- **Not where sign-in is required**: such a site sends people to the IAM as it
+  always has (`login()`), and single sign-on brings them straight back.
+- In development, open the site as `localhost`, never `127.0.0.1`: that is
+  another host, which never gets the hint.
+
 ## 3. The backend: verifying the access token
 
 The rule is short and all of it matters:
@@ -280,6 +328,11 @@ key the browser sends, `X-Visitor-Key`):
 2. Else, when sign-in is required: 401 `sign_in_required` on everything per
    person; the visitor's key is never looked up.
 3. Else the visitor's key, if one was sent; else nobody.
+
+The sign-in hint cookie (above) arrives with every request to a site's API on
+a real host - it is set for the whole domain. The backend never reads it,
+logs it or acts on it: it is no part of who a request is, and says nothing of
+anybody.
 
 A visitor never passes a check that means "a verified token" (the admin area,
 anything of another person's). The frontend decides person or visitor when it

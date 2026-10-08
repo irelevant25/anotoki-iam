@@ -165,7 +165,8 @@ routes. The IAM wires it in `backend/api/migration_runner.php` and
                                        └─ otherwise 302 /login?request={id}
                                            the page signs the person in:
                                            POST /api/login/password (+ totp …)
-                                           → session cookie `anotoki_iam`
+                                           → session cookie `__Host-anotoki_iam`
+                                             (`anotoki_iam` on plain http)
                                            POST /api/login/request/{id}/accept
    ◀──────────── 302 {redirect_uri}?code=…&state=…&iss=…
  state checked, then
@@ -182,6 +183,24 @@ routes. The IAM wires it in `backend/api/migration_runner.php` and
 Signing out of a site (the SDK's `logout()`) goes to `/api/oidc/logout` with the
 ID token as a hint; the IAM ends its session, which spends every refresh token
 issued under it - on every site - and sends the browser back to the site.
+
+**The sign-in hint** (the owner's decision of 2026-10-07). Every session opened
+here also sets `anotoki_signed_in`: a random value with nothing of the person
+in it, readable by the sites' pages - under the issuer's parent domain on a
+real host (`anotoki.eu`), and only while a site switched on signs in under that
+domain; host-only `localhost` in development. A site that lets visitors in,
+with no session of its own, reads it and makes the authorize above with
+`prompt=none`: a live session here comes straight back with a code, no page
+shown; none comes back `login_required`, and authorize clears the stale hint
+for every site at once. Without the hint a site sends nobody anywhere - no
+visitor without an account, no search engine. Both sign-outs, ending this
+browser's own session and a deletion asked for clear it, and an account no
+site lets in (its deletion pending) has none wherever the IAM sees it; a
+site's single sign-on and the account pages give a live session one when its
+browser has none, and a deletion cancelled or a forced change of password done
+gives a new one, so the sites try again. It is never proof of anything: what a
+hop brings back is a code, by every rule of any sign-in ([api.md](api.md), "The
+sign-in hint cookie").
 
 ## What is stored
 
@@ -349,6 +368,18 @@ origin cannot send without a CORS preflight those endpoints never answer, and an
 `Origin` other than the IAM's own is refused. The admin panel needs the
 `ADMIN` role of the application `iam`.
 
+On HTTPS the cookie is `__Host-anotoki_iam` (a hardening of 2026-10-07): a
+browser keeps a cookie of exactly that name only from the IAM's own host -
+`Secure`, `Path=/`, no `Domain`. It is read by that exact name from the
+`Cookie` header - a look-alike that only decodes to it is not it, and either
+name sent twice is no session - and when it comes, a bare-name cookie is not
+read. A browser from before keeps its session: the bare `anotoki_iam` is read
+while no `__Host-` one comes, and renamed by the next answer that uses it -
+which leaves one risk until the bare name is no longer read: a browser with no
+`__Host-` session can be handed a planted bare-name session (with the sign-in
+hint, without a click on a site that lets visitors in). The cookie is read,
+set, expired and renamed in `api/session.php` and nowhere else.
+
 ## The account's preferences
 
 The theme, the date order and the clock are the account's (migration 015),
@@ -481,6 +512,14 @@ written down, not a refactor.
     on again or gives it a password or an address: not the admin panel
     (`409 account_anonymized`), not the command line. Nothing of the person
     is left in it or tied to it.
+17. **The sign-in hint opens nothing.** Its value is random per session, kept
+    nowhere and derived from nothing - not the session's secret, hash or `sid`,
+    not the account. Nothing reads it as more than "was it sent" - to clear it
+    or set it again - and a site decides by it only whether a silent sign-in is
+    worth a hop. An account no site lets in has none. It is the one IAM cookie
+    a script reads and the one with a `Domain` - only one the family's sites
+    sign in under; the session cookie stays host-only and `HttpOnly`,
+    `__Host-` on HTTPS, and no CSRF or CORS exemption comes with the hint.
 
 ## Where the code lives
 
@@ -496,7 +535,7 @@ written down, not a refactor.
 | `backend/api/routes/account.php` | The account page. |
 | `backend/api/routes/admin.php` | The admin panel. |
 | `backend/api/oidc.php` | Requests, codes, refresh tokens, minting tokens. |
-| `backend/api/session.php` | The session cookie, sliding expiry, revocation, the limiter. |
+| `backend/api/session.php` | The session cookie (its `__Host-` name, and the move to it), the sign-in hint, sliding expiry, revocation, the limiter. |
 | `backend/api/keys.php`, `jwt.php`, `crypto.php` | Keys (made on first use), signing, encryption. |
 | `backend/api/applications.php`, `accounts.php`, `settings.php` | The rules about who may use what. |
 | `backend/api/account_deletion.php` | An account's deletion: asked, cancelled, done when due (housekeeping), and the public list of deleted ids. |

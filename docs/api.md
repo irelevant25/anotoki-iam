@@ -57,11 +57,33 @@ the IAM frontend. The examples use the development one:
 
 ### The session cookie
 
-The IAM frontend is signed in by one cookie, `anotoki_iam`: `HttpOnly`,
-`SameSite=Lax`, `Secure` over HTTPS, `Path=/`. Its value is a random secret; the
-database keeps only its SHA-256. A "keep me signed in" session sets `Max-Age`
-(30 days of inactivity, 90 days at most); without it the cookie lives until the
+The IAM frontend is signed in by one cookie: `__Host-anotoki_iam` wherever it
+is `Secure` (over HTTPS, or `cookie_secure` on), plain `anotoki_iam` on a
+plain-http development machine. `HttpOnly`, `SameSite=Lax`, `Path=/`, never a
+`Domain`. Its value is a random secret; the database keeps only its SHA-256. A
+"keep me signed in" session sets `Max-Age` (to the session's absolute end: 30
+days of inactivity, 90 days at most); without it the cookie lives until the
 browser closes and the session dies after a day of inactivity (a week at most).
+
+The `__Host-` prefix (a hardening of 2026-10-07, [decisions.md](decisions.md)):
+a browser keeps a cookie of exactly that name only when the IAM's own host
+sets it. The IAM reads the session cookie by that exact name, as the `Cookie`
+header carries it - never a name that only decodes to it
+(`__%48ost-anotoki_iam`, which a sibling host can set for the whole domain) -
+and when `__Host-anotoki_iam` comes, a cookie under the bare name is not read
+at all. Either name sent twice is no session. A browser from before the prefix
+is not signed out: its `anotoki_iam` is read while no `__Host-` one comes, and
+the next answer that uses the session - the account pages, a site's single
+sign-on, a sign-in - sets the same secret under the new name and expires the
+old one (`Path=/`, this host, as it was set). Every sign-out and every refusal
+that drops the cookie expires both names.
+
+What remains while the bare name is read: a browser with no `__Host-` session
+can be handed a session planted under the bare name by a sibling host - and so
+be signed into somebody else's account; with the sign-in hint planted beside
+it, a site that lets visitors in does that without a click. A later release
+stops reading the bare name, once every session from before has ended (90
+days at most).
 
 Applications never see this cookie. They get tokens.
 
@@ -89,6 +111,51 @@ without a mail. A site's single sign-on and its refreshes open no session
 and mail nothing. A password reset, and the owner of an address claiming an
 account never confirmed, forget every browser the account knew (the browser
 that does it is then its first). Before migration 016 no such cookie is set.
+
+### The sign-in hint cookie
+
+Every session opened here (each way in above, past two-factor) also sets
+`anotoki_signed_in`, for the anotoki sites: a site that lets visitors in reads
+it to decide whether to sign the person in with one silent hop (the owner's
+decision of 2026-10-07, [decisions.md](decisions.md); what a site does with
+it: [integrating-an-app.md](integrating-an-app.md)). It says only "somebody
+signed in at the IAM in this browser". Its value is 16 random bytes in
+base64url (22 characters), new for every session, kept nowhere and derived
+from nothing - not the session's secret, its hash or `sid`, not the account.
+No endpoint reads it as proof of anything: the IAM only looks at whether it
+was sent, to clear it or to set it again.
+
+| Attribute | |
+| --- | --- |
+| `Path` | `/` |
+| `HttpOnly` | **no** - the sites' pages read it with `document.cookie`. It is the only IAM cookie a script can read |
+| `SameSite` | `Lax` |
+| `Secure` | exactly when the session cookie is |
+| `Domain` | on a real host, the parent of the issuer's host - `anotoki.eu` for `iam.anotoki.eu` - so every site under it reads it; a host of two labels or an address keeps it host-only. `hint_cookie_domain` in `config/iam.local.php` names another domain the issuer's host is under; anything else there is passed over. Either way, only while some application switched on (not the IAM's own entry) signs in under that domain - one of its login redirect URIs at a host under it; else host-only. A setting passed over, or a domain no site is under, is said in the error log at most once a day. On a development machine (a loopback issuer) none: host-only `localhost`, which every port reads |
+| `Max-Age` | the session's: none (until the browser closes) when it is not remembered, else the seconds left until the session's absolute end - up to 90 days |
+
+`'hint_cookie_name' => null` in `config/iam.local.php` switches the hint off.
+
+| When | Where | The hint |
+| --- | --- | --- |
+| A session opened | every way in | set, a new value - not for an account no site lets in (switched off, waiting for approval, its deletion pending, deleted - read afresh), where a hint left from the session it replaced is cleared |
+| A live session, and no hint sent | a site's single sign-on (`GET /api/oidc/authorize`), every `/api/account` and `/api/admin` request whose session is still live when it is answered | set - a session from before the hint, or a browser that lost it |
+| The sites are to try again | `DELETE /api/account/deletion` (cancelled); `PUT /api/account/password` and `POST /api/account/password/set` when they end a forced change of password | set, a new value |
+| Signed out | `POST /api/logout`; `GET /api/oidc/logout` with a proven ID token, or with no session here; `DELETE /api/account/sessions/{id}` and `DELETE /api/admin/sessions/{id}` naming this browser's own session | cleared |
+| A deletion asked for | `POST /api/account/deletion` | cleared: no site lets the account in now |
+| An account no site lets in | the account and admin pages, and `GET /api/oidc/authorize` - `interaction_required` included - while the account's deletion is pending | cleared, when sent: a hint that raced the deletion |
+| No live session behind the hint | the account and admin pages' `401 no_session`; `POST /api/login/request/{id}/accept`'s `401 no_session`; `GET /api/oidc/authorize` answering `prompt=none` with `login_required`, or sending the browser to `/login` | cleared, when sent - the first site that tries cleans a stale hint up for every site |
+| A session this site may not use | `prompt=none` answered `interaction_required` (a role that may not sign in, a forced change of password, `max_age`) | kept: the session is good for other sites |
+
+A session ended elsewhere, expired, or whose account was switched off leaves
+the hint stale until that browser next reaches the IAM - at most one wasted
+silent sign-in, by the first site that tries. Clearing it expires the copy
+under the `Domain` the issuer names (whether or not a site is under it now)
+and a host-only copy too. "Sent" means a value of the hint's shape
+(`^[A-Za-z0-9_-]{16,64}$`, as the sites read it): anything else under its name
+counts as none, so a live session puts a real one in its place. The session
+cookie stays host-only and `HttpOnly` (`__Host-` on HTTPS, above), and never
+gets a `Domain`; the hint brings no CSRF or CORS exemption with it.
 
 ### CSRF
 
@@ -201,6 +268,11 @@ What happens:
    `prompt=create`), with `&lang={code}` when `ui_locales` named an offered
    language. The IAM
    frontend finishes it with `POST /api/login/request/{id}/accept`.
+
+The sign-in hint (above): step 3 sets it when the browser sent none; steps 5
+and 6 clear one the browser sent when nobody is signed in here - a
+`login_required` answer among them; `interaction_required` keeps it, but for
+an account whose deletion is pending (step 4), which has none.
 
 The IAM's own pages, opened directly rather than by an application, take
 `?next=/some/path` instead of `request` - a path on the IAM to go to after
@@ -414,10 +486,12 @@ RP-initiated logout, a top-level navigation.
 | `state` | echoed back |
 
 Ends the IAM session, spends every refresh token issued under it (in every
-application), and clears the cookie; then redirects to
+application), and clears the cookie and the sign-in hint; then redirects to
 `post_logout_redirect_uri?state=...`. Without a verifiable `id_token_hint` the
 browser is sent to `{issuer}/logout?request=...` to confirm first, so a link on
-somebody else's page cannot sign people out.
+somebody else's page cannot sign people out; the hint stays until the page's
+`POST /api/logout` confirms. With nobody signed in here it goes straight to
+the landing page, clearing a sign-in hint the browser still carries.
 
 ### `POST /api/oidc/revoke`
 
@@ -661,7 +735,7 @@ Refusals, all `403` unless noted:
 
 | `code` | Meaning | What the page offers |
 | --- | --- | --- |
-| `no_session` (401) | not signed in | the sign-in form |
+| `no_session` (401) | not signed in (a sign-in hint sent is cleared) | the sign-in form |
 | `request_expired` (404) | too old, or used | "Back to {app}" (`home_url`) |
 | `email_not_confirmed` | account not confirmed yet | resend the confirmation |
 | `password_change_required` | an admin set this password | the change-password form, then accept again |
@@ -694,7 +768,8 @@ on it beyond `error`.
 
 `200 { "user": AccountUser, "device_token": string | null }` and the session
 cookie is set - and the device cookie, which may mail the account about a new
-browser (above); so on every way in below that opens a session. Refusals:
+browser, and the sign-in hint (both above); so on every way in below that
+opens a session. Refusals:
 
 | Status | `code` | |
 | --- | --- | --- |
@@ -795,7 +870,7 @@ same form goes again with the code.
 ### `POST /api/logout`
 
 `{ request? }` - ends the current session and every refresh token issued under
-it, and clears the cookie. Answers `{ "message": "Signed out", "redirect": string | null }`,
+it, and clears the cookie and the sign-in hint. Answers `{ "message": "Signed out", "redirect": string | null }`,
 whether or not there was a session. `request` is the id from a logout that
 needed confirming (below); `redirect` is then where the application asked to
 land (`post_logout_redirect_uri?state=...`), and the page navigates there.
@@ -826,7 +901,10 @@ a mail program's one-click unsubscribe (RFC 8058) is not offered: the
 
 ## First-party: the account page
 
-Every endpoint here needs the session cookie; without one, `401 { code: "no_session" }`.
+Every endpoint here needs the session cookie; without one, `401 { code: "no_session" }`
+(and a sign-in hint the browser sent is cleared). With one, the answer sets
+the sign-in hint when the browser sent none - not while the account's
+deletion is pending.
 
 ### `AccountUser`
 
@@ -861,8 +939,8 @@ interface AccountUser {
 | --- | --- | --- |
 | `GET /api/account` | | `AccountUser` |
 | `PUT /api/account/profile` | `{ username?, language?, news_mail?, theme?, date_format?, time_format? }` | `AccountUser` (409 username taken; `422 invalid_language` for a language not on offer; `news_mail` is true or false - `422 invalid_input` otherwise, `503 announcements_unavailable` while 013 is pending; the three preferences take the values of `POST /api/oidc/preferences` - `422 invalid_preference` otherwise, `503 preferences_unavailable` while 015 is pending) |
-| `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; `422 wrong_password` for a wrong current password, each one counted by the sign-in limiter: `429 too_many_attempts` past it (ten from one address in 15 minutes), the right one included |
-| `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change. Asks for the proof below - for an account with no password, a sign-in of the last 15 minutes: `403 reauthentication_required` otherwise. `409 password_already_set`, `422 invalid_password` |
+| `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; a forced change done sets a new sign-in hint (above), so the sites that met `interaction_required` try again; `422 wrong_password` for a wrong current password, each one counted by the sign-in limiter: `429 too_many_attempts` past it (ten from one address in 15 minutes), the right one included |
+| `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change, and then sets a new sign-in hint. Asks for the proof below - for an account with no password, a sign-in of the last 15 minutes: `403 reauthentication_required` otherwise. `409 password_already_set`, `422 invalid_password` |
 | `PUT /api/account/password/enabled` | `{ enabled, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, to switch password sign-in off; a sign-in of the last 15 minutes to switch it on. `409 would_lock_account` / `no_password` first |
 | `POST /api/account/google` | `{ credential, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, while password sign-in is on; else a sign-in of the last 15 minutes. `400 invalid_token` for a credential that does not verify, `409` already connected elsewhere |
 | `DELETE /api/account/google` | | `AccountUser` - `409 would_lock_account` |
@@ -872,7 +950,7 @@ interface AccountUser {
 | `POST /api/account/2fa/recovery` | `{ code }` | `{ recovery_codes }` |
 | `DELETE /api/account/devices` | | `{ ended }` |
 | `GET /api/account/sessions` | | `{ sessions: SessionEntry[], failed_since_last_login }` |
-| `DELETE /api/account/sessions/{id}` | | `{ message }` |
+| `DELETE /api/account/sessions/{id}` | | `{ message }` - this browser's own session (the page offers Sign out instead) is answered as a sign-out: the session cookie and the sign-in hint cleared |
 | `DELETE /api/account/sessions` | | `{ ended }` - all but this one |
 | `GET /api/account/applications` | | `{ applications: AccountApplication[] }` |
 | `GET /api/account/tokens` | | `{ tokens: PersonalToken[] }` |
@@ -1006,7 +1084,8 @@ code exchange and every refresh `invalid_grant`, userinfo and
 `POST /api/oidc/preferences` `401`, a new personal token `403
 account_deletion_pending`), so every site loses the person within one access
 token's lifetime; no announcement goes to it either (`left_out.deleting`).
-The IAM's own sign-in keeps working by every way in - that
+The sign-in hint is cleared, and none is set for the account while the
+deletion is pending. The IAM's own sign-in keeps working by every way in - that
 is where the deletion is cancelled - but its admin panel does not (`403
 account_deletion_pending`, and `is_admin` is false). The account's address is
 mailed "Your anotoki account will be deleted" - the day, and the account page
@@ -1028,7 +1107,8 @@ account is deleted (thirty days, give or take the hour housekeeping may take)
 the deletion is cancelled: `deletion_due_at` back to null, audited
 `account.deletion_cancelled`, and the address mailed "Your anotoki account
 will not be deleted" - news its owner must get when it was not them. What the
-request ended stays ended: the person signs in to the sites again. `200
+request ended stays ended: the person signs in to the sites again, and a new
+sign-in hint lets the sites that welcome visitors do it by themselves. `200
 AccountUser`; `409 deletion_not_requested` when nothing is asked; `503
 account_deletion_unavailable` while 016 is pending. Never limited.
 
@@ -1220,7 +1300,7 @@ interface AdminUserDetail {
 | Method + path | |
 | --- | --- |
 | `GET /api/admin/sessions?search=&user_id=&method=&status=active\|ended` | `{ sessions: AdminSession[], total, active, methods }` (200 rows at most) |
-| `DELETE /api/admin/sessions/{id}` | ends it and its refresh tokens |
+| `DELETE /api/admin/sessions/{id}` | ends it and its refresh tokens; the administrator's own, from this browser, is answered as a sign-out (the session cookie and the sign-in hint cleared) |
 | `GET /api/admin/emails?kind=&status=&recipient=&from=&to=&page=` | `{ total, page, pageSize, items: EmailLogEntry[] }` |
 | `GET /api/admin/emails/filters` | `{ kinds, statuses }` |
 | `GET /api/admin/audit?actor=&action=&target_type=&page=` | `{ total, page, pageSize, items: AuditEntry[] }` |

@@ -277,7 +277,15 @@ final class Browser
     {
     }
 
-    public function request(string $method, string $path, array $options = []): TestResponse
+    /**
+     * The request this browser sends, built as production builds it: the jar
+     * as one Cookie header, and the cookie params parsed from that header by
+     * Slim's own parser - as createFromGlobals() does - so what a header
+     * carries (a name that only decodes to another, a name twice) reaches the
+     * app as it would on the host. A test may send a Cookie header of its own
+     * (the 'headers' option), which then is all the browser sends.
+     */
+    public function serverRequest(string $method, string $path, array $options = []): \Psr\Http\Message\ServerRequestInterface
     {
         $uri = (new \Slim\Psr7\Factory\UriFactory())->createUri(TEST_ISSUER . $path);
         $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest($method, $uri, ['REMOTE_ADDR' => $this->ip]);
@@ -294,11 +302,21 @@ final class Browser
             $request = $request->withHeader('X-IAM-Request', '1');
         }
 
+        if ($this->cookies !== []) {
+            $pairs = array_map(static fn(string|int $name, string $value): string => $name . '=' . $value, array_keys($this->cookies), $this->cookies);
+            $request = $request->withHeader('Cookie', implode('; ', $pairs));
+        }
+
         foreach ($options['headers'] ?? [] as $name => $value) {
             $request = $request->withHeader($name, $value);
         }
 
-        $response = buildIamApp()->handle($request->withCookieParams($this->cookies));
+        return $request->withCookieParams(\Slim\Psr7\Cookies::parseHeader($request->getHeader('Cookie')));
+    }
+
+    public function request(string $method, string $path, array $options = []): TestResponse
+    {
+        $response = buildIamApp()->handle($this->serverRequest($method, $path, $options));
 
         foreach ($response->getHeader('Set-Cookie') as $cookie) {
             [$pair] = explode(';', $cookie, 2);

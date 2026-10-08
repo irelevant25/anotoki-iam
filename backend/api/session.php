@@ -40,10 +40,42 @@ const SESSION_TOUCH_INTERVAL = 60;
 // ─────────────────────────────────────────────────────────────────────────────
 // The cookie
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// Read, set, expired and renamed here and nowhere else: sessionSecretFrom(),
+// withSessionCookie(), withoutSessionCookie(), withSessionCookieRenamed().
 
-function sessionCookieName(): string
+/** The session cookie's name as configured - `anotoki_iam` - before any prefix. The device cookie is named after it. */
+function sessionCookieBaseName(): string
 {
     return (string) iamConfig()['cookie_name'];
+}
+
+/**
+ * The name the session cookie goes by. Wherever it is Secure, `__Host-` before
+ * it (a hardening of 2026-10-07, docs/decisions.md): a browser keeps a cookie
+ * of that exact name only when this very host sets it - Secure, Path=/, no
+ * Domain. The IAM reads it by that exact name, as sent (sessionSecretFrom()):
+ * a look-alike a sibling host can set - a name that only decodes to it, like
+ * `__%48ost-anotoki_iam` - is not it, and the name sent twice is no session.
+ * When it comes, a cookie under the bare name is not read at all. On a
+ * plain-http development machine the bare name, as before: a __Host- cookie
+ * is Secure.
+ */
+function sessionCookieName(): string
+{
+    return sessionCookieSecure() ? '__Host-' . sessionCookieBaseName() : sessionCookieBaseName();
+}
+
+/**
+ * The bare name a Secure session cookie went by before the prefix, or null
+ * where the name never changed. Still read when the new one is not there, so
+ * the change signs nobody out, and renamed by the next answer that uses the
+ * session (withSessionCookieRenamed()). A later release stops reading it, once
+ * every session from before the change has ended - ninety days at most.
+ */
+function sessionCookieOldName(): ?string
+{
+    return sessionCookieSecure() ? sessionCookieBaseName() : null;
 }
 
 function sessionCookieSecure(): bool
@@ -58,15 +90,17 @@ function sessionCookieSecure(): bool
  *
  * HttpOnly so no script - including one injected into a page - can read it;
  * SameSite=Lax so another site cannot make the browser send it with a
- * cross-site POST; Secure wherever the IAM is on HTTPS. A remembered session's
- * cookie outlives the browser; the server's own expiry is still what decides.
+ * cross-site POST; Secure wherever the IAM is on HTTPS, and then under the
+ * __Host- name, with Path=/ and never a Domain. A remembered session's cookie
+ * outlives the browser, until the session's absolute end; the server's own
+ * expiry is still what decides.
  */
-function withSessionCookie(Response $response, string $secret, bool $remember): Response
+function withSessionCookie(Response $response, string $secret, array $session): Response
 {
     $parts = [sessionCookieName() . '=' . $secret, 'Path=/', 'HttpOnly', 'SameSite=Lax'];
 
-    if ($remember) {
-        $parts[] = 'Max-Age=' . (int) iamConfig()['session_remember_absolute'];
+    if (asBool($session['remember'] ?? false)) {
+        $parts[] = 'Max-Age=' . max(1, (int) strtotime((string) ($session['absolute_expires_at'] ?? '')) - time());
     }
 
     if (sessionCookieSecure()) {
@@ -76,9 +110,23 @@ function withSessionCookie(Response $response, string $secret, bool $remember): 
     return $response->withAddedHeader('Set-Cookie', implode('; ', $parts));
 }
 
+/**
+ * Expires the session cookie - under its name and, where it had another,
+ * under the old one too, with the attributes it was set with (this host only,
+ * Path=/), so that the browser really drops it.
+ */
 function withoutSessionCookie(Response $response): Response
 {
-    $parts = [sessionCookieName() . '=', 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'];
+    foreach (array_filter([sessionCookieName(), sessionCookieOldName()]) as $name) {
+        $response = withSessionCookieExpired($response, $name);
+    }
+
+    return $response;
+}
+
+function withSessionCookieExpired(Response $response, string $name): Response
+{
+    $parts = [$name . '=', 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'];
 
     if (sessionCookieSecure()) {
         $parts[] = 'Secure';
@@ -87,11 +135,403 @@ function withoutSessionCookie(Response $response): Response
     return $response->withAddedHeader('Set-Cookie', implode('; ', $parts));
 }
 
+/**
+ * The values the request's Cookie header carries under exactly this name, in
+ * the order they came - the name compared as it was sent, never decoded.
+ *
+ * The cookie params are no place to read the session cookie from: Slim's
+ * parser, which builds them in production (Cookies::parseHeader()), URL-decodes
+ * every name and keeps the first of each. So `__%48ost-anotoki_iam` - a name no
+ * browser holds to the __Host- prefix's rules, which a sibling host may set for
+ * the whole domain with a longer path, sent first - would come out as
+ * `__Host-anotoki_iam` in place of the real one (found by the security review).
+ */
+function cookieValuesNamed(Request $request, string $name): array
+{
+    $values = [];
+
+    foreach ($request->getHeader('Cookie') as $header) {
+        foreach (explode(';', $header) as $pair) {
+            $parts = explode('=', $pair, 2);
+            if (count($parts) === 2 && trim($parts[0], " \t") === $name) {
+                $values[] = trim($parts[1], " \t\r\n");
+            }
+        }
+    }
+
+    return $values;
+}
+
+/**
+ * The session's secret from the request's cookie, or null - the one place the
+ * cookie is read, by its exact name in the Cookie header (cookieValuesNamed()).
+ * Under its name first: when that came at all, nothing else is looked at, so a
+ * cookie under the bare name - left over, or planted by a sibling host - never
+ * stands in for it. Only without it, the old bare name: a browser from before
+ * the prefix. The name sent more than once is no session: only the IAM's own
+ * host sets a __Host- cookie, so two of them mean something is wrong - and of
+ * two bare ones, one was planted.
+ */
 function sessionSecretFrom(Request $request): ?string
 {
-    $value = $request->getCookieParams()[sessionCookieName()] ?? null;
+    $values = cookieValuesNamed($request, sessionCookieName());
+    $old = sessionCookieOldName();
 
-    return is_string($value) && preg_match('/^[A-Za-z0-9_-]{40,64}$/', $value) ? $value : null;
+    if ($values === [] && $old !== null) {
+        $values = cookieValuesNamed($request, $old);
+    }
+
+    return count($values) === 1 && preg_match('/^[A-Za-z0-9_-]{40,64}$/D', $values[0]) === 1 ? $values[0] : null;
+}
+
+/**
+ * The answer to a request that carried the session cookie under its old bare
+ * name: the same secret set again under the __Host- name, for as long as its
+ * session lasts, and the old one expired - so the browser keeps one cookie,
+ * which no sibling host can plant, and nobody is signed out by the change.
+ * Only for a session still live and the new name not sent, and not where the
+ * answer sets or expires the session cookie itself (a sign-in, a sign-out, a
+ * 401). Which names came is read as sessionSecretFrom() reads them, by the
+ * exact name in the Cookie header. Called where the session is used -
+ * requireSession(), authorize, completeSignIn() - never by the four endpoints
+ * the sites call cross-origin, which read no cookie.
+ */
+function withSessionCookieRenamed(Request $request, Response $response): Response
+{
+    $old = sessionCookieOldName();
+
+    if ($old === null || cookieValuesNamed($request, $old) === [] || responseSetsCookie($response, $old)) {
+        return $response;
+    }
+
+    if (cookieValuesNamed($request, sessionCookieName()) === [] && !responseSetsCookie($response, sessionCookieName())) {
+        $session = sessionFromRequest(iamDb(), $request);
+        if ($session !== null) {
+            $response = withSessionCookie($response, (string) sessionSecretFrom($request), $session);
+        }
+    }
+
+    return withSessionCookieExpired($response, $old);
+}
+
+/** Whether a response sets or expires a cookie of this name already. */
+function responseSetsCookie(Response $response, string $name): bool
+{
+    foreach ($response->getHeader('Set-Cookie') as $line) {
+        if (str_starts_with($line, $name . '=')) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The sign-in hint
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The owner's decision of 2026-10-07 (docs/decisions.md): signing in here also
+// sets `anotoki_signed_in`, a cookie every anotoki site's pages can read, which
+// says only that somebody signed in at the IAM in this browser. A site that
+// lets visitors in and sees it with no session of its own signs the person in
+// with one silent hop (authorize, prompt=none) and back; without it, nobody - a
+// visitor with no account, a search engine - is ever sent anywhere.
+//
+// A hint, never proof. Its value is random per session, kept nowhere and
+// derived from nothing: not the session's secret, its hash or its sid, not the
+// account, not the time. Nothing here reads it as more than "was it sent" - to
+// clear it, or to set it again - and a site only decides by it whether a hop
+// is worth making: who the person is comes from the code that hop brings back,
+// by every rule any sign-in keeps. It is the one IAM cookie a script can read
+// and the one with a Domain; the session cookie stays host-only and HttpOnly.
+//
+// Set at every session opened (completeSignIn()), and again where a live
+// session finds the browser without one; cleared at sign-out, at a deletion
+// asked for, and wherever it arrives with no live session behind it - or with
+// an account no site lets in. A session ended elsewhere leaves it stale until
+// this browser next reaches the IAM: the first authorize that sees it with no
+// session clears it, for every site.
+
+/** The hint's shape on its way in: what the sites accept as one, a plain token. */
+const SIGN_IN_HINT_SHAPE = '/^[A-Za-z0-9_-]{16,64}$/D';
+
+/** How often the error log is told again that the hint was passed over or kept to the IAM's host: once a day. */
+const SIGN_IN_HINT_LOG_EVERY = 86400;
+
+/**
+ * The hint's name - `anotoki_signed_in` unless config/iam.local.php names
+ * another - or null for no hint at all. Null there is the way to switch it
+ * off; a name that is not a plain token, one with a prefix browsers give a
+ * meaning to (__Host-, __Secure-), or another IAM cookie's switches it off too,
+ * and the error log says so. Plain: PHP hands a cookie whose name has a dot or
+ * a space in it to the app under another name, and one sharing the session
+ * cookie's name would overwrite it.
+ */
+function signInHintCookieName(): ?string
+{
+    $name = iamConfig()['hint_cookie_name'] ?? null;
+
+    if ($name === null) {
+        return null;
+    }
+
+    if (is_string($name) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $name) === 1 && preg_match('/^__(host|secure)-/i', $name) !== 1
+        && !in_array($name, [sessionCookieName(), sessionCookieBaseName(), signInDeviceCookieName()], true)) {
+        return $name;
+    }
+
+    signInHintMisconfigured('config/iam.local.php: hint_cookie_name is not a plain cookie name of its own; no sign-in hint is set');
+
+    return null;
+}
+
+/**
+ * The domain the hint is set for, or null for a cookie of the IAM's host
+ * alone: signInHintDomainNamed(), when a site is under it.
+ *
+ * The hint goes with every request to every host under its domain, so that
+ * domain must be the family's own, not merely the IAM's parent - an IAM at
+ * iam.some-hosting.example would otherwise hand it to every customer of the
+ * hosting. So it is used only when some application switched on - not the
+ * IAM's own entry - lands its sign-in on a host under it (its login redirect
+ * URIs, the admin panel's Applications); otherwise the hint is host-only, and
+ * the error log says so. Asked afresh at every call, like everything about
+ * the issuer and the applications.
+ */
+function signInHintDomain(): ?string
+{
+    $domain = signInHintDomainNamed();
+
+    if ($domain === null || signInHintSitesUnder($domain)) {
+        return $domain;
+    }
+
+    signInHintMisconfigured("no application switched on signs in under {$domain}, so the sign-in hint is host-only (docs/operations.md)");
+
+    return null;
+}
+
+/**
+ * The domain the issuer names for the hint, before the sites are asked about
+ * it - also the one a hint is cleared under, so one set while a site was there
+ * goes when none is left.
+ *
+ * Derived, unless config/iam.local.php names one: the issuer's host without
+ * its first label, when it has three labels or more (iam.anotoki.eu ->
+ * anotoki.eu), so that every anotoki site under it reads the hint. A host of
+ * two labels keeps it to itself - one label less is a top-level domain no
+ * browser sets a cookie for - as does an address. A loopback issuer never
+ * gives it a domain, whatever is configured: localhost's cookies ignore ports,
+ * so every site's dev server on this computer reads the host-only one, and no
+ * cookie may name this computer as a real host's domain.
+ *
+ * A configured domain the issuer's host is not under, a single label, an
+ * address or a loopback name is passed over: the hint is host-only, and the
+ * error log says so. The hint is a convenience; a wrong setting must cost
+ * nothing but itself.
+ */
+function signInHintDomainNamed(): ?string
+{
+    $host = rtrim(strtolower((string) parse_url(iamIssuer(), PHP_URL_HOST)), '.');
+
+    if ($host === '' || signInHintLoopback($host) || filter_var(trim($host, '[]'), FILTER_VALIDATE_IP) !== false) {
+        return null;
+    }
+
+    $configured = iamConfig()['hint_cookie_domain'] ?? null;
+
+    if ($configured === null) {
+        $labels = explode('.', $host);
+
+        return count($labels) >= 3 ? implode('.', array_slice($labels, 1)) : null;
+    }
+
+    // A leading dot is how a Domain used to be written; browsers drop it.
+    $domain = is_string($configured) ? ltrim(strtolower(trim($configured)), '.') : '';
+    $fits = preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/D', $domain) === 1
+        && filter_var($domain, FILTER_VALIDATE_IP) === false
+        && !signInHintLoopback($domain)
+        && ($host === $domain || str_ends_with($host, '.' . $domain));
+
+    if (!$fits) {
+        signInHintMisconfigured('config/iam.local.php: hint_cookie_domain is not a domain the issuer\'s host is under, so the sign-in hint is host-only');
+
+        return null;
+    }
+
+    return $domain;
+}
+
+/**
+ * Whether a site lands its sign-in under the domain: a login redirect URI of
+ * an application switched on, not the IAM's own entry, at a host that is the
+ * domain or under it. A question about the database that cannot fail on any
+ * schema the IAM has had; should the database not answer, the hint is
+ * host-only - it must never take a request down.
+ */
+function signInHintSitesUnder(string $domain): bool
+{
+    try {
+        $uris = iamDb()->query(
+            "SELECT u.uri FROM application_redirect_uris u JOIN applications a ON a.id = u.application_id
+              WHERE u.kind = 'login' AND a.enabled AND NOT a.system"
+        )->fetchAll(PDO::FETCH_COLUMN);
+    } catch (\Throwable $e) {
+        error_log('[sign-in hint] could not read the applications\' addresses: ' . $e->getMessage());
+
+        return false;
+    }
+
+    foreach ($uris as $uri) {
+        $host = rtrim(strtolower((string) parse_url((string) $uri, PHP_URL_HOST)), '.');
+        if ($host === $domain || str_ends_with($host, '.' . $domain)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/** A name that means this computer: loopbackHost()'s, and every name under localhost (RFC 6761). */
+function signInHintLoopback(string $host): bool
+{
+    return loopbackHost($host) || str_ends_with(strtolower($host), '.localhost');
+}
+
+/**
+ * Tells the error log that the hint was passed over or kept to the IAM's host
+ * - at most once a day for each thing it says. A stamp file under
+ * storage/cache remembers when it last did: under PHP-FPM or CGI every request
+ * starts afresh, so a flag in memory would say it at every request. Where no
+ * stamp can be kept, once per process.
+ */
+function signInHintMisconfigured(string $why): void
+{
+    static $saidWithoutStamp = [];
+
+    $stamp = iamStorageDir() . '/cache/sign-in-hint-' . substr(sha256($why), 0, 16) . '.logged';
+    clearstatcache(true, $stamp);
+    $last = @filemtime($stamp);
+
+    if ($last !== false && time() - $last < SIGN_IN_HINT_LOG_EVERY) {
+        return;
+    }
+
+    $directory = dirname($stamp);
+    if (!((is_dir($directory) || @mkdir($directory, 0775, true)) && @touch($stamp))) {
+        if (isset($saidWithoutStamp[$why])) {
+            return;
+        }
+        $saidWithoutStamp[$why] = true;
+    }
+
+    error_log('[sign-in hint] ' . $why);
+}
+
+/**
+ * Whether an account may have a hint at all: switched on, approved, neither
+ * being deleted nor deleted. An account no site lets in gives no site a
+ * reason to try - and a hint that reached its browser anyway, through a
+ * request that raced the change, is cleared where it is seen.
+ */
+function signInHintAllowed(?array $user): bool
+{
+    return $user !== null && !asBool($user['disabled'] ?? false) && !accountAwaitsApproval($user)
+        && !accountDeletionPending($user) && !accountAnonymized($user);
+}
+
+/**
+ * Sets the hint, with a new value: at every session opened (completeSignIn()),
+ * where a live session finds the browser without one - a site's single
+ * sign-on, the account pages - and where the sites are to try again: a
+ * deletion cancelled, a forced change of password done.
+ *
+ * Path=/ and SameSite=Lax: a page of a sibling site reads it, and no
+ * cross-site request ever needs it. Not HttpOnly - the sites' pages read it -
+ * and Secure exactly when the session cookie is. It lasts as the session
+ * does: until the browser closes for a session not remembered, else until the
+ * session's absolute end (a later sliding expiry leaves it stale, which costs
+ * one hop).
+ */
+function withSignInHint(Response $response, array $session): Response
+{
+    $name = signInHintCookieName();
+
+    if ($name === null) {
+        return $response;
+    }
+
+    // Sixteen bytes from the CSPRNG and nothing else, kept nowhere. The sites
+    // try each value once, so a new sign-in is a new value.
+    $parts = [$name . '=' . randomSecret(16), 'Path=/', 'SameSite=Lax'];
+
+    if (asBool($session['remember'] ?? false)) {
+        $left = (int) strtotime((string) ($session['absolute_expires_at'] ?? '')) - time();
+        if ($left <= 0) {
+            return $response;
+        }
+        $parts[] = 'Max-Age=' . $left;
+    }
+
+    $domain = signInHintDomain();
+    if ($domain !== null) {
+        $parts[] = 'Domain=' . $domain;
+    }
+
+    if (sessionCookieSecure()) {
+        $parts[] = 'Secure';
+    }
+
+    return $response->withAddedHeader('Set-Cookie', implode('; ', $parts));
+}
+
+/**
+ * Expires the hint: the copy under the domain the issuer names now (whether or
+ * not a site is under it any more) and, when it names one, a host-only copy
+ * too - so a hint set before a domain was named, or while a site was under it,
+ * goes. A copy left under an earlier domain - one config/iam.local.php named
+ * before it was changed - is not reached, and stays stale until it runs out:
+ * one wasted hop at most, as for any stale hint.
+ */
+function withoutSignInHint(Response $response): Response
+{
+    $name = signInHintCookieName();
+
+    if ($name === null) {
+        return $response;
+    }
+
+    $expired = [$name . '=', 'Path=/', 'SameSite=Lax', 'Max-Age=0', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'];
+    $secure = sessionCookieSecure() ? ['Secure'] : [];
+    $domain = signInHintDomainNamed();
+
+    if ($domain !== null) {
+        $response = $response->withAddedHeader('Set-Cookie', implode('; ', [...$expired, 'Domain=' . $domain, ...$secure]));
+    }
+
+    return $response->withAddedHeader('Set-Cookie', implode('; ', [...$expired, ...$secure]));
+}
+
+/**
+ * Whether the request carries a hint the IAM could have set. Only ever asked
+ * to clear it or to leave it be - never as a sign of who anybody is. One of
+ * another shape (tossed by a sibling host, or garbled) counts as none, and a
+ * live session puts a real one in its place.
+ */
+function signInHintSent(Request $request): bool
+{
+    $name = signInHintCookieName();
+    $value = $name === null ? null : ($request->getCookieParams()[$name] ?? null);
+
+    return is_string($value) && preg_match(SIGN_IN_HINT_SHAPE, $value) === 1;
+}
+
+/** Whether a response sets or expires the hint already - a handler that decided about it is not overruled. */
+function signInHintInResponse(Response $response): bool
+{
+    $name = signInHintCookieName();
+
+    return $name !== null && responseSetsCookie($response, $name);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

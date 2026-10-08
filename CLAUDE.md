@@ -190,6 +190,39 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   browser is known by the `anotoki_iam_device` cookie (only a hash kept; it
   opens nothing); an account's first browser is noted in silence, so release
   day mails nobody; at most five an hour; a reset forgets the browsers.
+- **A sign-in sets a hint every anotoki site reads** (the owner's decision
+  of 2026-10-07; `docs/decisions.md`, `api/session.php`):
+  `anotoki_signed_in`, a random value per session that opens nothing and
+  says nothing of the person - readable by script, SameSite=Lax, Secure
+  with the session cookie. Its `Domain` is the issuer's parent on a real
+  host (`hint_cookie_domain` in iam.local.php names another the issuer is
+  under), and only while an application switched on signs in under it;
+  else host-only - and host-only `localhost` in development. The domain
+  must be wholly the owner's (`hint_cookie_name` null switches the hint
+  off). Set by `completeSignIn()` and again for a session still live
+  without one (single sign-on, `requireSession()`), anew for a deletion
+  cancelled or a forced password change done; never for an account no
+  site lets in (`signInHintAllowed()`: a raced hint cleared where seen).
+  Cleared by both sign-outs, ending this browser's own session, a deletion
+  asked for, every no-session answer (the 401s, accept, authorize's
+  `login_required`); kept on `interaction_required`. A setting passed over
+  is logged at most once a day (a stamp in storage/cache). Nothing reads it
+  as proof; no CSRF or CORS exemption comes with it. A site's silent hop
+  and its loop protection are the family's library's, not the IAM's.
+- **The session cookie is `__Host-anotoki_iam` on https** (a hardening of
+  2026-10-07, `docs/decisions.md`): Secure, Path=/, never a Domain; plain
+  `anotoki_iam` on http development. It is read by its exact name from the
+  raw Cookie header (`cookieValuesNamed()`), never from the cookie params -
+  Slim's parser URL-decodes names, so a look-alike like `__%48ost-anotoki_iam`
+  would stand in for it - and either name sent twice is no session. A browser
+  from before is read under the bare name while no `__Host-` one comes, and
+  renamed by the next answer that uses the session
+  (`withSessionCookieRenamed()`); every sign-out and dropping refusal expires
+  both names. The remaining risk, until the bare name is no longer read: a
+  browser with no `__Host-` session can be handed a planted bare-name
+  session (zero-click with the hint on a site that lets visitors in) - the
+  owner decides whether to close it sooner. Read, set, expired and renamed
+  in `api/session.php` only. The device cookie keeps its name.
 
 ## Backend layout & conventions
 
@@ -255,7 +288,8 @@ with family revocation on reuse; hashes only for secrets that open things,
 master-key ciphertext for TOTP secrets and signing keys; identical answers for
 known and unknown addresses; the limiter on every mail-sending and sign-in
 endpoint; the same switches on every way in; no self-lockout, no removing the
-last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; no loopback address
+last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; the sign-in hint opens nothing and no account no site lets in has one;
+the session cookie never gets a Domain, and is __Host- on https; no loopback address
 left on a real host's install, nor seeded into a live IAM by a later migration;
 the installer's proof (token, or nonce on this computer only). Changing one is
 a decision for `docs/decisions.md`, not a refactor.
