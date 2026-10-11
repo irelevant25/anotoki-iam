@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AutofocusDirective, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { AutofocusDirective } from '@anotoki/lib/ui/autofocus';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
 import { errorText } from '../../../core/i18n/error-text';

@@ -1,7 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, shareReplay } from 'rxjs';
-import { bundleContext } from '../http/http-context';
 import { PublicConfig } from './models';
 
 /** What the sign-in pages read before a session exists. */
@@ -26,21 +25,5 @@ export class PublicApi {
       request$.subscribe({ error: () => (this._config$ = undefined) });
     }
     return this._config$;
-  }
-
-  /**
-   * The site's words in one language: `GET /api/translations/{code}`.
-   *
-   * Answered as it came - `unknown` - because TranslationService checks the
-   * shape itself before a word of it reaches a page, the same check it gives
-   * the copy it keeps in localStorage. Marked so the interceptor leaves a
-   * failure alone: a 503 here (`translations_unavailable` between an upload
-   * and "Apply pending", or `not_set_up`) means "read in the compiled English".
-   *
-   * Not shared or kept here: the service keeps one request per language going,
-   * and the browser's own cache answers a repeat through the ETag.
-   */
-  translations(code: string): Observable<unknown> {
-    return this._http.get<unknown>(`/api/translations/${encodeURIComponent(code)}`, { context: bundleContext() });
   }
 }

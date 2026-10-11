@@ -3,7 +3,6 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import {
   AdminApplication,
-  AdminLanguage,
   AnnouncementAudience,
   AnnouncementBatch,
   AnnouncementCompose,
@@ -35,10 +34,7 @@ import {
   EmailLogEntry,
   EmailQuery,
   KeysResponse,
-  LanguageChanges,
-  LanguageDeleted,
   MessageResponse,
-  NewLanguage,
   Paged,
   RoleGrant,
   RotatedKey,
@@ -46,8 +42,6 @@ import {
   SetPasswordResponse,
   SettingsResponse,
   SigningKey,
-  TranslationChanges,
-  TranslationGrid,
   UpdateUserBody,
 } from './models';
 import { toParams } from './query';
@@ -267,63 +261,10 @@ export class AdminApi {
     return this._http.put<SettingsResponse>('/api/admin/settings', { settings });
   }
 
-  // ── Languages and strings ──────────────────────────────────────────────────
-  //
-  // The IAM's own words (backend/api/translations.php). Until migration 006 is
-  // applied the tables are not there, and every one of these answers 503
-  // `translations_unavailable`: the pages then point at Migrations.
-
-  /** Every language, the hidden ones too, in the order a chooser shows them. */
-  languages(): Observable<AdminLanguage[]> {
-    return this._http.get<{ languages: AdminLanguage[] }>('/api/admin/languages').pipe(map((response) => response.languages ?? []));
-  }
-
-  /** After the ones there are. 409 `language_exists`; 422 `invalid_language`, `too_many_languages` (20). */
-  createLanguage(language: NewLanguage): Observable<AdminLanguage> {
-    return this._http.post<{ language: AdminLanguage }>('/api/admin/languages', language).pipe(map((response) => response.language));
-  }
-
-  /** Only what changes. Switching English off is 409 `fallback_language`. */
-  updateLanguage(code: string, changes: LanguageChanges): Observable<AdminLanguage> {
-    return this._http.put<{ language: AdminLanguage }>(`/api/admin/languages/${encodeURIComponent(code)}`, changes).pipe(map((response) => response.language));
-  }
-
-  /**
-   * The language goes with its strings, and the accounts that had it go back
-   * to English - the answer says how many. 409 `fallback_language` for English,
-   * `seeded_language` for one the IAM is released in.
-   */
-  deleteLanguage(code: string): Observable<LanguageDeleted> {
-    return this._http.delete<LanguageDeleted>(`/api/admin/languages/${encodeURIComponent(code)}`);
-  }
-
-  /** Every key - the mails' too - with its string in every language. */
-  translationGrid(): Observable<TranslationGrid> {
-    return this._http.get<TranslationGrid>('/api/admin/translations').pipe(map(toTranslationGrid));
-  }
-
-  /**
-   * Only the cells that changed. All of it is checked before any of it is
-   * written, and the first thing wrong refuses the whole save (422, with `key`
-   * and `language` in the error's details). Answers the grid as it is now.
-   */
-  saveTranslations(values: TranslationChanges): Observable<TranslationGrid> {
-    return this._http.put<TranslationGrid>('/api/admin/translations', { values }).pipe(map(toTranslationGrid));
-  }
-
-  /** A language's own strings, flat: `{key: text}` - not merged with English. */
-  exportTranslations(code: string): Observable<Record<string, string>> {
-    return this._http.get<Record<string, string>>(`/api/admin/translations/${encodeURIComponent(code)}/export`);
-  }
-
-  /** A flat `{key: text}` into a language: a save's checks, an unknown key refused, an empty string passed over. */
-  importTranslations(code: string, values: Record<string, string>): Observable<TranslationGrid> {
-    return this._http.put<TranslationGrid>(`/api/admin/translations/${encodeURIComponent(code)}/import`, values).pipe(map(toTranslationGrid));
-  }
-
   // ── Keys ───────────────────────────────────────────────────────────────────
   // (The Migrations page is the anotoki family's - @anotoki/lib - and calls
-  // /api/admin/migrations itself.)
+  // /api/admin/migrations itself; so do its Translations and Languages pages,
+  // /api/admin/translations and /api/admin/languages.)
 
   keys(): Observable<SigningKey[]> {
     return this._http.get<KeysResponse>('/api/admin/keys').pipe(map((response) => response.keys ?? []));
@@ -338,9 +279,4 @@ export class AdminApi {
   deleteKey(kid: string): Observable<MessageResponse> {
     return this._http.delete<MessageResponse>(`/api/admin/keys/${encodeURIComponent(kid)}`);
   }
-}
-
-/** The grid with its two lists there whatever came: the pages read both without asking. */
-function toTranslationGrid(grid: TranslationGrid): TranslationGrid {
-  return { languages: grid.languages ?? [], keys: grid.keys ?? [] };
 }

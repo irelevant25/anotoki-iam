@@ -1,6 +1,6 @@
 import { inject } from "@angular/core";
 import { AnotokiShellConfig } from "@anotoki/lib/shell";
-import { AnotokiUiConfig } from "@anotoki/lib/ui";
+import { AnotokiUiConfig } from "@anotoki/lib/ui/config";
 import { firstValueFrom } from "rxjs";
 import { AccountApi } from "../api/account.api";
 import { SessionService } from "../auth/session.service";
@@ -17,16 +17,22 @@ export const THEME_STORAGE_KEY = "anotoki-iam:theme";
 
 /**
  * How the IAM plugs into the anotoki family's UI kit (@anotoki/lib/ui and its
- * entry points): the language its words are in (English in the admin panel:
- * `effectiveLanguage`), the IAM's own strings for them from the database
- * (core/kit/kit-words.ts), and the icons the IAM's templates name.
- * `provideAnotokiUi()` runs it in an injection context.
+ * entry points): the language its words are in (the page's - English in the
+ * admin panel), their words from the database, and the icons the IAM's
+ * templates name. `provideAnotokiUi()` runs it in an injection context.
+ *
+ * A kit word the IAM says with a key of its own reads that key's string
+ * (core/kit/kit-words.ts); any other reads the database's string of the
+ * library's key for it (`anotoki.<key>`, the translations' `forKit()`) - so
+ * an administrator's rewording on the Translations page is what the kit shows
+ * either way - and the kit's own words where the database has none.
  */
 export function iamUiConfig(): AnotokiUiConfig {
   const i18n = inject(TranslationService);
+  const kit = i18n.forKit();
   return {
-    language: () => i18n.effectiveLanguage(),
-    lookup: (key) => iamKitWord(i18n, key),
+    language: kit.language,
+    lookup: (key) => iamKitWord(i18n, key) ?? kit.lookup(key),
     icons: IAM_ICONS,
   };
 }
@@ -44,10 +50,12 @@ export function iamUiConfig(): AnotokiUiConfig {
  *   account it answers with is the session's from then on - unless the tab
  *   signed out while it was on its way (SessionService.setFrom()): an answer
  *   after Sign out signs nobody back in.
- * - The languages: the database's, each under its own name ("Slovenčina"); a
- *   choice switches the page once its words have come (TranslationService).
- *   Saving a choice made in the top bar to the account is the bar's
- *   (layouts/top-bar), as the account page's select saves its own.
+ * - The languages: the database's, each under its own name ("Slovenčina"),
+ *   through the translations' `forShell()`: a choice - the top bar's, the
+ *   sign-in pages' - switches the page once its words have come, and while
+ *   somebody is signed in it is saved to the account, one save at a time and
+ *   the latest last; a refusal is the note under the switcher
+ *   (core/i18n/translations.config.ts).
  */
 export function iamShellConfig(): AnotokiShellConfig {
   const session = inject(SessionService);
@@ -59,10 +67,6 @@ export function iamShellConfig(): AnotokiShellConfig {
       account: () => session.user()?.preferences?.theme ?? null,
       save: (theme) => firstValueFrom(session.setFrom(accountApi.updateProfile({ theme }))),
     },
-    languages: {
-      current: () => i18n.language(),
-      offered: () => i18n.languages().map((language) => ({ code: language.code, name: language.native_name })),
-      choose: (code) => i18n.choose(code),
-    },
+    languages: i18n.forShell(),
   };
 }

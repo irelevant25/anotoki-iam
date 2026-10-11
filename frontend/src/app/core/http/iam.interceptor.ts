@@ -1,11 +1,12 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { ANOTOKI_TRANSLATION_BUNDLE } from '@anotoki/lib/translations';
 import { catchError, throwError } from 'rxjs';
 import { toApiError } from '../api/api-error';
 import { isSessionArea } from '../auth/next-path';
 import { SessionService } from '../auth/session.service';
-import { SESSION_PROBE, TRANSLATION_BUNDLE } from './http-context';
+import { SESSION_PROBE } from './http-context';
 
 /**
  * Endpoints whose 401 is an answer, not an expired session.
@@ -53,9 +54,13 @@ function fromMigrationsModule(url: string): boolean {
  *    pages decide on the contract's `code` and nothing else - but the
  *    migrations module's own requests, which get theirs as they came.
  *
- * The request for the site's words (TRANSLATION_BUNDLE) gets only the last of
+ * The request for the site's words (`GET /api/translations/{code}`, which the
+ * family's translations mark ANOTOKI_TRANSLATION_BUNDLE) gets only the last of
  * these: whatever it fails with, the page stays where it is and reads in the
- * compiled English.
+ * compiled English. Its failure is never a reason to move the page - the
+ * request is made while the site starts, before any page exists to be sent
+ * away from - so no `/not-set-up` and no session cleared: a page's own first
+ * request says `not_set_up` a moment later, and that one does the sending.
  */
 export const iamInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionService);
@@ -68,7 +73,7 @@ export const iamInterceptor: HttpInterceptorFn = (request, next) => {
     catchError((error: unknown) => {
       const apiError = toApiError(error);
 
-      if (request.context.get(TRANSLATION_BUNDLE)) {
+      if (request.context.get(ANOTOKI_TRANSLATION_BUNDLE)) {
         return throwError(() => apiError);
       }
 

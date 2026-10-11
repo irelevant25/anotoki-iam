@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
-import { AlertComponent, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { DialogComponent } from '@anotoki/lib/ui/dialog';
 import { PasswordFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { Observable } from 'rxjs';
 import { ApiError } from '../../../core/api/api-error';
 import { AccountUser } from '../../../core/api/models';

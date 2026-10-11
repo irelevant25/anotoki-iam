@@ -7,7 +7,7 @@
 
 // A language is its code, as the `languages` table keeps it: `xx` or `xx-yy`,
 // lower case. Which ones exist is the admin panel's business and arrives with
-// the words themselves (TranslationBundle below), so it is a plain string here -
+// the words themselves (the bundle, below), so it is a plain string here -
 // there is no fixed list for the compiler to hold anybody to.
 
 /** Every error the first-party endpoints send: a sentence for people and a code for pages. */
@@ -21,32 +21,12 @@ export interface ApiErrorBody {
 // Signing in
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** A language the pages are offered in. */
-export interface SiteLanguage {
-  code: string;
-  /** In English ("Slovak") - what the admin panel lists it as. */
-  name: string;
-  /** As its speakers write it ("Slovenčina") - what a person choosing it reads. */
-  native_name: string;
-}
-
-/**
- * `GET /api/translations/{code}`: the site's words in one language, with
- * English merged underneath so a string nobody translated yet is still a
- * sentence, the languages on offer, and English itself beside it (left out
- * when `language` is `en`) for the admin panel, which is English whatever
- * the person reads.
- *
- * `language` is the one that answered: the code asked for; its language for a
- * code with a region that is not offered itself (`sk` for `sk-sk`); `en` when
- * what was asked for is unknown or switched off.
- */
-export interface TranslationBundle {
-  language: string;
-  languages: SiteLanguage[];
-  values: Record<string, string>;
-  english?: Record<string, string>;
-}
+// The pages' words - `GET /api/translations/{code}` - and the admin panel's
+// Languages and Translations routes are the anotoki family's wire format (the
+// IAM's, docs/api.md): their shapes are @anotoki/lib/translations' own
+// (`TranslationBundle`, `SiteLanguage`, `AdminLanguage` - with the IAM's
+// `accounts` among its fields -, `TranslationGrid`...), and so are the
+// service and the admin pages that call them.
 
 export interface PublicConfig {
   login_enabled: boolean;
@@ -827,66 +807,6 @@ export interface Setting {
 export interface SettingsResponse {
   settings: Setting[];
 }
-
-/** A language as the admin panel sees it: the hidden ones too. */
-export interface AdminLanguage extends SiteLanguage {
-  /** Offered: on the switcher, in discovery, and a language an account can have. */
-  enabled: boolean;
-  /** Its place among the others; the lowest comes first. */
-  sort_order: number;
-  /** The migrations write strings for it, so it cannot be deleted. */
-  seeded: boolean;
-  /** How many accounts have it as their language. */
-  accounts: number;
-}
-
-/**
- * `POST /api/admin/languages`. It goes after the ones there are. `enabled`
- * left out would mean offered at once; the panel always says which.
- */
-export interface NewLanguage {
-  code: string;
-  name: string;
-  native_name: string;
-  enabled: boolean;
-}
-
-/** What `PUT /api/admin/languages/{code}` may change; what is left out stays. */
-export interface LanguageChanges {
-  name?: string;
-  native_name?: string;
-  enabled?: boolean;
-  sort_order?: number;
-}
-
-/** `DELETE /api/admin/languages/{code}`: how many accounts had it, and went back to English. */
-export interface LanguageDeleted {
-  accounts: number;
-}
-
-/** One key of the IAM's words - a page's or a mail's - with its string in every language that has one. */
-export interface TranslationKeyRow {
-  name: string;
-  /** Where it is shown, and what its {placeholders} are; empty when nothing was written about it. */
-  description: string | null;
-  values: Record<string, string>;
-}
-
-/** `GET` and `PUT /api/admin/translations`, and an import's answer: every language and every key, ordered by name. */
-export interface TranslationGrid {
-  languages: AdminLanguage[];
-  keys: TranslationKeyRow[];
-}
-
-/**
- * The cells a save changes: key -> language code -> text. A blank one deletes
- * that language's string (the key then reads in English) - except English's,
- * which is refused.
- *
- * A refusal about one string says which in `ApiError.details`: `key`,
- * `language`, and `placeholder` or `keys` where it is about those.
- */
-export type TranslationChanges = Record<string, Record<string, string>>;
 
 export interface SigningKey {
   kid: string;

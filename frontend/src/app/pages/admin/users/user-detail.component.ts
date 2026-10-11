@@ -1,19 +1,16 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import {
-  AlertComponent,
-  BadgeComponent,
-  BadgeTone,
-  ButtonComponent,
-  CardComponent,
-  EmptyStateComponent,
-  ErrorStateComponent,
-  IconComponent,
-  PageHeaderComponent,
-  SpinnerComponent,
-} from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent, BadgeTone } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Observable, catchError, forkJoin, of, switchMap, tap } from 'rxjs';
 import { AdminApi } from '../../../core/api/admin.api';

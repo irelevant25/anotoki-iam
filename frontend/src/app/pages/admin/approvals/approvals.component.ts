@@ -1,7 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, PageHeaderComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';

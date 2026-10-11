@@ -31,8 +31,8 @@ php clients.php [--dev]                   # list the applications; --dev restore
 php import-legacy.php [--from=users] [--dry-run]   # the one-time move of the genshin site's accounts
 php create-admin.php you@example.com      # first admin on an empty IAM, ADMIN in every application
 php reset-password.php <email> [pw] [--clear-2fa]
-php translations.php --status             # the pages' keys against the database's; each language's coverage
-php translations.php --export sk [file]   # a language's own strings as flat JSON; --import sk file puts them back
+php translations.php --status             # the pages' keys against the database's; each language's coverage; the mails' keys against MAIL_KEYS
+php translations.php --export sk [file]   # a language's own strings as flat JSON; --import sk file puts them back (both refuse while a migration waits)
 php build-dist.php                        # -> backend/dist/ for upload
 composer update anotoki/lib --prefer-dist # the family's library, with frontend/package.json's @anotoki/lib URL (docs/operations.md)
 
@@ -226,6 +226,25 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `completeSignIn()`); every sign-out and dropping refusal expires both
   names. Read, set and expired in `api/session.php` only. The device cookie
   keeps its name.
+- **The words are the family's library's code** (anotoki-lib 0.3.0, the
+  owner's decisions of 2026-10-11; `docs/decisions.md`): the strings, the
+  languages, the bundle, the admin routes, their checks and the command line
+  are `Anotoki\Lib\Translations` (and `@anotoki/lib/translations` in the
+  pages), on the IAM's own tables; what is the IAM's is its configuration,
+  `api/translations.php` (`iamTranslations()`). The contract stayed: the same
+  paths, shapes and codes (plus `strings` on a language and in a delete's
+  answer, and the body's 415 / 400 `invalid_json` / 422 `empty_body`). The
+  mails stay the IAM's (`MAIL_KEYS`, `MAIL_FALLBACK`, `mailWords()`,
+  `mailFill()`, `mailMessage()`); their rules are `IamMailRules`, which the
+  library's checks ask. `anotoki.` is the library's namespace: its own words
+  (54 keys, the kit's and the status page's) come from its migration set
+  `anotoki_translations`, which runs after the IAM's set everywhere
+  (`iamMigrator()`), is recorded in `migrations` as `set/name`, and writes a
+  key's strings only where the key has none. Migration 017 moved `lang.label` /
+  `lang.button` there and renamed `sessions.*.other` to `.unknown`; once it is
+  applied, no build from before it goes on the host again (it would show
+  those four as keys). Both route groups stay behind `requireAdmin()`; the
+  CSRF header and `audit()` as before.
 
 ## Backend layout & conventions
 
@@ -240,13 +259,19 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   refresh tokens, minting), `session.php` (cookie, sliding expiry, revocation,
   the limiter), `applications.php` (clients, redirect/origin checks and
   validation, roles, who may sign in), `accounts.php`, `keys.php` / `jwt.php` /
-  `crypto.php`, `settings.php`, `audit.php`, `translations.php` (languages,
-  strings, the bundle, every check of a string), and the carried-over `totp.php`,
+  `crypto.php`, `settings.php`, `audit.php`, `translations.php` (the IAM's
+  configuration of the library's translations: `iamTranslations()`, the mails'
+  rules `IamMailRules`, the accounts per language, refusals in the IAM's body,
+  `iamKeyScanner()` for the CLI and the tests), and the carried-over `totp.php`,
   `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php`
   (whose words now come from the database, `MAIL_FALLBACK` the last resort),
   `account_deletion.php` and `sign_in_devices.php` (016), and
-  `migration_runner.php` (the family's library wired in: `iamMigrator()`,
+  `migration_runner.php` (the family's library wired in: `iamMigrator()` - the
+  IAM's set, then the library's translations set -, `iamMigrationLabel()`,
   `iamSiteState()`; beside them `ensureDatabase()`, `createFirstAdmin()`).
+  `helpers.php` holds `languageCodes()` / `languageOrDefault()` (read through
+  the library's `offeredCodes()`, `en`/`sk` before the tables exist) and the
+  text and refusal helpers the announcements use.
 - Files under `storage/` go through `iamStorageDir()`, config through
   `localConfig()` - the tests point both at temp folders (`IAM_CONFIG_DIR`,
   `IAM_STORAGE_DIR`, constants only code can define). No environment variables.
@@ -261,7 +286,9 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   in order by the anotoki family's engine, anotoki/lib's `Migrator`
   (`iamMigrator()` in `api/migration_runner.php` - CLI, installer and the
   admin panel's Migrations page all use it, one apply at a time; the table
-  `migrations` stays as it is). Never edit an applied migration. A migration
+  `migrations` stays as it is), and after them the library's translations set
+  (`anotoki_translations`, in `vendor/anotoki/lib/php/migrations`), recorded
+  as `anotoki_translations/NNN_....sql`. Never edit an applied migration. A migration
   that changes data carries a `DO $$ … $$` gate that fails loudly. **An update
   waiting closes nothing** (`blockWhilePending: false`, the one anotoki site
   that does not block - every site signs in through it): each feature checks
@@ -270,12 +297,13 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): the
-  frontend is on 0.2.0 (the UI kit), the backend on 0.1.0 - 0.2.0 changed only
-  the Angular half. Never edit the vendored copy: a change goes
-  to the library and comes back as a release. Its routes here:
-  `GET /api/site-status` (first-party, public, no CORS) and
-  `/api/admin/migrations[/file|/apply]` inside the admin group.
+  halves, updated together where both change (`docs/operations.md`): both on
+  0.3.0 (the migrations module, the translations module, the UI kit). Never
+  edit the vendored copy: a change goes to the library and comes back as a
+  release. Its routes here: `GET /api/site-status` (first-party, public, no
+  CORS), `/api/admin/migrations[/file|/apply]` inside the admin group, the
+  bundle `GET /api/translations/{code}` (public, no cookie, no CORS) and the
+  eight `/api/admin/languages|translations` routes inside the admin group.
 - **Tests** (`backend/tests/*.test.php`, `lib.php`, `setup_lib.php`) drive the
   real app and the installer in-process with a `Browser` that keeps cookies,
   each file with its own temp configuration and `iam_test_*` databases, borrowing
@@ -307,32 +335,53 @@ a decision for `docs/decisions.md`, not a refactor.
   (`pages/auth/_auth-page.scss`, `pages/admin/_admin-list.scss`,
   `pages/admin/_admin-field.scss`).
 - `frontend/src/app/core/` - the hand-written API services and models
-  (`core/api/`, mirroring `docs/api.md`), the session state, the HTTP
-  interceptor (adds `X-IAM-Request: 1` to every write; sends a 401 outside the
-  sign-in endpoints to `/login?next=…`; sends a 503 `not_set_up` to
-  `/not-set-up`; hands the migrations module's own requests their
-  HttpErrorResponse back - the library's `siteStatusInterceptor` runs inside
-  it), the family's migrations module (`migrations/migrations.config.ts`:
-  `provideAnotokiMigrations`, no gate and no boot check), the family's UI kit
-  and shell (`kit/kit.config.ts`: `provideAnotokiUi` - the kit's words are the
-  IAM's strings through its `lookup`, `kit/kit-words.ts`, and its icons
-  `kit/icons.ts` - and `provideAnotokiShell`: the theme, the account's while
-  signed in, and the languages), translations
-  (`i18n/translation.service.ts`: the language
-  and its bundle from `GET /api/translations/{code}`; `i18n/en.ts`: the keys
-  and the English shown only while no bundle is in memory; the `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.2.0): the `anotoki-*` components of
-  `@anotoki/lib/ui` and its entry points (`ui/forms`, `ui/dialog`, `ui/toast`,
-  ... - what only lazy pages use, only they import), and `@anotoki/lib/styles`
-  in `src/styles.scss` (the tokens - the IAM's palette is the family's -
-  Manrope, the base, utilities, tables). Build on it; a piece it lacks goes to
-  the library. `frontend/src/app/ui/` keeps the IAM's own (`google-button`).
+  (`core/api/`, mirroring `docs/api.md`; the translations' shapes are the
+  library's own), the session state, the HTTP interceptor (adds
+  `X-IAM-Request: 1` to every write; sends a 401 outside the sign-in endpoints
+  to `/login?next=…`; sends a 503 `not_set_up` to `/not-set-up`; hands the
+  migrations module's own requests their HttpErrorResponse back - the
+  library's `siteStatusInterceptor` runs inside it; leaves the bundle's own
+  request, `ANOTOKI_TRANSLATION_BUNDLE`, alone: its failure means "read the
+  compiled English", never a page to send anybody to), the family's
+  migrations module (`migrations/migrations.config.ts`:
+  `provideAnotokiMigrations`, no gate and no boot check; the status page's
+  words `siteStatusWords()` under the IAM's own `notSetUp.*`), the family's
+  UI kit and shell (`kit/kit.config.ts`: `provideAnotokiUi` - the kit's words
+  from the database: the IAM's own keys where it has them, `kit/kit-words.ts`,
+  the library's `anotoki.*` otherwise, `forKit()` - and its icons
+  `kit/icons.ts`; `provideAnotokiShell`: the theme, the account's while signed
+  in, and the languages, `forShell()`), the family's translations
+  (`i18n/translations.config.ts`: `provideAnotokiTranslations` with the IAM's
+  storage names `anotoki-iam:lang`, `:lang-cache`, `:localization-drafts`,
+  `fallbackEnglish: en`, the account - its language decides while signed in,
+  a choice is saved with `PUT /api/account/profile` through
+  `SessionService.setFrom()` -, the session asked first in the account and
+  admin areas, and the admin pages' words handed over by the admin routes;
+  `i18n/translation.service.ts`: the library's `TranslationService` seen with
+  the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
+  while no bundle is in memory; the typed `t` pipe).
+- The UI kit is the family's (anotoki-lib 0.3.0), each piece imported from its
+  own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
+  `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
+  pulls every piece into the first load; what only lazy pages use, only they
+  import), and `@anotoki/lib/styles` in `src/styles.scss` (the tokens - the
+  IAM's palette is the family's - Manrope, the base, utilities, tables). The
+  kit's markup is its own, BEM on its host class (`anotoki-top-bar__row`,
+  `anotoki-button--primary`): a spec or a browser check reads those names.
+  Build on it; a piece it lacks goes to the library.
+  `frontend/src/app/ui/` keeps the IAM's own (`google-button`).
 - Pages: the sign-in flow (`/login`, `/register`, `/confirm-email`,
   `/forgot-password`, `/reset-password`, `/logout`, `/error`, `/not-set-up`),
-  the account page (`/account/**`), the admin panel (`/admin/**`, English
-  only; `/admin/migrations` is the family's `<anotoki-migrations-page>`, and
-  `<anotoki-update-banner>` sits above the panel's pages; the Migrations page
-  is `@anotoki/lib/migrations/page`, out of the first load).
+  the account page (`/account/**`, the family's frame at `maxWidth="88rem"`),
+  the admin panel (`/admin/**`, English only; `/admin/translations` and
+  `/admin/languages` are the family's `<anotoki-translations-page>` and
+  `<anotoki-languages-page>` (`@anotoki/lib/translations/admin`, lazy; worded
+  for the IAM - its mails, the accounts per language - by
+  `pages/admin/localization.ts`, behind `anotokiUnsavedChangesGuard`, as the
+  announcement pages are); `/admin/migrations` is the family's
+  `<anotoki-migrations-page>`, and `<anotoki-update-banner>` sits above the
+  panel's pages; the Migrations page is `@anotoki/lib/migrations/page`, out of
+  the first load).
 - **The top bar** (`layouts/top-bar`) is the anotoki family's one bar,
   `<anotoki-top-bar>` from `@anotoki/lib/shell` (its menus, keys and fold are
   the library's, tested there), worded and wired for the IAM; the account
@@ -345,23 +394,28 @@ a decision for `docs/decisions.md`, not a refactor.
   re-measure when a link or its words change). Tab / Shift+Tab from any menu
   item: `preventDefault()`, the menu closes, the focus on its button - never
   left to the browser (with no zone the focus would fall to `<body>`). A
-  language chosen in the bar is saved to the account, one save at a time and
-  the latest choice last. The language button's name holds the code it shows
-  ("Language: Slovenčina (SK)", WCAG 2.5.3). The admin panel keeps
-  its side navigation under the bar. The sign-in pages keep their own frame
-  (`layouts/auth-layout`).
+  language chosen in the bar is saved to the account by the family's
+  translations, one save at a time and the latest choice last; a refusal is
+  the note under the button. The language button's name holds the code it
+  shows ("Language: Slovenčina (SK)", WCAG 2.5.3; `anotoki.language.button`).
+  The admin panel keeps its side navigation under the bar. The sign-in pages
+  keep their own frame (`layouts/auth-layout`, the family's switcher as
+  segments).
 - Zoneless and signals-first; OnPush everywhere; no UI library but the
   family's. Colours only from the family's `--anotoki-*` custom properties
   (written for light and dark by `styles.scss`) and the sign-in pages' night sky.
   Every page works at 390 px (360 px for the top bar).
-- The auth and account pages' words, and the four mails', are rows in the
+- The auth and account pages' words, and the mails', are rows in the
   database (`languages`, `translation_keys`, `translations`, migration 006),
   reworded and added to on the admin panel's Translations and Languages
-  pages; English and Slovak (informal, "ty") are seeded. An unknown key is a
-  compile error (`TranslationKey` comes from `en.ts`); a key with no string
-  shows as the key. A new string is its key and English in `en.ts` plus a
-  migration with English and Slovak - there is no `sk.ts` (skill
-  iam-migration).
+  pages; English and Slovak (informal, "ty") are seeded. The library's own
+  words (`anotoki.*`: the kit's, the language switcher's, the status page's)
+  are rows too, written by its set `anotoki_translations` - never in `en.ts`,
+  and never shown as a key (built-in English and Slovak under the database's).
+  An unknown key is a compile error (`TranslationKey` comes from `en.ts`); a
+  key with no string shows as the key. A new string is its key and English in
+  `en.ts` plus a migration with English and Slovak - there is no `sk.ts`
+  (skill iam-migration).
 
 ## Deployment
 

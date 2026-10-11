@@ -35,7 +35,8 @@
  *   - The panel refuses an address in a mail's words, a line break in any of
  *     them, a brace that is not a placeholder, a long subject, and a string
  *     too long for one line of mail once its {username}s and {date}s are
- *     filled (translationsCheck()). For the subject sending relies on none of that:
+ *     filled (IamMailRules in api/translations.php, which the family's
+ *     library asks for every mail string). For the subject sending relies on none of that:
  *     sendMail() makes it one line, and short, whatever it was handed.
  *   - The English of every string is kept here too (MAIL_FALLBACK), for a
  *     database that has no strings yet - a build is uploaded before its

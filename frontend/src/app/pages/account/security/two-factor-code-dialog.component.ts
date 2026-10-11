@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
-import { AlertComponent, ButtonComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { DialogComponent } from '@anotoki/lib/ui/dialog';
 import { CodeInputComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { ToastService } from '@anotoki/lib/ui/toast';

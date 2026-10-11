@@ -104,9 +104,17 @@ front of the API, the status the pages ask, the admin Migrations page and its
 routes. The IAM wires it in `backend/api/migration_runner.php` and
 `frontend/src/app/core/migrations/migrations.config.ts`.
 
-- **The engine** (`iamMigrator()`): one set, `iam`, recorded in the
-  `migrations` table as it always was (`id`, `filename`, `applied_at` - the
-  library reads that shape and never changes it). Each file in a transaction
+- **The engine** (`iamMigrator()`): two sets, in this order - the IAM's own,
+  `iam` (`migrations/iam`), then the library's translations set,
+  `anotoki_translations` (`vendor/anotoki/lib/php/migrations/translations`:
+  the tables of the words proved to be in the family's shape, and the
+  library's own words; "The IAM's own words" below). The library's comes last
+  because the IAM's 006 made those tables long before the library had them. Both
+  are recorded in the `migrations` table as it always was (`id`, `filename`,
+  `applied_at` - the library reads that shape and never changes it): the IAM's
+  files by their names, the library's as `set/name`
+  (`anotoki_translations/001_languages_and_strings.sql`), which is also how the
+  command line and the audit log name them. Each file in a transaction
   of its own with its record; the run stops at the first that fails, which is
   rolled back whole and named with the database's words (`statement N of M:
   ...`). The command line, the installer and the admin panel apply through it,
@@ -400,12 +408,37 @@ announcements' templates - lives in the database (migration 006), so a word can 
 admin panel with no build and no upload. The admin panel itself is English,
 written in its templates.
 
-- **The tables.** `languages`, `translation_keys`, `translations` (above). A key
+Since anotoki-lib 0.3.0 the code that keeps them is the anotoki family's,
+built from the IAM's own: `Anotoki\Lib\Translations` on the server (the
+checks of a string, the bundle, the grid, saves, the languages, the routes,
+the command line) and `@anotoki/lib/translations` in the pages (the service,
+the switcher, the admin pages), the same on every anotoki site
+(`docs/decisions.md`, 2026-10-11). What is the IAM's is its configuration:
+`backend/api/translations.php` (`iamTranslations()`; the mails' rules
+`IamMailRules`; the accounts per language `IamLanguageUsage`; refusals in the
+IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
+
+- **The tables.** `languages`, `translation_keys`, `translations` (above), in the
+  family's one shape - the library's own first migration
+  (`anotoki_translations/001`) proves it and makes nothing on the IAM. A key
   is the code's: a migration writes it with its English and its Slovak, and the
   panel only ever changes a string. `users.language` references
   `languages (code)` - `ON UPDATE CASCADE ON DELETE SET DEFAULT`, so deleting a
   language sends its accounts back to English, which cannot be deleted or
   switched off. The CHECK that allowed only `en` and `sk` is gone.
+- **The library's own words** are keys under `anotoki.` - its UI kit's (the
+  dialogs, fields, page numbers, the top bar, the language and theme
+  switches) and its status page's - written by its second migration
+  (`anotoki_translations/002`, 54 keys in English and Slovak) and reworded on
+  the Translations page like the IAM's. That migration writes a key's strings
+  only where the key has none, so an owner's rewording - and a language left
+  blank on purpose - stays; their descriptions are the library's, and their
+  placeholders are the library's English's whatever a stored rewording says.
+  The IAM's language switcher said its two words as `lang.label` and
+  `lang.button`; migration 017 moved them, with every string, writer and date,
+  to `anotoki.language.label` and `anotoki.language.button`, and renamed
+  `sessions.method.other` / `sessions.ended.other` to `.unknown` (the family's
+  key scan reads `.other` as a plural form).
 - **Offered.** `languageCodes()` (`api/helpers.php`) is the list the rest of the
   IAM reads - discovery's `ui_locales_supported`, `/api/public/config`,
   `ui_locales`, the `locale` claim, an account's language. It works on a
@@ -415,29 +448,37 @@ written in its templates.
   off keeps its strings and its accounts; its readers get English pages, English
   mails and `locale: "en"` until it is back.
 - **How the pages get their words.** One request, `GET /api/translations/{code}`
-  (the bundle): the language's strings with English under them, the offered
-  languages, and English on its own for the admin panel. `TranslationService`
-  (`frontend/src/app/core/i18n/`) picks the language - `?lang=` (which the
-  backend adds from an application's `ui_locales`) or the switcher, then the
-  account's, this device's last choice, the browser's, English - and fetches its
+  (the bundle - the library's route, the IAM's answer byte for byte): the
+  language's strings with English under them, the offered languages, and English
+  on its own for the admin panel. The library's `TranslationService`
+  (`@anotoki/lib/translations`, configured in `core/i18n/translations.config.ts`
+  under the IAM's storage names, `anotoki-iam:lang`, `:lang-cache`,
+  `:localization-drafts`, so a visitor's choice survived the move) picks the
+  language - this tab's `?lang=` (which the backend adds from an application's
+  `ui_locales`), a choice made on the page, the account's while somebody is
+  signed in, this device's last choice, the browser's, English - and fetches its
   bundle before the page switches: a page is never in a language it has no words
-  for. The first page waits up to three seconds for its words; a returning
-  reader starts from the bundle cached in `localStorage` and checks it (a 304,
-  usually) within a second. A Slovak browser's first wish, `sk-sk`, is answered
-  by `sk`, so a first visit is one request. The ETag and `no-cache` make every
-  load after the first a few bytes.
+  for. A choice made on the page is saved to the account, one save at a time
+  and the latest last. The first page waits up to three seconds for its words; a
+  returning reader starts from the bundle cached in `localStorage` and checks it
+  (a 304, usually) within a second. A Slovak browser's first wish, `sk-sk`, is
+  answered by `sk`, so a first visit is one request. The ETag and `no-cache`
+  make every load after the first a few bytes.
 - **The last resort, on both sides.** Between an upload and "Apply pending" the
-  bundle route answers `503 translations_unavailable`, and the sign-in page must
-  still be readable or nobody could sign in to press Apply. The frontend then
-  reads the English compiled from `core/i18n/en.ts`; the mails read
+  bundle route answers `503 translations_unavailable` (so does a database out of
+  reach), and the sign-in page must still be readable or nobody could sign in to
+  press Apply. The frontend then reads the English compiled from
+  `core/i18n/en.ts`, and the library's keys its built-in words; the mails read
   `MAIL_FALLBACK` in `api/mail.php`, key by key, whenever the database has
-  nothing to say. Only then: once a bundle is in memory, a key it lacks shows as
-  the key itself (and warns once), so a missing string is seen, not papered over.
-  `en.ts` is also the list of keys - `TranslationKey` comes from it, so an
-  unknown key is a compile error - and a backend test holds it to the database:
-  its keys are exactly the seeded page keys and its English each seeded English
-  string, as `MAIL_FALLBACK` is the seeded mail English. There is no Slovak in the
-  build.
+  nothing to say. Only then: once a bundle is in memory, a key of the IAM's it
+  lacks shows as the key itself (and warns once), so a missing string is seen,
+  not papered over - a library key never does: the database's string, else the
+  library's built-in words. `en.ts` is also the list of the IAM's keys -
+  `TranslationKey` comes from it, so an unknown key is a compile error, through
+  the IAM's typed `t` pipe - and a backend test holds it to the database: its
+  keys are exactly the seeded page keys and its English each seeded English
+  string, as `MAIL_FALLBACK` is the seeded mail English. There is no Slovak in
+  the build.
 - **Changes reach open pages.** After a save, the admin pages call
   `TranslationService.reload()`, which asks for the wanted language again and
   settles against the languages that come with it (the one on the page may have
@@ -447,18 +488,21 @@ written in its templates.
   no use for the last two) - in the recipient's language while it is offered. The link and the code are never part of a
   string and have no placeholder; which placeholders a mail string has is
   `MAIL_KEYS`, the code, not the stored English. The panel refuses an address
-  in a mail's words, a line break, and a line longer than a mail line may be.
-- **The admin pages.** Translations (`/admin/translations`: the grid, a search,
-  export and import of one language as JSON) and Languages (`/admin/languages`:
-  add, rename, order, offer or hide, delete), in
-  `frontend/src/app/pages/admin/localization/`. What is typed and not saved is
-  kept by `LocalizationDrafts` (`core/i18n/localization-drafts.service.ts`),
-  mirrored to `sessionStorage` for the tab: a session that ends, or Sign out,
-  leaves the page without asking, and the same administrator finds the drafts
-  in their boxes after signing in again; only another person signing in drops
-  them. `unsavedChangesGuard` asks before a link or Back leaves a page with
-  drafts - not once nobody is signed in - and closing the tab is the browser's
-  `beforeunload` question.
+  in a mail's words, a line break, and a line longer than a mail line may be -
+  `IamMailRules`, which the library's checks ask for every `mail.` string, in
+  the IAM's order; `mail.` is a server namespace, never in a bundle.
+- **The admin pages** are the library's (`@anotoki/lib/translations/admin`, on
+  lazy routes): Translations (`/admin/translations`: the grid, a search,
+  "Missing in", export and import of one language as JSON, the mails in blocks
+  of their own with their rules) and Languages (`/admin/languages`: add,
+  rename, order, offer or hide, delete - offering an export first), worded for
+  the IAM in `pages/admin/localization.ts`. What is typed and not saved is kept
+  by the library's `LocalizationDrafts`, mirrored to `sessionStorage` for the
+  tab: a session that ends, or Sign out, leaves the page without asking, and
+  the same administrator finds the drafts in their boxes after signing in
+  again; only another person signing in drops them. The library's guard asks
+  before a link or Back leaves a page with drafts - not once nobody is signed
+  in - and closing the tab is the browser's `beforeunload` question.
 
 ## The rules that carry the weight
 
@@ -533,8 +577,8 @@ written down, not a refactor.
 | `backend/setup.php` | The installer: writes `config/*.local.php`, builds the database, the accounts, the sites' production addresses. |
 | `backend/config/` | `config.php` (reading `*.local.php`, whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`. |
 | `backend/api/index.php` | Front controller: requires, middleware order (the family's gate where "not set up" is answered), error handler. |
-| `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
-| `backend/vendor/anotoki/lib` | The anotoki family's library (Composer): the migration engine, the gate, the status and Migrations routes. Never edited here - updated by Composer (`docs/operations.md`). |
+| `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`: the IAM's set, then the library's translations set; `iamMigrationLabel()` names a library file `set/name`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
+| `backend/vendor/anotoki/lib` | The anotoki family's library (Composer): the migration engine, the gate, the status and Migrations routes; the translations - the tables' migration set and the library's words, the checks of a string, the bundle and the admin routes, the command line's tools. Never edited here - updated by Composer (`docs/operations.md`). |
 | `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, a site's save of its reader's preferences, logout, revoke, the public list of sites, the public "is sign-in required here?" answer. |
 | `backend/api/routes/login.php` | Sign-in (password, emailed code, Google), registration, confirmation, resets, the pending request (accept/cancel), sign-out, stopping the news. |
 | `backend/api/routes/account.php` | The account page. |
@@ -547,12 +591,12 @@ written down, not a refactor.
 | `backend/api/sign_in_devices.php` | The browsers an account signed in from, the device cookie, and the mail for a new one. |
 | `backend/api/totp.php`, `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php` | Carried over from the genshin site, rules intact. |
 | `backend/api/legacy_import.php` | The one-time move of the genshin site's accounts. |
-| `backend/api/translations.php` | The languages, the strings, the bundle, the admin panel's grid and every check of a string (`translationsCheck()`). |
+| `backend/api/translations.php` | The IAM's configuration of the library's translations (`iamTranslations()`): the mails' rules (`IamMailRules`), the two sentences cut around `{app}`, the accounts per language (`IamLanguageUsage`), refusals in the IAM's error body; and the key scan's settings for the command line and the tests (`iamKeyScanner()`). The routes are in `routes/login.php` (the bundle) and `routes/admin.php`. |
 | `backend/api/announcements.php` | Announcements: the senders, the checks of a draft and of its links, who it reaches, the mail's layout, the batches, the token that stops the news. |
-| `backend/translations.php` | The strings from the command line: `--status`, `--export`, `--import`. Never uploaded. |
-| `frontend/src/app/core/i18n/` | `translation.service.ts` (which language, the bundle, the `t` pipe's strings), `en.ts` (the keys and the English of last resort), `localization-drafts.service.ts`. |
+| `backend/translations.php` | The strings from the command line - the library's command on the IAM's configuration, then the mails' keys against `MAIL_KEYS`: `--status`, `--export`, `--import`. Never uploaded. |
+| `frontend/src/app/core/i18n/` | `translations.config.ts` (the IAM's configuration of `@anotoki/lib/translations`: its storage names, `en.ts` as the last resort, the account's language and its save), `translation.service.ts` (the library's service, seen with the IAM's keys), the typed `t` pipe, `en.ts` (the keys and the English of last resort). |
 | `frontend/src/app/core/migrations/` | How the pages use `@anotoki/lib/migrations`: who is the IAM's ADMIN, the sign-in, the language and the IAM's own not-set-up words, the account's dates. |
-| `frontend/src/app/core/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the IAM's strings (`kit-words.ts`), the icons the IAM's templates name, the account's theme and the languages. |
+| `frontend/src/app/core/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the database (the IAM's own strings where it has one, `kit-words.ts`; the library's `anotoki.*` for the rest), the icons the IAM's templates name, the account's theme and the languages. |
 | `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). The account pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`. |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

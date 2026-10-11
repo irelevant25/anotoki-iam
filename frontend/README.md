@@ -27,12 +27,16 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.2.0) - which every anotoki site
+its GitHub release, named in `package.json` (0.3.0) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
-tables), `@anotoki/lib/ui` and its entry points (the UI kit: buttons, fields,
-dialogs, menus, toasts, ...), `@anotoki/lib/shell` (the theme, the language
-switcher, the top bar, the frame) and `@anotoki/lib/migrations` (the
+tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,
+`/config`, `/forms`, `/dialog`, ...: always imported from its own, never
+through the `@anotoki/lib/ui` barrel, which would pull every piece into the
+first load), `@anotoki/lib/shell` (the theme, the language switcher, the top
+bar, the frame), `@anotoki/lib/translations` (the pages' words and language
+from the database; `@anotoki/lib/translations/admin` is the admin panel's
+Translations and Languages pages) and `@anotoki/lib/migrations` (the
 not-set-up page, the admin panel's "A database update is waiting" line;
 `@anotoki/lib/migrations/page` is the Migrations page). Its PHP half is the
 backend's `anotoki/lib`. A new version: its release's URL in `package.json`,
@@ -45,17 +49,23 @@ The unit tests run with Angular's `@angular/build:unit-test` (`angular.json`'s
 `devDependencies` (the survey site's versions: `vitest` ^4, `jsdom` ^28) and,
 once they are, a `"test": "ng test --watch=false"` script for `npm test`.
 The specs: the top bar's (`layouts/top-bar/top-bar.component.spec.ts`: the
-IAM's bar on the family's, drawn for real - its order, links, menu and words,
-the language saved to the account, PHONE_BAR_MAX, Tab out of every menu), the
-theme as the IAM wires it into the family's shell
-(`core/kit/kit.config.spec.ts`: saved to the account one save at a time,
-nothing sent while signed out, a refusal puts the account's back, and an
-answer that comes after Sign out signs nobody back in), the rule every save
-that answers with the account keeps (`core/auth/session.service.spec.ts`: the
-account pages', the theme's and the bar's language all go through
-`SessionService.setFrom()` or `refresh()`, so an answer after Sign out signs
-nobody back in; only a sign-in's answer and the probe's are the session as
-they are), the admin panel's "Cannot sign in" rule
+IAM's bar on the family's, drawn for real with the family's translations -
+its order, links, menu and words, the language's button in the database's
+words, a language chosen there saved to the account one save at a time and
+the latest last, a refusal said under the button, PHONE_BAR_MAX, Tab out of
+every menu), the translations as the IAM configures them
+(`core/i18n/translations.config.spec.ts`: the storage names it kept, a choice
+saved through the IAM's own API while signed in and nothing sent while signed
+out, the account page's choice put back when the account refuses it, the
+admin pages' words handed over only as the admin panel loads), the theme as
+the IAM wires it into the family's shell (`core/kit/kit.config.spec.ts`:
+saved to the account one save at a time, nothing sent while signed out, a
+refusal puts the account's back, and an answer that comes after Sign out
+signs nobody back in), the rule every save that answers with the account
+keeps (`core/auth/session.service.spec.ts`: the account pages', the theme's
+and the language's all go through `SessionService.setFrom()` or `refresh()`,
+so an answer after Sign out signs nobody back in; only a sign-in's answer and
+the probe's are the session as they are), the admin panel's "Cannot sign in" rule
 (`pages/admin/users/sign-in-check.ts`, the same as the server's `blocked_in`;
 `sign-in-check.spec.ts`), and the
 address the not-set-up page sends the browser back to - a path that stays on
@@ -94,22 +104,31 @@ src/
       http/                the interceptor: X-IAM-Request on non-GETs, 401 handling,
                            503 not_set_up to /not-set-up, errors reshaped to
                            { status, code, message } (but the migrations module's
-                           own, which it reads as they come)
+                           own, which it reads as they come); the words' own
+                           request (ANOTOKI_TRANSLATION_BUNDLE) is never a reason
+                           to move the page
       migrations/          the family's migrations module (@anotoki/lib/migrations)
                            wired in: who is ADMIN, the sign-in, the words, the dates.
                            No gate, no check at boot: the IAM keeps working while
                            an update waits
       auth/                the session signal, the guard, `next` validation,
                            the remembered-device token
-      i18n/                translation.service.ts (the language, its bundle from
-                           the database), en.ts (the keys, the last-resort English),
-                           localization-drafts.service.ts, the `t` and `appDate`
-                           pipes (the account's date order and clock: date-patterns.ts),
-                           error texts, the page-title strategy
+      i18n/                the family's translations (@anotoki/lib/translations)
+                           wired in: translations.config.ts (the IAM's storage
+                           names, its compiled English, the account - its language,
+                           a choice saved to it -, the start, the admin pages'
+                           words once the panel loads), translation.service.ts
+                           (the library's service seen with the IAM's keys),
+                           en.ts (the keys, the last-resort English), the typed `t`
+                           pipe and `appDate` (the account's date order and clock:
+                           date-patterns.ts), error texts, the page-title strategy
+                           (which tells the translations where the page is)
       kit/                 the family's UI kit and shell wired in (kit.config.ts):
-                           the kit's words from the IAM's strings (kit-words.ts),
-                           the icons the IAM's templates name (icons.ts), the
-                           theme (the account's while signed in), the languages
+                           the kit's words from the database - the IAM's own keys
+                           where it has them (kit-words.ts), the library's
+                           `anotoki.*` otherwise -, the icons the IAM's templates
+                           name (icons.ts), the theme (the account's while signed
+                           in), the languages (the translations' forShell())
       google/              Google Identity Services, loaded on demand
     ui/                    google-button, the IAM's own; the rest of the kit is the
                            family's (@anotoki/lib/ui)
@@ -125,11 +144,13 @@ src/
       admin/               /admin, in the family's frame with the panel's side
                            navigation: users, approvals, sessions, applications,
                            announcements (the history and senders, the composer,
-                           one announcement and its sending), logs,
-                           settings, translations and languages (localization/),
-                           keys; /admin/migrations is the family's page
-                           (@anotoki/lib/migrations/page), and its update line
-                           sits above them all
+                           one announcement and its sending), logs, settings,
+                           keys; /admin/translations and /admin/languages are the
+                           family's pages (@anotoki/lib/translations/admin), worded
+                           for the IAM by localization.ts (its mails, the accounts
+                           per language), and /admin/migrations is the family's
+                           (@anotoki/lib/migrations/page), whose update line sits
+                           above them all
 public/
   anotoki.png, favicon.png - and the build copies the family's theme-boot.js beside
                            them (angular.json): the stored theme before the first
@@ -148,14 +169,18 @@ scripts/
   `pages/admin/_admin-field.scss` (the few fields the admin panel draws by hand).
 - **The family's kit, not one of our own.** Buttons, fields, dialogs, menus,
   toasts, badges, alerts, cards, tabs, the pagination, the QR code are the
-  `anotoki-*` components of `@anotoki/lib/ui` and its entry points (`ui/forms`,
-  `ui/dialog`, `ui/toast`, ... - what only lazy pages use, only they import).
-  Their words are the IAM's strings where it has them (`core/kit/kit-words.ts`,
-  the kit's `lookup`: a rewording on the Translations page shows there too,
-  and the admin panel reads English), the kit's own English and informal
-  Slovak otherwise. An icon a template names is the kit's, or one
-  `core/kit/icons.ts` registers. The IAM's own: the sign-in frame, the Google
-  button, the pages.
+  `anotoki-*` components of the kit, each imported from its own entry point
+  (`@anotoki/lib/ui/button`, `ui/forms`, `ui/dialog`, `ui/toast`, ... - never
+  the `@anotoki/lib/ui` barrel; what only lazy pages use, only they import).
+  Their words come from the database: the IAM's own strings where it has them
+  (`core/kit/kit-words.ts`), the library's `anotoki.*` ones otherwise (the
+  translations' `forKit()`) - a rewording on the Translations page shows there
+  too, and the admin panel reads English -, the kit's own English and informal
+  Slovak where the database has none. The kit's markup is its own (BEM on its
+  host class: `anotoki-top-bar__row`, `anotoki-button--primary`, ...): a spec
+  or a check that reads it uses those names. An icon a template names is the
+  kit's, or one `core/kit/icons.ts` registers. The IAM's own: the sign-in
+  frame, the Google button, the pages.
 - **Signals first.** State is `signal()` / `computed()` / `linkedSignal()`,
   inputs are `input()` / `model()`, and route and query parameters arrive as
   component inputs (`withComponentInputBinding`). Every component is `OnPush`.
@@ -165,13 +190,22 @@ scripts/
 - **Words from the database, keys typed.** The sign-in and account pages read
   their strings from the database, in whatever languages the admin panel
   offers (English and Slovak to start with): one bundle,
-  `GET /api/translations/{code}`, fetched before the page switches language.
-  `TranslationKey` comes from `en.ts`, so an unknown key is a compile error;
-  a key the bundle has no string for shows as the key itself, so it is seen.
-  `en.ts`'s English is shown only while no bundle is in memory (between an
-  upload and "Apply pending", or when the server cannot be reached). There is no
-  Slovak in the build. The admin panel is English only, written in its
-  templates.
+  `GET /api/translations/{code}`, fetched before the page switches language -
+  the anotoki family's `TranslationService` (`@anotoki/lib/translations`,
+  configured in `core/i18n/translations.config.ts`): the family's ranking of
+  the wishes (this tab's `?lang=`, a choice made in this visit, the account's
+  language while signed in, this device's, the browser's, English), a choice
+  saved to the account one save at a time, the cache and the start's waits.
+  `TranslationKey` comes from `en.ts`, and the IAM sees the service through
+  `core/i18n/translation.service.ts` with its keys typed - the IAM's and the
+  library's `anotoki.*` -, so an unknown key is a compile error in a class as
+  in a template (the `t` pipe); a key the bundle has no string for shows as
+  the key itself, so it is seen - but never a library key, which has its
+  built-in words. `en.ts`'s English is shown only while no bundle is in memory
+  (between an upload and "Apply pending", or when the server cannot be
+  reached). There is no Slovak in the build. The admin panel is English only,
+  written in its templates; its Translations and Languages pages are the
+  family's.
 - **The top bar** (`layouts/top-bar`) is the anotoki family's one bar -
   `<anotoki-top-bar>` from `@anotoki/lib/shell`, whose order, menus, keys and
   fold are the family's - worded and wired here. One row: the brand ("anotoki
@@ -182,12 +216,14 @@ scripts/
   "Administrator"; the admin panel for the IAM's administrators, or "Back to
   your account" from it; Sign out). The family's "Your anotoki account" entry is left out: the
   account pages are the bar's own links. A language chosen there is saved to
-  the account too, as the overview's select does - one save at a time, the
-  latest choice last, so quick choices cannot leave the account on another
-  language than the page (the family's `latestChoiceSaver`). The language
-  button shows the code ("SK") and is
-  named with it ("Language: Slovenčina (SK)", WCAG 2.5.3: the words on a
-  button are part of its name). Up to `PHONE_BAR_MAX`
+  the account too, as the overview's select does - by the family's
+  translations, one save at a time, the latest choice last, so quick choices
+  cannot leave the account on another language than the page; a refusal
+  leaves the page in the chosen language for the visit and says so under the
+  button. The language button shows the code ("SK") and is named with it
+  ("Language: Slovenčina (SK)", WCAG 2.5.3: the words on a button are part of
+  its name - `anotoki.language.button`, reworded on the Translations page like
+  any other). Up to `PHONE_BAR_MAX`
   (1040 px - measured with the English and the Slovak labels, plus a desktop
   scrollbar) the links and the person's menu fold into one menu button; above
   it only the person's name gives way (hidden up to 1240 px). Both menus: focus
@@ -231,10 +267,13 @@ build whose `index.html` has an inline script or handler.
 It also refuses one whose `@anotoki/lib` could draw a string as HTML. The
 database's strings, which any administrator rewords, reach the family's
 components as well as the IAM's own, and the backend's "a string is text,
-never HTML" scan (`backend/tests/translation_keys.php`) reads only `src/app`.
+never HTML" scan (`php translations.php --status`, the library's
+`KeyScanner`) reads only `src/app`.
 So the script reads the library's bundles
 (`node_modules/@anotoki/lib/fesm2022/*.mjs`) and stops at `innerHTML`,
-`outerHTML`, `insertAdjacentHTML` or `bypassSecurityTrust…`, in any spelling
-and in a comment too, naming the file and line. Angular's own sanitizer is not
-in those files. The fix is a release of the library, never a way around the
-check.
+`outerHTML`, `insertAdjacentHTML`, `bypassSecurityTrust…`, `srcdoc`,
+`document.write`, `DOMParser`, `parseFromString` or
+`createContextualFragment` - every way a string becomes markup -, in any
+spelling and in a comment too, naming the file and line. Angular's own
+sanitizer is not in those files. The fix is a release of the library, never a
+way around the check.

@@ -124,15 +124,20 @@ every site now has ADMIN, EDITOR and MEMBER (new ones held by nobody), and
 that the public list of sites is every one switched on.
 
 The pages' and mails' words are rows in the database (migration 006 and every
-later migration with strings). Between the upload and Apply pending the pages
-read the English compiled into the build, the mails go out in English, there
-is no language switcher, and `GET /api/translations/{code}` answers
-`503 translations_unavailable` - expected in that window, not a fault; the
-first navigation after Apply brings the words back. Before a release that
-changes strings, have the owner export the live strings (Admin panel → Translations
-→ Export, per language) and keep the files: a migration never writes over a
-string reworded in the admin panel, and the export is the owner's wording to put
-back if a release's rewording is not wanted.
+later migration with strings, and the anotoki library's own set,
+`anotoki_translations`, applied after the IAM's). On an IAM without the tables
+yet, between the upload and Apply pending the pages read the English compiled
+into the build, the mails go out in English, there is no language switcher,
+and `GET /api/translations/{code}` answers `503 translations_unavailable` -
+expected in that window, not a fault; the first navigation after Apply brings
+the words back. Before a release that changes strings - the move onto the
+library (017 and `anotoki_translations/001`, `/002`) among them - have the
+owner export every language (Admin panel → Translations → Export, per
+language) and keep the files: a migration never writes over a string reworded
+in the admin panel, nor does the library's, and the export is the owner's
+wording to put back if a release's rewording is not wanted. Apply right after
+the upload: until 017 is applied the account page's Sessions list would show a
+key for a way of signing in it does not know.
 
 ## Check afterwards
 
@@ -141,5 +146,8 @@ back if a release's rewording is not wanted.
 - Admin panel → Applications: every site has its https addresses and no `localhost` one.
 - Sign in at `/login`; the admin panel at `/admin` shows the accounts and roles.
 - Each site's sign-in button reaches the IAM and comes back signed in.
-- After Apply pending: `/api/translations/sk` answers 200, the sign-in page has
-  its language switcher, and Admin panel → Translations shows the strings.
+- After Apply pending: `/api/translations/sk` answers 200 (with the library's
+  `anotoki.*` words among its values), the sign-in page has its language
+  switcher, Admin panel → Migrations has nothing pending (the library's two
+  files listed as `anotoki_translations/...`), and Admin panel → Translations
+  shows the strings.

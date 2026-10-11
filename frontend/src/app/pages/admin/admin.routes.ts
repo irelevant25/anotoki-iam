@@ -1,12 +1,19 @@
+import { inject, provideEnvironmentInitializer } from '@angular/core';
 import { Routes } from '@angular/router';
+import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
+import { SessionService } from '../../core/auth/session.service';
+import { useAdminPages } from '../../core/i18n/translations.config';
 import { AdminLayoutComponent } from './admin-layout.component';
-import { unsavedChangesGuard } from './localization/unsaved-changes.guard';
+import { localizationPages } from './localization';
 
 /** /admin - behind the session guard; the layout itself shuts out anybody who is not an IAM admin. */
 export const ADMIN_ROUTES: Routes = [
   {
     path: '',
     component: AdminLayoutComponent,
+    // The Translations and Languages pages as the IAM words them, handed to the family's translations as the
+    // panel loads - before either page can be made - and kept out of the first load (core/i18n/translations.config.ts).
+    providers: [provideEnvironmentInitializer(() => useAdminPages(localizationPages(inject(SessionService))))],
     children: [
       { path: '', title: 'Dashboard', loadComponent: () => import('./dashboard/dashboard.component').then((m) => m.DashboardComponent) },
       { path: 'users', title: 'Users', loadComponent: () => import('./users/users-list.component').then((m) => m.UsersListComponent) },
@@ -37,30 +44,31 @@ export const ADMIN_ROUTES: Routes = [
       {
         path: 'announcements/new',
         title: 'New announcement',
-        canDeactivate: [unsavedChangesGuard],
+        canDeactivate: [anotokiUnsavedChangesGuard],
         loadComponent: () => import('./announcements/announcement-compose.component').then((m) => m.AnnouncementComposeComponent),
       },
       {
         path: 'announcements/:id',
         title: 'Announcement',
-        canDeactivate: [unsavedChangesGuard],
+        canDeactivate: [anotokiUnsavedChangesGuard],
         loadComponent: () => import('./announcements/announcement-detail.component').then((m) => m.AnnouncementDetailComponent),
       },
       { path: 'emails', title: 'Email log', loadComponent: () => import('./emails/emails.component').then((m) => m.EmailsComponent) },
       { path: 'audit', title: 'Audit log', loadComponent: () => import('./audit/audit.component').then((m) => m.AuditComponent) },
       { path: 'settings', title: 'Settings', loadComponent: () => import('./settings/settings.component').then((m) => m.SettingsComponent) },
-      // The two pages hold what is typed until it is saved: leaving one with something unsaved asks first.
+      // The anotoki family's Translations and Languages pages (@anotoki/lib, as the IAM words them:
+      // ./localization.ts). They hold what is typed until it is saved: leaving one with something unsaved asks first.
       {
         path: 'translations',
         title: 'Translations',
-        canDeactivate: [unsavedChangesGuard],
-        loadComponent: () => import('./localization/translations/translations.component').then((m) => m.TranslationsComponent),
+        canDeactivate: [anotokiUnsavedChangesGuard],
+        loadComponent: () => import('@anotoki/lib/translations/admin').then((m) => m.TranslationsPageComponent),
       },
       {
         path: 'languages',
         title: 'Languages',
-        canDeactivate: [unsavedChangesGuard],
-        loadComponent: () => import('./localization/languages/languages.component').then((m) => m.LanguagesComponent),
+        canDeactivate: [anotokiUnsavedChangesGuard],
+        loadComponent: () => import('@anotoki/lib/translations/admin').then((m) => m.LanguagesPageComponent),
       },
       { path: 'keys', title: 'Signing keys', loadComponent: () => import('./keys/keys.component').then((m) => m.KeysComponent) },
       // The anotoki family's Migrations page (@anotoki/lib), as every anotoki site has it.

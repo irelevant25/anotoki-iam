@@ -27,9 +27,15 @@ const SURVEY_FRONTEND = 'http://localhost:4700';
 const SURVEY_CALLBACK = 'http://localhost:4700/auth/callback';
 
 $files = migrationFiles();
-/** The newest migration: pending on the window's database, which has every file before it. */
+/**
+ * The newest migration: pending on the window's database, which has every file before it. Every set's
+ * files count - the IAM's, then the library's translations set (anotoki_translations) - so it is the
+ * library's last, by the IAM's name for it: `anotoki_translations/002_....sql`.
+ */
 define('NEWEST', end($files));
 define('BEFORE_NEWEST', $files[count($files) - 2]);
+/** NEWEST as the engine and the routes name it: [set, file]. */
+define('NEWEST_FILE', str_contains(NEWEST, '/') ? explode('/', NEWEST, 2) : ['iam', NEWEST]);
 
 /**
  * Points the app at another of this run's databases, and lets nothing
@@ -137,7 +143,10 @@ test('the database not answering: the status says unavailable, and everything el
         $discovery = $browser->get('/.well-known/openid-configuration');
         same([200, ['en', 'sk']], [$discovery->status, $discovery->json()['ui_locales_supported'] ?? null], 'discovery answers as it always did without its database');
         // What needs the database fails as it always did, through the IAM's own error handler - not a 503 of the gate's.
-        same([500, 'server_error'], [($r = $browser->get('/api/translations/en'))->status, $r->code()], 'the words: the IAM\'s own answer');
+        same([500, 'server_error'], [($r = $browser->get('/api/applications'))->status, $r->code()], 'the public list of sites: the IAM\'s own answer');
+        // The words are the family's route's: a database that cannot be asked is "not yet", and the
+        // pages keep the English compiled into them - nothing logged on every page load.
+        same([503, 'translations_unavailable', '60'], [($r = $browser->get('/api/translations/en'))->status, $r->code(), $r->header('Retry-After')], 'the words: unavailable, asked again in a minute');
     } finally {
         useIamDatabase($main);
     }
@@ -204,18 +213,20 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
         $list = $admin->get('/api/admin/migrations');
         same([200, 'no-store'], [$list->status, $list->header('Cache-Control')], 'the list');
         $status = $list->json();
-        same(['iam'], $status['sets'] ?? null, 'one set, the IAM\'s');
+        same(['iam', 'anotoki_translations'], $status['sets'] ?? null, 'two sets: the IAM\'s, then the library\'s translations set');
         same(array_slice(migrationFiles(), 0, -1), migrationNames($status['applied'] ?? []), 'every file before the newest applied, in the order they ran');
-        same(['iam'], array_values(array_unique(array_column($status['applied'], 'set'))), 'each of the set iam');
+        same(['iam', 'anotoki_translations'], array_values(array_unique(array_column($status['applied'], 'set'))), 'each of its set, the IAM\'s first');
         foreach ($status['applied'] as $file) {
             check(preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', (string) $file['applied_at']) === 1, "{$file['name']} applied at a time in UTC: " . $file['applied_at']);
         }
-        same([['set' => 'iam', 'name' => NEWEST, 'ready' => true, 'blocked' => false]], $status['pending'] ?? null, 'the newest pending');
+        same([['set' => NEWEST_FILE[0], 'name' => NEWEST_FILE[1], 'ready' => true, 'blocked' => false]], $status['pending'] ?? null, 'the newest pending');
         same([], $status['missing'] ?? null, 'nothing recorded that is not on disk');
 
         $file = $admin->get('/api/admin/migrations/file?' . http_build_query(['set' => 'iam', 'name' => '001_initial_schema.sql']));
         same(200, $file->status, 'a file');
         same(['set' => 'iam', 'name' => '001_initial_schema.sql', 'sql' => file_get_contents(dirname(__DIR__) . '/migrations/iam/001_initial_schema.sql')], $file->json(), 'its SQL, as it is on disk');
+        $library = $admin->get('/api/admin/migrations/file?' . http_build_query(['set' => 'anotoki_translations', 'name' => '001_languages_and_strings.sql']));
+        same([200, file_get_contents(dirname(__DIR__) . '/vendor/anotoki/lib/php/migrations/translations/001_languages_and_strings.sql')], [$library->status, $library->json()['sql'] ?? null], 'and a file of the library\'s set, from vendor/anotoki/lib');
         foreach ([['set' => 'iam', 'name' => '../../config/database.local.php'], ['set' => 'iam', 'name' => '..\\..\\config\\secret.local.php'], ['set' => 'iam', 'name' => 'nothing.sql'],
                   ['set' => 'genshin', 'name' => '001_initial_schema.sql'], ['name' => '001_initial_schema.sql'], []] as $query) {
             same([404, 'not_found'], [($r = $admin->get('/api/admin/migrations/file?' . http_build_query($query)))->status, $r->code()], 'no such file: ' . json_encode($query));
@@ -239,13 +250,13 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
 
         $applied = $admin->post('/api/admin/migrations/apply');
         same([200, 'no-store'], [$applied->status, $applied->header('Cache-Control')], 'Apply: ' . $applied->body);
-        same(['applied' => [['set' => 'iam', 'name' => NEWEST]], 'failed' => null, 'error' => null, 'note' => null], $applied->json(), 'the newest applied');
+        same(['applied' => [['set' => NEWEST_FILE[0], 'name' => NEWEST_FILE[1]]], 'failed' => null, 'error' => null, 'note' => null], $applied->json(), 'the newest applied');
         same([], pendingMigrations(iamDb()), 'nothing pending');
         $entry = iamDb()->query("SELECT actor_id, details FROM audit_log WHERE action = 'migrations.applied' ORDER BY id DESC LIMIT 1")->fetch();
         same([$audited + 1, (int) iamDb()->query("SELECT id FROM users WHERE email = 'admin@example.test'")->fetchColumn()], [appliesAudited(), (int) $entry['actor_id']], 'audited, by the administrator');
         $details = (array) json_decode((string) $entry['details'], true);
         ksort($details);
-        same(['applied' => [NEWEST], 'error' => null, 'failed' => null], $details, 'with what it applied, as the audit log always had it');
+        same(['applied' => [NEWEST], 'error' => null, 'failed' => null], $details, 'with what it applied, as the audit log always had it - a library set\'s file as set/name');
         same(['state' => 'ready', 'installed' => false], (new Browser('10.18.3.4'))->get('/api/site-status')->json(), 'from the next request on, the IAM is ready');
         same([], $admin->get('/api/admin/migrations')->json()['pending'] ?? null, 'and the list has nothing pending');
 

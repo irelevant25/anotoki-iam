@@ -2,8 +2,11 @@
 
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Translations\Http\TranslationsRoutes;
+use Anotoki\Lib\Translations\Translations;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 
 // ---------------------------------------------------------------------------
 // The admin panel
@@ -960,7 +963,7 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
                 ];
             }
 
-            $languages = array_values(array_filter(languagesAll($pdo), static fn(array $language): bool => $language['enabled']));
+            $languages = array_values(array_filter(iamTranslations($pdo)->languages(), static fn(array $language): bool => $language['enabled']));
             usort($languages, static fn(array $a, array $b): int => ($b['code'] === TRANSLATION_FALLBACK) <=> ($a['code'] === TRANSLATION_FALLBACK));
 
             return respondJson($response, [
@@ -1447,114 +1450,39 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
     // ── Languages and strings ────────────────────────────────────────────────
     //
-    // The IAM's own words (api/translations.php): the languages it offers, and
-    // the strings of the pages and the mails. A group of their own, because
-    // they answer 503 `translations_unavailable` until migration 006 has been
-    // applied - which is done from this panel, a few lines below.
+    // The IAM's own words, through the anotoki family's routes (anotoki/lib's
+    // TranslationsRoutes, on the IAM's configuration, api/translations.php):
+    // the languages it offers, and the strings of the pages and the mails.
+    // Both groups sit in this one, under its checks - the session, the IAM's
+    // ADMIN (the IAM has no EDITOR of its own panel) - and the CSRF header on
+    // every write, as everything here. Then the library's, in its order: a
+    // {code} that is none is a 404 before any query; a body is read by the
+    // library from the raw request (JSON only, at most 1 MB, not empty, a map
+    // where a map belongs); 503 `translations_unavailable` until migration
+    // 006 has been applied - which is done from this panel, a few lines below.
     //
-    // A body here is read as it was parsed, not through requestBody(): "no
-    // body" and "a list" are refusals of their own, not an empty object.
+    // Who saved a string is the session's account, and nothing a body says.
+    // Every change is audited, as it always was: language.created, .updated,
+    // .deleted, translations.saved, .imported - a changed mail string with its
+    // old and new text whole.
 
-    $group->group('', function (\Slim\Routing\RouteCollectorProxy $words) {
+    $translations = static fn(): Translations => iamTranslations();
+    $writer = static fn(Request $request): ?int => (int) actor($request)['id'];
+    $audited = static function (Request $request, string $action, ?string $type, ?string $id, array $details): void {
+        audit($request, (int) actor($request)['id'], $action, $type, $id, $details);
+    };
 
-        $words->get('/languages', function (Request $request, Response $response) {
-            return respondJson($response, ['languages' => languagesAll(iamDb())]);
+    TranslationsRoutes::strings($group, '', $translations, $writer, translationRefusalAnswer(...), $audited);
+
+    // A language added, changed or deleted: what the IAM offers - discovery,
+    // the pages' config, ui_locales, the accounts' languages - is read again.
+    TranslationsRoutes::languages($group, '', $translations, translationRefusalAnswer(...), $audited)
+        ->add(static function (Request $request, RequestHandler $handler): Response {
+            $response = $handler->handle($request);
+            languageCodes(null, true);
+
+            return $response;
         });
-
-        // {code, name, native_name, enabled?}: offered at once unless `enabled`
-        // says false. The log says which it was - a language that appeared on
-        // every sign-in page, or one that was only made ready.
-        $words->post('/languages', function (Request $request, Response $response) {
-            $result = languageCreate(iamDb(), $request->getParsedBody());
-            if (translationRefused($result)) {
-                return translationRefuse($response, $result);
-            }
-
-            $language = $result['language'];
-            audit($request, (int) actor($request)['id'], 'language.created', 'language', $language['code'], ['name' => $language['name'], 'native_name' => $language['native_name'], 'enabled' => $language['enabled']]);
-
-            return respondJson($response, ['language' => $language], 201);
-        });
-
-        $words->put('/languages/{code}', function (Request $request, Response $response, array $args) {
-            $result = languageUpdate(iamDb(), (string) $args['code'], $request->getParsedBody());
-            if (translationRefused($result)) {
-                return translationRefuse($response, $result);
-            }
-
-            if ($result['changed'] !== []) {
-                audit($request, (int) actor($request)['id'], 'language.updated', 'language', $result['language']['code'], $result['changed']);
-            }
-
-            return respondJson($response, ['language' => $result['language']]);
-        });
-
-        // The language goes with its strings; the accounts that had it go back
-        // to English, and the answer says how many.
-        $words->delete('/languages/{code}', function (Request $request, Response $response, array $args) {
-            $result = languageDelete(iamDb(), (string) $args['code']);
-            if (translationRefused($result)) {
-                return translationRefuse($response, $result);
-            }
-
-            audit($request, (int) actor($request)['id'], 'language.deleted', 'language', $result['language']['code'], [
-                'name' => $result['language']['name'],
-                'accounts' => $result['accounts'],
-                'strings' => $result['strings'],
-            ]);
-
-            return respondJson($response, ['accounts' => $result['accounts']]);
-        });
-
-        $words->get('/translations', function (Request $request, Response $response) {
-            return respondJson($response, translationGrid(iamDb()));
-        });
-
-        // Who saved a string is the session's account, and nothing a body says.
-        $words->put('/translations', function (Request $request, Response $response) {
-            if (translationsBodyTooLarge($request)) {
-                return respondError($response, 413, 'too_large', 'That is more than a save of strings may be (1 MB)');
-            }
-
-            $pdo = iamDb();
-            $body = $request->getParsedBody();
-            $result = translationsSave($pdo, is_array($body) ? ($body['values'] ?? null) : null, (int) actor($request)['id']);
-            if (translationRefused($result)) {
-                return translationRefuse($response, $result);
-            }
-
-            if ($result['count'] > 0) {
-                audit($request, (int) actor($request)['id'], 'translations.saved', null, null, $result);
-            }
-
-            return respondJson($response, translationGrid($pdo));
-        });
-
-        $words->get('/translations/{code}/export', function (Request $request, Response $response, array $args) {
-            $result = translationsExport(iamDb(), (string) $args['code']);
-
-            return translationRefused($result) ? translationRefuse($response, $result) : respondJson($response, $result['values']);
-        });
-
-        $words->put('/translations/{code}/import', function (Request $request, Response $response, array $args) {
-            if (translationsBodyTooLarge($request)) {
-                return respondError($response, 413, 'too_large', 'That is more than an import of strings may be (1 MB)');
-            }
-
-            $pdo = iamDb();
-            $code = (string) $args['code'];
-            $result = translationsImport($pdo, $code, $request->getParsedBody(), (int) actor($request)['id']);
-            if (translationRefused($result)) {
-                return translationRefuse($response, $result);
-            }
-
-            if ($result['count'] > 0) {
-                audit($request, (int) actor($request)['id'], 'translations.imported', 'language', $code, $result);
-            }
-
-            return respondJson($response, translationGrid($pdo));
-        });
-    })->add(requireTranslations());
 
     // ── Migrations ───────────────────────────────────────────────────────────
 
@@ -1566,9 +1494,12 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     MigrationsRoutes::admin($group, '/migrations', static fn(): Migrator => iamMigrator(iamDb()), static function (Request $request, array $result): void {
         // A migration may have brought the languages table, or a language.
         languageCodes(null, true);
+        // The files by the IAM's names for them: a library set's as `set/name`
+        // (iamMigrationLabel()), since the two sets' numbers both start at 001.
+        $label = static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']);
         audit($request, (int) actor($request)['id'], 'migrations.applied', null, null, [
-            'applied' => array_column($result['applied'], 'name'),
-            'failed' => $result['failed']['name'] ?? null,
+            'applied' => array_map($label, $result['applied']),
+            'failed' => $result['failed'] === null ? null : $label($result['failed']),
             'error' => $result['error'],
         ]);
     });

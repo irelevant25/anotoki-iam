@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { AvatarComponent } from '@anotoki/lib/ui';
+import { AvatarComponent } from '@anotoki/lib/ui/avatar';
 import { RequestApplication } from '../../core/api/models';
 
 /**

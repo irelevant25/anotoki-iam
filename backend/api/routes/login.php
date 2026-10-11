@@ -1,6 +1,8 @@
 <?php
 
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
+use Anotoki\Lib\Translations\Http\TranslationsRoutes;
+use Anotoki\Lib\Translations\Translations;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -200,43 +202,22 @@ $app->get('/api/public/config', function (Request $request, Response $response) 
 MigrationsRoutes::status($app, iamSiteState());
 
 // The pages' words in one language, with English under them and the languages
-// on offer (translationBundle()). The same for everybody, so nobody is asked
-// who they are: no cookie is read and none is set, and a page whose session
-// has run out still reads in its language. Only the IAM's own pages read it -
-// it is in neither CORS list.
+// on offer - the anotoki family's route (anotoki/lib's TranslationsRoutes, on
+// the IAM's configuration, api/translations.php). The same for everybody, so
+// nobody is asked who they are: no cookie is read and none is set, and a page
+// whose session has run out still reads in its language. Only the IAM's own
+// pages read it - it is in neither CORS list.
 //
-// `language` in the answer is the language it is in, which need not be the
-// code asked for: "sk-sk" is answered by "sk" when only that is offered - the
-// same bytes under the same tag - and what the IAM does not offer by English.
-$app->get('/api/translations/{code}', function (Request $request, Response $response, array $args) {
-    // Before any query: only a code is looked up. A wrong address is a 404,
-    // not a database refusing bytes that are not text.
-    $code = (string) $args['code'];
-    if (!languageCodeOk($code)) {
-        return respondError($response, 404, 'not_found', 'There is no such language');
-    }
-
-    $bundle = translationBundle(iamDb(), $code);
-    if (translationRefused($bundle)) {
-        return translationRefuse($response, $bundle);
-    }
-
-    // The strings change when somebody saves one in the admin panel, or with
-    // a release: the browser asks every time (no-cache) and is told "the same
-    // as you have" in a few bytes. Both headers are set before that answer, so
-    // it carries them too - without them it would go out as no-store.
-    $body = (string) json_encode($bundle, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    $etag = '"' . md5($body) . '"';
-    $response = $response->withHeader('ETag', $etag)->withHeader('Cache-Control', 'no-cache');
-
-    if (translationsNotModified($request->getHeaderLine('If-None-Match'), $etag)) {
-        return $response->withStatus(304);
-    }
-
-    $response->getBody()->write($body);
-
-    return $response->withHeader('Content-Type', 'application/json');
-});
+// What the library does with it, as the IAM did: a code that is none is a 404
+// before any query; `language` in the answer is the language it is in, which
+// need not be the code asked for ("sk-sk" is answered by "sk" when only that
+// is offered - the same bytes under the same tag - and what the IAM does not
+// offer by English); no `mail.` key goes out; an ETag and no-cache, so the
+// browser asks every time and is told 304 when nothing changed. Without the
+// tables - between an upload and Apply - or with the database out of reach,
+// 503 translations_unavailable, and the pages keep the English compiled into
+// them.
+TranslationsRoutes::bundle($app, static fn(): Translations => iamTranslations(), translationRefusalAnswer(...));
 
 // ── The pending authorization request ────────────────────────────────────────
 

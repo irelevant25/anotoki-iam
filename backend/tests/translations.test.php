@@ -1,30 +1,53 @@
 <?php
 
 /**
- * The IAM's own words in the database: the languages, the strings of the pages
- * and the mails, and the admin panel's routes for them.
+ * The IAM's own words in the database, through the anotoki family's library
+ * (anotoki/lib's Anotoki\Lib\Translations, on the IAM's configuration in
+ * api/translations.php): the languages, the strings of the pages and the
+ * mails, and the admin panel's routes for them.
  *
- * Three things are held here that nothing else would catch:
+ * The library's own tests hold what every site's words do - its checks of a
+ * string, the bundle, the grid, saves and their locks, the languages' limits,
+ * the body it reads, the key scan, the file format, the command. What is held
+ * here is the IAM's:
  *
  *   - The window. A build is uploaded before its migrations are applied, from
  *     the admin panel, by somebody who has to sign in first. So the first
  *     test runs the app on a database that stops before 006: everything a
  *     sign-in needs still works, the mails go out in the English kept in the
  *     code, and the bundle says "not yet" instead of failing.
- *   - The mails. Their words became strings somebody can edit, so the six
+ *   - The mails. Their words are strings somebody can edit, so the six
  *     messages are compared byte for byte with what the code used to write,
  *     and the ways a string could be turned against the recipient - a header
  *     in a subject, a link in a paragraph, a placeholder that leaks a token -
- *     are tried both through the panel and straight into the table.
+ *     are tried both through the panel and straight into the table. Their
+ *     rules are the IAM's (IamMailRules), asked by the library's checks.
  *   - The catalogue. What the migrations leave is held to the frontend's
  *     compiled English (core/i18n/en.ts) and to MAIL_KEYS / MAIL_FALLBACK, so
- *     the three cannot drift apart.
+ *     the three cannot drift apart; the library's words beside them are its
+ *     file's (php/resources/library-words.json).
+ *   - The IAM's contract on every route (docs/api.md): its error body, who
+ *     may, the CSRF header, the audit log, `accounts`, `ui_locales`, the
+ *     `locale` claim, discovery and /api/public/config with the database out
+ *     of reach.
+ *
+ * Migration 017, which moved four keys for the library, and the window before
+ * it is applied are tests/strings-through-the-library.test.php's.
  */
 
 declare(strict_types=1);
 
 require __DIR__ . '/lib.php';
-require __DIR__ . '/translation_keys.php';
+
+use Anotoki\Lib\Support\Refusal;
+use Anotoki\Lib\Translations\Cli\EnglishDictionary;
+use Anotoki\Lib\Translations\Cli\KeyScanner;
+use Anotoki\Lib\Translations\ETag;
+use Anotoki\Lib\Translations\LibraryWords;
+use Anotoki\Lib\Translations\Placeholders;
+use Anotoki\Lib\Translations\StringCheck;
+use Anotoki\Lib\Translations\Text;
+use Anotoki\Lib\Translations\TranslationFile;
 
 bootTests();
 
@@ -34,6 +57,10 @@ const GENSHIN_ORIGIN = 'http://localhost:4200';
 
 const ENGLISH = ['code' => 'en', 'name' => 'English', 'native_name' => 'English'];
 const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina'];
+
+/** The IAM's own keys, as the migrations leave them: 483 of the pages and 48 of the mails. */
+const IAM_PAGE_KEYS = 483;
+const IAM_MAIL_KEYS = 48;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -147,10 +174,10 @@ function admin(): Browser
     return $browser;
 }
 
-/** A save of the grid's changed strings, as the admin page sends it. */
+/** A save of the grid's changed strings, as the admin page sends it: `values` an object, `{}` for none. */
 function save(Browser $browser, array $values): TestResponse
 {
-    return $browser->put('/api/admin/translations', ['values' => $values]);
+    return $browser->put('/api/admin/translations', ['values' => (object) $values]);
 }
 
 /** One string as the database has it: [value, updated_by, updated_at] - or null. */
@@ -167,6 +194,15 @@ function stored(string $key, string $code): ?array
 function everyString(): array
 {
     return iamDb()->query("SELECT key_name || ' ' || language_code, value || ' by ' || COALESCE(updated_by::text, 'nobody') || ' at ' || updated_at FROM translations ORDER BY 1")->fetchAll(PDO::FETCH_KEY_PAIR);
+}
+
+/** How many strings a language has now. */
+function stringsIn(string $code): int
+{
+    $statement = iamDb()->prepare('SELECT count(*) FROM translations WHERE language_code = ?');
+    $statement->execute([$code]);
+
+    return (int) $statement->fetchColumn();
 }
 
 /** A language's strings as the migrations left them, before any test reworded one. */
@@ -298,46 +334,42 @@ function mailsAsTheyWere(string $username, string $confirmLink, string $resetLin
     ];
 }
 
-/** What translationsCheck() makes of $values, on keys of the test's own: the changes, or [code, extra] of the refusal. */
+/**
+ * What the library's checks (StringCheck) make of $values on the IAM's
+ * configuration - its mail rules, its {app} sentences - on keys of the test's
+ * own: the changes, or [code, extra] of the refusal.
+ */
 function checked(mixed $values, array $english = ['test.hello' => 'Hello, {name}!', 'test.bye' => 'Goodbye']): array
 {
-    $keys = array_values(array_unique(['test.hello', 'test.bye', 'test.new', 'login.continueTo', 'register.forApp', ...array_keys(MAIL_KEYS), ...array_keys($english)]));
-    $result = translationsCheck($values, $keys, ['en' => 'English', 'sk' => 'Slovak'], $english + ['login.continueTo' => 'Sign in to continue to {app}', 'register.forApp' => 'Create an account to continue to {app}'] + MAIL_FALLBACK);
-    if (translationRefused($result)) {
-        same(422, $result['status'], 'a refused string is a 422');
+    $result = checkedWithIam($values, $english);
+    if ($result instanceof Refusal) {
+        same(422, $result->status, 'a refused string is a 422');
 
-        return [$result['code'], $result['extra']];
+        return [$result->code, $result->extra];
     }
 
-    return $result['changes'];
+    return $result;
 }
 
-/**
- * languageCreate() in a process of its own, on this run's database: another
- * admin's request, which can wait while this process goes on. It is started
- * and not waited for; what it answers is written to $out as JSON when it ends.
- *
- * @return resource the process, for proc_close()
- */
-function createLanguageElsewhere(array $body, string $out)
+/** The sentence a refusal of those checks says - '' when there is none. */
+function refusalSentence(mixed $values, array $english = ['test.hello' => 'Hello, {name}!', 'test.bye' => 'Goodbye']): string
 {
-    // As cli() does it: the constants only code can define say where this
-    // run's configuration is, in a file of the run's own.
-    $start = testEnvironment()['base'] . DIRECTORY_SEPARATOR . 'create-language.php';
-    $backend = dirname(__DIR__) . DIRECTORY_SEPARATOR;
-    file_put_contents($start, "<?php\ndefine('IAM_CONFIG_DIR', " . var_export(testEnvironment()['config'], true) . ");\ndefine('IAM_STORAGE_DIR', " . var_export(testEnvironment()['storage'], true) . ");\n"
-        . implode('', array_map(static fn(string $file): string => 'require ' . var_export($backend . $file, true) . ";\n", ['config/db.php', 'config/iam.php', 'api/helpers.php', 'api/audit.php', 'api/mail.php', 'api/translations.php']))
-        // Never for ever: if nobody lets it through, it gives up and says so.
-        . "\$pdo = iamDb();\n\$pdo->exec(\"SET lock_timeout = '30s'\");\n"
-        . "try {\n    \$answer = languageCreate(\$pdo, json_decode((string) file_get_contents(\$argv[1] . '.body'), true));\n} catch (\\Throwable \$e) {\n    \$answer = ['threw' => \$e->getMessage()];\n}\n"
-        . "file_put_contents(\$argv[1], json_encode(\$answer));\n");
+    $result = checkedWithIam($values, $english);
 
-    // The body goes by file: a command line on Windows is not a safe place for letters with accents.
-    file_put_contents("$out.body", (string) json_encode($body));
-    $process = proc_open([PHP_BINARY, $start, $out], [0 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'r'], 1 => ['file', "$out.log", 'w'], 2 => ['file', "$out.log", 'a']], $pipes);
-    check(is_resource($process), 'a second process could be started');
+    return $result instanceof Refusal ? $result->message : '';
+}
 
-    return $process;
+function checkedWithIam(mixed $values, array $english): array|Refusal
+{
+    $keys = array_values(array_unique(['test.hello', 'test.bye', 'test.new', 'login.continueTo', 'register.forApp', ...array_keys(MAIL_KEYS), ...array_keys($english)]));
+
+    return StringCheck::changes(
+        $values,
+        $keys,
+        ['en' => 'English', 'sk' => 'Slovak'],
+        $english + ['login.continueTo' => 'Sign in to continue to {app}', 'register.forApp' => 'Create an account to continue to {app}'] + MAIL_FALLBACK,
+        iamTranslationsConfig()
+    );
 }
 
 /** A small frontend to scan: $files as relative path => contents, written with Windows line endings. */
@@ -429,7 +461,7 @@ test('before 006 is applied the IAM still runs: config, discovery, a site\'s sig
         // The pages' strings: not there yet - said so, not a 500 and not "not set up".
         foreach (['en', 'sk'] as $code) {
             $bundle = (new Browser('10.8.0.1'))->get("/api/translations/$code");
-            same([503, 'translations_unavailable'], [$bundle->status, $bundle->code()], "the bundle ($code)");
+            same([503, 'translations_unavailable', '60'], [$bundle->status, $bundle->code(), $bundle->header('Retry-After')], "the bundle ($code), asked again in a minute");
         }
 
         // Registration, in Slovak: the account is made with its language, and the mail goes out - in the English kept in the code.
@@ -492,10 +524,12 @@ test('before 006 is applied the IAM still runs: config, discovery, a site\'s sig
             same([503, 'translations_unavailable'], [$admin->get($path)->status, $admin->get($path)->code()], $path);
         }
         same([503, 'translations_unavailable'], [save($admin, ['common.save' => ['sk' => 'x']])->status, save($admin, ['common.save' => ['sk' => 'x']])->code()], 'nothing to save into');
+        same([503, 'translations_unavailable'], [($r = $admin->post('/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch']))->status, $r->code()], 'nor a language to add');
         same([401, 'no_session'], [(new Browser('10.8.0.6'))->get('/api/admin/languages')->status, (new Browser('10.8.0.6'))->get('/api/admin/languages')->code()], 'to anybody else they say what they always say: sign in first');
-        // 006 is pending, and every migration written after it (007 on).
-        $fromStrings = array_values(array_filter(migrationFiles('iam'), static fn(string $file): bool => strnatcmp($file, STRINGS_MIGRATION) >= 0));
+        // 006 is pending, every migration written after it (007 on), and the library's set after them.
+        $fromStrings = array_slice(migrationFiles(), array_search(STRINGS_MIGRATION, migrationFiles(), true));
         same(STRINGS_MIGRATION, $fromStrings[0] ?? null, 'the first of what is pending is 006');
+        same(['anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'], array_slice($fromStrings, -2), 'and the library\'s two files the last');
         same($fromStrings, migrationNames($admin->get('/api/admin/migrations')->json()['pending'] ?? []), '006 and what came after it are what is pending');
 
         $applied = $admin->post('/api/admin/migrations/apply');
@@ -504,6 +538,7 @@ test('before 006 is applied the IAM still runs: config, discovery, a site\'s sig
         // From the next request on: the strings are there, and the mails are in the account's language.
         $bundle = (new Browser('10.8.0.1'))->get('/api/translations/sk');
         same([200, 'sk', 'Uložiť'], [$bundle->status, $bundle->json()['language'] ?? null, $bundle->json()['values']['common.save'] ?? null], 'the bundle, in Slovak');
+        same('Jazyk', $bundle->json()['values']['anotoki.language.label'] ?? null, 'with the library\'s words');
         same(2, count($admin->get('/api/admin/languages')->json()['languages'] ?? []), 'the panel\'s pages work');
         same('sk', $pdo->query("SELECT language FROM users WHERE email = 'novacik@example.test'")->fetchColumn(), 'the account kept its language through the change of constraint');
         same(200, (new Browser('10.8.0.7'))->post('/api/password/forgot', ['email' => 'known@example.test'])->status, 'a reset');
@@ -529,20 +564,34 @@ $playerId = makeUser('player', 'player@example.test');
 
 // ── The catalogue: what the migrations leave ─────────────────────────────────
 
-test('the two languages the IAM is released in, and every key with an English and a Slovak string', function () {
+test('the two languages the IAM is released in, and every key - the IAM\'s and the library\'s - with an English and a Slovak string', function () {
     $pdo = iamDb();
     same(
         [['en', 'English', 'English', true, 1], ['sk', 'Slovak', 'Slovenčina', true, 2]],
         array_map('array_values', $pdo->query('SELECT code, name, native_name, enabled, sort_order FROM languages ORDER BY sort_order')->fetchAll()),
         'the languages'
     );
-    same(533, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), '485 keys of the pages and 48 of the mails');
-    same(533, count(seeded('en')), 'each has an English string');
-    same(533, count(seeded('sk')), 'and a Slovak one');
+    $library = count(LibraryWords::keys());
+    same(54, $library, 'the library\'s words: 54 keys (anotoki_translations/002)');
+    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the IAM\'s own: 483 keys of the pages and 48 of the mails');
+    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'and the library\'s beside them');
+    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('en')), 'each has an English string');
+    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('sk')), 'and a Slovak one');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE description IS NULL OR description = ''")->fetchColumn(), 'and a description');
     same(0, (int) $pdo->query('SELECT count(*) FROM translations WHERE updated_by IS NOT NULL')->fetchColumn(), 'written by nobody');
     foreach (array_keys(seeded('en')) as $key) {
-        check(translationKeyShapeOk($key), "$key has the shape of a key, so the scan can find it");
+        check(KeyScanner::shapeOk($key), "$key has the shape of a key, so the scan can find it");
+    }
+
+    // The library's keys are its file's: its words, its descriptions.
+    $descriptions = $pdo->query("SELECT name, description FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchAll(PDO::FETCH_KEY_PAIR);
+    foreach (LibraryWords::all() as $key => $words) {
+        same([$words['en'], $words['sk'], $words['description']], [seeded('en')[$key] ?? null, seeded('sk')[$key] ?? null, $descriptions[$key] ?? null], "$key: the library's English, Slovak and description");
+    }
+    // `anotoki.` is the library's namespace: no migration of the IAM writes a key there but the two 017 moved into it.
+    foreach (migrationFiles('iam') as $file) {
+        preg_match_all("/'(anotoki\\.[A-Za-z0-9._-]+)'/", (string) file_get_contents(dirname(__DIR__) . "/migrations/iam/$file"), $found);
+        same($file === '017_strings_through_the_library.sql' ? ['anotoki.language.button', 'anotoki.language.label'] : [], sorted(array_values(array_unique($found[1]))), "$file and the library's namespace");
     }
 
     // The languages a migration writes strings for are the ones that cannot be deleted.
@@ -565,10 +614,23 @@ test('the two languages the IAM is released in, and every key with an English an
     }
 });
 
-test('placeholders: a Slovak string uses none its English lacks; the two the pages cut keep {app}; a mail\'s are the code\'s', function () {
+test('the IAM\'s configuration of the library: English and Slovak released, the mails the server\'s, and the numbers docs/api.md promises', function () {
+    $config = iamTranslationsConfig();
+    same([TRANSLATION_SEEDED_LANGUAGES, ['mail']], [$config->releasedLanguages, $config->serverNamespaces], 'released languages, server namespace');
+    same(
+        ['languages' => 20, 'name' => 50, 'order' => 1000, 'value' => 2000, 'body' => 1024 * 1024, 'audit keys' => 100, 'audit text' => TRANSLATION_MAIL_VALUE_MAX],
+        ['languages' => $config->languagesMax, 'name' => $config->languageNameMax, 'order' => $config->sortOrderMax, 'value' => $config->valueMax, 'body' => $config->bodyLimit, 'audit keys' => $config->auditKeys, 'audit text' => $config->auditTextMax],
+        'at most 20 languages, names of 50, an order to 1000, strings of 2,000 characters, 1 MB bodies; a changed mail string in the audit log as long as the panel lets one be'
+    );
+    same(['IamMailRules', 'Anotoki\Lib\Translations\Rules\RequiredPlaceholders'], array_map(static fn(object $rule): string => get_class($rule), $config->rules), 'the mails\' rules, then the {app} sentences - after the library\'s own');
+    same(['username'], (new IamMailRules(MAIL_KEYS))->placeholders('mail.reset.greeting'), 'a mail key\'s placeholders are MAIL_KEYS\'s');
+    same([null, []], [(new IamMailRules(MAIL_KEYS))->placeholders('common.save'), (new IamMailRules(MAIL_KEYS))->placeholders('mail.not.inTheCode')], 'a page key is not the mails\' rule\'s; a mail key the code does not know has no placeholder at all');
+});
+
+test('placeholders: a Slovak string uses none its English lacks; the two the pages cut keep {app}; every stored string passes the checks it is edited under', function () {
     $wrong = [];
     foreach (seeded('sk') as $key => $slovak) {
-        $extra = array_diff(translationPlaceholders($slovak), translationPlaceholders(seeded('en')[$key]));
+        $extra = array_diff(Placeholders::names($slovak), Placeholders::names(seeded('en')[$key]));
         if ($extra !== []) {
             $wrong[] = "$key: {" . implode('}, {', $extra) . '}';
         }
@@ -577,30 +639,25 @@ test('placeholders: a Slovak string uses none its English lacks; the two the pag
 
     foreach (TRANSLATION_REQUIRED_PLACEHOLDERS as $key => $required) {
         foreach (['en', 'sk'] as $code) {
-            same([], array_values(array_diff($required, translationPlaceholders(seeded($code)[$key] ?? ''))), "$key ($code) keeps what the page cuts the sentence around");
+            same([], array_values(array_diff($required, Placeholders::names(seeded($code)[$key] ?? ''))), "$key ($code) keeps what the page cuts the sentence around");
         }
     }
 
-    // Everything the migrations wrote would be accepted by the panel as it is.
-    $all = [];
-    foreach (seeded('en') as $key => $english) {
-        $all[$key] = ['en' => $english, 'sk' => seeded('sk')[$key]];
-    }
-    $result = translationsCheck($all, array_keys($all), ['en' => 'English', 'sk' => 'Slovak'], seeded('en'));
-    check(!translationRefused($result), 'every seeded string passes the rules it is edited under: ' . json_encode($result['extra'] ?? null) . ' ' . ($result['code'] ?? ''));
-    same(1066, count($result['changes'] ?? []), 'all 1066 of them');
+    // Everything the migrations wrote - the IAM's and the library's - would be accepted by the panel as it is.
+    same([], iamTranslations()->storedRefusals(), 'every stored string passes the rules it is edited under');
+    same(2 * (IAM_PAGE_KEYS + IAM_MAIL_KEYS + count(LibraryWords::keys())), (int) iamDb()->query('SELECT count(*) FROM translations')->fetchColumn(), 'all 1170 of them');
 });
 
 test('the mails: MAIL_KEYS and MAIL_FALLBACK are exactly what the database has', function () {
     $mailKeys = array_values(array_filter(array_keys(seeded('en')), static fn(string $key): bool => str_starts_with($key, 'mail.')));
     same(sorted(array_keys(MAIL_KEYS)), sorted($mailKeys), 'MAIL_KEYS names the mail keys of the database');
-    same(48, count(MAIL_KEYS), 'forty-eight: five strings for each of the three mails with a link or a code, three for the approval, four for each of the announcements\' three templates, the two every announcement ends with, and four for each of the deletion\'s three mails and the new sign-in\'s');
+    same(IAM_MAIL_KEYS, count(MAIL_KEYS), 'forty-eight: five strings for each of the three mails with a link or a code, three for the approval, four for each of the announcements\' three templates, the two every announcement ends with, and four for each of the deletion\'s three mails and the new sign-in\'s');
     same(array_keys(MAIL_KEYS), array_keys(MAIL_FALLBACK), 'MAIL_FALLBACK has a string for each, in the same order');
 
     foreach (MAIL_KEYS as $key => $placeholders) {
         same(MAIL_FALLBACK[$key], seeded('en')[$key], "MAIL_FALLBACK[$key] is the seeded English");
         foreach (['en', 'sk'] as $code) {
-            same(sorted($placeholders), sorted(translationPlaceholders(seeded($code)[$key])), "$key ($code) uses exactly the placeholders the code fills");
+            same(sorted($placeholders), sorted(Placeholders::names(seeded($code)[$key])), "$key ($code) uses exactly the placeholders the code fills");
         }
     }
 
@@ -618,15 +675,15 @@ test('the mails: MAIL_KEYS and MAIL_FALLBACK are exactly what the database has',
     same(MAIL_FALLBACK, mailWords("\xFF"), 'and so does what is no language at all');
 });
 
-test('the frontend\'s compiled English is the database\'s: the same keys without the mails, the same strings', function () {
-    $dictionary = translationKeysDictionary(translationKeysFrontendRoot() . '/' . TRANSLATION_DICTIONARY_FILE);
-    $pages = array_filter(seeded('en'), static fn(string $key): bool => !str_starts_with($key, 'mail.'), ARRAY_FILTER_USE_KEY);
+test('the frontend\'s compiled English is the database\'s: the same keys without the mails and the library\'s, the same strings', function () {
+    $dictionary = EnglishDictionary::read(iamFrontendSources() . '/' . TRANSLATION_DICTIONARY_FILE, 'en');
+    $pages = array_filter(seeded('en'), static fn(string $key): bool => !str_starts_with($key, 'mail.') && !LibraryWords::isLibraryKey($key), ARRAY_FILTER_USE_KEY);
 
-    same(485, count($pages), 'the pages have 485 keys');
+    same(IAM_PAGE_KEYS, count($pages), 'the pages have 483 keys of their own');
     foreach (array_keys($dictionary) as $key) {
-        check(translationKeyShapeOk((string) $key), "$key in en.ts has the shape of a key, so the scan can find it");
+        check(KeyScanner::shapeOk((string) $key), "$key in en.ts has the shape of a key, so the scan can find it");
     }
-    same([], array_values(array_diff(array_keys($dictionary), array_keys($pages))), 'keys en.ts has and no migration wrote - a page with strings from the server would show the key (lang.en and lang.sk must be gone from en.ts: a language\'s name comes from the languages table)');
+    same([], array_values(array_diff(array_keys($dictionary), array_keys($pages))), 'keys en.ts has and no IAM migration wrote - a page with strings from the server would show the key (a language\'s name comes from the languages table; the language switcher\'s words are the library\'s anotoki.language.*, which it says itself)');
     same([], array_values(array_diff(array_keys($pages), array_keys($dictionary))), 'keys the migrations wrote and en.ts does not have');
 
     $different = [];
@@ -640,14 +697,14 @@ test('the frontend\'s compiled English is the database\'s: the same keys without
 });
 
 test('every page key the database has is used by the frontend, and nothing in the frontend is drawn as HTML', function () {
-    $scan = translationKeysScan(translationKeysFrontendRoot(), array_keys(seeded('en')));
+    $scan = iamKeyScanner()->scan(array_keys(seeded('en')));
     same([], $scan['problems'], 'what the scan does not let through');
     same([], $scan['unused'], 'in the database, used nowhere - a key built at run time cannot be seen and is forbidden; delete a dead key with a migration');
     same([], array_keys($scan['missing']), 'used by the frontend, not in the database - the page would show the key');
-    same(485, count($scan['used']), 'all 485');
-    same([], array_values(array_filter(array_keys($scan['used']), static fn(string $key): bool => str_starts_with($key, 'mail.'))), 'the mail keys are not the frontend\'s');
+    same(IAM_PAGE_KEYS, count($scan['used']), 'all 483');
+    same([], array_values(array_filter(array_keys($scan['used']), static fn(string $key): bool => str_starts_with($key, 'mail.') || LibraryWords::isLibraryKey($key))), 'the mail keys are not the frontend\'s, and the library\'s are the library\'s pages\'');
 
-    $files = translationKeySourceFiles(translationKeysFrontendRoot());
+    $files = iamKeyScanner()->sourceFiles();
     check(in_array('app.routes.ts', $files, true), 'the sources are where the scan looks');
     check(!in_array(TRANSLATION_DICTIONARY_FILE, $files, true), 'en.ts lists every key and uses none: it is not scanned');
     foreach ($files as $file) {
@@ -657,15 +714,7 @@ test('every page key the database has is used by the frontend, and nothing in th
 
 // ── The rules a string keeps (no database) ───────────────────────────────────
 
-test('a language code: two small letters, or two and two - and nothing else reaches a query', function () {
-    foreach (['en', 'sk', 'pt-br', 'zh-tw'] as $code) {
-        check(languageCodeOk($code), $code);
-    }
-    foreach (['', 'e', 'eng', 'EN', 'En', 'en-', 'en-GB', 'en_gb', 'en-gbr', 'e1', ' en', "en\n", "sk\0", "\xFF\xFE", 'en-gb-x', 5, null, ['en'], true] as $code) {
-        check(!languageCodeOk($code), 'not a code: ' . json_encode($code, JSON_PARTIAL_OUTPUT_ON_ERROR));
-    }
-    same(null, languageRow(iamDb(), "\xFF"), 'no query for what is not a code');
-
+test('a language somebody sends is one on offer, however it is written - or English', function () {
     same('en', languageOrDefault(null), 'nothing is English');
     same('en', languageOrDefault(5), 'a number is English');
     same('en', languageOrDefault(['sk']), 'a list is English');
@@ -675,18 +724,10 @@ test('a language code: two small letters, or two and two - and nothing else reac
     same('sk', languageOrDefault(' SK '), 'however it was typed');
 });
 
-test('a save is checked whole: the shape, the key, the language, the text, its length, its placeholders', function () {
-    same([], checked([]), 'nothing to change');
-    same(
-        [['key' => 'test.hello', 'language' => 'sk', 'value' => 'Ahoj, {name}!'], ['key' => 'test.bye', 'language' => 'en', 'value' => 'Bye']],
-        checked(['test.hello' => ['sk' => "  Ahoj,\x07 {name}! \u{00A0}"], 'test.bye' => ['en' => 'Bye']]),
-        'control characters dropped, the spaces around it gone'
-    );
-    same([['key' => 'test.hello', 'language' => 'sk', 'value' => null]], checked(['test.hello' => ['sk' => " \t "]]), 'an empty string in another language: that string goes');
-    same([], checked(['test.hello' => []]), 'a key with nothing to change');
-
-    // Empty is what reads as empty. Characters of no width - pasted with a word from a web page -
-    // look like a cleared field, and kept as a string they would hide the English under them.
+test('what reads as empty, and the announcements\' trim - the IAM\'s own helpers; the stored English is the authority on placeholders; the two sentences cut around {app}', function () {
+    // Empty is what reads as empty (textBlank(), which the mails ask). Characters of no width - pasted
+    // with a word from a web page - look like a cleared field, and kept as a string they would hide the
+    // English under them.
     foreach (['', ' ', "\t\n", "\u{00A0}", "\u{3000}", "\u{200B}", "\u{2060}\u{200B}", "\u{00AD}", "\u{FEFF}", "\u{200E}\u{200F}", " \u{200D} \u{200C} ", "\xFF"] as $nothing) {
         check(textBlank($nothing), 'nothing to read in ' . json_encode($nothing, JSON_PARTIAL_OUTPUT_ON_ERROR));
     }
@@ -697,46 +738,22 @@ test('a save is checked whole: the shape, the key, the language, the text, its l
         same([['key' => 'test.hello', 'language' => 'sk', 'value' => null]], checked(['test.hello' => ['sk' => $nothing]]), "$what alone, in another language: that string goes, and the key reads in English");
         same(['fallback_required', ['key' => 'test.bye', 'language' => 'en']], checked(['test.bye' => ['en' => $nothing]]), "$what alone is no English string");
     }
-    same(['fallback_required', ['key' => 'test.bye', 'language' => 'en']], checked(['test.bye' => ['en' => " \u{200B}\u{2060} "]]), 'nor are several of them among spaces');
     // Only the question is wider, not the text: what has a letter in it is kept as it was written.
     same("Ahoj\u{200C}te {name}", checked(['test.hello' => ['sk' => "Ahoj\u{200C}te {name}"]])[0]['value'], 'a non-joiner inside a word stays');
     same("\u{05E9}\u{05DC}\u{05D5}\u{05DD}\u{200F}", checked(['test.bye' => ['sk' => "\u{05E9}\u{05DC}\u{05D5}\u{05DD}\u{200F}"]])[0]['value'], 'and a direction mark at the end of a string');
 
-    foreach ([
-        'nothing' => null, 'a text' => 'text', 'a number' => 5, 'a list' => ['a', 'b'],
-        'a key with a text' => ['test.hello' => 'Hello'], 'a key with a list' => ['test.hello' => ['a', 'b']],
-        'a number for a string' => ['test.hello' => ['sk' => 5]], 'a list for a string' => ['test.hello' => ['sk' => ['x']]], 'null for a string' => ['test.hello' => ['sk' => null]],
-        'bytes that are not text' => ['test.bye' => ['sk' => "\xFF"]],
-        '2001 characters' => ['test.bye' => ['sk' => str_repeat('á', 2001)]],
-    ] as $what => $values) {
-        same('invalid_value', checked($values)[0], $what);
-    }
-    same(2000, textLength(checked(['test.bye' => ['sk' => str_repeat('á', 2000)]])[0]['value']), '2000 characters, not bytes');
-
-    // A text the trim cannot get through: more than a million spaces inside it, which a body of 1 MiB
-    // has room for. It is too long - never an empty one, which would delete the string it was sent for.
+    // The announcements' words are trimmed by textTrim(): a text the expression cannot get through is
+    // too long, never an empty one.
     $endless = 'a' . str_repeat(' ', 1040000) . 'b';
-    check(strlen($endless) < TRANSLATIONS_BODY_LIMIT, 'such a text fits into a save');
-    check(preg_replace('/^[\s\p{Z}\x{FEFF}]+|[\s\p{Z}\x{FEFF}]+$/u', '', $endless) === null, 'and the expression of the trim gives up on it');
-    check(textTrim($endless) === $endless, 'and the text comes back as it is, not as nothing');
+    check(textTrim($endless) === $endless, 'the text comes back as it is, not as nothing');
     check(!textBlank(textTrim($endless)), 'so it is not taken for an empty one');
-    foreach (['sk', 'en'] as $code) {
-        same(['invalid_value', ['key' => 'test.bye', 'language' => $code]], checked(['test.bye' => [$code => $endless]]), "a million spaces inside a string is a string too long, not an empty one ($code)");
-        same(['invalid_value', ['key' => 'mail.reset.intro', 'language' => $code]], checked(['mail.reset.intro' => [$code => $endless]]), "in a mail's words too ($code)");
-    }
-    check(translationRefused(languageName($endless, 'The name')), 'nor is it a language\'s name');
     same('a b', textTrim(" \u{00A0}a b\u{3000}\t"), 'what can be trimmed still is');
+    foreach (['sk', 'en'] as $code) {
+        same(['invalid_value', ['key' => 'mail.reset.intro', 'language' => $code]], checked(['mail.reset.intro' => [$code => $endless]]), "a million spaces inside a mail's words is a string too long, not an empty one ($code)");
+    }
 
-    same(['unknown_key', ['key' => 'no.such', 'keys' => ['no.such', '12']]], checked(['test.bye' => ['en' => 'Bye'], 'no.such' => ['en' => 'x'], '12' => ['sk' => 'y']]), 'every unknown key is named');
-    same(['unknown_language', ['key' => 'test.bye', 'language' => 'de']], checked(['test.bye' => ['de' => 'Tschüss']]), 'a language there is not');
-    same(['fallback_required', ['key' => 'test.bye', 'language' => 'en']], checked(['test.bye' => ['en' => "\x07 "]]), 'English is what the others fall back to');
-
-    // English keeps exactly its placeholders; a translation may leave one out but never add one.
-    same('Hi, {name}!', checked(['test.hello' => ['en' => 'Hi, {name}!']])[0]['value'], 'reworded, the placeholder kept');
-    same(['placeholder_changed', ['key' => 'test.hello', 'language' => 'en', 'placeholder' => 'name']], checked(['test.hello' => ['en' => 'Hi!']]), 'English lost one');
-    same(['placeholder_changed', ['key' => 'test.hello', 'language' => 'en', 'placeholder' => 'who']], checked(['test.hello' => ['en' => 'Hi, {name} and {who}!']]), 'English gained one');
-    same('Vitaj!', checked(['test.hello' => ['sk' => 'Vitaj!']])[0]['value'], 'a translation may say it without the placeholder');
-    same(['unknown_placeholder', ['key' => 'test.hello', 'language' => 'sk', 'placeholder' => 'meno']], checked(['test.hello' => ['sk' => 'Ahoj, {name} {meno}!']]), 'a translation invented one');
+    // A translation may leave a placeholder out but never add one - and English sent beside it does not
+    // change which ones the key has: the stored English does.
     same('unknown_placeholder', checked(['test.hello' => ['sk' => 'Ahoj {who}', 'en' => 'Hi {who}']])[0], 'English sent with it does not change what the key has');
     same(2, count(checked(['test.new' => ['sk' => 'Nové {a}', 'en' => 'New {a}']])), 'a key with no English yet: the English sent with it counts');
     same('unknown_placeholder', checked(['test.new' => ['sk' => 'Nové {a}']])[0], 'with no English at all there is no placeholder to use');
@@ -753,10 +770,10 @@ test('a brace is only ever part of a placeholder: one written any other way is r
     $english = ['test.hello' => 'Hello, {name}!', 'test.bye' => 'Goodbye', 'test.count' => '{count} questions', 'test.step' => 'Step {n} of {m}'];
     $refused = static fn(string $key, string $code): array => ['invalid_placeholder', ['key' => $key, 'language' => $code]];
 
-    // What a translator writes when the placeholder looks like a word to translate, or like something to tidy.
+    // What a translator writes when the placeholder looks like a word to translate, or like something to
+    // tidy - the ways the library's own tests do not name.
     foreach ([
-        'its name translated' => '{počet} otázok', 'spaces inside' => '{ count } otázok', 'never closed' => '{count otázok', 'a space before the end' => '{count } otázok',
-        'doubled' => '{{count}} otázok', 'never opened' => 'count} otázok', 'empty' => '{} otázok', 'a dash in its name' => '{co-unt} otázok', 'a digit first' => '{1count} otázok',
+        'a space before the end' => '{count } otázok', 'a dash in its name' => '{co-unt} otázok', 'a digit first' => '{1count} otázok',
         'a brace after a good one' => '{count} otázok {', 'a lone closing one' => '{count} otázok }',
     ] as $what => $text) {
         same($refused('test.count', 'sk'), checked(['test.count' => ['sk' => $text]], $english), "$what: $text");
@@ -767,19 +784,10 @@ test('a brace is only ever part of a placeholder: one written any other way is r
     same($refused('test.step', 'en'), checked(['test.step' => ['en' => 'Step {{n}} of {m}']], $english), 'English with a doubled brace');
     same($refused('test.hello', 'en'), checked(['test.hello' => ['en' => 'Hi, { name }!']], $english), 'English with spaces inside');
     same($refused('test.new', 'en'), checked(['test.new' => ['en' => 'New {a} {', 'sk' => 'Nové {a}']], $english), 'a key with no English yet');
-
-    // What is a placeholder by its shape is judged as one, as before; and what has no brace is let be.
-    same(['unknown_placeholder', ['key' => 'test.count', 'language' => 'sk', 'placeholder' => 'meno']], checked(['test.count' => ['sk' => '{meno} otázok']], $english), 'a well-written one the key does not have');
-    same(['unknown_placeholder', ['key' => 'test.count', 'language' => 'sk', 'placeholder' => 'Count']], checked(['test.count' => ['sk' => '{Count} otázok']], $english), 'or in other letters');
-    same('{count} otázok', checked(['test.count' => ['sk' => '{count} otázok']], $english)[0]['value'], 'the placeholder as the English has it');
+    same(['unknown_placeholder', ['key' => 'test.count', 'language' => 'sk', 'placeholder' => 'Count']], checked(['test.count' => ['sk' => '{Count} otázok']], $english), 'a well-written one in other letters is one the key does not have');
     same('Krok {m}, z {n}: {m}', checked(['test.step' => ['sk' => 'Krok {m}, z {n}: {m}']], $english)[0]['value'], 'in another order, and twice');
-    same('Vitajte!', checked(['test.hello' => ['sk' => 'Vitajte!']], $english)[0]['value'], 'a string without any');
-
-    // After the length, before the placeholders: one refusal at a time, the plainest first.
     same('invalid_value', checked(['test.count' => ['sk' => str_repeat('á', 2000) . '{']], $english)[0], 'too long comes first');
     same($refused('login.continueTo', 'sk'), checked(['login.continueTo' => ['sk' => 'Pokračuj do { app }']]), 'not "missing {app}": it is there, written wrongly');
-    same($refused('test.hello', 'sk'), checked(['test.hello' => ['sk' => 'Ahoj, {name} {meno} {']], $english), 'not "unknown": the brace is said first');
-    same($refused('test.hello', 'en'), checked(['test.hello' => ['en' => 'Hi {']], $english), 'not "changed"');
 
     // A mail's words are filled the same way, so they are held to the same.
     foreach (['en', 'sk'] as $code) {
@@ -794,20 +802,9 @@ test('a brace is only ever part of a placeholder: one written any other way is r
     same(['unknown_placeholder', ['key' => 'mail.reset.intro', 'language' => 'sk', 'placeholder' => 'link']], checked(['mail.reset.intro' => ['sk' => 'Otvor {link}:']]), 'a well-written one a mail does not have is still "unknown"');
 
     // The sentence shows how: with a placeholder of that very key, so nobody is taught one it does not have.
-    $sentence = static function (string $key, string $code, string $text) use ($english): string {
-        $keys = [...array_keys($english), 'login.continueTo', ...array_keys(MAIL_KEYS)];
-        $result = translationsCheck([$key => [$code => $text]], $keys, ['en' => 'English', 'sk' => 'Slovak'], $english + ['login.continueTo' => 'Sign in to continue to {app}'] + MAIL_FALLBACK);
-
-        return (string) ($result['error'] ?? '');
-    };
-    same(
-        'The Slovak string of "test.step" has a { or } that is not part of a placeholder. A placeholder is written exactly as the English string has it, like {n}: no spaces, and its name is not translated.',
-        $sentence('test.step', 'sk', 'Krok { n } z {m}'),
-        'the sentence, with the key\'s first placeholder'
-    );
-    check(str_contains($sentence('login.continueTo', 'sk', 'Pokračuj do {aplikácie}'), 'like {app}:'), 'the one the sign-in page cuts around');
-    check(str_contains($sentence('mail.confirm.greeting', 'en', 'Hello {user name},'), 'The English string of "mail.confirm.greeting"') && str_contains($sentence('mail.confirm.greeting', 'en', 'Hello {user name},'), 'like {username}:'), 'a mail\'s: the one the code fills for that key');
-    check(str_contains($sentence('test.bye', 'sk', 'Dovidenia {'), 'like {count}:'), 'a key with none is shown the usual example');
+    check(str_contains(refusalSentence(['login.continueTo' => ['sk' => 'Pokračuj do {aplikácie}']]), 'like {app}:'), 'the one the sign-in page cuts around');
+    $sentence = refusalSentence(['mail.confirm.greeting' => ['en' => 'Hello {user name},']]);
+    check(str_contains($sentence, 'The English string of "mail.confirm.greeting"') && str_contains($sentence, 'like {username}:'), 'a mail\'s: the one the code fills for that key - ' . $sentence);
 });
 
 test('a mail\'s words are held to more: exactly the code\'s placeholders, one short line, and no address', function () {
@@ -824,9 +821,9 @@ test('a mail\'s words are held to more: exactly the code\'s placeholders, one sh
         same('invalid_value', checked(['mail.reset.subject' => ['sk' => $subject]])[0], 'a line break or a tab in a subject: ' . json_encode($subject));
     }
     same('invalid_value', checked(['mail.reset.intro' => ['sk' => "Prvý riadok\nDruhý riadok"]])[0], 'or in a paragraph');
-    same(150, textLength(checked(['mail.reset.subject' => ['sk' => str_repeat('ž', 150)]])[0]['value']), 'a subject of 150 characters');
+    same(150, Text::length(checked(['mail.reset.subject' => ['sk' => str_repeat('ž', 150)]])[0]['value']), 'a subject of 150 characters');
     same('invalid_value', checked(['mail.reset.subject' => ['sk' => str_repeat('ž', 151)]])[0], 'one of 151');
-    same(400, textLength(checked(['mail.reset.intro' => ['sk' => str_repeat('ž', 400)]])[0]['value']), 'a paragraph of 400 characters');
+    same(400, Text::length(checked(['mail.reset.intro' => ['sk' => str_repeat('ž', 400)]])[0]['value']), 'a paragraph of 400 characters');
     same('invalid_value', checked(['mail.reset.intro' => ['sk' => str_repeat('ž', 401)]])[0], 'one of 401');
 
     // And in bytes: a string is one line of the message as it is sent, and a line of mail may have
@@ -841,6 +838,9 @@ test('a mail\'s words are held to more: exactly the code\'s placeholders, one sh
     same(['invalid_value', ['key' => 'mail.reset.greeting', 'language' => 'sk']], checked(['mail.reset.greeting' => ['sk' => str_repeat('あ', 164) . ' {username}']]), 'one of 503');
     same(['invalid_value', ['key' => 'mail.confirm.greeting', 'language' => 'sk']], checked(['mail.confirm.greeting' => ['sk' => str_repeat('あ', 170) . ' {username}']]), 'in any of the three mails');
     same(600, strlen(checked(['mail.reset.subject' => ['sk' => str_repeat("\u{1D11E}", 150)]])[0]['value']), 'a subject is never stopped by it: 150 characters are 600 bytes at most');
+    // A {date} - the deletion mail's day - keeps its ten bytes the same way.
+    same(1, count(checked(['mail.deletionRequested.intro' => ['sk' => str_repeat('あ', 294) . '{date}']])), '888 bytes and a {date}: 890 is the room');
+    same('invalid_value', checked(['mail.deletionRequested.intro' => ['sk' => str_repeat('あ', 295) . '{date}']])[0], '891 is not');
 
     // The longest strings the panel takes, filled with the longest username there can be: no line of the message is over 998 bytes.
     $longest = [
@@ -866,7 +866,7 @@ test('a mail\'s words are held to more: exactly the code\'s placeholders, one sh
         }
     }
     same('invalid_value', checked(['mail.reset.greeting' => ['sk' => '{username}{username}{username}']])[0], 'however short the rest of it is');
-    $why = static fn(string $text): string => (string) (translationsCheck(['mail.reset.greeting' => ['sk' => $text]], array_keys(MAIL_KEYS), ['en' => 'English', 'sk' => 'Slovak'], MAIL_FALLBACK)['error'] ?? '');
+    $why = static fn(string $text): string => refusalSentence(['mail.reset.greeting' => ['sk' => $text]]);
     check(str_contains($why($thrice), 'it has {username} 3 times') && str_contains($why($thrice), 'which leaves none'), 'and the refusal says why a string of 41 bytes is too long: ' . $why($thrice));
     check(str_contains($why(str_repeat('あ', 27) . ' {username} {username}'), 'which leaves 100 bytes, and it has 103'), 'or how much room two of them leave: ' . $why(str_repeat('あ', 27) . ' {username} {username}'));
     check(str_contains($why(str_repeat('あ', 164) . ' {username}'), 'at most 500 bytes'), 'with one it is the 500 of before: ' . $why(str_repeat('あ', 164) . ' {username}'));
@@ -903,6 +903,26 @@ test('a mail\'s words are held to more: exactly the code\'s placeholders, one sh
     same('address_in_mail', checked(['mail.reset.subject' => ['en' => 'Reset at www.evil.test']])[0], 'in a subject either');
     same(1, count(checked(['mail.reset.ignore' => ['sk' => 'Ak si to nebol ty: nič sa nezmenilo. Awww.']])), 'a colon, or "www" inside a word, is not an address');
 
+    // An address the check above reads as none: stored backwards, and turned around for the reader by a
+    // right-to-left override - "moc.live//:sptth" is what the panel checks, "https://evil.com" what a
+    // mail program shows. The letters alone are no address; the character that turns them is refused.
+    same(1, count(checked(['mail.reset.intro' => ['sk' => 'Otvor moc.live//:sptth a zvoľ si ho:']])), 'the reversed letters alone read as no address');
+    foreach (['en', 'sk'] as $code) {
+        same(['invalid_value', ['key' => 'mail.reset.intro', 'language' => $code]], checked(['mail.reset.intro' => [$code => "Open \u{202E}moc.live//:sptth\u{202C} to choose one:"]]), "turned around by a right-to-left override ($code)");
+        same(['invalid_value', ['key' => 'mail.reset.subject', 'language' => $code]], checked(['mail.reset.subject' => [$code => "Reset \u{2067}moc.live\u{2069}"]]), "or by an isolate, in a subject ($code)");
+    }
+    // Every character that turns the direction - embeddings and overrides, isolates, the marks - and the C1 controls.
+    $turning = [...range(0x202A, 0x202E), ...range(0x2066, 0x2069), 0x200E, 0x200F, 0x061C, ...array_values(array_diff(range(0x0080, 0x009F), [0x0085]))];
+    foreach ($turning as $codePoint) {
+        $character = mb_chr($codePoint, 'UTF-8');
+        $hex = sprintf('U+%04X', $codePoint);
+        same(['invalid_value', ['key' => 'mail.reset.ignore', 'language' => 'sk']], checked(['mail.reset.ignore' => ['sk' => "Ak si to nebol ty{$character}, nič sa nezmenilo."]]), "$hex in a paragraph");
+        same('invalid_value', checked(['mail.reset.subject' => ['en' => "Reset {$character}"]])[0], "$hex in a subject");
+    }
+    check(str_contains(refusalSentence(['mail.reset.ignore' => ['sk' => "Ak si to nebol ty\u{202E}"]]), 'turns the direction of the text'), 'and the refusal says what it is: ' . refusalSentence(['mail.reset.ignore' => ['sk' => "Ak si to nebol ty\u{202E}"]]));
+    check(str_contains(refusalSentence(['mail.reset.ignore' => ['sk' => "Ak si to nebol ty\u{0085}"]]), 'must be one line'), 'U+0085, the C1 next-line, is still refused as the line break it is');
+    same("\u{05E9}\u{05DC}\u{05D5}\u{05DD}\u{200F}", checked(['test.bye' => ['sk' => "\u{05E9}\u{05DC}\u{05D5}\u{05DD}\u{200F}"]])[0]['value'], 'a page\'s string is drawn by the page itself, in the order the panel shows: a direction mark stays');
+
     // A page's string is not held to a mail's rules.
     same(1, count(checked(['test.bye' => ['sk' => "Dovidenia\nna https://anotoki.eu"]])), 'a page string may have a line break and an address');
 });
@@ -925,27 +945,20 @@ test('filling a mail: only the key\'s own placeholders, in one pass; a subject i
     check(str_starts_with(mailEncodeHeader("Reset\r\nBcc: x@evil.test"), '=?UTF-8?B?'), 'nor one in the middle');
 });
 
-test('If-None-Match is compared the weak way: any tag of the list, with or without W/, with or without what a compressing Apache appends, or *', function () {
+test('If-None-Match, compared the weak way: the tags the route\'s own test below does not send', function () {
     $etag = '"abc"';
-    foreach (['"abc"', 'W/"abc"', '"x", "abc"', '"x" ,W/"abc" , "y"', '*', ' "abc" '] as $header) {
-        check(translationsNotModified($header, $etag), $header);
+    foreach (['"x" ,W/"abc" , "y"', '"x-gzip" , W/"abc-br" , "y"', '"x-zstd", "abc-zstd"'] as $header) {
+        check(ETag::notModified($header, $etag), $header);
     }
-    // The tag as an Apache that compressed the answer sent it on (mod_deflate: -gzip, mod_brotli: -br), or as zstd is marked the same way.
-    foreach (['"abc-gzip"', 'W/"abc-gzip"', '"abc-br"', 'W/"abc-br"', '"x", "abc-gzip"', '"x-gzip" , W/"abc-br" , "y"', '"abc-zstd"', 'W/"abc-zstd"', '"x-zstd", "abc-zstd"'] as $header) {
-        check(translationsNotModified($header, $etag), $header);
+    foreach (['w/"abc"', '"abc', 'abc-gzip"', '"abc"-gzip', '"abcgzip"', '"abc-GZIP"', '"abc-gzip-gzip"', '"-gzip"', '"x-br"', '"abczstd"', '"abc-ZSTD"', '"abc-zstd-br"', '"abc-zstd'] as $header) {
+        check(!ETag::notModified($header, $etag), "not: $header");
     }
-    foreach (['', 'abc', '"abd"', 'W/"x"', '"abc', 'w/"abc"'] as $header) {
-        check(!translationsNotModified($header, $etag), "not: $header");
-    }
-    foreach (['"abc-zip"', '"abcgzip"', '"abd-gzip"', '"abc-gzip', 'abc-gzip"', '"abc"-gzip', '"abc-GZIP"', '"abc-gzip-gzip"', '"abc-deflate"', '"-gzip"', '"x-br"', '"abd-zstd"', '"abc-zst"', '"abczstd"', '"abc-ZSTD"', '"abc-zstd-br"', '"abc-zstd'] as $header) {
-        check(!translationsNotModified($header, $etag), "not: $header");
-    }
-    check(translationsNotModified('"abc-gzip"', '"abc-gzip"'), 'a tag that ends so itself is still its own');
+    check(ETag::notModified('"abc-gzip"', '"abc-gzip"'), 'a tag that ends so itself is still its own');
 });
 
-// ── The scan, the dictionary reader and the file, on sources of their own ────
+// ── The scan and the dictionary reader, on sources of their own ──────────────
 
-test('the scan: a quoted literal with a key\'s shape in a namespace the database has - never an attribute\'s value, a comment, a spec, en.ts, a mail key', function () {
+test('the IAM\'s scan: a quoted literal with a key\'s shape in a namespace the database has - never an attribute\'s value, a comment, a spec, en.ts, a mail key, a library key; a key put together is refused', function () {
     $root = sources([
         'pages/login/login.component.html' => <<<'HTML'
             <!-- {{ 'login.inAComment' | t }} -->
@@ -965,7 +978,8 @@ test('the scan: a quoted literal with a key\'s shape in a namespace the database
             const accept = 'image/*'; const afterAGlob = 'login.afterAGlob'; /* and 'login.afterTheGlob' is a comment */
             this.toasts.show(this.i18n.t('login.saved'), `${this.i18n.t("login.inATemplate")}`);
             const METHODS: Record<string, TranslationKey> = { login_code: 'sessions.method.login_code' };
-            const notOurs = ['login.component', 'theme-boot.js', 'login', 'login.', '.login.title', 'Login.title', 'login..title', 'mail.reset.subject'];
+            const notOurs = ['login.component', 'theme-boot.js', 'login', '.login.title', 'Login.title', 'login..title', 'mail.reset.subject', 'anotoki.language.label'];
+            const built = this.i18n.t('login.' + which);
             TS,
         'pages/login/login.component.spec.ts' => "expect(text).toBe('login.onlyInASpec');\n",
         'core/i18n/en.ts' => "export const en = {\n  'login.onlyInTheDictionary': 'x',\n} as const;\n",
@@ -974,35 +988,35 @@ test('the scan: a quoted literal with a key\'s shape in a namespace the database
     $database = [
         'login.title', 'login.doubleQuoted', 'login.afterAnApostrophe', 'login.afterAnAddress', 'login.afterAGlob', 'login.saved', 'login.inATemplate',
         'login.inAComment', 'login.inALineComment', 'login.inABlockComment', 'login.onlyInASpec', 'login.onlyInTheDictionary', 'login.anAttribute', 'login.expression',
-        'common.close', 'common.unused', 'error.message', 'sessions.method.login_code', 'mail.reset.subject', 'mail.reset.intro',
+        'common.close', 'common.unused', 'error.message', 'sessions.method.login_code', 'mail.reset.subject', 'mail.reset.intro', 'anotoki.language.label',
     ];
-    $scan = translationKeysScan($root, $database);
+    $scan = iamKeyScanner($root)->scan($database);
 
-    same([], $scan['problems'], 'nothing wrong with these sources');
+    same(['pages/login/login.component.ts:10: a key is put together from \'login.\', which no file of dynamic keys does not declare'], $scan['problems'], 'a key put together at run time cannot be seen in the source: refused');
     same(['login.component' => ['pages/login/login.component.ts:9'], 'login.missing' => ['pages/login/login.component.html:7']], $scan['missing'], 'asked for, and not there - with the file and the line');
     same([
         'common.unused', 'error.message', 'login.anAttribute', 'login.expression', 'login.inABlockComment', 'login.inAComment', 'login.inALineComment',
         'login.onlyInASpec', 'login.onlyInTheDictionary',
-    ], $scan['unused'], 'an attribute\'s value is an expression; comments, specs and en.ts do not count; the mail keys are not looked for at all');
+    ], $scan['unused'], 'an attribute\'s value is an expression; comments, specs and en.ts do not count; the mail keys and the library\'s are not looked for at all');
     same(['pages/login/login.component.html:2'], $scan['used']['login.title'], 'with the file and the line');
     same(['pages/login/login.component.ts:6'], $scan['used']['login.afterAGlob'], 'the lines are the file\'s, comments or not');
     same(['pages/login/login.component.ts:8'], $scan['used']['sessions.method.login_code'], 'a key in a map of literals is used');
-    check(!isset($scan['used']['mail.reset.subject']) && !isset($scan['missing']['mail.reset.subject']), 'a mail key in the frontend is nobody\'s business here');
-    same([], translationKeysScan($root, [])['used'], 'a namespace the database does not have is nobody\'s key');
+    foreach (['mail.reset.subject', 'anotoki.language.label'] as $key) {
+        check(!isset($scan['used'][$key]) && !isset($scan['missing'][$key]), "$key in the frontend is nobody's business here");
+    }
+    same([], iamKeyScanner($root)->scan([])['used'], 'a namespace the database does not have is nobody\'s key');
 });
 
-test('the scan fails on innerHTML anywhere in the frontend', function () {
+test('the IAM\'s scan fails on innerHTML anywhere in the frontend', function () {
     $root = sources([
         'a.component.html' => "<p>{{ 'login.title' | t }}</p>\n<p [innerHTML]=\"text()\"></p>\n<!-- <p [innerHTML]=\"x\"></p> -->\n",
         'a.component.ts' => "// never [innerHTML]\nel.innerHTML = this.i18n.t('login.title');\n@HostBinding('innerHtml') html = '';\n",
     ]);
-    $scan = translationKeysScan($root, ['login.title']);
+    $scan = iamKeyScanner($root)->scan(['login.title']);
     same(3, count($scan['problems']), json_encode($scan['problems']));
     check(str_starts_with($scan['problems'][0], 'a.component.html:2: innerHTML'), 'the template, by file and line: ' . $scan['problems'][0]);
     check(str_starts_with($scan['problems'][1], 'a.component.ts:2: innerHTML'), 'the class too, whatever it draws: ' . $scan['problems'][1]);
     check(str_starts_with($scan['problems'][2], 'a.component.ts:3: innerHTML'), 'however it is spelt: ' . $scan['problems'][2]);
-    same("a\n\n\nb 'c/*' \"d//\" `e\n//` f \ng", translationKeySourceText("a\r\n/* x\r\n 'y' */\r\nb 'c/*' \"d//\" `e\n//` f // 'z'\r\ng", false), 'comments out, strings as they are, line for line');
-    same("a\n\nb", translationKeySourceText("a<!-- 'x'\n -->\nb", true), 'a template\'s comments too');
 });
 
 test('the dictionary reader: every entry of en.ts, however it is quoted or wrapped - or it says it could not', function () {
@@ -1032,7 +1046,7 @@ test('the dictionary reader: every entry of en.ts, however it is quoted or wrapp
         'brand.wrapped' => 'on the next line, as the formatter breaks a long one',
         'brand.url' => 'see // this, not a comment',
         'brand.braces' => 'At least {count} characters.',
-    ], translationKeysDictionary("$root/en.ts"), 'read as TypeScript writes them');
+    ], EnglishDictionary::read("$root/en.ts", 'en'), 'read as TypeScript writes them');
 
     foreach ([
         'a value it cannot read' => "export const en = {\n  'a.b': 'x',\n  'a.c': `template`,\n} as const;\n",
@@ -1043,7 +1057,7 @@ test('the dictionary reader: every entry of en.ts, however it is quoted or wrapp
         'an object of comments only' => "export const en = {\n  // 'a.b': 'x',\n} as const;\n",
     ] as $what => $source) {
         $file = sources(['en.ts' => $source]) . '/en.ts';
-        check(thrownBy(static fn() => translationKeysDictionary($file)) !== null, "$what should not pass as read");
+        check(thrownBy(static fn() => EnglishDictionary::read($file, 'en')) !== null, "$what should not pass as read");
     }
 
     // Nothing of the object may be left unread: what does not look like an entry is said by name,
@@ -1059,32 +1073,15 @@ test('the dictionary reader: every entry of en.ts, however it is quoted or wrapp
         'a value that is not a string' => ["export const en = {\n  'a.b': 'x',\n  'a.c': 5,\n} as const;\n", "'a.c': 5,"],
     ] as $what => [$source, $line]) {
         $file = sources(['en.ts' => $source]) . '/en.ts';
-        $refused = thrownBy(static fn() => translationKeysDictionary($file));
+        $refused = thrownBy(static fn() => EnglishDictionary::read($file, 'en'));
         check($refused !== null, "$what should not pass as read");
         check(str_contains($refused->getMessage(), "could not read \"$line\""), "$what is said by its line: " . $refused->getMessage());
     }
 });
 
-test('a language\'s strings as a file: flat JSON, the letters as they are, {} for none', function () {
-    $dir = sources(['keep' => '']);
-    same("{}\n", translationFileText([]), 'no strings');
-    same("{\n    \"common.save\": \"Uložiť – „teraz“\",\n    \"a/b\": \"1\"\n}\n", translationFileText(['common.save' => 'Uložiť – „teraz“', 'a/b' => '1']), 'a key a line, nothing escaped that need not be');
-
-    $values = ['common.save' => 'Uložiť', 'mail.reset.intro' => 'Niekto požiadal', '12' => 'a key that looks like a number'];
-    translationFileWrite("$dir/sk.json", $values);
-    same($values, translationFileRead("$dir/sk.json"), 'out and back in');
-    file_put_contents("$dir/windows.json", "\xEF\xBB\xBF" . str_replace("\n", "\r\n", translationFileText($values)));
-    same($values, translationFileRead("$dir/windows.json"), 'as an editor on Windows saves it');
-
-    foreach (['list.json' => '["a", "b"]', 'text.json' => '"a"', 'broken.json' => '{"a": '] as $name => $contents) {
-        file_put_contents("$dir/$name", $contents);
-        check(thrownBy(static fn() => translationFileRead("$dir/$name")) !== null, "$name should not be read");
-    }
-});
-
 // ── The bundle the pages read ────────────────────────────────────────────────
 
-test('the bundle: a language\'s strings with English underneath, no mail key, the languages on offer', function () {
+test('the bundle: a language\'s strings with English underneath, the library\'s words among them, no mail key, the languages on offer', function () {
     $visitor = new Browser('10.9.1.1');
 
     $english = $visitor->get('/api/translations/en');
@@ -1092,8 +1089,9 @@ test('the bundle: a language\'s strings with English underneath, no mail key, th
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(485, count($english->json()['values']), 'the 485 strings of the pages');
+    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 483 strings of the pages, and the library\'s 54');
     same('Save', $english->json()['values']['common.save'], 'a string');
+    same(['Language', 'Language: {name} ({code})'], [$english->json()['values']['anotoki.language.label'] ?? null, $english->json()['values']['anotoki.language.button'] ?? null], 'the library\'s words, from the database');
     check(str_contains($english->header('Content-Type'), 'application/json'), 'as JSON');
 
     $slovak = $visitor->get('/api/translations/sk');
@@ -1165,18 +1163,20 @@ test('a code that is not one is 404, and the database never hears of it', functi
     $visitor = new Browser('10.9.1.2');
     foreach (['EN', 'Sk', 'e', 'eng', 'en-', 'en-GB', 'en_gb', 'en-gbr', 'sk%0A', '%20sk', 'sk%27', '%FF', '%C3%28', 'en.json'] as $code) {
         $answer = $visitor->get("/api/translations/$code");
-        same([404, 'not_found'], [$answer->status, $answer->code()], $code);
+        same([404, 'not_found', 'There is no such language'], [$answer->status, $answer->code(), $answer->json()['error'] ?? null], $code);
     }
     same(404, $visitor->get('/api/translations/en/more')->status, 'nothing under a language');
     same(404, $visitor->get('/api/translations')->status, 'there is no list of its own: the bundle carries it');
     same(405, $visitor->put('/api/translations/sk', ['values' => ['common.save' => 'x']])->status, 'nothing is written here');
 
+    // The admin panel's routes look at the code first, before the body or the database.
     $admin = admin();
     foreach (['%FF', 'SK', 'eng'] as $code) {
         same(404, $admin->put("/api/admin/languages/$code", ['name' => 'X'])->status, "PUT languages/$code");
         same(404, $admin->delete("/api/admin/languages/$code")->status, "DELETE languages/$code");
         same(404, $admin->get("/api/admin/translations/$code/export")->status, "export $code");
         same(404, $admin->put("/api/admin/translations/$code/import", ['common.save' => 'x'])->status, "import $code");
+        same(404, $admin->request('PUT', "/api/admin/translations/$code/import", ['body' => 'not json', 'headers' => ['Content-Type' => 'text/plain']])->status, "import $code, whatever its body");
     }
 });
 
@@ -1242,7 +1242,7 @@ test('the bundle is the same for everybody: no cookie read, none set, and no oth
     try {
         $pdo->exec("DELETE FROM translations WHERE language_code = 'en' AND key_name NOT LIKE 'mail.%'");
         $empty = (new Browser('10.9.1.4'))->get('/api/translations/sk');
-        same([503, 'translations_unavailable'], [$empty->status, $empty->code()], 'English with no strings');
+        same([503, 'translations_unavailable', '60'], [$empty->status, $empty->code(), $empty->header('Retry-After')], 'English with no strings: asked again in a minute');
         same('', $empty->header('ETag'), 'and nothing to cache');
     } finally {
         $pdo->rollBack();
@@ -1282,11 +1282,25 @@ test('the languages and the strings are for IAM admins, and a write needs the he
             same([403, 'csrf'], [$sibling->status, $sibling->code()], "$method $path, from a sibling site's page");
         }
     }
+
+    // A path written with escapes is routed as the path it spells, and its checks come with the route: no way round them.
+    foreach (['/api/%61dmin/translations', '/api/admin/%74ranslations', '/api/admin/translations/%73k/export', '/api/%61dmin/%6Canguages'] as $path) {
+        same([401, 'no_session'], [($r = (new Browser('10.9.2.2'))->get($path))->status, $r->code()], "GET $path, signed out");
+        same([403, 'forbidden'], [($r = $player->get($path))->status, $r->code()], "GET $path, signed in without the role");
+        same(200, $admin->get($path)->status, "GET $path is the route it spells: an admin reads it");
+    }
+    $changed = ['values' => ['common.save' => ['en' => 'Changed']]];
+    same([401, 'no_session'], [($r = (new Browser('10.9.2.2'))->put('/api/%61dmin/translations', $changed))->status, $r->code()], 'PUT, escaped, signed out');
+    same([403, 'forbidden'], [($r = $player->put('/api/admin/%74ranslations', $changed))->status, $r->code()], 'PUT, escaped, signed in without the role');
+    same([403, 'csrf'], [($r = $admin->request('PUT', '/api/%61dmin/translations', ['json' => $changed, 'csrf' => false]))->status, $r->code()], 'PUT, escaped, an admin\'s cookie without X-IAM-Request');
+    same([403, 'forbidden'], [($r = $player->request('DELETE', '/api/admin/languages/%73k'))->status, $r->code()], 'DELETE, escaped, signed in without the role');
+
     same($before, [everyString(), iamDb()->query('SELECT * FROM languages ORDER BY code')->fetchAll()], 'and nothing of it was done');
     same(0, auditCount('translations.saved') + auditCount('translations.imported') + auditCount('language.created') + auditCount('language.updated') + auditCount('language.deleted'), 'nor recorded as done');
 
     foreach (['/api/admin/languages', '/api/admin/translations', '/api/admin/translations/sk/export'] as $path) {
-        same(200, $admin->get($path)->status, "an admin reads $path");
+        $read = $admin->get($path);
+        same([200, 'no-store'], [$read->status, $read->header('Cache-Control')], "an admin reads $path, and nothing keeps it");
     }
 });
 
@@ -1445,13 +1459,13 @@ test('a string written straight into the table cannot turn a mail against its re
 
 // ── Saving strings ───────────────────────────────────────────────────────────
 
-test('the grid: every key with its strings in every language, the mail keys among them', function () {
+test('the grid: every key with its strings in every language, the mail keys and the library\'s among them', function () {
     $admin = admin();
     $grid = $admin->get('/api/admin/translations');
     same(200, $grid->status, 'the grid');
     same(['languages', 'keys'], array_keys($grid->json()), 'its two parts');
     same($admin->get('/api/admin/languages')->json()['languages'], $grid->json()['languages'], 'every language, as the languages page has them');
-    same(533, count($grid->json()['keys']), 'every key');
+    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + count(LibraryWords::keys()), count($grid->json()['keys']), 'every key');
     same(sorted(array_column($grid->json()['keys'], 'name')), array_column($grid->json()['keys'], 'name'), 'by name');
 
     $byName = array_column($grid->json()['keys'], null, 'name');
@@ -1459,6 +1473,7 @@ test('the grid: every key with its strings in every language, the mail keys amon
     same(['en' => 'Set a new anotoki password', 'sk' => 'Nastavenie nového hesla anotoki'], $byName['mail.reset.subject']['values'], 'a key of the mails');
     same('Sign in. Placeholders: {app}.', $byName['login.continueTo']['description'], 'a description says which placeholders a string has');
     check(str_contains($byName['mail.reset.greeting']['description'], '{username}'), 'a mail key\'s too');
+    same([LibraryWords::all()['anotoki.language.button']['description'], ['en' => 'Language: {name} ({code})', 'sk' => 'Jazyk: {name} ({code})']], [$byName['anotoki.language.button']['description'], $byName['anotoki.language.button']['values']], 'a key of the library\'s, with the library\'s description');
 });
 
 test('saving strings: the changed ones, by whoever saved them; a string sent as it is stays as it was; an empty one goes', function () {
@@ -1503,6 +1518,13 @@ test('saving strings: the changed ones, by whoever saved them; a string sent as 
     same(['{count} characters or more.', $adminId], array_slice(stored('common.passwordHint', 'en'), 0, 2), 'English, by the admin');
     same(ordered(['languages' => ['en', 'sk'], 'count' => 3, 'keys' => ['common.passwordHint', 'common.save']]), lastAudit('translations.saved')[3], 'two languages, three strings, two keys');
     same(200, save($admin, ['common.passwordHint' => ['en' => seeded('en')['common.passwordHint'], 'sk' => seeded('sk')['common.passwordHint']]])->status, 'and back');
+
+    // A library key is reworded like any other - and keeps the placeholders the library's code fills.
+    same(200, save($admin, ['anotoki.language.button' => ['sk' => 'Jazyk stránky: {name} ({code})']])->status, 'the language switcher\'s name, reworded in Slovak');
+    same('Jazyk stránky: {name} ({code})', (new Browser('10.9.4.1'))->get('/api/translations/sk')->json()['values']['anotoki.language.button'], 'and the pages read it');
+    $lost = save($admin, ['anotoki.language.button' => ['en' => 'Language: {name}']]);
+    same([422, 'placeholder_changed', 'code'], [$lost->status, $lost->code(), $lost->json()['placeholder'] ?? null], 'its English must keep {code}: the library puts the code shown there');
+    same(200, save($admin, ['anotoki.language.button' => ['sk' => seeded('sk')['anotoki.language.button']]])->status, 'and back');
 });
 
 test('saving strings: all of it is checked before any of it is written, and each refusal names its key', function () {
@@ -1559,6 +1581,7 @@ test('saving strings: all of it is checked before any of it is written, and each
 
     foreach ([
         'no values' => ['strings' => []], 'values as text' => ['values' => 'common.save'], 'values as a list' => ['values' => [['common.save' => ['en' => 'x']]]],
+        'values as an empty list' => ['values' => []],
         'a key with a text' => ['values' => ['common.save' => 'Save']], 'a string that is a number' => ['values' => ['common.save' => ['sk' => 5]]],
         'a string that is an object' => ['values' => ['common.save' => ['sk' => ['one' => 'x']]]], 'a string that is null' => ['values' => ['common.save' => ['sk' => null]]],
         '2001 characters' => ['values' => ['common.save' => ['sk' => str_repeat('ž', 2001)]]],
@@ -1566,9 +1589,20 @@ test('saving strings: all of it is checked before any of it is written, and each
         $refused = $admin->put('/api/admin/translations', $body);
         same([422, 'invalid_value'], [$refused->status, $refused->code()], $what);
     }
-    $notJson = $admin->request('PUT', '/api/admin/translations', ['form' => ['values' => 'x']]);
-    same([422, 'invalid_value'], [$notJson->status, $notJson->code()], 'a form is not a save of strings');
-    same(422, $admin->request('PUT', '/api/admin/translations')->status, 'nor is no body at all');
+
+    // The body is read by the library, from the request as it came: JSON, and something in it.
+    foreach ([
+        'a form' => [['form' => ['values' => 'x']], 415, 'unsupported_media_type'],
+        'no body and no type' => [[], 415, 'unsupported_media_type'],
+        'text' => [['body' => '{"values": {}}', 'headers' => ['Content-Type' => 'text/plain']], 415, 'unsupported_media_type'],
+        'JSON with nothing in it' => [['body' => '', 'headers' => ['Content-Type' => 'application/json']], 422, 'empty_body'],
+        'JSON that is none' => [['body' => '{"values": ', 'headers' => ['Content-Type' => 'application/json; charset=utf-8']], 400, 'invalid_json'],
+    ] as $what => [$options, $status, $code]) {
+        $refused = $admin->request('PUT', '/api/admin/translations', $options);
+        same([$status, $code], [$refused->status, $refused->code()], "$what: " . $refused->body);
+        check(is_string($refused->json()['error'] ?? null), "$what is answered in the IAM's body, with a sentence");
+    }
+    same([415, 'unsupported_media_type'], [($r = $admin->request('POST', '/api/admin/languages', ['form' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']]))->status, $r->code()], 'a form is no language either');
 
     same($before, everyString(), 'and after all of it, the strings are what they were');
     same($audits, auditCount('translations.saved'), 'and nothing was recorded');
@@ -1580,14 +1614,15 @@ test('saving strings: all of it is checked before any of it is written, and each
 test('a save or an import is at most 1 MiB: by what it says of itself, and by what arrives', function () {
     $admin = admin();
     $before = everyString();
-    same(1024 * 1024, TRANSLATIONS_BODY_LIMIT, 'one mebibyte');
+    $limit = iamTranslationsConfig()->bodyLimit;
+    same(1024 * 1024, $limit, 'one mebibyte');
 
     // A body of exactly the limit, and one of a byte more.
     $empty = strlen((string) json_encode(['values' => ['common.save' => ['sk' => '']]]));
-    $fits = ['values' => ['common.save' => ['sk' => str_repeat('x', TRANSLATIONS_BODY_LIMIT - $empty)]]];
-    $over = ['values' => ['common.save' => ['sk' => str_repeat('x', TRANSLATIONS_BODY_LIMIT - $empty + 1)]]];
-    same(TRANSLATIONS_BODY_LIMIT, strlen((string) json_encode($fits)), 'a body of 1 MiB');
-    same(TRANSLATIONS_BODY_LIMIT + 1, strlen((string) json_encode($over)), 'and one of 1 MiB + 1 byte');
+    $fits = ['values' => ['common.save' => ['sk' => str_repeat('x', $limit - $empty)]]];
+    $over = ['values' => ['common.save' => ['sk' => str_repeat('x', $limit - $empty + 1)]]];
+    same($limit, strlen((string) json_encode($fits)), 'a body of 1 MiB');
+    same($limit + 1, strlen((string) json_encode($over)), 'and one of 1 MiB + 1 byte');
 
     $atLimit = $admin->put('/api/admin/translations', $fits);
     same([422, 'invalid_value'], [$atLimit->status, $atLimit->code()], '1 MiB is read (and its one string found too long)');
@@ -1595,35 +1630,22 @@ test('a save or an import is at most 1 MiB: by what it says of itself, and by wh
     same([413, 'too_large'], [$tooLarge->status, $tooLarge->code()], '1 MiB + 1 byte is not');
 
     $emptyImport = strlen((string) json_encode(['common.save' => '']));
-    $import = $admin->put('/api/admin/translations/sk/import', ['common.save' => str_repeat('x', TRANSLATIONS_BODY_LIMIT - $emptyImport + 1)]);
+    $import = $admin->put('/api/admin/translations/sk/import', ['common.save' => str_repeat('x', $limit - $emptyImport + 1)]);
     same([413, 'too_large'], [$import->status, $import->code()], 'an import of 1 MiB + 1 byte');
-    same(422, $admin->put('/api/admin/translations/sk/import', ['common.save' => str_repeat('x', TRANSLATIONS_BODY_LIMIT - $emptyImport)])->status, 'and one of 1 MiB');
+    same(422, $admin->put('/api/admin/translations/sk/import', ['common.save' => str_repeat('x', $limit - $emptyImport)])->status, 'and one of 1 MiB');
 
-    // What it says of itself is enough, before anything is read - and before anything else is said about it.
-    foreach (['/api/admin/translations' => ['values' => ['no.such' => ['xx' => 5]]], '/api/admin/translations/nope/import' => ['no.such' => 5]] as $path => $body) {
-        foreach ([(string) (TRANSLATIONS_BODY_LIMIT + 1), '99999999999999999999', 'lots'] as $declared) {
+    // What it says of itself is enough, before anything is read - and before the strings or the
+    // language are looked at. (A code that is none is a 404 first: no route is that language's.)
+    foreach (['/api/admin/translations' => ['values' => ['no.such' => ['xx' => 5]]], '/api/admin/translations/zz/import' => ['no.such' => 5]] as $path => $body) {
+        foreach ([(string) ($limit + 1), '99999999999999999999', 'lots'] as $declared) {
             $refused = $admin->request('PUT', $path, ['json' => $body, 'headers' => ['Content-Length' => $declared]]);
             same([413, 'too_large'], [$refused->status, $refused->code()], "$path with Content-Length: $declared");
         }
     }
-    same(200, $admin->request('PUT', '/api/admin/translations', ['json' => ['values' => []], 'headers' => ['Content-Length' => (string) TRANSLATIONS_BODY_LIMIT]])->status, 'a Content-Length of the limit itself passes');
+    same(404, $admin->request('PUT', '/api/admin/translations/nope/import', ['json' => ['no.such' => 5], 'headers' => ['Content-Length' => (string) ($limit + 1)]])->status, 'a code that is none is no language, however large');
+    same(200, $admin->request('PUT', '/api/admin/translations', ['json' => ['values' => new stdClass()], 'headers' => ['Content-Length' => (string) $limit]])->status, 'a Content-Length of the limit itself passes');
 
     same($before, everyString(), 'and none of it changed a string');
-});
-
-test('a save of many strings names the first hundred keys in the audit log, and how many more', function () {
-    $admin = admin();
-    $pages = array_slice(array_filter(seeded('sk'), static fn(string $key): bool => !str_starts_with($key, 'mail.'), ARRAY_FILTER_USE_KEY), 0, 101, true);
-    same(101, count($pages), '101 strings to change');
-
-    same(200, save($admin, array_map(static fn(string $text): array => ['sk' => $text . ' !'], $pages))->status, 'saved');
-    $details = lastAudit('translations.saved')[3];
-    same([['sk'], 101, 100, 1], [$details['languages'], $details['count'], count($details['keys']), $details['more_keys'] ?? null], 'the first hundred, then a count');
-    same(array_slice(sorted(array_keys($pages)), 0, 100), $details['keys'], 'by name');
-    check(!isset($details['mail']), 'no mail string among them');
-
-    same(200, save($admin, array_map(static fn(string $text): array => ['sk' => $text], $pages))->status, 'and back');
-    same(array_intersect_key(seeded('sk'), $pages), array_intersect_key(translationsOf(iamDb(), 'sk'), $pages), 'as they were');
 });
 
 test('a mail\'s words through the panel: reworded, refused - and every change recorded with the old and the new text', function () {
@@ -1665,6 +1687,9 @@ test('a mail\'s words through the panel: reworded, refused - and every change re
             ['mail.reset.greeting' => ['sk' => 'Ahoj {username}, {username}, {username},']],
             ['mail.loginCode.greeting' => ['en' => 'Hello {username}, {username}, {username},']],
             ['mail.reset.greeting' => ['sk' => str_repeat('あ', 27) . ' {username} {username}']],
+            // An address the panel reads backwards and the reader the right way round; a C1 control.
+            ['mail.reset.intro' => ['sk' => "Otvor \u{202E}moc.live//:sptth\u{202C} a zvoľ si ho:"]],
+            ['mail.reset.subject' => ['en' => "Reset\u{0090}your password"]],
         ],
         'invalid_placeholder' => [
             ['mail.reset.greeting' => ['sk' => 'Ahoj { username },']],
@@ -1701,14 +1726,14 @@ test('a mail\'s words through the panel: reworded, refused - and every change re
     $entry = lastAudit('translations.saved')[3]['mail'][0];
     same([$intro, $long], [$entry['old'], $entry['new']], 'a mail string of the longest the panel takes is in the log whole');
     same($long, stored('mail.reset.intro', 'sk')[0], 'and whole in the table');
-    check(TRANSLATION_AUDIT_TEXT >= TRANSLATION_MAIL_VALUE_MAX, 'whatever the longest becomes, the log\'s bound is not under it');
+    check(iamTranslationsConfig()->auditTextMax >= TRANSLATION_MAIL_VALUE_MAX, 'whatever the longest becomes, the log\'s bound is not under it');
 
     // The clip is only for a string that came past the panel: of any length, and not the log's to carry.
     $outside = str_repeat('š', 450);
     iamDb()->prepare("UPDATE translations SET value = ? WHERE key_name = 'mail.reset.intro' AND language_code = 'sk'")->execute([$outside]);
     same(200, save($admin, ['mail.reset.intro' => ['sk' => $long]])->status, 'a string written by SQL, 450 characters of it, is replaced in the panel');
     $entry = lastAudit('translations.saved')[3]['mail'][0];
-    same([400, str_repeat('š', 400), $long], [textLength($entry['old']), $entry['old'], $entry['new']], 'the log has its first 400 characters');
+    same([400, str_repeat('š', 400), $long], [Text::length($entry['old']), $entry['old'], $entry['new']], 'the log has its first 400 characters');
 
     // Taken out: Slovak reads that one paragraph in English, and the log says what it was.
     same(200, save($admin, ['mail.reset.intro' => ['sk' => '']])->status, 'emptied');
@@ -1722,7 +1747,7 @@ test('a mail\'s words through the panel: reworded, refused - and every change re
     // it: the log must, in the entry of the change and in the entry of its undoing.
     $padding = str_repeat('Choose a new password below. ', 10) . 'Be quick. ';
     $added = 'Or go to anotoki-login.test/reset and type your current password there:';
-    same(300, textLength($padding), '300 characters of ordinary wording first');
+    same(300, Text::length($padding), '300 characters of ordinary wording first');
     same(200, save($admin, ['mail.reset.intro' => ['en' => $padding . $added]])->status, 'the paragraph with a sentence added at its end is saved: the panel cannot tell it from a rewording');
     $entry = lastAudit('translations.saved')[3]['mail'][0];
     same(['mail.reset.intro', 'en', seeded('en')['mail.reset.intro'], $padding . $added], [$entry['key'], $entry['language'], $entry['old'], $entry['new']], 'the log has the new text word for word');
@@ -1765,15 +1790,15 @@ test('languages: added after the others and offered at once - to the pages, to d
     $list = $admin->get('/api/admin/languages');
     same(200, $list->status, 'the list');
     same([
-        ENGLISH + ['enabled' => true, 'sort_order' => 1, 'seeded' => true, 'accounts' => 2],
-        SLOVAK + ['enabled' => true, 'sort_order' => 2, 'seeded' => true, 'accounts' => 0],
-    ], $list->json()['languages'], 'the two the IAM is released in, with how many accounts have each');
+        ENGLISH + ['enabled' => true, 'sort_order' => 1, 'seeded' => true, 'strings' => stringsIn('en'), 'accounts' => 2],
+        SLOVAK + ['enabled' => true, 'sort_order' => 2, 'seeded' => true, 'strings' => stringsIn('sk'), 'accounts' => 0],
+    ], $list->json()['languages'], 'the two the IAM is released in, with how many strings each has and how many accounts');
 
     // What a new language is: last, and - with nothing said about it - offered. Its place, and what
     // only the IAM can know of it, are not the body's to say.
-    $made = $admin->post('/api/admin/languages', ['code' => 'de', 'name' => "  German\x07 ", 'native_name' => 'Deutsch', 'sort_order' => 0, 'seeded' => true, 'accounts' => 9]);
+    $made = $admin->post('/api/admin/languages', ['code' => 'de', 'name' => "  German\x07 ", 'native_name' => 'Deutsch', 'sort_order' => 0, 'seeded' => true, 'strings' => 5, 'accounts' => 9]);
     same(201, $made->status, $made->body);
-    same(['language' => ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch', 'enabled' => true, 'sort_order' => 3, 'seeded' => false, 'accounts' => 0]], $made->json(), 'the language as it was made');
+    same(['language' => ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch', 'enabled' => true, 'sort_order' => 3, 'seeded' => false, 'strings' => 0, 'accounts' => 0]], $made->json(), 'the language as it was made');
     same([$adminId, 'language', 'de', ordered(['name' => 'German', 'native_name' => 'Deutsch', 'enabled' => true])], lastAudit('language.created'), 'recorded, with whether it was offered');
     $regional = $admin->post('/api/admin/languages', ['code' => 'pt-br', 'name' => 'Portuguese (Brazil)', 'native_name' => str_repeat('ç', 50), 'enabled' => true]);
     same([201, true], [$regional->status, $regional->json()['language']['enabled'] ?? null], 'a code with a region, a name of 50 characters - and offered because the body says so');
@@ -1793,12 +1818,12 @@ test('languages: added after the others and offered at once - to the pages, to d
         'a name that is not text' => ['code' => 'fr', 'name' => ['French'], 'native_name' => 'Français'],
         'a name of two lines' => ['code' => 'fr', 'name' => "French\nFrench", 'native_name' => 'Français'],
         'no native name' => ['code' => 'fr', 'name' => 'French'],
-        'the survey site\'s spelling' => ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français'],
+        'the survey site\'s old spelling' => ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français'],
     ] as $what => $body) {
         $refused = $admin->post('/api/admin/languages', $body);
         same([422, 'invalid_language'], [$refused->status, $refused->code()], $what);
     }
-    same(422, $admin->request('POST', '/api/admin/languages')->status, 'no body');
+    same([415, 'unsupported_media_type'], [($r = $admin->request('POST', '/api/admin/languages'))->status, $r->code()], 'no body');
     same(4, (int) iamDb()->query('SELECT count(*) FROM languages')->fetchColumn(), 'four languages');
 
     // Offered at once, everywhere the offered languages are read.
@@ -1850,7 +1875,7 @@ test('a new language starts hidden when the body says so: there for its strings,
 
     $made = $admin->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => false]);
     same(
-        [201, ['language' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => false, 'sort_order' => 5, 'seeded' => false, 'accounts' => 0]]],
+        [201, ['language' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => false, 'sort_order' => 5, 'seeded' => false, 'strings' => 0, 'accounts' => 0]]],
         [$made->status, $made->json()],
         'made hidden, after the others'
     );
@@ -1871,6 +1896,7 @@ test('a new language starts hidden when the body says so: there for its strings,
     // What it is there for: its strings can be written before anybody reads in it.
     same(200, save($admin, ['common.save' => ['fr' => 'Enregistrer']])->status, 'a string in the hidden language');
     same('Enregistrer', stored('common.save', 'fr')[0] ?? null, 'is kept');
+    same(1, array_column($admin->get('/api/admin/languages')->json()['languages'], 'strings', 'code')['fr'] ?? null, 'and counted');
 
     // Switched on, it is offered - with the strings that were written meanwhile.
     same(true, $admin->put('/api/admin/languages/fr', ['enabled' => true])->json()['language']['enabled'] ?? null, 'switched on');
@@ -1887,7 +1913,8 @@ test('a new language starts hidden when the body says so: there for its strings,
     }
     same(0, (int) iamDb()->query("SELECT count(*) FROM languages WHERE code = 'it'")->fetchColumn(), 'no language was made of any of them');
 
-    same(200, $admin->delete('/api/admin/languages/fr')->status, 'French goes again');
+    $gone = $admin->delete('/api/admin/languages/fr');
+    same([200, ['strings' => 1, 'accounts' => 0]], [$gone->status, $gone->json()], 'French goes again, with its one string');
     same($offered, languageCodes(), 'and the four are what is offered');
 });
 
@@ -1913,7 +1940,7 @@ test('the languages read through a connection of one\'s own are that database\'s
     $name = throwawayDatabase(testEnvironment()['db'] . '_import_after');
     ensureDatabase(testServer(), $name);
     $after = connectDatabase(testServer(), $name, false);
-    same(null, applyPendingMigrations($after, 'iam')['failed'], 'every migration applies');
+    same(null, applyPendingMigrations($after)['failed'], 'every migration applies');
     same(['en', 'sk'], languageCodes($after), 'a fresh IAM offers the two it is released in');
     $after->exec("INSERT INTO languages (code, name, native_name, sort_order) VALUES ('de', 'German', 'Deutsch', 3), ('fr', 'French', 'Français', 4)");
     $after->exec("UPDATE languages SET enabled = FALSE WHERE code = 'fr'");
@@ -1955,6 +1982,10 @@ test('with the database out of reach, discovery and the pages\' config still ans
             $config->json(),
             'with the switches as they are when nothing overrides them, and the two languages'
         );
+
+        // The words: not a 500 - the pages keep the English compiled into them, and ask again.
+        $bundle = (new Browser('10.9.5.7'))->get('/api/translations/sk');
+        same([503, 'translations_unavailable', '60'], [$bundle->status, $bundle->code(), $bundle->header('Retry-After')], 'the bundle: ' . substr($bundle->body, 0, 200));
     } finally {
         pointAtDatabase($main);
     }
@@ -2016,10 +2047,11 @@ test('languages: renamed, reordered, switched off - English never; a switched-of
 
     // Changed: only what is sent, and only what is different is recorded.
     $renamed = $admin->put('/api/admin/languages/de', ['name' => ' German (Germany) ', 'sort_order' => 0, 'code' => 'xx', 'seeded' => true]);
-    same(['language' => ['code' => 'de', 'name' => 'German (Germany)', 'native_name' => 'Deutsch', 'enabled' => true, 'sort_order' => 0, 'seeded' => false, 'accounts' => 3]], $renamed->json(), 'renamed and moved first');
+    same(['language' => ['code' => 'de', 'name' => 'German (Germany)', 'native_name' => 'Deutsch', 'enabled' => true, 'sort_order' => 0, 'seeded' => false, 'strings' => 0, 'accounts' => 3]], $renamed->json(), 'renamed and moved first');
     same([$adminId, 'language', 'de', ordered(['name' => 'German (Germany)', 'sort_order' => 0])], lastAudit('language.updated'), 'recorded, with what changed');
     same(['de', 'en', 'sk', 'pt-br'], (new Browser('10.9.6.1'))->get('/api/public/config')->json()['languages'], 'in its new place');
-    same('German (Germany)', $admin->put('/api/admin/languages/de', [])->json()['language']['name'] ?? null, 'nothing sent, nothing changed');
+    same('German (Germany)', $admin->request('PUT', '/api/admin/languages/de', ['json' => new stdClass()])->json()['language']['name'] ?? null, 'nothing sent ({}), nothing changed');
+    same([422, 'invalid_language'], [($r = $admin->put('/api/admin/languages/de', []))->status, $r->code()], 'an empty list is no object of changes');
     same(200, $admin->put('/api/admin/languages/de', ['name' => 'German (Germany)', 'enabled' => true])->status, 'sent as it is');
     same($audits + 1, auditCount('language.updated'), 'and neither of those was recorded');
     foreach ([
@@ -2077,92 +2109,6 @@ test('languages: renamed, reordered, switched off - English never; a switched-of
     same(['de', 'de'], localeOf('dieter@example.test', '10.9.6.6'), 'and the locale claim is German again');
 });
 
-test('at most twenty languages', function () {
-    $admin = admin();
-    $pdo = iamDb();
-    for ($i = 0; $i < 16; $i++) {
-        $pdo->prepare('INSERT INTO languages (code, name, native_name, enabled, sort_order) VALUES (?, ?, ?, FALSE, 500)')->execute(['x' . chr(97 + $i), "Filler $i", "Filler $i"]);
-    }
-    same(20, (int) $pdo->query('SELECT count(*) FROM languages')->fetchColumn(), 'twenty');
-
-    $full = $admin->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']);
-    same([422, 'too_many_languages'], [$full->status, $full->code()], 'the twenty-first');
-    same('language_exists', $admin->post('/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch'])->code(), 'one that is there is said to be there, full or not');
-
-    $pdo->exec("DELETE FROM languages WHERE name LIKE 'Filler %'");
-    $french = $admin->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']);
-    same([201, 1000], [$french->status, $french->json()['language']['sort_order'] ?? null], 'last - and never past what an order may be');
-    same(200, $admin->delete('/api/admin/languages/fr')->status, 'and gone again');
-});
-
-test('two admins adding the last language the IAM keeps, at the same moment: one waits for the other, and the most holds', function () {
-    $admin = admin();
-    $pdo = iamDb();
-    $count = static fn(): int => (int) $pdo->query('SELECT count(*) FROM languages')->fetchColumn();
-    $started = $count();
-    check($started < LANGUAGES_MAX - 1, "there is room to fill: $started languages");
-
-    // A second connection is somebody else; a second process is a request that can wait while this one goes on.
-    $other = connectDatabase(testServer(), testEnvironment()['db'], false);
-    $out = testEnvironment()['base'] . DIRECTORY_SEPARATOR . 'create-language.json';
-    $process = null;
-    $answer = null;
-    $waited = false;
-
-    try {
-        $filler = $pdo->prepare('INSERT INTO languages (code, name, native_name, enabled, sort_order) VALUES (?, ?, ?, FALSE, 500)');
-        for ($i = 0; $count() < LANGUAGES_MAX - 1; $i++) {
-            $filler->execute(['x' . chr(97 + $i), "Filler $i", "Filler $i"]);
-        }
-        same(LANGUAGES_MAX - 1, $count(), 'nineteen languages: room for one more');
-
-        // Somebody else has just added the twentieth, and their transaction is still open: nobody
-        // else can see that row yet. A second admin's request arrives now.
-        $other->beginTransaction();
-        $other->exec("INSERT INTO languages (code, name, native_name, enabled, sort_order) VALUES ('yy', 'Somebody else''s', 'Somebody else''s', FALSE, 500)");
-        same(LANGUAGES_MAX - 1, $count(), 'to everybody else there are still nineteen');
-
-        $process = createLanguageElsewhere(['code' => 'fr', 'name' => 'French', 'native_name' => 'Français'], $out);
-
-        // Until it has an answer: is it waiting for a lock on the table?
-        $waiting = $pdo->prepare("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query LIKE 'LOCK TABLE languages%'");
-        for ($deadline = microtime(true) + 20; microtime(true) < $deadline && !is_file($out); usleep(50000)) {
-            $waiting->execute();
-            if ((int) $waiting->fetchColumn() > 0) {
-                $waited = true;
-                break;
-            }
-        }
-        $answeredEarly = is_file($out) ? (string) file_get_contents($out) : null;
-
-        // The first one is kept. Whoever waited goes on now, and counts what is really there.
-        $other->commit();
-        $exit = proc_close($process);
-        $process = null;
-        $answer = json_decode((string) @file_get_contents($out), true);
-
-        check($waited, 'the second request waits for the first instead of counting past it - it answered ' . ($answeredEarly ?? 'nothing yet, and was never seen waiting'));
-        same(0, $exit, 'the second request ends: ' . @file_get_contents("$out.log"));
-        same([422, 'too_many_languages'], [$answer['status'] ?? null, $answer['code'] ?? null], 'and is told there is no room, now that the twentieth is there: ' . json_encode($answer));
-        same(LANGUAGES_MAX, $count(), 'twenty languages, not twenty-one');
-        same(0, (int) $pdo->query("SELECT count(*) FROM languages WHERE code = 'fr'")->fetchColumn(), 'the one that came second is not among them');
-
-        // And through the panel, a moment later: the same answer.
-        $full = $admin->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']);
-        same([422, 'too_many_languages'], [$full->status, $full->code()], 'the twenty-first, asked for again');
-    } finally {
-        if ($other->inTransaction()) {
-            $other->rollBack();
-        }
-        if (is_resource($process)) {
-            proc_close($process);
-        }
-        $pdo->exec("DELETE FROM languages WHERE name LIKE 'Filler %' OR code IN ('yy', 'fr')");
-        languageCodes(null, true);
-    }
-    same($started, $count(), 'and the languages are the ones there were');
-});
-
 // ── A language as a file ─────────────────────────────────────────────────────
 
 test('a language out as a file and back in: its own strings only; unknown keys refused, empty ones passed over', function () {
@@ -2171,8 +2117,9 @@ test('a language out as a file and back in: its own strings only; unknown keys r
 
     $export = $admin->get('/api/admin/translations/sk/export');
     same(200, $export->status, 'the export');
-    same(seeded('sk'), $export->json(), 'Slovak as it is: every string, the mail ones among them, flat');
-    same('{}', $admin->get('/api/admin/translations/pt-br/export')->body, 'a language with no strings: an object, not a list');
+    same(seeded('sk'), $export->json(), 'Slovak as it is: every string, the mail ones and the library\'s among them, flat');
+    same([TranslationFile::text(seeded('sk')), 'attachment; filename="translations-sk.json"', 'no-store'], [$export->body, $export->header('Content-Disposition'), $export->header('Cache-Control')], 'a download in the file\'s format, kept nowhere on the way');
+    same("{}\n", $admin->get('/api/admin/translations/pt-br/export')->body, 'a language with no strings: an object, not a list');
     same(404, $admin->get('/api/admin/translations/fr/export')->status, 'a language there is not');
 
     // Into German: the empty ones are keys nobody translated yet.
@@ -2202,7 +2149,7 @@ test('a language out as a file and back in: its own strings only; unknown keys r
     // A cell of characters of no width is an empty one: passed over like it, not written as a string and not a deletion.
     same(200, $admin->put('/api/admin/translations/de/import', ['common.save' => "\u{200B}", 'mail.reset.greeting' => " \u{2060}\u{FEFF} ", 'login.continueTo' => "\u{00AD}"])->status, 'cells nobody can see, into German');
     same(200, $admin->put('/api/admin/translations/en/import', ['common.save' => "\u{200B}", 'mail.reset.subject' => "\u{200B}"])->status, 'and into English, where a save would refuse them');
-    same(200, $admin->put('/api/admin/translations/de/import', [])->status, 'an empty file');
+    same(200, $admin->request('PUT', '/api/admin/translations/de/import', ['json' => new stdClass()])->status, 'an empty file');
     same(200, $admin->put('/api/admin/translations/sk/import', $export->json())->status, 'what came out goes back in');
     same($before, everyString(), 'what was there stays, as it was and by whom');
     same($audits, auditCount('translations.imported'), 'and an import that changes nothing is not recorded');
@@ -2222,26 +2169,28 @@ test('a language out as a file and back in: its own strings only; unknown keys r
         same([422, $code], [$refused->status, $refused->code()], $refused->body);
     }
     same([422, 'invalid_value'], [$admin->put('/api/admin/translations/de/import', ['Sichern', 'Schließen'])->status, $admin->put('/api/admin/translations/de/import', ['Sichern', 'Schließen'])->code()], 'a list is not a language\'s strings');
-    same(422, $admin->request('PUT', '/api/admin/translations/de/import')->status, 'nor is no body');
+    same([415, 'unsupported_media_type'], [($r = $admin->request('PUT', '/api/admin/translations/de/import'))->status, $r->code()], 'nor is no body');
     same(404, $admin->put('/api/admin/translations/fr/import', ['common.save' => 'Enregistrer'])->status, 'a language there is not');
     same($before, everyString(), 'nothing refused was kept');
 });
 
-test('the command line: --export and --import on the same strings, by nobody and recorded so; --status reads the frontend', function () {
+test('the command line: --export and --import on the same strings, by nobody and recorded so; --status reads the frontend, then the mails\' keys', function () {
     $dir = sources(['keep' => '']);
+    $keys = IAM_PAGE_KEYS + IAM_MAIL_KEYS + count(LibraryWords::keys());
 
     [$code, $out] = cli('--export', 'de', "$dir/de.json");
     same(0, $code, $out);
-    same(translationFileText(['common.save' => 'Speichern', 'login.continueTo' => 'Anmelden und weiter zu {app}', 'mail.reset.greeting' => 'Hallo {username},']), file_get_contents("$dir/de.json"), 'German, to a file');
+    same(TranslationFile::text(['common.save' => 'Speichern', 'login.continueTo' => 'Anmelden und weiter zu {app}', 'mail.reset.greeting' => 'Hallo {username},']), file_get_contents("$dir/de.json"), 'German, to a file');
     [$code, $out] = cli('--export', 'sk');
     same([0, seeded('sk')], [$code, json_decode($out, true)], 'Slovak, to the screen');
     [$code, $out] = cli('--export', 'pt-br');
     same([0, '{}'], [$code, trim($out)], 'a language with no strings');
     same(1, cli('--export', 'fr')[0], 'a language there is not');
     same(1, cli('--export', 'EN')[0], 'a code that is not one');
+    same([0, '{}'], [cli('--export=pt-br')[0], trim(cli('--export=pt-br')[1])], '--export=CODE too');
 
     $before = everyString();
-    translationFileWrite("$dir/de.json", ['common.save' => 'Sichern', 'common.close' => 'Schließen', 'common.cancel' => '', 'login.continueTo' => 'Anmelden und weiter zu {app}', 'mail.reset.greeting' => 'Guten Tag {username},']);
+    TranslationFile::write("$dir/de.json", ['common.save' => 'Sichern', 'common.close' => 'Schließen', 'common.cancel' => '', 'login.continueTo' => 'Anmelden und weiter zu {app}', 'mail.reset.greeting' => 'Guten Tag {username},']);
     [$code, $out] = cli('--import', 'de', "$dir/de.json");
     same(0, $code, $out);
     check(preg_match('/5 strings in .*: 3 changed/', $out) === 1, $out);
@@ -2263,12 +2212,12 @@ test('the command line: --export and --import on the same strings, by nobody and
         'address_in_mail' => ['common.save' => 'Speichern', 'mail.reset.intro' => 'Bitte auf https://evil.test ein neues wählen:'],
         'invalid_value' => ['common.save' => 'Speichern', 'mail.reset.subject' => "Reset\r\nBcc: x@evil.test"],
     ] as $refusal => $values) {
-        translationFileWrite("$dir/bad.json", $values);
+        TranslationFile::write("$dir/bad.json", $values);
         [$code, $out] = cli('--import', 'de', "$dir/bad.json");
         same(1, $code, "$refusal is refused");
         check(str_contains($out, "Refused ($refusal)"), $out);
     }
-    translationFileWrite("$dir/unknown.json", ['common.save' => 'Speichern', 'no.such' => 'x', 'nor.this' => 'y']);
+    TranslationFile::write("$dir/unknown.json", ['common.save' => 'Speichern', 'no.such' => 'x', 'nor.this' => 'y']);
     [$code, $out] = cli('--import', 'de', "$dir/unknown.json");
     same(1, $code, 'unknown keys are refused');
     check(str_contains($out, 'Refused (unknown_key)') && preg_match('/^\s+no\.such$/m', $out) === 1 && preg_match('/^\s+nor\.this$/m', $out) === 1, 'and named, one a line: ' . $out);
@@ -2282,14 +2231,14 @@ test('the command line: --export and --import on the same strings, by nobody and
     same($audits, auditCount('translations.imported'), 'nor recorded');
     same(0, cli('--help')[0], '--help');
 
-    // --status: the frontend's keys against this database's.
+    // --status: the frontend's keys against this database's, how much of each language there is, and the mails' keys.
     [$code, $out] = cli('--status');
-    check(preg_match('/the database has\s+533 keys \(485 of the pages, 48 of the mails\)/', $out) === 1, $out);
-    check(preg_match('/the frontend uses\s+\d+ of the pages\' keys/', $out) === 1, $out);
-    check(preg_match('/\n\s+sk\s+Slovak\s+533 \/ 533\n/', $out) === 1, 'how much of each language there is: ' . $out);
-    check(preg_match('/\n\s+de\s+German \(Germany\)\s+4 \/ 533\n/', $out) === 1, 'German: ' . $out);
-    same(str_contains($out, 'Not clean.') ? 1 : 0, $code, 'exit 1 exactly when a key is missing or has no English string');
-    same(str_contains($out, 'Clean.') ? 0 : 1, $code, 'and 0 when clean');
+    check(preg_match("/the database has\s+$keys keys\n/", $out) === 1, $out);
+    check(preg_match('/the frontend uses\s+' . IAM_PAGE_KEYS . ' of them\n/', $out) === 1, $out);
+    check(preg_match("/\n\s+sk\s+Slovak\s+$keys \/ $keys\n/", $out) === 1, 'how much of each language there is: ' . $out);
+    check(preg_match("/\n\s+de\s+German \(Germany\)\s+4 \/ $keys\n/", $out) === 1, 'German: ' . $out);
+    check(preg_match('/the code has\s+48 mail keys \(MAIL_KEYS\)\n\s+the database has\s+48 of them\n/', $out) === 1, 'the mails\' keys: ' . $out);
+    same([0, 2, 0], [$code, substr_count("$out\n", "  Clean.\n"), substr_count($out, 'Not clean.')], 'clean, both: ' . $out);
 
     // A key with no English string, and a mail string the database has lost: neither is clean.
     iamDb()->exec("INSERT INTO translation_keys (name) VALUES ('common.noEnglish')");
@@ -2299,6 +2248,22 @@ test('the command line: --export and --import on the same strings, by nobody and
     check(preg_match('/No English string.*\n\s+common\.noEnglish\n\s+mail\.reset\.ignore\n/s', $out) === 1, $out);
     iamDb()->exec("DELETE FROM translation_keys WHERE name = 'common.noEnglish'");
     iamDb()->prepare("INSERT INTO translations (key_name, language_code, value) VALUES ('mail.reset.ignore', 'en', ?)")->execute([seeded('en')['mail.reset.ignore']]);
+
+    // A mail key the database does not have: its mail goes out in the English kept in the code - not
+    // clean; and one under a name the code does not know is used by no mail. (Renamed and back: its
+    // strings follow it both ways, as they were.)
+    $before = everyString();
+    iamDb()->exec("UPDATE translation_keys SET name = 'mail.old.leftOver' WHERE name = 'mail.reset.ignore'");
+    try {
+        [$code, $out] = cli('--status');
+        same(1, $code, $out);
+        check(preg_match('/the code has\s+48 mail keys \(MAIL_KEYS\)\n\s+the database has\s+47 of them\n/', $out) === 1, 'counted: ' . $out);
+        check(preg_match('/A mail\'s string the database does not have.*\n\s+mail\.reset\.ignore\n/', $out) === 1, 'named: ' . $out);
+        check(preg_match('/used by no mail.*\n\s+mail\.old\.leftOver\n/', $out) === 1, 'and the one the code does not know: ' . $out);
+    } finally {
+        iamDb()->exec("UPDATE translation_keys SET name = 'mail.reset.ignore' WHERE name = 'mail.old.leftOver'");
+    }
+    same($before, everyString(), 'and back as it was');
 });
 
 // ── Deleting a language ──────────────────────────────────────────────────────
@@ -2316,15 +2281,15 @@ test('deleting a language: never English, never one the IAM is released in; its 
 
     $accounts = iamDb()->query("SELECT email FROM users WHERE language = 'de' ORDER BY email")->fetchAll(PDO::FETCH_COLUMN);
     same(['dieter@example.test', 'gretchen@example.test', 'player@example.test'], $accounts, 'three accounts are in German');
-    $strings = (int) iamDb()->query("SELECT count(*) FROM translations WHERE language_code = 'de'")->fetchColumn();
+    $strings = stringsIn('de');
     check($strings > 0, 'and German has strings');
 
     $gone = $admin->delete('/api/admin/languages/de');
-    same([200, ['accounts' => 3]], [$gone->status, $gone->json()], 'deleted: the answer says how many accounts went back to English');
-    same([$adminId, 'language', 'de', ordered(['name' => 'German (Germany)', 'accounts' => 3, 'strings' => $strings])], lastAudit('language.deleted'), 'recorded with that number');
+    same([200, ['strings' => $strings, 'accounts' => 3]], [$gone->status, $gone->json()], 'deleted: the answer says how many strings went with it, and how many accounts went back to English');
+    same([$adminId, 'language', 'de', ordered(['name' => 'German (Germany)', 'accounts' => 3, 'strings' => $strings])], lastAudit('language.deleted'), 'recorded with those numbers');
     same(['en', 'en', 'en'], iamDb()->query("SELECT language FROM users WHERE email IN ('dieter@example.test', 'gretchen@example.test', 'player@example.test')")->fetchAll(PDO::FETCH_COLUMN), 'the accounts are English now');
-    same(0, (int) iamDb()->query("SELECT count(*) FROM translations WHERE language_code = 'de'")->fetchColumn(), 'its strings went with it');
-    same(533, (int) iamDb()->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'the keys are the code\'s, and stay');
+    same(0, stringsIn('de'), 'its strings went with it');
+    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + count(LibraryWords::keys()), (int) iamDb()->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'the keys are the code\'s, and stay');
     same(404, $admin->delete('/api/admin/languages/de')->status, 'it is gone');
 
     same(['en', 'sk', 'pt-br'], (new Browser('10.9.8.1'))->get('/api/public/config')->json()['languages'], 'no longer offered');
@@ -2333,7 +2298,7 @@ test('deleting a language: never English, never one the IAM is released in; its 
     same('invalid_language', $admin->put('/api/admin/users/' . $GLOBALS['playerId'], ['language' => 'de'])->code(), 'and no account can be given it');
 
     $nobodys = $admin->delete('/api/admin/languages/pt-br');
-    same([200, ['accounts' => 0]], [$nobodys->status, $nobodys->json()], 'a language nobody has');
+    same([200, ['strings' => 0, 'accounts' => 0]], [$nobodys->status, $nobodys->json()], 'a language nobody has');
     same(['en', 'sk'], array_column($admin->get('/api/admin/translations')->json()['languages'], 'code'), 'the two it started with');
 });
 

@@ -1,5 +1,5 @@
+import { SiteLanguage } from '@anotoki/lib/translations';
 import { SelectOption } from '@anotoki/lib/ui/forms';
-import { SiteLanguage } from '../../../core/api/models';
 
 /**
  * What the language select of the create-user and edit-user dialogs offers:

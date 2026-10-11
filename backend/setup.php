@@ -1058,10 +1058,11 @@ function setupDatabaseState(array $saved): ?array
             ? (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn()
             : 0;
         $migrator = iamMigrator($pdo);
-        // The files recorded as applied (a record whose file is gone is not one of them).
+        // The files recorded as applied (a record whose file is gone is not one of them),
+        // of every set - the IAM's and the library's translations set after it.
         $applied = count($migrator->status()['applied']);
 
-        return ['connected' => true, 'name' => $name, 'accounts' => $accounts, 'applied' => $applied, 'total' => count($migrator->files(iamMigrationSet()))];
+        return ['connected' => true, 'name' => $name, 'accounts' => $accounts, 'applied' => $applied, 'total' => count(iamMigrationFiles($migrator))];
     } catch (\Throwable $error) {
         return ['connected' => false, 'name' => $name, 'error' => setupDriverMessage($error)];
     }

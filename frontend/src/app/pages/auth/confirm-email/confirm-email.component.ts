@@ -1,7 +1,11 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { AlertComponent, AutofocusDirective, ButtonComponent, IconComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { AutofocusDirective } from '@anotoki/lib/ui/autofocus';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
 import { ContinueTo } from '../../../core/api/models';

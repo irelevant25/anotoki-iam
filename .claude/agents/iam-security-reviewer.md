@@ -132,17 +132,32 @@ the files you were given). You do not edit anything.
   `iam` entry has its home on this computer (as 005 does), since it reaches
   live IAMs too.
   Database names and hosts cannot reach into the DSN.
-- **Words and mails** (`api/translations.php`, `api/mail.php`, the admin
-  Translations and Languages pages): whoever can edit strings must not be able
-  to make the IAM send a phishing mail - a mail's link and code are put in by
-  `mailMessage()`, never by a string; a mail string's placeholders are
-  `MAIL_KEYS`'s; no address (`://`, `www.`, `@`), no line break, a subject that
-  stays one header line, a body line within 998 bytes with room kept for every
-  `{username}`; a changed mail string's old and new text whole in the audit
-  log. A string is text, never HTML, on every page. The bundle route reads and
-  sets no cookie and is in no CORS list; the eight admin routes are behind
-  `requireAdmin()` and answer 503 until migration 006 is applied; a code from an
-  address passes `languageCodeOk()` before any query.
+- **Words and mails** (`api/translations.php` - the IAM's configuration of the
+  anotoki library's `Anotoki\Lib\Translations` -, `api/mail.php`, the routes in
+  `routes/login.php` and `routes/admin.php`, the library's Translations and
+  Languages pages): whoever can edit strings must not be able to make the IAM
+  send a phishing mail - a mail's link and code are put in by `mailMessage()`,
+  never by a string; a mail string's placeholders are `MAIL_KEYS`'s
+  (`IamMailRules`, asked by the library's checks for every `mail.` string);
+  no address (`://`, `www.`, `@`), no line break, no character that turns the
+  text's direction (U+202A-202E, U+2066-2069, U+200E/200F, U+061C) and no C1
+  control (U+0080-009F) - try `moc.live//:sptth` behind a right-to-left
+  override -, a subject that stays one header line, a body line within 998
+  bytes with room kept for every `{username}` and `{date}`; `mail` a server
+  namespace, never in a bundle; a changed mail string's old and new text whole
+  in the audit log. A string is text, never HTML, on every page - and
+  `frontend/scripts/prepare-deploy.mjs` refuses a release of `@anotoki/lib`
+  whose bundles name an HTML sink (innerHTML, outerHTML, insertAdjacentHTML,
+  bypassSecurityTrust, srcdoc, document.write, DOMParser / parseFromString,
+  createContextualFragment). The bundle route reads and sets no cookie
+  and is in no CORS list; the eight admin routes sit in the admin group
+  (`requireSession()`, `requireAdmin()`), every write under the CSRF header,
+  the writer the session's account (never a body's); the library reads a body
+  itself (JSON only, 1 MB, `{}` apart from `[]`) and answers 503 until
+  migration 006 is applied; a code from an address passes the library's
+  `LanguageCode::ok()` before any query. The library's set
+  (`anotoki_translations`) writes only the three tables, and a library key's
+  strings only where it has none.
 - **Tests**: the change has them, including the attack a rule stops; `php
   tests/run.php` passes (you may run it - it uses throwaway databases).
 

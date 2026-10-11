@@ -1,0 +1,274 @@
+{
+    "keys": {
+        "anotoki.language.label": {
+            "description": "The anotoki library's language switcher: the small heading above the languages on offer, and the accessible name of that group. The languages themselves are shown in their own names and are not strings. No placeholders.",
+            "en": "Language",
+            "sk": "Jazyk"
+        },
+        "anotoki.language.button": {
+            "description": "The anotoki library's language switcher: the accessible name of its button, which shows only the current language's code (\"SK\"). {name}: that language in its own name (\"Slovenčina\"), shown as it is. {code}: the code the button shows - keep it in, for somebody who speaks to the computer names the button by what it shows (WCAG 2.5.3, Label in Name). Placeholders: {name}, {code}.",
+            "en": "Language: {name} ({code})",
+            "sk": "Jazyk: {name} ({code})"
+        },
+        "anotoki.language.notLoaded": {
+            "description": "The anotoki library's language switcher: said when the words of the language chosen there could not be fetched; the page stays in the language it was in. No placeholders.",
+            "en": "The language could not be loaded. Try again.",
+            "sk": "Jazyk sa nepodarilo načítať. Skús to znova."
+        },
+        "anotoki.language.notSaved": {
+            "description": "The anotoki library's language switcher: said to somebody signed in when the language chosen there could not be saved to their anotoki account (the IAM out of reach, the sign-in ended); the page stays in it until it is loaded again. Not said for a language the account does not offer - that one is the site's own choice. No placeholders.",
+            "en": "The language could not be saved to your anotoki account - it holds for this visit only.",
+            "sk": "Jazyk sa nepodarilo uložiť do tvojho anotoki účtu - platí len počas tejto návštevy."
+        },
+        "anotoki.siteStatus.updatingTitle": {
+            "description": "The anotoki library's status page, while a database update waits (shown to everybody but the site's ADMIN): its heading. No placeholders.",
+            "en": "The site is being updated",
+            "sk": "Stránku práve aktualizujeme"
+        },
+        "anotoki.siteStatus.updatingText": {
+            "description": "The anotoki library's status page, while a database update waits: the sentence under its heading. The page asks again by itself and reloads once the site is back. No placeholders.",
+            "en": "It will be back in a few minutes. This page reloads by itself.",
+            "sk": "O pár minút bude späť. Táto stránka sa obnoví sama."
+        },
+        "anotoki.siteStatus.unavailableTitle": {
+            "description": "The anotoki library's status page, while the site cannot reach its database: its heading. No placeholders.",
+            "en": "The site is not available right now",
+            "sk": "Stránka teraz nie je dostupná"
+        },
+        "anotoki.siteStatus.unavailableText": {
+            "description": "The anotoki library's status page, while the site cannot reach its database: the sentence under its heading. The page asks again by itself. It speaks to the reader: a site that addresses its readers formally words it its own way. No placeholders.",
+            "en": "Please try again in a few minutes. This page reloads by itself.",
+            "sk": "Skús to znova o pár minút. Táto stránka sa obnoví sama."
+        },
+        "anotoki.siteStatus.notSetUpTitle": {
+            "description": "The anotoki library's status page, on a site that was never set up: its heading. No placeholders.",
+            "en": "This site is not set up yet",
+            "sk": "Táto stránka ešte nie je nastavená"
+        },
+        "anotoki.siteStatus.notSetUpText": {
+            "description": "The anotoki library's status page, on a site that was never set up: the sentence under its heading, above the button to the setup page. No placeholders.",
+            "en": "Its setup page connects it to its database and to the anotoki sign-in.",
+            "sk": "Stránka nastavenia ju prepojí s databázou a s prihlasovaním anotoki."
+        },
+        "anotoki.siteStatus.openSetup": {
+            "description": "The anotoki library's status page, on a site that was never set up: the button that opens its setup page. No placeholders.",
+            "en": "Open the setup page",
+            "sk": "Otvoriť stránku nastavenia"
+        },
+        "anotoki.siteStatus.tryAgain": {
+            "description": "The anotoki library's status page: the button that asks the site again at once, instead of waiting for the page to ask by itself. No placeholders.",
+            "en": "Try again",
+            "sk": "Skúsiť znova"
+        },
+        "anotoki.siteStatus.signIn": {
+            "description": "The anotoki library's status page, while a database update waits and nobody is signed in: the quiet link to sign in, which is how the site's ADMIN gets to the update. No placeholders.",
+            "en": "Sign in",
+            "sk": "Prihlásiť sa"
+        },
+        "anotoki.ui.close": {
+            "description": "The anotoki library's dialogs and side panels: the accessible name (and tooltip) of the button with an X that closes one. No placeholders.",
+            "en": "Close",
+            "sk": "Zavrieť"
+        },
+        "anotoki.ui.dismiss": {
+            "description": "The anotoki library's notifications (the short messages in a corner of the page): the accessible name (and tooltip) of the button with an X that puts one away. No placeholders.",
+            "en": "Dismiss",
+            "sk": "Zavrieť"
+        },
+        "anotoki.ui.notifications": {
+            "description": "The anotoki library's notifications: the name screen readers give the corner of the page where they appear. No placeholders.",
+            "en": "Notifications",
+            "sk": "Oznámenia"
+        },
+        "anotoki.ui.cancel": {
+            "description": "The anotoki library's \"Are you sure?\" question: the button that answers no, where the page does not word it its own way. No placeholders.",
+            "en": "Cancel",
+            "sk": "Zrušiť"
+        },
+        "anotoki.ui.confirm": {
+            "description": "The anotoki library's \"Are you sure?\" question: the button that answers yes, where the page does not word it its own way. No placeholders.",
+            "en": "Confirm",
+            "sk": "Potvrdiť"
+        },
+        "anotoki.ui.retry": {
+            "description": "The anotoki library's box for something that could not be loaded: the button that asks again, where the page does not word it its own way. No placeholders.",
+            "en": "Try again",
+            "sk": "Skúsiť znova"
+        },
+        "anotoki.ui.optional": {
+            "description": "The anotoki library's form fields: the small word after the label of a field that may stay empty, in small letters. No placeholders.",
+            "en": "optional",
+            "sk": "nepovinné"
+        },
+        "anotoki.ui.loading": {
+            "description": "The anotoki library's spinner: what a screen reader hears while something loads (and what it says beside it, where it says anything). No placeholders.",
+            "en": "Loading…",
+            "sk": "Načítava sa…"
+        },
+        "anotoki.ui.showPassword": {
+            "description": "The anotoki library's password field: the accessible name (and tooltip) of the eye button while the password is hidden. No placeholders.",
+            "en": "Show password",
+            "sk": "Zobraziť heslo"
+        },
+        "anotoki.ui.hidePassword": {
+            "description": "The anotoki library's password field: the accessible name (and tooltip) of the eye button while the password is shown. No placeholders.",
+            "en": "Hide password",
+            "sk": "Skryť heslo"
+        },
+        "anotoki.ui.copy": {
+            "description": "The anotoki library's copy button: its words, where the page gives it none of its own. No placeholders.",
+            "en": "Copy",
+            "sk": "Kopírovať"
+        },
+        "anotoki.ui.copied": {
+            "description": "The anotoki library's copy button: its words for a moment after it copied. No placeholders.",
+            "en": "Copied",
+            "sk": "Skopírované"
+        },
+        "anotoki.ui.copyToClipboard": {
+            "description": "The anotoki library's copy button that shows only an icon: its accessible name and tooltip. No placeholders.",
+            "en": "Copy to clipboard",
+            "sk": "Kopírovať do schránky"
+        },
+        "anotoki.ui.copiedToClipboard": {
+            "description": "The anotoki library's copy button: what a screen reader is told once the text is copied. No placeholders.",
+            "en": "Copied to clipboard.",
+            "sk": "Skopírované do schránky."
+        },
+        "anotoki.ui.copyFailed": {
+            "description": "The anotoki library's copy button: said when the browser would not copy (no permission, a page not served over https), so the reader copies the text by hand. No placeholders.",
+            "en": "Copying did not work. Select the text and copy it yourself.",
+            "sk": "Kopírovanie nefungovalo. Označ text a skopíruj ho ručne."
+        },
+        "anotoki.ui.qrCode": {
+            "description": "The anotoki library's QR code: the accessible name of the picture, where the page gives it none of its own. No placeholders.",
+            "en": "QR code",
+            "sk": "QR kód"
+        },
+        "anotoki.ui.or": {
+            "description": "The anotoki library: the small word on the line between two ways of doing the same thing (one way of signing in, or the other), in small letters. No placeholders.",
+            "en": "or",
+            "sk": "alebo"
+        },
+        "anotoki.ui.pages": {
+            "description": "The anotoki library's page numbers under a long list: the accessible name of that row of buttons. No placeholders.",
+            "en": "Pages",
+            "sk": "Strany"
+        },
+        "anotoki.ui.previous": {
+            "description": "The anotoki library's page numbers under a long list: the button to the page before. No placeholders.",
+            "en": "Previous",
+            "sk": "Predchádzajúca"
+        },
+        "anotoki.ui.next": {
+            "description": "The anotoki library's page numbers under a long list: the button to the page after. No placeholders.",
+            "en": "Next",
+            "sk": "Ďalšia"
+        },
+        "anotoki.ui.range": {
+            "description": "The anotoki library's page numbers under a long list: which of its items are shown. {first}: the first one shown, {last}: the last one shown, {total}: how many there are. Placeholders: {first}, {last}, {total}.",
+            "en": "{first}-{last} of {total}",
+            "sk": "{first}-{last} z {total}"
+        },
+        "anotoki.ui.pageOf": {
+            "description": "The anotoki library's page numbers under a long list: where in the list the reader is. {page}: the page shown, {pages}: how many pages there are. Placeholders: {page}, {pages}.",
+            "en": "Page {page} of {pages}",
+            "sk": "Strana {page} z {pages}"
+        },
+        "anotoki.ui.nothingToShow": {
+            "description": "The anotoki library's page numbers under a long list: said instead of the items shown while the list is empty. No placeholders.",
+            "en": "Nothing to show",
+            "sk": "Nie je čo zobraziť"
+        },
+        "anotoki.topbar.skipToContent": {
+            "description": "The anotoki library's top bar: the link that shows on the first press of Tab and takes the keyboard past the bar to the page itself. No placeholders.",
+            "en": "Skip to content",
+            "sk": "Preskočiť na obsah"
+        },
+        "anotoki.topbar.sections": {
+            "description": "The anotoki library's top bar: the name screen readers give the row of the site's own links (its sections), where the site gives it none of its own. No placeholders.",
+            "en": "Main navigation",
+            "sk": "Hlavná navigácia"
+        },
+        "anotoki.topbar.phoneMenu": {
+            "description": "The anotoki library's top bar on a narrow screen: the accessible name of the button that opens the menu holding the site's links. No placeholders.",
+            "en": "Menu",
+            "sk": "Ponuka"
+        },
+        "anotoki.topbar.menuButton": {
+            "description": "The anotoki library's top bar: the accessible name of the round button with the person's initials, which opens their menu. {name}: the person's name, as their anotoki account has it. Placeholders: {name}.",
+            "en": "Your menu: {name}",
+            "sk": "Tvoja ponuka: {name}"
+        },
+        "anotoki.topbar.menu": {
+            "description": "The anotoki library's top bar: the name screen readers give the person's menu itself. No placeholders.",
+            "en": "Your menu",
+            "sk": "Tvoja ponuka"
+        },
+        "anotoki.topbar.roleAdmin": {
+            "description": "The anotoki library's top bar: the person's role, under their name at the top of their menu, when they are the site's administrator. No placeholders.",
+            "en": "Administrator",
+            "sk": "Administrátor"
+        },
+        "anotoki.topbar.roleEditor": {
+            "description": "The anotoki library's top bar: the person's role, under their name at the top of their menu, when they are one of the site's editors. No placeholders.",
+            "en": "Editor",
+            "sk": "Editor"
+        },
+        "anotoki.topbar.account": {
+            "description": "The anotoki library's top bar: the item of the person's menu that opens their account at anotoki (their profile, password and sign-ins) in a new tab. \"anotoki\" is the name of the accounts, never translated. No placeholders.",
+            "en": "Your anotoki account",
+            "sk": "Tvoj anotoki účet"
+        },
+        "anotoki.topbar.admin": {
+            "description": "The anotoki library's top bar: the item of the person's menu that opens the site's admin panel. No placeholders.",
+            "en": "Admin panel",
+            "sk": "Administrátorský panel"
+        },
+        "anotoki.topbar.signIn": {
+            "description": "The anotoki library's top bar: the button that signs in, while nobody is signed in. No placeholders.",
+            "en": "Sign in",
+            "sk": "Prihlásiť sa"
+        },
+        "anotoki.topbar.signOut": {
+            "description": "The anotoki library's top bar: the last item of the person's menu, which signs them out. No placeholders.",
+            "en": "Sign out",
+            "sk": "Odhlásiť sa"
+        },
+        "anotoki.topbar.saving": {
+            "description": "The anotoki library's top bar: said in place of \"Sign in\" or \"Sign out\" while what was changed last is still being saved, and the item waits for it. No placeholders.",
+            "en": "Saving…",
+            "sk": "Ukladá sa…"
+        },
+        "anotoki.theme.label": {
+            "description": "The anotoki library's theme switch (light, dark, as the device is set): its small heading, and the accessible name of the group. No placeholders.",
+            "en": "Theme",
+            "sk": "Vzhľad"
+        },
+        "anotoki.theme.light": {
+            "description": "The anotoki library's theme switch: the light look. No placeholders.",
+            "en": "Light",
+            "sk": "Svetlý"
+        },
+        "anotoki.theme.dark": {
+            "description": "The anotoki library's theme switch: the dark look. No placeholders.",
+            "en": "Dark",
+            "sk": "Tmavý"
+        },
+        "anotoki.theme.auto": {
+            "description": "The anotoki library's theme switch: the look that follows the device's own setting. No placeholders.",
+            "en": "Automatic",
+            "sk": "Automaticky"
+        },
+        "anotoki.theme.autoHint": {
+            "description": "The anotoki library's theme switch: the tooltip that says what the automatic look is. No placeholders.",
+            "en": "As your device is set",
+            "sk": "Podľa nastavenia zariadenia"
+        },
+        "anotoki.theme.notSaved": {
+            "description": "The anotoki library's theme switch: said to somebody signed in when the look chosen there could not be saved to their anotoki account; the page shows the account's own again. No placeholders.",
+            "en": "The theme could not be saved to your anotoki account.",
+            "sk": "Vzhľad sa nepodarilo uložiť do tvojho anotoki účtu."
+        }
+    }
+}

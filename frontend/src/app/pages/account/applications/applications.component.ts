@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { AvatarComponent, BadgeComponent, ButtonComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { AvatarComponent } from '@anotoki/lib/ui/avatar';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AccountApplication } from '../../../core/api/models';

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
-import { AlertComponent, ButtonComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../core/api/account.api';
 import { ApiError } from '../../core/api/api-error';

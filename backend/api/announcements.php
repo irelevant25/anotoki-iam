@@ -41,7 +41,7 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
  * never send one mail twice. One left half-sent is continued or stopped from
  * its page.
  *
- * A refusal is translationRefusal()'s shape (api/translations.php), which the
+ * A refusal is translationRefusal()'s shape (api/helpers.php), which the
  * routes answer with translationRefuse().
  */
 

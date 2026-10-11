@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AutofocusDirective, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { AutofocusDirective } from '@anotoki/lib/ui/autofocus';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { AuthCardComponent } from '../../../layouts/auth-card/auth-card.component';
 

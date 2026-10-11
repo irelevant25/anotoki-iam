@@ -1,9 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { PaginationComponent } from '@anotoki/lib/ui/pagination';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { catchError, of, switchMap, tap } from 'rxjs';

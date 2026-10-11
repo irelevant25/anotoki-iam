@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { LanguageSwitcherComponent, ThemeToggleComponent } from '@anotoki/lib/shell';
-import { IconComponent } from '@anotoki/lib/ui';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { TPipe } from '../../core/i18n/t.pipe';
 
 /**

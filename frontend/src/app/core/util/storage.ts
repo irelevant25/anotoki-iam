@@ -2,9 +2,10 @@
  * localStorage that never throws.
  *
  * It can be missing or refuse writes - a private window, storage switched off,
- * a full quota - and none of what is kept in it here (a theme, a language, a
- * remembered-device token) is worth breaking a sign-in page over. A read that
- * fails is simply "nothing stored".
+ * a full quota - and nothing kept in it here (the remembered-device token; the
+ * theme and the language are the family's library's, which keeps them the same
+ * way) is worth breaking a sign-in page over. A read that fails is simply
+ * "nothing stored".
  */
 export function readStorage(key: string): string | null {
   try {

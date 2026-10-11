@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Anotoki\Lib\Migrations\Http;
 
+use Anotoki\Lib\Support\JsonResponse;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -103,11 +104,6 @@ final class SiteGate implements MiddlewareInterface
     /** @param array<string, mixed> $body */
     private function json(array $body): ResponseInterface
     {
-        $response = $this->responses->createResponse(503)
-            ->withHeader('Content-Type', 'application/json; charset=utf-8')
-            ->withHeader('Cache-Control', 'no-store');
-        $response->getBody()->write(json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-
-        return $response;
+        return JsonResponse::write($this->responses->createResponse(), 503, $body);
     }
 }

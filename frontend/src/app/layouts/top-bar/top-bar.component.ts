@@ -1,10 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { TopBarAction, TopBarBrand, TopBarComponent, TopBarLink, TopBarMenuItem, TopBarPerson, latestChoiceSaver } from '@anotoki/lib/shell';
+import { TopBarAction, TopBarBrand, TopBarComponent, TopBarLink, TopBarMenuItem, TopBarPerson } from '@anotoki/lib/shell';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { filter, firstValueFrom, map } from 'rxjs';
-import { AccountApi } from '../../core/api/account.api';
 import { ApiError } from '../../core/api/api-error';
 import { LoginApi } from '../../core/api/login.api';
 import { SessionService } from '../../core/auth/session.service';
@@ -62,8 +61,20 @@ export const PHONE_BAR_MAX = 1040;
  * Every word a reader of the account pages meets is a key; in the admin panel
  * the translations answer in English (`effectiveLanguage`), and what only the
  * panel shows is written here in English, as the panel's templates are. The
- * bar's own words (the menus' names, Sign out) are the IAM's strings too,
- * through the kit's lookup (core/kit/kit-words.ts).
+ * bar's own words (the menus' names, Sign out, the language's button) are the
+ * database's strings too, through the kit's lookup (core/kit/kit-words.ts).
+ *
+ * A language chosen in the bar is the account's too, as the overview's select
+ * makes it - the account's language outranks this browser's choice the next
+ * time the pages load, and it is the language of the IAM's mails. That is the
+ * family's translations' work (the shell's `languages` are its `forShell()`,
+ * core/kit/kit.config.ts): the page switches once the words have come, then
+ * the choice is saved - one save at a time, and the latest choice last, so
+ * two quick choices cannot leave the account on a language the page no
+ * longer shows. A refusal leaves the page in the chosen language for this
+ * visit, and the note under the language's button says so. The answer is the
+ * session's account - unless Sign out came first: then it signs nobody back
+ * in (SessionService.setFrom()).
  */
 @Component({
   selector: 'app-top-bar',
@@ -78,7 +89,6 @@ export class AppTopBarComponent {
 
   private readonly _session = inject(SessionService);
   private readonly _loginApi = inject(LoginApi);
-  private readonly _accountApi = inject(AccountApi);
   private readonly _router = inject(Router);
   private readonly _toast = inject(ToastService);
   private readonly _i18n = inject(TranslationService);
@@ -142,30 +152,4 @@ export class AppTopBarComponent {
         this._toast.error(error.status === 0 ? errorText(error, (key) => this._i18n.t(key)) : this._i18n.t('shell.signOutFailed'));
       },
     );
-
-  /**
-   * A language chosen in the bar is the account's too, as the overview's
-   * select makes it: the account's language outranks this browser's choice
-   * the next time the pages load, and it is the language of the IAM's mails.
-   * The page has switched already; when the account refuses, a toast says so
-   * and the page stays in the chosen language for this visit.
-   *
-   * One save at a time, and the last choice is the one saved (the family's
-   * latestChoiceSaver): two saves in flight together could be answered in
-   * either order and leave the account on a language the page no longer
-   * shows. A choice made while a save is on its way waits for it to settle -
-   * only the latest such choice, and nothing is sent when the account has it
-   * by then; a refusal a later choice has overtaken is not news. The answer
-   * is the session's account - unless Sign out came first: then it signs
-   * nobody back in (SessionService.setFrom()).
-   */
-  protected readonly saveLanguage = latestChoiceSaver<string>(
-    async (code) => {
-      const me = this._session.user();
-      if (me && me.language !== code) {
-        await firstValueFrom(this._session.setFrom(this._accountApi.updateProfile({ language: code })));
-      }
-    },
-    (error) => this._toast.error(errorText(error as ApiError, (key) => this._i18n.t(key))),
-  );
 }

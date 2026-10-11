@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Anotoki\Lib\Migrations\Http;
 
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Support\JsonResponse;
 use Closure;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -100,13 +101,6 @@ final class MigrationsRoutes
     private static function json(ResponseInterface $response, int $status, array $body): ResponseInterface
     {
         // A file's text may not be UTF-8: its bad bytes show as U+FFFD rather than failing the answer.
-        $response->getBody()->write(
-            json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)
-        );
-
-        return $response
-            ->withStatus($status)
-            ->withHeader('Content-Type', 'application/json; charset=utf-8')
-            ->withHeader('Cache-Control', 'no-store');
+        return JsonResponse::write($response, $status, $body);
     }
 }

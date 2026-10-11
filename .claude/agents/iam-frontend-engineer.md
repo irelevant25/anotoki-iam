@@ -23,25 +23,38 @@ call exactly those endpoints and must handle exactly those refusal codes.
 - `frontend/src/app/core/` - session state, the interceptor (`X-IAM-Request` on
   writes; 401 outside the sign-in endpoints → `/login?next=…`; 503
   `not_set_up` → `/not-set-up`; the migrations module's own requests get their
-  HttpErrorResponse back), the anotoki family's migrations module wired in
+  HttpErrorResponse back; the bundle's request, `ANOTOKI_TRANSLATION_BUNDLE`,
+  never moves the page), the anotoki family's migrations module wired in
   (`migrations/migrations.config.ts`, `@anotoki/lib/migrations`: the admin
   Migrations page, the update line in the admin layout, the not-set-up page's
-  `<anotoki-site-status>` - no gate, the IAM never blocks), translations (`i18n/translation.service.ts`:
-  which language, and its bundle from `GET /api/translations/{code}`;
+  `<anotoki-site-status>` - no gate, the IAM never blocks), the family's
+  translations wired in (`@anotoki/lib/translations`;
+  `i18n/translations.config.ts`: the IAM's storage names, the compiled
+  English, the account - its language decides while signed in, a choice is
+  saved with `PUT /api/account/profile` one save at a time -, the start, the
+  admin pages' words; `i18n/translation.service.ts`: the library's
+  `TranslationService` with the IAM's keys typed - inject it from there;
   `i18n/en.ts`: the typed list of keys and the English shown only while no
-  bundle is in memory; `i18n/localization-drafts.service.ts`: the admin
-  pages' unsaved edits; the `t` pipe), the family's UI kit and shell wired in
-  (`kit/kit.config.ts`: the kit's words from the IAM's strings through its
-  `lookup` - `kit/kit-words.ts` -, its icons `kit/icons.ts`, the theme and the
-  languages), Google sign-in.
-- `frontend/src/app/pages/admin/localization/` - the admin panel's
-  Translations and Languages pages, the grid logic, and `unsavedChangesGuard`.
-  After a save they call `TranslationService.reload()`.
-- The UI kit is the anotoki family's: `@anotoki/lib/ui` and its entry points
-  (`anotoki-*`: buttons, fields in `ui/forms`, `ui/dialog`, `ui/toast`, ...),
-  its styles `@anotoki/lib/styles` in `src/styles.scss`. Use it; a piece it
-  lacks goes to the library rather than a one-off here. `frontend/src/app/ui/`
-  holds only the IAM's own (`google-button`).
+  bundle is in memory; the typed `t` pipe), the family's UI kit and shell
+  wired in (`kit/kit.config.ts`: the kit's words from the database - the
+  IAM's own keys through `kit/kit-words.ts`, the library's `anotoki.*` through
+  `forKit()` -, its icons `kit/icons.ts`, the theme, and the languages through
+  `forShell()`), Google sign-in.
+- `frontend/src/app/pages/admin/localization.ts` - the IAM's words for the
+  family's Translations and Languages pages (`@anotoki/lib/translations/admin`,
+  lazy routes in `admin.routes.ts`, which hand them over as the panel loads):
+  its mails as blocks of their own (titles, order, parts, rules), the accounts
+  per language, the panel's failure texts. The pages call `reload()`
+  themselves after a change; drafts and the unsaved-changes guard are the
+  library's (`anotokiUnsavedChangesGuard`, the announcement pages' too).
+- The UI kit is the anotoki family's, a piece an entry point - import each
+  from its own (`@anotoki/lib/ui/button`, `/config`, `/icon`, fields in
+  `ui/forms`, `ui/dialog`, `ui/toast`, ...), never from the `@anotoki/lib/ui`
+  barrel -, its styles `@anotoki/lib/styles` in `src/styles.scss`, its markup
+  BEM on each component's host class (`anotoki-<component>__<part>`,
+  `--<state>`). Use it; a piece it lacks goes to the library rather than a
+  one-off here. `frontend/src/app/ui/` holds only the IAM's own
+  (`google-button`).
 - `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame) and
   `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
   `@anotoki/lib/shell`, worded and wired for the IAM - CLAUDE.md says what it

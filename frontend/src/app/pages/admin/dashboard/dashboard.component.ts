@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AdminStats } from '../../../core/api/models';

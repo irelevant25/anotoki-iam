@@ -1,4 +1,4 @@
-import { BadgeTone } from '@anotoki/lib/ui';
+import { BadgeTone } from '@anotoki/lib/ui/badge';
 import { AnnouncementStatus, AnnouncementTemplate, AudienceCount, RecipientStatus } from '../../../core/api/models';
 
 /** The four templates, as the composer offers them. */

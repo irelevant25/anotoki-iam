@@ -4,11 +4,20 @@
  * translations.php - the IAM's own strings, from the command line
  *
  *   php translations.php --status            the keys the frontend uses against the database's, and how
- *                                            much of each language there is; exit 1 when a key is missing
- *                                            or has no English string
+ *                                            much of each language there is; then the mails' keys against
+ *                                            MAIL_KEYS. Exit 1 when a key is missing, has no English
+ *                                            string, or the scan finds a problem
  *   php translations.php --export sk [file]  a language's own strings as flat JSON (to the screen without a file)
  *   php translations.php --import sk file    and back in: checked as a save in the admin panel is, all of
  *                                            it or none of it; an empty string is passed over
+ *
+ * The anotoki family's command (anotoki/lib's TranslationsCommand), on the
+ * IAM's configuration (api/translations.php): the library's checks of a
+ * string with the IAM's mail rules, and the family's scan of a frontend set
+ * for the IAM's (iamKeyScanner(): the `t` pipe, the mails' keys left out,
+ * innerHTML anywhere refused). It refuses while the strings' tables are not
+ * there or a migration waits: a database that needs an update does not have
+ * the release's strings yet - `php migration.php` first.
  *
  * For a computer with a shell and the whole repository: it is never uploaded
  * (build-dist.php leaves the command-line tools out), and the live IAM's
@@ -18,11 +27,10 @@
  * The strings live in the database so they can be reworded without a build,
  * which means the database and the frontend can drift: a key no page asks for
  * any more, a page asking for one no migration wrote. --status is the check
- * for that; the same scan runs in the tests (tests/translation_keys.php says
- * how a key is recognised, tests/translations.test.php holds the database to it).
+ * for that; tests/translations.test.php holds the database to the same scan.
  *
  * An import is written by nobody (updated_by NULL), as a migration's strings
- * are, and recorded in the audit log with no actor.
+ * are, and recorded in the audit log with no actor, `via: command line`.
  *
  * It works on the database in config/database.local.php, which setup.php writes.
  */
@@ -38,199 +46,89 @@ require_once __DIR__ . '/api/helpers.php';
 require_once __DIR__ . '/api/audit.php';
 require_once __DIR__ . '/api/mail.php';
 require_once __DIR__ . '/api/translations.php';
-require_once __DIR__ . '/tests/translation_keys.php';
+require_once __DIR__ . '/api/migration_runner.php';
 
-function colour(string $colour, string $text): string
+use Anotoki\Lib\Translations\Cli\TranslationsCommand;
+
+/** Whether a migration waits: its files, by the IAM's names for them. */
+function pendingMigrationLabels(): array
 {
-    $codes = ['red' => 31, 'green' => 32, 'yellow' => 33, 'cyan' => 36];
-
-    return "\033[" . ($codes[$colour] ?? 0) . 'm' . $text . "\033[0m";
+    return array_map(static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']), iamMigrator(iamDb())->applicable());
 }
 
-function say(string $colour, string $text): void
+/**
+ * The mails' keys against MAIL_KEYS - the code's list, which no frontend
+ * scan sees. A mail key the database lacks goes out in the English kept in
+ * the code (MAIL_FALLBACK): not clean. One the code does not know is used by
+ * no mail: a migration deletes it.
+ */
+function mailKeysStatus(PDO $pdo, bool $colours): int
 {
-    echo colour($colour, $text) . "\n";
-}
+    // Written where the library's command writes, so the two come out in order.
+    $write = static fn(string $text) => fwrite(STDOUT, $text);
+    $say = static function (string $colour, string $text) use ($colours, $write): void {
+        $codes = ['red' => 31, 'green' => 32, 'yellow' => 33, 'cyan' => 36];
+        $write(($colours ? "\033[" . $codes[$colour] . 'm' . $text . "\033[0m" : $text) . "\n");
+    };
 
-/** Says why not, on the error output, and ends with 1. */
-function refuse(string $text): never
-{
-    fwrite(STDERR, colour('red', $text) . "\n");
-    exit(1);
-}
+    $statement = $pdo->prepare('SELECT name FROM translation_keys WHERE name LIKE ? ORDER BY name COLLATE "C"');
+    $statement->execute([TRANSLATION_SERVER_NAMESPACE . '.%']);
+    $mailKeys = $statement->fetchAll(PDO::FETCH_COLUMN);
+    $missing = array_values(array_diff(array_keys(MAIL_KEYS), $mailKeys));
+    $unknown = array_values(array_diff($mailKeys, array_keys(MAIL_KEYS)));
 
-/** What the API would have answered: the sentence, and the keys it is about. Ends with 1. */
-function refused(array $refusal): never
-{
-    fwrite(STDERR, colour('red', '  Refused (' . $refusal['code'] . '): ' . $refusal['error']) . "\n");
-    foreach ($refusal['extra']['keys'] ?? [] as $key) {
-        fwrite(STDERR, "    $key\n");
-    }
-    exit(1);
-}
-
-/** The frontend's keys against the database's, and how much of each language there is. */
-function commandStatus(PDO $pdo): int
-{
-    $root = translationKeysFrontendRoot();
-    if (!is_dir($root)) {
-        refuse('There is no frontend here to read the keys from (frontend/src/app).');
-    }
-
-    $keys = $pdo->query('SELECT name FROM translation_keys ORDER BY name COLLATE "C"')->fetchAll(PDO::FETCH_COLUMN);
-    $mailKeys = array_values(array_filter($keys, static fn(string $key): bool => translationKeyNamespace($key) === TRANSLATION_SERVER_NAMESPACE));
-    $scan = translationKeysScan($root, $keys);
-
-    $noEnglish = $pdo->prepare(
-        'SELECT k.name FROM translation_keys k
-          WHERE NOT EXISTS (SELECT 1 FROM translations t WHERE t.key_name = k.name AND t.language_code = ?)
-          ORDER BY k.name COLLATE "C"'
-    );
-    $noEnglish->execute([TRANSLATION_FALLBACK]);
-    $noEnglish = $noEnglish->fetchAll(PDO::FETCH_COLUMN);
-
-    // The mails' keys are the code's list (MAIL_KEYS), not the frontend's.
-    $mailMissing = array_values(array_diff(array_keys(MAIL_KEYS), $mailKeys));
-    $mailUnknown = array_values(array_diff($mailKeys, array_keys(MAIL_KEYS)));
-
-    printf("  the database has     %d key%s (%d of the pages, %d of the mails)\n", count($keys), count($keys) === 1 ? '' : 's', count($keys) - count($mailKeys), count($mailKeys));
-    printf("  the frontend uses    %d of the pages' keys\n", count($scan['used']));
-
-    if ($scan['missing']) {
-        say('red', "\n  Used by the frontend, not in the database - the page shows the key itself:");
-        foreach ($scan['missing'] as $key => $where) {
-            echo "    $key\n";
-            foreach (array_unique($where) as $place) {
-                echo "        $place\n";
-            }
+    $say('cyan', "\n== iam: the mails' strings\n");
+    $write(sprintf("  the code has         %d mail keys (MAIL_KEYS)\n", count(MAIL_KEYS)));
+    $write(sprintf("  the database has     %d of them\n", count(MAIL_KEYS) - count($missing)));
+    if ($missing !== []) {
+        $say('red', "\n  A mail's string the database does not have - it goes out in the English kept in the code:");
+        foreach ($missing as $key) {
+            $write("    $key\n");
         }
     }
-    if ($mailMissing) {
-        say('red', "\n  A mail's string the database does not have - it goes out in the English kept in the code:");
-        foreach ($mailMissing as $key) {
-            echo "    $key\n";
+    if ($unknown !== []) {
+        $say('yellow', "\n  In the database, used by no mail - a migration deletes a key the code has stopped using:");
+        foreach ($unknown as $key) {
+            $write("    $key\n");
         }
     }
-    if ($noEnglish) {
-        say('red', "\n  No English string, so nothing to fall back to:");
-        foreach ($noEnglish as $key) {
-            echo "    $key\n";
-        }
-    }
-    if ($scan['problems']) {
-        say('red', "\n  What the scan does not let through:");
-        foreach ($scan['problems'] as $problem) {
-            echo "    $problem\n";
-        }
-    }
-    if ($scan['unused'] || $mailUnknown) {
-        say('yellow', "\n  In the database, used nowhere - a migration deletes a key the code has stopped using:");
-        foreach (array_merge($scan['unused'], $mailUnknown) as $key) {
-            echo "    $key\n";
-        }
-    }
+    $write("\n");
+    $say($missing === [] ? 'green' : 'red', $missing === [] ? '  Clean.' : '  Not clean.');
 
-    echo "\n";
-    $languages = $pdo->query(
-        'SELECT l.code, l.name, l.enabled, (SELECT count(*) FROM translations t WHERE t.language_code = l.code) AS strings
-           FROM languages l ORDER BY l.sort_order, l.name, l.code'
-    )->fetchAll();
-    foreach ($languages as $language) {
-        printf("  %-6s %-20s %4d / %d%s\n", $language['code'], $language['name'], $language['strings'], count($keys), asBool($language['enabled']) ? '' : '   (not offered)');
-    }
-    echo "\n";
-
-    if ($scan['missing'] || $mailMissing || $noEnglish || $scan['problems']) {
-        say('red', '  Not clean.');
-
-        return 1;
-    }
-    say('green', '  Clean.');
-
-    return 0;
-}
-
-/** A language's own strings - not merged with English - to a file, or to the screen. */
-function commandExport(PDO $pdo, string $code, ?string $file): int
-{
-    $result = translationsExport($pdo, $code);
-    if (translationRefused($result)) {
-        refused($result);
-    }
-
-    $values = (array) $result['values'];
-    if ($file === null) {
-        echo translationFileText($values);
-
-        return 0;
-    }
-    translationFileWrite($file, $values);
-    say('green', '  ' . count($values) . ' string' . (count($values) === 1 ? '' : 's') . " of \"$code\" written to $file");
-
-    return 0;
-}
-
-/** A file of strings into a language: checked like a save in the admin panel, written by nobody. */
-function commandImport(PDO $pdo, string $code, string $file): int
-{
-    $values = translationFileRead($file);
-    $result = translationsImport($pdo, $code, $values, null);
-    if (translationRefused($result)) {
-        refused($result);
-    }
-
-    if ($result['count'] > 0) {
-        audit(null, null, 'translations.imported', 'language', $code, $result + ['via' => 'command line']);
-    }
-    say('green', '  ' . count($values) . ' string' . (count($values) === 1 ? '' : 's') . " in $file: {$result['count']} changed in \"$code\", the rest as they were (or empty, and passed over).");
-
-    return 0;
+    return $missing === [] ? 0 : 1;
 }
 
 $command = $argv[1] ?? '--status';
-$usage = 'php translations.php --status | --export CODE [FILE] | --import CODE FILE';
+$colours = function_exists('stream_isatty') && @stream_isatty(STDOUT);
 
-if (in_array($command, ['--help', '-h'], true)) {
-    echo $usage . "\n\n"
-        . "  --status            the keys the frontend uses against the database's; exit 1 when one is missing or has no English string\n"
-        . "  --export CODE       a language's own strings as flat JSON, to FILE or to the screen\n"
-        . "  --import CODE FILE  and back in: checked as a save in the admin panel is, all of it or none of it\n";
-    exit(0);
+// --help answers with nothing set up; everything else needs the configuration.
+if (!in_array($command, ['--help', '-h'], true)) {
+    requireSetUpOnCli();
 }
 
-requireSetUpOnCli();
+$translations = new TranslationsCommand(
+    static fn() => iamTranslations(),
+    iamKeyScanner(),
+    static function (string $action, ?string $type, ?string $id, array $details): void {
+        audit(null, null, $action, $type, $id, $details);
+    },
+    pendingMigrationLabels(...),
+    'iam: the IAM\'s own strings',
+    colours: $colours,
+);
+$status = $translations->run($argv);
 
-try {
-    $pdo = iamDb();
-    $ready = translationsReady($pdo);
-} catch (Throwable $e) {
-    refuse('Cannot reach the database: ' . $e->getMessage());
-}
-if (!$ready) {
-    refuse('This database has no strings yet: apply the migrations first (php migration.php).');
-}
-
-try {
-    switch ($command) {
-        case '--status':
-            say('cyan', "\n== iam: the IAM's own strings\n");
-            exit(commandStatus($pdo));
-
-        case '--export':
-            if (!isset($argv[2])) {
-                refuse('usage: php translations.php --export CODE [FILE]');
-            }
-            exit(commandExport($pdo, (string) $argv[2], $argv[3] ?? null));
-
-        case '--import':
-            if (!isset($argv[2], $argv[3])) {
-                refuse('usage: php translations.php --import CODE FILE');
-            }
-            exit(commandImport($pdo, (string) $argv[2], (string) $argv[3]));
-
-        default:
-            refuse("Unknown command $command. $usage");
+// After the pages' keys, the mails' - on a database the command read: ready,
+// and with nothing pending (it said why not otherwise, and stopped).
+if ($command === '--status' && count($argv) <= 2) {
+    try {
+        $pdo = iamDb();
+        if (translationsReady($pdo) && pendingMigrationLabels() === []) {
+            $status = max($status, mailKeysStatus($pdo, $colours));
+        }
+    } catch (Throwable) {
+        // The command has said it could not reach the database.
     }
-} catch (RuntimeException $e) {
-    refuse('  ' . $e->getMessage());
 }
+
+exit($status);

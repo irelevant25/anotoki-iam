@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, inject, input, signal, viewChild } from '@angular/core';
-import { AlertComponent, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { ApiError } from '../../core/api/api-error';
 import { FreshSignInService } from '../../core/auth/fresh-sign-in';
 import { errorText } from '../../core/i18n/error-text';

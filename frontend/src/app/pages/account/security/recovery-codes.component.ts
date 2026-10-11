@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, model } from '@angular/core';
-import { AlertComponent, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CopyButtonComponent } from '@anotoki/lib/ui/copy';
 import { CheckboxComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
 

@@ -26,7 +26,9 @@
  * The engine is the anotoki family's (anotoki/lib's Migrator, iamMigrator() in
  * api/migration_runner.php), shared with the admin panel's Migrations page and
  * with setup.php, so a database built any of the three ways is the same
- * database - and only one of them applies at a time.
+ * database - and only one of them applies at a time. It applies the IAM's
+ * files, then the library's translations set after them: those are named
+ * here as the table records them, `anotoki_translations/001_....sql`.
  */
 
 require_once __DIR__ . '/config/db.php';
@@ -83,8 +85,8 @@ try {
             if ($current !== null) {
                 say('green', 'done');
             }
-            echo '  ' . $file . ' ... ';
-            $current = $file;
+            $current = iamMigrationLabel($set->name, $file);
+            echo '  ' . $current . ' ... ';
         },
     ]);
     // Read only: --status and --dry-run make nothing, not even the table.
@@ -94,11 +96,13 @@ try {
     exit(1);
 }
 
-$files = $migrator->files(iamMigrationSet());
-$pending = array_column($status['pending'], 'name');
+$label = static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']);
+$files = iamMigrationFiles($migrator);
+$pending = array_map($label, $status['pending']);
 
 foreach ($status['missing'] as $record) {
-    say('red', "  ! {$record['name']} is recorded as applied but is not in migrations/iam/");
+    say('red', '  ! ' . $label($record) . ' is recorded as applied but is not '
+        . ($record['set'] === iamMigrationSet()->name ? 'in migrations/iam/' : "among the files of the set {$record['set']}"));
 }
 
 if ($statusOnly) {
@@ -115,7 +119,7 @@ if (!$pending) {
 }
 
 if ($dryRun) {
-    foreach (array_column($migrator->applicable(), 'name') as $file) {
+    foreach (array_map($label, $migrator->applicable()) as $file) {
         say('yellow', '  would apply ' . $file);
     }
     exit(0);
@@ -140,11 +144,11 @@ if ($pending) {
 
     if ($result['failed'] !== null) {
         // Failed before its first line was written: the file before it committed.
-        if ($current !== $result['failed']['name']) {
+        if ($current !== $label($result['failed'])) {
             if ($current !== null) {
                 say('green', 'done');
             }
-            echo '  ' . $result['failed']['name'] . ' ... ';
+            echo '  ' . $label($result['failed']) . ' ... ';
         }
         say('red', 'FAILED');
         say('red', '    ' . $result['error']);

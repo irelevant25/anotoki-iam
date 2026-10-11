@@ -1,5 +1,6 @@
 <?php
 
+use Anotoki\Lib\Translations\Translations;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -7,6 +8,12 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * Small things every handler needs: answering in JSON, reading a body the same
  * way whatever it was sent as, where a request came from, and time.
  */
+
+// languageCodes() below reads through the family's library, and the installer
+// and the command-line tools load this file without the API's front
+// controller - so it brings Composer's autoloader itself, as
+// api/migration_runner.php does.
+require_once __DIR__ . '/../vendor/autoload.php';
 
 function respondJson(Response $response, mixed $data, int $status = 200): Response
 {
@@ -254,16 +261,93 @@ function textBlank(string $text): bool
     return preg_match('/[^\s\p{Z}\p{Cf}]/u', $text) !== 1;
 }
 
+// ── Text and refusals, for the announcements and the routes ──────────────────
+//
+// The strings of the pages and the mails are checked by the family's library
+// (Anotoki\Lib\Translations\Text measures them as the browser does). These are
+// the IAM's own, which the announcements' words (api/announcements.php) and a
+// few answers use, as they did before the strings moved into the library.
+
+/** The first $max characters of a UTF-8 string. */
+function textClip(string $text, int $max): string
+{
+    return preg_match('/^.{0,' . $max . '}/us', $text, $m) ? $m[0] : '';
+}
+
+/** How many characters: code points, which is at most what the browser counts (UTF-16 units). */
+function textLength(string $text): int
+{
+    return (int) preg_match_all('/./us', $text);
+}
+
+/**
+ * The text without the spaces around it - every kind of space, not only the
+ * ASCII ones PHP's trim() knows.
+ *
+ * A text the expression cannot get through - a run of more than a million
+ * spaces inside it - comes back as it is, never as an empty one: whoever
+ * measures it next refuses it as too long.
+ */
+function textTrim(string $text): string
+{
+    return preg_replace('/^[\s\p{Z}\x{FEFF}]+|[\s\p{Z}\x{FEFF}]+$/u', '', $text) ?? $text;
+}
+
+/** The text without control characters, tabs and line breaks aside. */
+function textWithoutControls(string $text): string
+{
+    return (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+}
+
+/**
+ * A text field's value as it is kept: valid UTF-8 without control characters
+ * but tabs and line breaks - or null for what is not text at all. The controls
+ * are dropped rather than refused: one pasted from a word processor would
+ * otherwise make a text that can never be saved, however often it is tried.
+ */
+function textClean(mixed $value): ?string
+{
+    if (!is_string($value) || preg_match('//u', $value) !== 1) {
+        return null;
+    }
+
+    return textWithoutControls($value);
+}
+
+/**
+ * A refusal as the announcements' functions answer one - ['status', 'code',
+ * 'error', 'extra'], the shape signInRefusal() uses - which a route turns into
+ * respondError() with translationRefuse(). (Named for where it was first used:
+ * the strings' checks, which are the library's now, with a refusal object of
+ * their own.)
+ */
+function translationRefusal(int $status, string $code, string $error, array $extra = []): array
+{
+    return ['status' => $status, 'code' => $code, 'error' => $error, 'extra' => $extra];
+}
+
+/** Whether what a function answered is such a refusal. No result of theirs has these three keys. */
+function translationRefused(mixed $result): bool
+{
+    return is_array($result) && isset($result['status'], $result['code'], $result['error']) && is_int($result['status']);
+}
+
+function translationRefuse(Response $response, array $refusal): Response
+{
+    return respondError($response, $refusal['status'], $refusal['code'], $refusal['error'], $refusal['extra'] ?? []);
+}
+
 /**
  * The codes of the languages on offer, in the order a chooser shows them.
  *
- * They are rows of `languages` (migration 006), kept in the admin panel. But
- * a build is uploaded before its migrations are applied - from the panel,
- * by somebody who has to sign in first - so this must answer on a database
- * that has no such table yet. It asks whether the table is there before
- * reading it: a query that cannot fail, so it is safe inside a transaction,
- * where a failed one would end everything after it. Without the table, or
- * with nothing on offer in it, the answer is the two languages of before -
+ * They are rows of `languages` (migration 006), kept in the admin panel, and
+ * read through the family's library (Translations::offeredCodes()). But a
+ * build is uploaded before its migrations are applied - from the panel, by
+ * somebody who has to sign in first - so this must answer on a database that
+ * has no such table yet. The library asks whether the tables are there before
+ * reading them: a query that cannot fail, so it is safe inside a transaction,
+ * where a failed one would end everything after it. Without the tables, or
+ * with nothing on offer in them, the answer is the two languages of before -
  * which is exactly what the CHECK on users.language still allows then.
  *
  * A connection that is handed in is read every time and never remembered:
@@ -292,13 +376,10 @@ function languageCodes(?PDO $pdo = null, bool $reload = false): array
     static $offered = null;
 
     $read = static function (PDO $pdo): array {
-        if (!asBool($pdo->query("SELECT to_regclass('public.languages') IS NOT NULL")->fetchColumn())) {
-            return ['en', 'sk'];
-        }
+        // None while the tables are not there.
+        $codes = (new Translations($pdo))->offeredCodes();
 
-        $codes = $pdo->query('SELECT code FROM languages WHERE enabled ORDER BY sort_order, name, code')->fetchAll(PDO::FETCH_COLUMN);
-
-        return $codes === [] ? ['en', 'sk'] : array_map('strval', $codes);
+        return $codes === [] ? ['en', 'sk'] : $codes;
     };
 
     if ($pdo !== null) {

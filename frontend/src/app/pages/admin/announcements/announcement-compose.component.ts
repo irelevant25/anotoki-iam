@@ -2,9 +2,16 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
-import { AlertComponent, ButtonComponent, CardComponent, ErrorStateComponent, IconComponent, PageHeaderComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { HoldsUnsavedChanges } from '@anotoki/lib/translations';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
-import { CheckboxComponent, RadioGroupComponent, RadioOption, SelectComponent, SelectOption, SwitchComponent, TextareaComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
+import { CheckboxComponent, RadioGroupComponent, RadioOption, SelectComponent, SelectOption, SwitchComponent, TextFieldComponent, TextareaComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { catchError, debounceTime, distinctUntilChanged, filter, map, of, switchMap, tap } from 'rxjs';
@@ -23,7 +30,6 @@ import {
   RoleGrant,
 } from '../../../core/api/models';
 import { adminErrorText } from '../admin-errors';
-import { HoldsUnsavedChanges } from '../localization/unsaved-changes.guard';
 import { TEMPLATES, leftOutText, people } from './announcement-labels';
 
 type Part = keyof AnnouncementVersion;

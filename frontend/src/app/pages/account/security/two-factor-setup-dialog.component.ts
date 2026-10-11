@@ -1,10 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
-import { AlertComponent, ButtonComponent, IconComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CopyButtonComponent } from '@anotoki/lib/ui/copy';
 import { DialogComponent } from '@anotoki/lib/ui/dialog';
 import { CodeInputComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { QrCodeComponent } from '@anotoki/lib/ui/qr';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';

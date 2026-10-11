@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { UpdateBannerComponent } from '@anotoki/lib/migrations';
 import { ShellComponent, ShellNavItem } from '@anotoki/lib/shell';
-import { ButtonComponent, EmptyStateComponent } from '@anotoki/lib/ui';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { SessionService } from '../../core/auth/session.service';
 import { IconName } from '../../core/kit/icons';
 import { AppTopBarComponent } from '../../layouts/top-bar/top-bar.component';

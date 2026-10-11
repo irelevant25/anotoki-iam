@@ -25,6 +25,16 @@ use Throwable;
  * rename, a Laravel table to move aside) adopts it in the `prepare` hook,
  * which runs before anything is written.
  *
+ * The library's own sets (MigrationSet::library(), named anotoki_*) go in the
+ * same table without changing it: where it has no `folder` column, a library
+ * file is recorded as `<set>/<file>` (`anotoki_translations/001_....sql` - a
+ * file's name never holds a `/`, so no record can be read two ways), wherever
+ * the set stands in the list; where it has one, as `folder = <set>`. The
+ * site's own sets are recorded as they always were: the first by its file
+ * names alone, and more than one of them only in a table with `folder`. So
+ * adding a library set changes no site's table, and a build without it still
+ * reads every record of the site's own files.
+ *
  * Each file runs in a transaction of its own with its record, so it is applied
  * whole or not at all; the run stops at the first file that fails, because
  * every migration is written expecting the ones before it to have run. One
@@ -45,6 +55,11 @@ final class Migrator
 
     /** @var list<MigrationSet> */
     private readonly array $sets;
+
+    /** The site's own sets (not the library's), in order: the first is recorded by its file names alone. */
+    private readonly int $siteSets;
+    private readonly ?MigrationSet $firstSiteSet;
+
     private readonly string $table;
     private readonly int $lock;
     private readonly bool $split;
@@ -54,7 +69,8 @@ final class Migrator
     private readonly ?Closure $beforeApply;
 
     /**
-     * @param list<MigrationSet> $sets  in the order they run (at least one; names unique)
+     * @param list<MigrationSet> $sets  in the order they run (at least one; names unique); the library's
+     *                                   sets (MigrationSet::library()) may stand anywhere among the site's
      * @param array{
      *   table?: string,
      *   lock?: int,
@@ -101,6 +117,9 @@ final class Migrator
             $names[$set->name] = true;
         }
         $this->sets = $sets;
+        $own = array_values(array_filter($sets, static fn (MigrationSet $set): bool => !$set->library));
+        $this->siteSets = count($own);
+        $this->firstSiteSet = $own[0] ?? null;
 
         $unknown = array_diff(array_map('strval', array_keys($options)), self::OPTIONS);
         if ($unknown !== []) {
@@ -177,7 +196,8 @@ final class Migrator
      *     applied_at, then name); applied_at in ISO 8601 UTC ('2026-10-06T10:01:02Z')
      *   - pending: on disk and not recorded, in run order across the sets; ready = not a draft,
      *     blocked = a draft comes before it
-     *   - missing: recorded, but the file is not on disk
+     *   - missing: recorded, but the file is not on disk - or its set is not configured (a library
+     *     set the site no longer lists keeps its name: {set: "anotoki_x", name: "001_a.sql"})
      */
     public function status(): array
     {
@@ -274,7 +294,7 @@ final class Migrator
                 $this->pdo->beginTransaction();
                 try {
                     // Another way of applying may have run it meanwhile (one that takes no lock, or another key).
-                    if ($this->isRecorded($shape, $set->name, $name)) {
+                    if ($this->isRecorded($shape, $set, $name)) {
                         $this->pdo->commit();
                         continue;
                     }
@@ -283,7 +303,7 @@ final class Migrator
                         ($this->beforeFile)($this->pdo, $set, $name);
                     }
                     $this->run($file['sql'] ?? $this->readOrFail($set, $name));
-                    $this->record($shape, $set->name, $name);
+                    $this->record($shape, $set, $name);
                     $this->pdo->commit();
                 } catch (Throwable $e) {
                     if ($this->pdo->inTransaction()) {
@@ -321,8 +341,10 @@ final class Migrator
 
     /**
      * Runs `prepare`, then creates the bookkeeping table when it is missing,
-     * in the shape this site needs: (id, filename, applied_at) for one set,
-     * with `folder` too for more. A table that is there is left as it is.
+     * in the shape this site needs: (id, filename, applied_at) for one set of
+     * the site's own, with `folder` too for more (the library's sets count
+     * for neither: they fit either shape). A table that is there is left as
+     * it is.
      */
     public function ensureTable(): void
     {
@@ -501,10 +523,10 @@ final class Migrator
         }
 
         $folder = isset($columns['folder']);
-        if (!$folder && count($this->sets) > 1) {
+        if (!$folder && $this->siteSets > 1) {
             throw new LogicException(
-                "The table {$this->table} has no folder column, so it cannot keep " . count($this->sets)
-                . ' migration sets apart: configure one set, or adopt the table in the prepare hook.'
+                "The table {$this->table} has no folder column, so it cannot keep the site's " . $this->siteSets
+                . ' migration sets apart: configure one set of its own, or adopt the table in the prepare hook.'
             );
         }
 
@@ -544,9 +566,10 @@ final class Migrator
             if ($name === null) {
                 continue;
             }
+            [$set, $name] = $shape['folder'] ? [(string) $set, (string) $name] : $this->unfold((string) $name);
             $records[] = [
-                'set' => $shape['folder'] ? (string) $set : $this->sets[0]->name,
-                'name' => (string) $name,
+                'set' => $set,
+                'name' => $name,
                 'applied_at' => $epoch === null ? null : gmdate('Y-m-d\TH:i:s\Z', (int) $epoch),
             ];
         }
@@ -554,14 +577,37 @@ final class Migrator
         return $records;
     }
 
+    /**
+     * A record of a table without `folder`, as [set, file]: `anotoki_x/001_a.sql` is a library set's file -
+     * that set's whether it is configured or not (one that is not lists its files as missing, under its own
+     * name) - and anything else a file of the site's first set. Without a set of the site's own configured,
+     * such a record belongs to no set there is, and is listed as missing under the set ''.
+     *
+     * @return array{string, string}
+     */
+    private function unfold(string $stored): array
+    {
+        if (preg_match('~^(anotoki_[a-z0-9_]+)/(.+)$~sD', $stored, $parts) === 1) {
+            return [$parts[1], $parts[2]];
+        }
+
+        return [$this->firstSiteSet->name ?? '', $stored];
+    }
+
+    /** What the file column holds for a file: `<set>/<file>` for a library set's in a table without `folder`, else the file's name. */
+    private static function stored(array $shape, MigrationSet $set, string $name): string
+    {
+        return $set->library && !$shape['folder'] ? $set->name . '/' . $name : $name;
+    }
+
     /** @param array{file: string, folder: bool, id: bool, appliedAt: ?string} $shape */
-    private function isRecorded(array $shape, string $set, string $name): bool
+    private function isRecorded(array $shape, MigrationSet $set, string $name): bool
     {
         $sql = "SELECT 1 FROM {$this->quotedTable()} WHERE " . self::quote($shape['file']) . ' = ?';
-        $parameters = [$name];
+        $parameters = [self::stored($shape, $set, $name)];
         if ($shape['folder']) {
             $sql .= ' AND "folder" = ?';
-            $parameters[] = $set;
+            $parameters[] = $set->name;
         }
 
         $statement = $this->pdo->prepare($sql . ' LIMIT 1');
@@ -577,16 +623,16 @@ final class Migrator
      *
      * @param array{file: string, folder: bool, id: bool, appliedAt: ?string} $shape
      */
-    private function record(array $shape, string $set, string $name): void
+    private function record(array $shape, MigrationSet $set, string $name): void
     {
         $columns = [self::quote($shape['file'])];
         $values = ['?'];
-        $parameters = [$name];
+        $parameters = [self::stored($shape, $set, $name)];
 
         if ($shape['folder']) {
             $columns[] = '"folder"';
             $values[] = '?';
-            $parameters[] = $set;
+            $parameters[] = $set->name;
         }
 
         $type = $shape['appliedAt'];
@@ -631,9 +677,13 @@ final class Migrator
         }
     }
 
+    /**
+     * The site's own table, as its own code made it before the library had sets of its own: the one-set shape
+     * for one site set (the library's records fit it as `<set>/<file>`), with `folder` for more.
+     */
     private function createTableSql(): string
     {
-        if (count($this->sets) === 1) {
+        if ($this->siteSets <= 1) {
             return "CREATE TABLE IF NOT EXISTS {$this->quotedTable()} (
                 id         SERIAL       PRIMARY KEY,
                 filename   VARCHAR(255) NOT NULL,

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { SiteStatus, SiteStatusComponent } from '@anotoki/lib/migrations';
-import { SpinnerComponent } from '@anotoki/lib/ui';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { sameOriginPath } from '../../../core/auth/next-path';
 import { TPipe } from '../../../core/i18n/t.pipe';
 

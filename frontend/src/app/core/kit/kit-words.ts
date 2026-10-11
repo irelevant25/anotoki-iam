@@ -1,4 +1,4 @@
-import { AnotokiWordKey } from '@anotoki/lib/ui';
+import { AnotokiWordKey } from '@anotoki/lib/ui/config';
 import { TranslationKey } from '../i18n/en';
 import { TranslationService } from '../i18n/translation.service';
 
@@ -11,23 +11,26 @@ type KitWordKeys = { readonly [Namespace in KitNamespace<AnotokiWordKey>]?: { re
 
 /**
  * The kit's words (@anotoki/lib/ui: the bar, the dialogs, the fields, the
- * switches) that the IAM says in its own words: for each, the IAM's key. Its
- * string comes from the database - the language on the page, English in the
- * admin panel - so an administrator's rewording on the Translations page is
- * what the kit shows too, and a key the bundle has no string for shows as the
- * key, as on every page of the IAM.
+ * switches) that the IAM said in its own words before the kit was the
+ * family's: for each, the IAM's key. Its string comes from the database - the
+ * language on the page, English in the admin panel - so an administrator's
+ * rewording on the Translations page is what the kit shows too, and a key the
+ * bundle has no string for shows as the key, as on every page of the IAM.
  *
  * Written by namespace, not as the kit's dotted keys: those share `ui.` and
  * `theme.` with the IAM's own keys, and the backend's scan of the pages
- * (tests/translation_keys.php) reads every quoted `ui.something` as one of the
- * IAM's - the keys here on the right are the IAM's, and are read as such.
+ * (`php translations.php --status`, the library's KeyScanner) reads every
+ * quoted `ui.something` as one of the IAM's - the keys here on the right are
+ * the IAM's, and are read as such.
  *
- * A kit word not here is the kit's own, in English and informal Slovak: the
- * pagination's (the admin panel's, English, as its templates had them), what
- * the IAM never said before - the note under the theme switch when the account
- * refuses a theme - and what it never shows ("Your anotoki account", "Editor",
- * the language switcher's note for a refused save: the bar says that in a
- * toast).
+ * A kit word not here reads the library's own key for it (`anotoki.<key>`,
+ * core/kit/kit.config.ts): the database's string - reworded on the
+ * Translations page like any other -, else the kit's own words in English and
+ * informal Slovak. So do the language switcher's (`anotoki.language.*`: its
+ * name and its button's, which the IAM had as `lang.label` and `lang.button` -
+ * migration 017 moved them, rewordings and all - and its notes), the
+ * pagination's, the note under the theme switch when the account refuses a
+ * theme, and what the IAM never shows ("Your anotoki account", "Editor").
  */
 const IAM_KEYS: KitWordKeys = {
   ui: {
@@ -62,12 +65,6 @@ const IAM_KEYS: KitWordKeys = {
     // nothing: while it waits it keeps its own words, beside the spinner.
     saving: 'shell.signOut',
   },
-  language: {
-    label: 'lang.label',
-    button: 'lang.button',
-    // What the IAM's bar said (a toast) when a language's words could not be had.
-    notLoaded: 'error.generic',
-  },
   theme: {
     label: 'theme.label',
     light: 'theme.light',
@@ -78,9 +75,10 @@ const IAM_KEYS: KitWordKeys = {
 };
 
 /**
- * The kit's `lookup`: the IAM's string for a kit word, or null for the kit's
- * own. Reads the translations' signals, so whatever draws a kit word follows
- * the language and the strings as they come.
+ * The IAM's string for a kit word, or null where the IAM has no key of its own
+ * for it (the kit's `lookup` then reads the library's). Reads the
+ * translations' signals, so whatever draws a kit word follows the language and
+ * the strings as they come.
  */
 export function iamKitWord(i18n: TranslationService, key: AnotokiWordKey): string | null {
   // The person's button: the IAM's words, then the name - "Account menu: anna".

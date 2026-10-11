@@ -6,15 +6,26 @@
  * anotoki site runs - so a migration reads and applies the same in each
  * repository, and an update waiting behaves the same on each site.
  *
- * Here: the IAM's one set of files, migrations/iam, recorded in the
- * `migrations` table as it always was (id, filename, applied_at - the engine
- * reads and writes that shape as it is, and never changes it). The command
- * line (migration.php), the installer (setup.php) and the admin panel's
- * Migrations page all apply through iamMigrator(), which is the point of there
- * being one description of the schema. Each file runs in a transaction of its
- * own with its record, the run stops at the first file that fails, one apply
- * runs at a time (the engine's advisory lock), and nothing is ever un-applied:
- * the migrations that matter are irreversible anyway, and a rollback that half
+ * Here: two sets of files, in this order. The IAM's own, migrations/iam,
+ * recorded in the `migrations` table as it always was (id, filename,
+ * applied_at - the engine reads and writes that shape as it is, and never
+ * changes it). Then the library's translations set, anotoki_translations
+ * (vendor/anotoki/lib/php/migrations/translations): the tables of the words,
+ * which the IAM's 006 made long before the library had them, proved to be in
+ * the family's shape, and the library's own words under `anotoki.`. It runs
+ * after the IAM's because the IAM's 006 makes those tables itself: listed
+ * first, it would make them on a fresh database and 006's gate would then
+ * find them already there and seeded. The table has no `folder` column, so the
+ * engine records a library file as `anotoki_translations/001_....sql` beside
+ * the IAM's bare file names - nothing in the table changes for it.
+ *
+ * The command line (migration.php), the installer (setup.php) and the admin
+ * panel's Migrations page all apply through iamMigrator(), which is the point
+ * of there being one description of the schema. Each file runs in a
+ * transaction of its own with its record, the run stops at the first file that
+ * fails - the files after it, the library's among them, wait - one apply runs
+ * at a time (the engine's advisory lock), and nothing is ever un-applied: the
+ * migrations that matter are irreversible anyway, and a rollback that half
  * works is worse than none.
  *
  * Beside it, the two things every way of building a database needs and the
@@ -30,11 +41,24 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use Anotoki\Lib\Migrations\Http\SiteState;
 use Anotoki\Lib\Migrations\MigrationSet;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Translations\Schema;
 
-/** migrations/iam: the IAM's one set of files, labelled `iam` on the Migrations page and in its answers. */
+/** migrations/iam: the IAM's own files, labelled `iam` on the Migrations page and in its answers. */
 function iamMigrationSet(): MigrationSet
 {
     return new MigrationSet('iam', dirname(__DIR__) . '/migrations/iam');
+}
+
+/**
+ * Every set the IAM's database is built from, in the order they run: the
+ * IAM's own, then the library's translations set (the top of this file says
+ * why it comes last).
+ *
+ * @return list<MigrationSet>
+ */
+function iamMigrationSets(): array
+{
+    return [iamMigrationSet(), Schema::migrationSet()];
 }
 
 /**
@@ -45,7 +69,36 @@ function iamMigrationSet(): MigrationSet
  */
 function iamMigrator(PDO $pdo, array $options = []): Migrator
 {
-    return new Migrator($pdo, [iamMigrationSet()], $options);
+    return new Migrator($pdo, iamMigrationSets(), $options);
+}
+
+/**
+ * A file as the IAM names it - in the command line's lines, in the audit log,
+ * in the tests: its name for one of migrations/iam, `set/name` for a library
+ * set's, as the bookkeeping table records it
+ * (`anotoki_translations/001_languages_and_strings.sql`). The two sets'
+ * numbers start again at 001, so a name alone would not say which file it is.
+ */
+function iamMigrationLabel(string $set, string $name): string
+{
+    return $set === iamMigrationSet()->name ? $name : $set . '/' . $name;
+}
+
+/**
+ * The files of every set, labelled, in the order they run.
+ *
+ * @return list<string>
+ */
+function iamMigrationFiles(Migrator $migrator): array
+{
+    $files = [];
+    foreach (iamMigrationSets() as $set) {
+        foreach ($migrator->files($set) as $name) {
+            $files[] = iamMigrationLabel($set->name, $name);
+        }
+    }
+
+    return $files;
 }
 
 /**
@@ -58,7 +111,8 @@ function iamMigrator(PDO $pdo, array $options = []): Migrator
  *   storage/installed.lock - which a real host's install writes - is not
  *   there, so an IAM installed once never sends anybody to a setup.php that
  *   deleted itself;
- * - update_pending while a file of migrations/iam waits to be applied;
+ * - update_pending while a file waits to be applied - the IAM's or the
+ *   library's translations set's;
  * - unavailable while the database cannot be reached;
  * - ready otherwise.
  *

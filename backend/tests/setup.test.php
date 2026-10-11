@@ -139,7 +139,8 @@ test('"Test connection" answers in place: a login that works, one that does not,
     $emptyAnswer = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_name' => $empty])));
     same(['ok' => true, 'tone' => 'good', 'message' => "Connected to the database \"{$empty}\": it is empty - Save makes the tables."], $emptyAnswer, 'an empty database');
 
-    $files = migrationFiles('iam');
+    // Every file the engine applies: the IAM's, then the library's translations set.
+    $files = migrationFiles();
     $partial = connectDatabase(testServer(), $empty, false);
     ensureMigrationsTable($partial);
     applyMigration($partial, 'iam', $files[0]);

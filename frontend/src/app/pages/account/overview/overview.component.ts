@@ -1,8 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ThemeToggleComponent } from '@anotoki/lib/shell';
-import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { SelectComponent, SelectOption, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
@@ -223,13 +228,18 @@ export class OverviewComponent {
   }
 
   /**
-   * The page first, the account after. A language whose words cannot be had is
+   * The page first, the account after - the family's translations do both
+   * (`setLanguage(code, { revertible: true })`), in the same one-at-a-time
+   * line as the top bar's choices, so the two cannot leave the account on a
+   * language the page no longer shows. A language whose words cannot be had is
    * not saved: the account would then send mails, and open these pages, in a
    * language this browser has just failed to show. And when the account
-   * refuses the change, the page goes back to the language it was shown in and
-   * the select to the language the account has. They are not always the same:
-   * `?lang=` or a choice on the sign-in page outranks the account for a visit,
-   * and an account whose language is no longer offered is shown in another.
+   * refuses the change, the page goes back to the language it was shown in -
+   * from memory, with no request: the server may be why the account could not
+   * be told - and the select to the language the account has. They are not
+   * always the same: `?lang=` or a choice on the sign-in page outranks the
+   * account for a visit, and an account whose language is no longer offered is
+   * shown in another. Either way nothing changed, and the page says so.
    */
   protected async changeLanguage(value: string): Promise<void> {
     const previous = this.user()?.language;
@@ -237,41 +247,16 @@ export class OverviewComponent {
       return;
     }
 
-    // Read before the page switches: this is what it goes back to.
-    const shown = this._i18n.language();
     this.savingLanguage.set(true);
-    if (!(await this._i18n.choose(value))) {
-      this.language.set(previous);
-      this.savingLanguage.set(false);
-      this._toast.error(this._i18n.t('error.generic'));
+    const saved = await this._i18n.setLanguage(value, { revertible: true });
+    this.savingLanguage.set(false);
+    if (saved) {
+      // Worded only now: in the language just chosen.
+      this._toast.success(this._i18n.t('overview.languageSaved'));
       return;
     }
-
-    this._session.setFrom(this._accountApi.updateProfile({ language: value })).subscribe({
-      next: () => {
-        this.savingLanguage.set(false);
-        // Worded only now: in the language just chosen.
-        this._toast.success(this._i18n.t('overview.languageSaved'));
-      },
-      error: (error: ApiError) => {
-        void this._languageRefused(error, previous, shown);
-      },
-    });
-  }
-
-  /**
-   * Back to the language the page was in a moment ago, which has words: the
-   * service still holds the bundle the choice took off the page, so this needs
-   * no request - the server may be why the account could not be told. The
-   * account's own language may have no words at all - it was switched off -
-   * and then nothing could bring the page back to it: it would stay in the
-   * language just refused.
-   */
-  private async _languageRefused(error: ApiError, previous: string, shown: string): Promise<void> {
-    await this._i18n.choose(shown);
-    this.language.set(previous);
-    this.savingLanguage.set(false);
-    this._toast.error(errorText(error, (key) => this._i18n.t(key)));
+    this.language.set(this.user()?.language ?? previous);
+    this._toast.error(this._i18n.t('error.generic'));
   }
 }
 

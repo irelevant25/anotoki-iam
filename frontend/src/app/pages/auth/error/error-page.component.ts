@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { AutofocusDirective, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { AutofocusDirective } from '@anotoki/lib/ui/autofocus';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { safeNext } from '../../../core/auth/next-path';
 import { TranslationKey } from '../../../core/i18n/en';
 import { TPipe } from '../../../core/i18n/t.pipe';

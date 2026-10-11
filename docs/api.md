@@ -658,7 +658,10 @@ that the database does not answer - a timing signal, which opens nothing
 The pages' words in one language. The same for everybody: no cookie is read or
 set, a page whose session has ended still reads in its language, and it is in
 neither CORS list - only the IAM's own pages read it. Nothing else lives under
-`/api/translations` (`/api/translations` alone is a 404, a write a 405).
+`/api/translations` (`/api/translations` alone is a 404, a write a 405). It is
+the anotoki family's route (anotoki-lib's `TranslationsRoutes`, on the IAM's
+configuration in `api/translations.php`): this answer is every anotoki site's
+bundle, byte for byte.
 
 ```json
 {
@@ -681,17 +684,22 @@ neither CORS list - only the IAM's own pages read it. Nothing else lives under
   route reads a region this way; discovery and `ui_locales` match whole codes
   and first subtags as described above.
 - `languages` is the offered languages, in order, with both names.
-- `values` is every page key: the language's own strings with English under
-  them, so a key it has no string for reads in English.
+- `values` is every key a page reads: the language's own strings with English
+  under them, so a key it has no string for reads in English. Among them are
+  the anotoki library's own keys, `anotoki.*` - the words of its UI kit, its
+  language and theme switches and its status page (`anotoki.language.label`,
+  `anotoki.ui.close`, `anotoki.siteStatus.updatingTitle`, ...), written by the
+  library's migrations and reworded on the Translations page like the rest.
 - `english` is English's own strings, for the admin panel, which is English
   whatever the reader chose. Left out when `language` is `en`.
 - No `mail.` key is in either map: the mails' words are the server's.
 
 `404 not_found` for a code that is not `xx` or `xx-yy` in small letters (`EN`,
-`en-GB`, `en_gb` are no codes), before any query. `503 translations_unavailable`
-while migration 006 is pending, or English has no strings at all: not
-`not_set_up`, which would send the pages to their not-set-up page - they keep
-the English compiled into the build meanwhile.
+`en-GB`, `en_gb` are no codes), before any query. `503 translations_unavailable`,
+with `Retry-After: 60`, while migration 006 is pending, while the database
+cannot be reached, or when English has no strings at all: not `not_set_up`,
+which would send the pages to their not-set-up page - they keep the English
+compiled into the build meanwhile.
 
 Caching: `ETag` (an MD5 of the body, in quotes) and `Cache-Control: no-cache`,
 so the browser asks every time and is told `304` (empty, with the same two
@@ -1512,24 +1520,37 @@ A new application's `application.created` entry holds what it starts with,
 
 ### Languages and strings
 
-The IAM's own words (`api/translations.php`): the languages it offers and the
-strings of its pages and its mails. Keys are the code's - migrations
-write them, these routes only change strings. English is what every other
-language falls back to, key by key.
+The IAM's own words: the languages it offers and the strings of its pages and
+its mails. Keys are the code's - migrations write them, these routes only
+change strings. English is what every other language falls back to, key by
+key. The eight routes are the anotoki family's (anotoki-lib's
+`TranslationsRoutes`, on the IAM's configuration in `api/translations.php`),
+the same on every anotoki site, under this group's checks: the session and the
+IAM's `ADMIN` for all eight - the IAM has no EDITOR of its own panel - and the
+CSRF header on every write.
 
-All eight answer `503 translations_unavailable` until migration 006 is applied
-(from this same panel, Migrations). Their bodies are read as parsed: no body,
-or a JSON list where an object belongs, is a refusal, not an empty object.
+They answer in this order: `401` / `403` (the session, `ADMIN`; `403 csrf` for
+a write without the header); `404 not_found` for a `{code}` that is not `xx` /
+`xx-yy`, before anything else; then the body of a write, which is read from
+the request as it came (not as a form or another parser saw it): at most 1 MB
+by what `Content-Length` says (`413 too_large`), JSON only
+(`415 unsupported_media_type`), at most 1 MB by what arrives (`413 too_large`),
+not empty (`422 empty_body`), JSON (`400 invalid_json`) - and an object is kept
+apart from a list: `{}` is an object with nothing in it, `[]` is a list, and a
+list where an object belongs is refused like any other wrong shape; then
+`503 translations_unavailable`, with
+`Retry-After: 60`, until migration 006 is applied (from this same panel,
+Migrations); then the work. JSON answers carry `Cache-Control: no-store`.
 
 | Method + path | |
 | --- | --- |
 | `GET /api/admin/languages` | `{ languages: AdminLanguage[] }` - every language, the switched-off ones too, in order |
 | `POST /api/admin/languages` | `{ code, name, native_name, enabled? }` → `201 { language: AdminLanguage }`, placed after the others. `enabled` left out means offered at once; the panel always sends it (a new language starts hidden there). |
 | `PUT /api/admin/languages/{code}` | `{ name?, native_name?, enabled?, sort_order? }` - what is left out stays → `{ language: AdminLanguage }` |
-| `DELETE /api/admin/languages/{code}` | the language and its strings go; its accounts go back to English (the foreign key's `ON DELETE SET DEFAULT`) → `{ accounts }`, how many |
-| `GET /api/admin/translations` | `TranslationGrid` - every key, the `mail.` ones among them, with every language's string |
+| `DELETE /api/admin/languages/{code}` | the language and its strings go; its accounts go back to English (the foreign key's `ON DELETE SET DEFAULT`) → `{ strings, accounts }`: how many strings went with it, how many accounts went back to English |
+| `GET /api/admin/translations` | `TranslationGrid` - every key, the `mail.` ones and the library's `anotoki.*` among them, with every language's string |
 | `PUT /api/admin/translations` | `{ values: { key: { language: text } } }`, only what changed → `TranslationGrid` |
-| `GET /api/admin/translations/{code}/export` | the language's own strings as a flat `{ key: text }`, not merged with English, `mail.` keys included; `{}` when it has none |
+| `GET /api/admin/translations/{code}/export` | the language's own strings as a flat `{ key: text }`, not merged with English, `mail.` and `anotoki.` keys included; `{}` when it has none. A download in the file's format: `Content-Disposition: attachment; filename="translations-{code}.json"`, JSON pretty-printed with a line break at the end (what `php translations.php --export` writes) |
 | `PUT /api/admin/translations/{code}/import` | a flat `{ key: text }` → `TranslationGrid`. The same checks as a save; an empty string is a key not translated yet and is passed over, so an import deletes nothing |
 
 ```ts
@@ -1540,6 +1561,7 @@ interface AdminLanguage {
   enabled: boolean;      // offered: on the switcher, in discovery, a language an account can have
   sort_order: number;    // 0-1000, lowest first
   seeded: boolean;       // the migrations write strings for it (en, sk): cannot be deleted
+  strings: number;       // how many strings of its own it has
   accounts: number;      // how many accounts have it
 }
 
@@ -1568,18 +1590,19 @@ Refusals of the language routes:
 | 409 | `fallback_language` | switching English off, or deleting it |
 | 409 | `seeded_language` | deleting a language the migrations write strings for (Slovak): switch it off instead |
 
-Refusals of a save and an import - `413 too_large` for a body over 1 MB, and
+Refusals of a save and an import - the body's (`413 too_large` over 1 MB,
+`415 unsupported_media_type`, `422 empty_body`, `400 invalid_json`, above), and
 otherwise `422`, the first thing wrong, with `key` and `language` beside `code`
 and `error` (and `placeholder` where it is about one, `keys` for unknown keys):
 
 | `code` | |
 | --- | --- |
-| `invalid_value` | not `{ key: { language: text } }` (an import: not a flat object); a value that is not text; a page's string over 2,000 characters; a mail's string with a line break or a tab, a mail subject over 150 characters or another mail string over 400; a mail string of more bytes than one line of mail may have - 900, less 400 for every `{username}` in a greeting (the longest name there can be, kept for each: 500 with one, 100 with two, none with three), and less 10 for every `{date}` |
+| `invalid_value` | not `{ key: { language: text } }` (an import: not a flat object); a value that is not text; a page's string over 2,000 characters; a mail's string with a line break or a tab; a mail's string with a character that turns the direction of the text - U+202A-202E, U+2066-2069, U+200E, U+200F, U+061C - or a C1 control (U+0080-009F): the panel checks a string in the order it is stored, a mail program shows it in the order those say (`moc.live//:sptth` after a right-to-left override reads as an address); a mail subject over 150 characters or another mail string over 400; a mail string of more bytes than one line of mail may have - 900, less 400 for every `{username}` in a greeting (the longest name there can be, kept for each: 500 with one, 100 with two, none with three), and less 10 for every `{date}` |
 | `unknown_key` | a key the IAM does not have, empty or not (with `keys`: every such key sent) |
 | `unknown_language` | a language the IAM does not have |
 | `fallback_required` | a blank English string: every other language falls back to it |
 | `invalid_placeholder` | a `{` or `}` that is not part of a `{placeholder}`, in any string: `{ count }`, `{počet}`, `{count`, `{{count}}` |
-| `placeholder_changed` | an English page string whose placeholders are not exactly the stored English string's |
+| `placeholder_changed` | an English page string whose placeholders are not exactly the stored English string's (a library key's: the library's English's - `anotoki.language.button` keeps `{name}` and `{code}`, whatever the stored English says) |
 | `unknown_placeholder` | a page string in another language with a placeholder its English string does not have; a mail string, in any language, with one the code does not fill for that key |
 | `placeholder_missing` | `login.continueTo` or `register.forApp` without `{app}`; a mail string, in any language, without a placeholder the code fills for that key |
 | `address_in_mail` | a mail string with something that reads as an address - `://`, `www.` or `@`. A mail's only link is the one the server puts in. |
@@ -1608,7 +1631,7 @@ string's old and new text whole).
 | `POST /api/admin/keys/rotate` | a new active key; the old one is retired but stays in the JWKS a day |
 | `DELETE /api/admin/keys/{kid}` | drops a retired key from the JWKS |
 | `GET /api/admin/migrations` | `MigrationsStatus` (below) |
-| `GET /api/admin/migrations/file?set=iam&name={file}` | `{ set, name, sql }` - the file's SQL as it is on disk |
+| `GET /api/admin/migrations/file?set={iam\|anotoki_translations}&name={file}` | `{ set, name, sql }` - the file's SQL as it is on disk |
 | `POST /api/admin/migrations/apply` | `ApplyResult` (below) |
 
 Settings: `login_enabled`, `registration_enabled`, `registration_approval`
@@ -1620,15 +1643,20 @@ and switched on.
 every anotoki site; the admin panel's Migrations page is the family's page,
 `@anotoki/lib/migrations`), under this group's checks: the session, the IAM's
 `ADMIN` - none of which needs a table a pending migration makes - and the CSRF
-header on Apply. The engine applies the files of `migrations/iam` the IAM has
-not recorded yet, in order, each in a transaction of its own with its record
-in the `migrations` table, and stops at the first that fails (rolled back
-whole: the files after it never run). One apply at a time, whoever starts it -
-this page, `php migration.php`, the installer: each takes the same lock.
+header on Apply. The engine applies the files the IAM has not recorded yet, in
+order - those of `migrations/iam`, then the anotoki library's translations set
+(`anotoki_translations`, in `vendor/anotoki/lib/php/migrations/translations`:
+the tables of the words proved, and the library's own words) - each in a
+transaction of its own with its record in the `migrations` table, and stops at
+the first that fails (rolled back whole: the files after it never run, the
+library's included). The table keeps the IAM's files by their names and a
+library set's as `set/name` (`anotoki_translations/001_languages_and_strings.sql`).
+One apply at a time, whoever starts it - this page, `php migration.php`, the
+installer: each takes the same lock.
 
 ```ts
 interface MigrationsStatus {
-  sets: string[];   // ['iam']: the IAM has one set of files
+  sets: string[];   // ['iam', 'anotoki_translations']: the IAM's files, then the library's translations set
   applied: { set: string; name: string; applied_at: string | null }[];  // recorded and on disk, in the order they ran; ISO 8601 UTC
   pending: { set: string; name: string; ready: boolean; blocked: boolean }[];  // in the order they will run; the IAM has no drafts: ready true, blocked false
   missing: { set: string; name: string; applied_at: string | null }[];  // recorded as applied, but the file is not there
@@ -1649,7 +1677,7 @@ interface ApplyResult {
   applied - while another apply runs.
 - Every apply that was not busy is audited, `migrations.applied`, with
   `{ applied: string[], failed: string | null, error: string | null }` (the
-  files' names) - one with nothing to apply too.
+  files' names - a library set's as `set/name`) - one with nothing to apply too.
 
 ### Public
 

@@ -26,9 +26,14 @@ API document is a contract the Angular frontend and all the sites depend on.
   `crypto.php`, `settings.php`, `audit.php`, `totp.php`, `trusted_device.php`,
   `one_time_token.php`, `google_identity.php`, `mail.php`, `legacy_import.php`,
   `migration_runner.php` (the family's library wired in: `iamMigrator()`, the
-  engine from `vendor/anotoki/lib` - never edited here -, `iamSiteState()` for
-  the gate and `/api/site-status`), and `translations.php` (languages, strings, the
-  bundle, `translationsCheck()`; `languageCodes()` is in `helpers.php`).
+  engine from `vendor/anotoki/lib` - never edited here - with the IAM's set
+  and then the library's translations set, `iamMigrationLabel()`,
+  `iamSiteState()` for the gate and `/api/site-status`), and `translations.php`
+  (the IAM's configuration of the library's translations - `iamTranslations()`,
+  the mails' rules `IamMailRules`, the accounts per language, refusals in the
+  IAM's body, `iamKeyScanner()`; the routes are the library's
+  `TranslationsRoutes`, wired in `routes/login.php` and `routes/admin.php`;
+  `languageCodes()` is in `helpers.php`, read through `offeredCodes()`).
 - `backend/config/` - `config.php` (`localConfig()`, `iamSetUpProblems()`,
   `iamStorageDir()`, `loopbackHost()`), and a loader per `*.local.php`: `db.php`,
   `iam.php`, `secret.php`, `mail.php`, `google.php`. Values that belong to one
@@ -50,12 +55,16 @@ API document is a contract the Angular frontend and all the sites depend on.
   `translations.php`, `build-dist.php`); each stops with `requireSetUpOnCli()`
   when not set up.
 - The words of the pages and the mails are rows (`languages`,
-  `translation_keys`, `translations`). What reads them must work before their
-  migration is applied - a build is uploaded first: ask `to_regclass()` before
-  reading, never a query that can fail inside a transaction; the bundle route
-  answers `503 translations_unavailable`, the mails fall back to
-  `MAIL_FALLBACK`. A mail's link or code is put in by `mailMessage()`, never by
-  a string; a mail string's placeholders are `MAIL_KEYS`.
+  `translation_keys`, `translations`), kept by the anotoki library's code
+  (`Anotoki\Lib\Translations`) on the IAM's configuration; `anotoki.*` keys are
+  the library's own, written by its set `anotoki_translations`, which runs
+  after the IAM's. What reads them must work before their migration is
+  applied - a build is uploaded first: ask `to_regclass()` (or the library's
+  `ready()`) before reading, never a query that can fail inside a
+  transaction; the bundle route answers `503 translations_unavailable`, the
+  mails fall back to `MAIL_FALLBACK`. A mail's link or code is put in by
+  `mailMessage()`, never by a string; a mail string's placeholders are
+  `MAIL_KEYS`, and its rules `IamMailRules`.
 
 ## How to work
 

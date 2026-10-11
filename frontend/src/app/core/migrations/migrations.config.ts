@@ -1,12 +1,13 @@
 import { Injector, inject } from "@angular/core";
 import { Router } from "@angular/router";
 import { AnotokiMigrationsConfig, SiteStatusWords } from "@anotoki/lib/migrations";
+import { TranslationService as LibraryTranslations, siteStatusWords } from "@anotoki/lib/translations";
 import { SessionService } from "../auth/session.service";
 import { formatAppDate } from "../i18n/app-date.pipe";
 import { TranslationService } from "../i18n/translation.service";
 
 /** The admin panel's Migrations page: the route that shows the module's page. */
-const MIGRATIONS_ROUTE = "/admin/migrations";
+export const MIGRATIONS_ROUTE = "/admin/migrations";
 
 /**
  * How the IAM plugs into the anotoki family's migrations module
@@ -25,9 +26,11 @@ const MIGRATIONS_ROUTE = "/admin/migrations";
  * - Signing in: the IAM's own sign-in page, coming back to the page it was
  *   asked from. The Router is taken when it is needed, not here: this runs at
  *   the first request, and the services the Router builds must not wait for
- *   it (TranslationService says why).
- * - The words: the module's own (English and Slovak), under the IAM's own
- *   not-set-up strings - the database's, reworded on the Translations page -
+ *   it (the TranslationService says why).
+ * - The words: the database's - the library's own words for the status page
+ *   (`anotoki.siteStatus.*`, reworded on the Translations page like any
+ *   other; the module's built-in English and Slovak where there is none) -
+ *   and over them the IAM's own words for its not-set-up page (`notSetUp.*`),
  *   in the language on the page.
  * - Dates: as the account writes them (`appDate`).
  * - After an Apply that leaves nothing to apply: the strings are read again -
@@ -36,6 +39,8 @@ const MIGRATIONS_ROUTE = "/admin/migrations";
 export function iamMigrationsConfig(): AnotokiMigrationsConfig {
   const session = inject(SessionService);
   const i18n = inject(TranslationService);
+  // The same service, typed as the library's own helpers take it.
+  const library = inject(LibraryTranslations);
   const injector = inject(Injector);
 
   return {
@@ -53,16 +58,17 @@ export function iamMigrationsConfig(): AnotokiMigrationsConfig {
     // follow the language and its strings as they arrive. `t()` reads what is
     // on the page - the compiled English while no bundle is in memory, which is
     // how an IAM that is not set up always is - so the words are keyed by the
-    // language they are in, never by one wished for.
+    // language they are in, never by one wished for. The not-set-up page's
+    // words are the IAM's own keys, handed over as the site's overrides.
     get words(): Record<string, Partial<SiteStatusWords>> {
-      return {
+      return siteStatusWords(library, {
         [i18n.effectiveLanguage()]: {
           notSetUpTitle: i18n.t("notSetUp.title"),
           notSetUpText: i18n.t("notSetUp.text"),
           openSetup: i18n.t("notSetUp.open"),
           tryAgain: i18n.t("notSetUp.check"),
         },
-      };
+      });
     },
     formatDate: (iso) => formatAppDate(iso, "datetime", i18n.locale(), session.user()?.preferences ?? null),
     onUpToDate: () => i18n.reload(),

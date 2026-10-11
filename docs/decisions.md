@@ -1230,3 +1230,99 @@ refinement that would have let a sign-out end the session held under the
 bare name - so that an old browser's sign-out still reached every site - was
 written on 2026-10-10 and dropped the next day, unmerged: with no old
 browsers, it was code for nothing.
+
+## 2026-10-11 - The IAM's words through the family's library (anotoki-lib 0.3.0)
+
+Five anotoki sites kept their words in the same three tables, written by the
+IAM first and copied four times, each copy a little different. anotoki-lib
+0.3.0 made them one implementation - `Anotoki\Lib\Translations` and
+`@anotoki/lib/translations` - built from the IAM's, and the IAM moved onto it
+first. What is the IAM's own is now its configuration
+(`backend/api/translations.php`, `iamTranslations()`); the owner's decisions
+for the move:
+
+- **The contract stays.** `GET /api/translations/{code}` and the eight admin
+  routes keep their paths, their shapes (snake_case was the IAM's already) and
+  their codes; the bundle is the IAM's byte for byte. `docs/api.md` gains what
+  the library adds: `strings` on every language and in a delete's answer
+  (`{strings, accounts}`), and the body's refusals - `415
+  unsupported_media_type`, `400 invalid_json`, `422 empty_body`. What else a
+  client may notice: the 503 carries `Retry-After: 60`, and a database out of
+  reach is that 503 too, not a 500 (the pages keep their compiled English;
+  nothing is logged on every page load); a body is read by the library as it
+  came, so `[]` is no longer taken for an empty object (`{}` is one), and a
+  `{code}` that is no code is a 404 before the body is looked at; an export is
+  a download in the command line's file format.
+- **The mails stay the IAM's**: `MAIL_KEYS`, `MAIL_FALLBACK`, `mailWords()`,
+  `mailFill()` and `mailMessage()` in `api/mail.php`, unchanged. Their checks
+  are a rule class of the IAM's (`IamMailRules`), which the library asks for
+  every `mail.` string in the IAM's order - one line, 150 or 400 characters,
+  the bytes of one line of mail, a brace, exactly the code's placeholders, no
+  address - with the IAM's sentences; `mail` is a server namespace, never in a
+  bundle, and a save's audit keeps each changed mail string's old and new text
+  whole. Every test of them was kept, against the library's checks. One
+  difference: a string is trimmed of exactly what the browser trims, so a
+  next-line character (U+0085) at the end of a mail string is refused as a line
+  break where it used to be trimmed away. And one rule more, from the security
+  review of the move: a mail string may not hold a character that turns the
+  direction of the text - the embeddings and overrides U+202A-202E, the
+  isolates U+2066-2069, the marks U+200E, U+200F and U+061C - nor a C1 control
+  (U+0080-009F); refused (`invalid_value`) like a line break, not dropped. The
+  address check reads the stored order and a mail program the drawn one: after
+  a right-to-left override, "moc.live//:sptth" is no address to the check and
+  `https://evil.com` to the reader. A page's string keeps them - the page draws
+  it in the order the panel shows.
+- **Permissions do not change.** Both of the library's route groups sit in
+  the admin group: the session, the IAM's ADMIN for all eight (the IAM has no
+  EDITOR of its own panel), the CSRF header on every write, `audit()` for
+  every change with the same actions and details.
+- **The IAM still never closes while an update waits.** After the upload, 017
+  and the library's set wait for Apply on a live IAM, and everything runs on
+  the new code meanwhile: the sign-in pages read their words (the library's own
+  keys from its built-in words until they are in the database), every way in
+  works, the Translations page works - and a rewording saved there survives the
+  update (`tests/strings-through-the-library.test.php`). Apply right after the
+  upload all the same: until then the account page's Sessions list would show
+  two keys as keys for a way of signing in it does not know.
+- **Every rewording survives.** The library writes its own words
+  (`anotoki_translations/002`) only for a library key that has no string at
+  all, and its keys are its namespace, `anotoki.`. The IAM's language
+  switcher said two of them itself - `lang.label`, `lang.button` - and the
+  library's switcher replaces it, so migration 017 copies every string of the
+  two, in every language, with who wrote it and when, under
+  `anotoki.language.label` and `anotoki.language.button`, and then deletes the
+  old keys: an owner's rewording stays, a Slovak string the owner blanked stays
+  blank. Its gate names its own keys and proves every string arrived as it was.
+- **Two keys renamed**: `sessions.method.other` and `sessions.ended.other`
+  became `.unknown` - the account page's words for a way of signing in, or a
+  reason a session ended, it does not know. The family's key scan reads a key
+  ending in `.one`, `.few` or `.other` as a form of a plural family; these
+  were none, and the IAM has no plurals. Renamed in place: the strings follow
+  by the foreign key's `ON UPDATE CASCADE`, rewordings included.
+- **The library's set runs after the IAM's**, wherever the IAM's database is
+  built - the admin panel's Apply, the installer, `php migration.php` all use
+  `iamMigrator()`. First, it would make the tables on a fresh database before
+  006, whose gate counts its own strings. In the `migrations` table, which
+  has no `folder`, a library file is recorded as `set/name`
+  (`anotoki_translations/001_languages_and_strings.sql`) beside the IAM's bare
+  names; nothing in the table changes, and the command line, the Migrations
+  page and the audit log name the library's files the same way.
+- **English and Slovak stay the released languages**; neither can be deleted.
+- **The command line keeps its name and flags** (`--status`, `--export`,
+  `--import`) over the library's command, and adds the mails' keys against
+  `MAIL_KEYS` to `--status`. New with the library: it refuses while a
+  migration waits - a database behind the code does not have the release's
+  strings.
+- **The tests**: `tests/translations.test.php` keeps what is the IAM's (the
+  window before 006, the mails byte for byte, the mails' rules, the catalogue
+  against `en.ts` and `MAIL_KEYS`, the contract on every route, `ui_locales`,
+  the locale claim, discovery and the pages' config without a database); the
+  generic parts - the checks every site's strings keep, the languages' limit
+  and its lock, the body's reading, the scan, the file format - are the
+  library's own suite's. The IAM's scan of its frontend runs on the library's
+  `KeyScanner` with the IAM's settings (`iamKeyScanner()`).
+- **No way back to a build from before it** once 017 is applied: that build
+  asks for `lang.*` and `sessions.*.other`, and would show them as keys. A
+  problem after it is fixed forward. Its engine would list the library's two
+  records as missing files - harmless, but confusing.
+

@@ -1,8 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { CopyButtonComponent } from '@anotoki/lib/ui/copy';
 import { ConfirmService, DialogComponent } from '@anotoki/lib/ui/dialog';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { SelectComponent, SelectOption, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { forkJoin } from 'rxjs';
 import { AccountApi } from '../../../core/api/account.api';

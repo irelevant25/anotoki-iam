@@ -2,25 +2,33 @@
  * The list of keys, and the English of last resort.
  *
  * The words the pages show live in the database - the `translations` table,
- * edited in the admin panel - and arrive as a bundle (TranslationService).
- * This file is no longer where they are read from. It is kept for two things:
+ * edited in the admin panel - and arrive as a bundle (the anotoki family's
+ * TranslationService, @anotoki/lib/translations, configured in
+ * translations.config.ts). This file is no longer where they are read from.
+ * It is kept for two things:
  *
  * 1. The keys. `TranslationKey` is derived from this object, so a key that
  *    does not exist is still a compile error in every template and class.
  *
- * 2. The English shown while no bundle is in memory - and only then. A new
- *    build runs on the old database until "Apply pending" is pressed in the
- *    admin panel; the bundle route answers 503 meanwhile, and the sign-in
- *    page has to be readable or nobody could sign in to press it. Once a
- *    bundle has arrived, the bundle is what is shown: a key it has no string
- *    for appears on the page as the key itself. These strings never paper over
- *    a single missing one.
+ * 2. The English shown while no bundle is in memory - and only then
+ *    (`fallbackEnglish`). A new build runs on the old database until "Apply
+ *    pending" is pressed in the admin panel; the bundle route may answer 503
+ *    meanwhile, and the sign-in page has to be readable or nobody could sign
+ *    in to press it. Once a bundle has arrived, the bundle is what is shown: a
+ *    key it has no string for appears on the page as the key itself. These
+ *    strings never paper over a single missing one.
  *
  * So the two are kept in step, and a backend test holds them to it: the keys
- * here are exactly the seeded keys (without the server's own `mail.` ones), and
- * each seeded English string equals the one here. Adding a string is the key
- * and its English here, plus a migration with the key, its English and its
- * Slovak. There is no Slovak in the build at all.
+ * here are exactly the seeded keys (without the server's own `mail.` ones and
+ * the library's `anotoki.` ones), and each seeded English string equals the
+ * one here. Adding a string is the key and its English here, plus a migration
+ * with the key, its English and its Slovak. There is no Slovak in the build at
+ * all.
+ *
+ * The library's own words - `anotoki.*`: the kit's, the language switcher's,
+ * the status page's - are not here: the library has them built in, English and
+ * Slovak, under the database's strings of them (an administrator's rewording
+ * wins), and never shows one of them as a key.
  *
  * `{name}` placeholders are filled in by the `t` pipe. Counts are written as
  * "label: {count}" wherever a plural would otherwise be needed, which reads
@@ -85,9 +93,6 @@ export const en = {
   'theme.dark': 'Dark',
   'theme.auto': 'Automatic',
   'theme.autoHint': 'Follows your system setting',
-
-  'lang.label': 'Language',
-  'lang.button': 'Language: {name} ({code})',
 
   // ── Errors, by the contract's codes ────────────────────────────────────────
   'error.generic': 'Something went wrong. Please try again.',
@@ -513,7 +518,7 @@ export const en = {
   'sessions.method.login_code': 'Emailed code',
   'sessions.method.google': 'Google',
   'sessions.method.email_link': 'Emailed link',
-  'sessions.method.other': 'Other',
+  'sessions.method.unknown': 'Other',
   'sessions.ended.signed_out': 'Signed out',
   'sessions.ended.signed_out_elsewhere': 'Ended from another device',
   'sessions.ended.password_changed': 'Ended by a password change',
@@ -522,7 +527,7 @@ export const en = {
   'sessions.ended.ended_by_admin': 'Ended by an administrator',
   'sessions.ended.account_disabled': 'Account switched off',
   'sessions.ended.account_deletion': 'Ended by the request to delete the account',
-  'sessions.ended.other': 'Ended',
+  'sessions.ended.unknown': 'Ended',
 
   // ── Account: applications ──────────────────────────────────────────────────
   'apps.pageTitle': 'Applications',

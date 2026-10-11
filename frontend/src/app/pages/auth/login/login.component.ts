@@ -1,8 +1,12 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { AlertComponent, AutofocusDirective, ButtonComponent, IconComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { AutofocusDirective } from '@anotoki/lib/ui/autofocus';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CheckboxComponent, CodeInputComponent, PasswordFieldComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Observable, catchError, forkJoin, of, switchMap, throwError } from 'rxjs';
 import { AccountApi } from '../../../core/api/account.api';

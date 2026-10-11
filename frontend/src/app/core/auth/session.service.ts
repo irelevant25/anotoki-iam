@@ -84,9 +84,10 @@ export class SessionService {
    * subscribed to, as any request.
    *
    * Every save that answers with the account goes through here - the account
-   * pages', the theme switch's, the language chosen in the top bar: any of
-   * them can be answered after Sign out. Only a sign-in's answer and the
-   * probe's go to the session as they are, because they are the session.
+   * pages', the theme switch's, the language chosen on a page (the family's
+   * translations save it: core/i18n/translations.config.ts): any of them can
+   * be answered after Sign out. Only a sign-in's answer and the probe's go to
+   * the session as they are, because they are the session.
    */
   setFrom(request: Observable<AccountUser>): Observable<AccountUser> {
     return defer(() => {

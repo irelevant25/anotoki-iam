@@ -1,8 +1,8 @@
-import { IconSet, KitIconName } from '@anotoki/lib/ui';
+import { IconSet } from '@anotoki/lib/ui/config';
+import { KitIconName } from '@anotoki/lib/ui/icon';
 import {
   iconAppWindow,
   iconArrowRight,
-  iconArrowUp,
   iconBan,
   iconClock,
   iconDashboard,
@@ -39,7 +39,6 @@ import {
 export const IAM_ICONS = {
   appWindow: iconAppWindow,
   arrowRight: iconArrowRight,
-  arrowUp: iconArrowUp,
   ban: iconBan,
   clock: iconClock,
   dashboard: iconDashboard,

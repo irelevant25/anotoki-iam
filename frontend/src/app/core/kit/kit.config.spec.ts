@@ -1,12 +1,11 @@
-import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { ThemeService, provideAnotokiShell } from "@anotoki/lib/shell";
+import { provideTestTranslations } from "@anotoki/lib/translations/testing";
 import { Subject, throwError } from "rxjs";
 import { AccountApi } from "../api/account.api";
 import { ApiError } from "../api/api-error";
 import { AccountUser, ThemeChoice } from "../api/models";
 import { SessionService } from "../auth/session.service";
-import { TranslationService } from "../i18n/translation.service";
 import { THEME_STORAGE_KEY, iamShellConfig } from "./kit.config";
 
 /** An account as `GET /api/account` answers it, with a theme of its own (migration 015). */
@@ -57,11 +56,7 @@ describe("the theme, wired to the account (iamShellConfig)", () => {
       return save;
     });
     TestBed.configureTestingModule({
-      providers: [
-        { provide: AccountApi, useValue: accountApi },
-        { provide: TranslationService, useValue: { language: signal("en"), languages: signal([]), choose: vi.fn() } },
-        provideAnotokiShell(iamShellConfig),
-      ],
+      providers: [{ provide: AccountApi, useValue: accountApi }, provideTestTranslations(), provideAnotokiShell(iamShellConfig)],
     });
     session = TestBed.inject(SessionService);
   });

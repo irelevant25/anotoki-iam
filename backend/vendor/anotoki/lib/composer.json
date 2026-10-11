@@ -1,6 +1,6 @@
 {
     "name": "anotoki/lib",
-    "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes). The Angular half is @anotoki/lib.",
+    "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes) and the translations (the schema, the words' routes and the command line). The Angular half is @anotoki/lib.",
     "type": "library",
     "license": "proprietary",
     "homepage": "https://github.com/irelevant25/anotoki-lib",

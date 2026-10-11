@@ -15,6 +15,10 @@ function isTranslationKey(value: string): value is TranslationKey {
  * A route's `title` is a translation key on the translated pages and plain
  * English in the admin panel; either works here. The title follows the
  * language too - switching to Slovak renames the tab without a navigation.
+ *
+ * It is also how the translations hear where the page is (`noteAddress()`):
+ * the service never injects the Router - the Router makes this strategy, and
+ * this strategy reads the service.
  */
 @Injectable({ providedIn: 'root' })
 export class IamTitleStrategy extends TitleStrategy {
@@ -35,7 +39,7 @@ export class IamTitleStrategy extends TitleStrategy {
   }
 
   override updateTitle(snapshot: RouterStateSnapshot): void {
-    this._i18n.noteNavigation(snapshot.url);
+    this._i18n.noteAddress(snapshot.url);
     this._page.set(this.buildTitle(snapshot));
     this._admin.set(isAdminArea(snapshot.url));
   }

@@ -295,6 +295,9 @@ final class Browser
             $request = $request->withHeader('Content-Type', 'application/json')->withBody($streams->createStream((string) json_encode($options['json'])));
         } elseif (isset($options['form'])) {
             $request = $request->withHeader('Content-Type', 'application/x-www-form-urlencoded')->withBody($streams->createStream(http_build_query($options['form'])));
+        } elseif (isset($options['body'])) {
+            // Bytes as they are - a body that is no JSON, or none - with whatever Content-Type the test names.
+            $request = $request->withBody($streams->createStream((string) $options['body']));
         }
 
         $firstParty = str_starts_with($path, '/api/') && !str_starts_with($path, '/api/oidc/');
@@ -405,8 +408,11 @@ const FIRST_PARTY_SITES = ['build-analyzer', 'genshin', 'japanese-academy', 'pia
 // which replaced the IAM's own. The tests were written against the names the
 // IAM's engine had, and keep them: each is a few lines over iamMigrator(), so
 // a test builds its databases exactly as the command line, the installer and
-// the admin panel do, and reads as it did. Answers carry file names, as the
-// tests read them ('016_x.sql'; the engine's own name {set, name} pairs).
+// the admin panel do, and reads as it did. Answers carry the files by the
+// IAM's names for them (iamMigrationLabel()): one of migrations/iam by its
+// name ('016_x.sql'), one of the library's translations set, which runs after
+// them, as `set/name` ('anotoki_translations/001_languages_and_strings.sql')
+// - the engine's own are {set, name} pairs.
 
 /** The engine's answer to an apply, as the tests read it: the files' names, and the failed one's. */
 function migrationResult(array $result): array
@@ -415,23 +421,26 @@ function migrationResult(array $result): array
         throw new LogicException('Another apply holds the migrations lock');
     }
 
-    return ['applied' => migrationNames($result['applied']), 'failed' => $result['failed']['name'] ?? null, 'error' => $result['error']];
+    return ['applied' => migrationNames($result['applied']), 'failed' => $result['failed'] === null ? null : migrationNames([$result['failed']])[0], 'error' => $result['error']];
 }
 
 /** The names of files as the engine and the admin routes list them ({set, name, ...} each). */
 function migrationNames(array $files): array
 {
-    return array_column($files, 'name');
+    return array_map(static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']), $files);
 }
 
-/** The files of migrations/iam, in the order they run (`iam` is the one set there is). */
-function migrationFiles(string $set = 'iam'): array
+/**
+ * The files, in the order they run: every set's (the IAM's, then the
+ * library's translations set), or with $set = 'iam' the IAM's own alone.
+ */
+function migrationFiles(?string $set = null): array
 {
     // The engine lists them; it needs a connection to exist, not to list.
     static $server = null;
     $server ??= connectDatabase(testServer(), 'postgres', false);
 
-    return iamMigrator($server)->files(iamMigrationSet());
+    return $set === null ? iamMigrationFiles(iamMigrator($server)) : iamMigrator($server)->files(iamMigrationSet());
 }
 
 /** Every file the database records as applied - one whose file is gone too, as the table holds it. */
@@ -470,16 +479,24 @@ function applyPendingMigrations(PDO $pdo, string $set = 'iam'): array
  * the engine (its `ready` hook), which it never applies. A migration's own
  * test asserts the state its file leaves - "apply what is pending" would apply
  * every later file too, and a later one (010's MEMBER for everyone) rewrite it.
+ * "After" is in the order the files run: through one of migrations/iam, none
+ * of the library's translations set, which comes after them all.
  *
  * @return array{applied: string[], failed: ?string, error: ?string}
  */
 function applyMigrationsThrough(PDO $pdo, string $lastFile): array
 {
-    if (!in_array($lastFile, migrationFiles(), true)) {
+    $order = migrationFiles();
+    $last = array_search($lastFile, $order, true);
+    if ($last === false) {
         throw new LogicException("There is no migration {$lastFile}");
     }
 
-    $migrator = iamMigrator($pdo, ['ready' => static fn(MigrationSet $set, string $name): bool => strnatcmp($name, $lastFile) <= 0]);
+    $migrator = iamMigrator($pdo, ['ready' => static function (MigrationSet $set, string $name) use ($order, $last): bool {
+        $at = array_search(iamMigrationLabel($set->name, $name), $order, true);
+
+        return $at !== false && $at <= $last;
+    }]);
 
     return migrationResult($migrator->apply());
 }

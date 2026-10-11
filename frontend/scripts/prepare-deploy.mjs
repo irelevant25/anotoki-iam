@@ -55,18 +55,22 @@ if (inlineScript || inlineHandler) {
 
 // The database's strings - which any administrator rewords on the Translations page - are drawn by the
 // family's components (@anotoki/lib) as well as by the IAM's own. The IAM's own are held to "a string is
-// text, never HTML" by the backend's scan of src/app (backend/tests/translation_keys.php); the library is
+// text, never HTML" by the backend's scan of src/app (`php translations.php --status`, the library's
+// KeyScanner with innerHTML refused anywhere); the library is
 // outside it, so its bundles are held to it here, before anything is uploaded: a release that sets HTML
 // from a string, or switches Angular's sanitizer off for one, goes no further. (Angular's own sanitizer is
-// in @angular/core, not in these files.) Any spelling counts - Angular binds [innerHtml] too - and so does
-// a comment that names one: the fix is a release of the library, never a way around this check.
+// in @angular/core, not in these files.) Every way a string becomes markup counts: setting innerHTML or
+// outerHTML, inserting HTML, an iframe's srcdoc, document.write, parsing it (DOMParser,
+// parseFromString, a Range's createContextualFragment), and the sanitizer's bypasses. Any spelling counts
+// - Angular binds [innerHtml] and [srcdoc] too - and so does a comment that names one: the fix is a release
+// of the library, never a way around this check.
 const library = join(process.cwd(), "node_modules", "@anotoki", "lib", "fesm2022");
 const bundles = existsSync(library) ? readdirSync(library).filter((name) => name.endsWith(".mjs")) : [];
 if (!bundles.length) {
     console.error(`No @anotoki/lib bundles in ${library}: install the packages (bun ci) and build again.`);
     process.exit(1);
 }
-const htmlSink = /innerHTML|outerHTML|insertAdjacentHTML|bypassSecurityTrust/i;
+const htmlSink = /innerHTML|outerHTML|insertAdjacentHTML|bypassSecurityTrust|srcdoc|document\.write|DOMParser|parseFromString|createContextualFragment/i;
 const drawsHtml = [];
 for (const name of bundles) {
     readFileSync(join(library, name), "utf8")

@@ -359,6 +359,30 @@ keep working: an account being deleted is simply refused to them. Each reads
 `/api/public/anonymized-accounts` once its shared module arrives, and scrubs
 its own copies of the names and addresses there.
 
+**Migration 017 and the library's translations set** (the IAM's words through
+the anotoki library, anotoki-lib 0.3.0 - `docs/decisions.md`, 2026-10-11): the
+languages, the strings and their admin pages are the family's library's code
+now, on the same tables. 017 moves the language switcher's two strings under
+the library's keys (`lang.label` → `anotoki.language.label`, `lang.button` →
+`anotoki.language.button`) with every language's string, who reworded it and
+when, and renames `sessions.method.other` and `sessions.ended.other` to
+`.unknown`. Then the library's own set, `anotoki_translations`, applies after
+the IAM's in the same Apply: `001` proves the tables are in the family's shape
+(it makes nothing on the IAM), `002` adds the library's words - 54 keys of its
+kit and status page, in English and Slovak - writing only where a key has no
+string, so no rewording is touched. The Migrations page lists the two as
+`anotoki_translations/001_languages_and_strings.sql` and `/002_library_words.sql`.
+
+**Before the upload, export every language** (Admin panel → Translations →
+each language's Export, one JSON file each) and keep the files: the move keeps
+every rewording - its gate proves it - and the export is what puts one back if
+anything is not as it was. **Apply right after the upload.** Until then
+nothing closes and every way in works - the pages read their words, the
+library's from its built-in English and Slovak - but the account page's
+Sessions list would show `sessions.method.unknown` for a way of signing in it
+does not know. Once applied, a build from before it never goes back on the
+host (it would show four keys as keys); fix forward.
+
 Deleted accounts are made nobody's by housekeeping, which runs on ordinary
 traffic (the sites' sign-ins and refreshes, the IAM's own pages, the sites
 reading the list), at most an hour after one is due - no cron. **A database
@@ -381,12 +405,18 @@ halves and one version: the PHP package `anotoki/lib` (in `backend/vendor/`,
 committed and uploaded like the rest of `vendor/`) and the Angular package
 `@anotoki/lib` (the release's tarball, in `frontend/package.json`). It holds
 the migrations module - the engine, the gate that answers "not set up", the
-status the pages ask, the Migrations page and the admin line - and, in the
-Angular half, the family's UI kit: its styles and palette, its components, the
-top bar and the frame. The IAM's frontend is on 0.2.0 and its backend on
-0.1.0: 0.2.0 changed only the Angular half, and Composer's `^0.1` keeps the
-PHP half at 0.1.x, which is the same code. Both halves come from GitHub, never
-from a copy on disk.
+status the pages ask, the Migrations page and the admin line -, the
+translations module, both halves - the tables of the words and the library's
+own words (a migration set of its own, `anotoki_translations`, applied after
+the IAM's), the checks of a string, the bundle and the admin routes, the
+command line's tools; the service, the switcher and the Translations and
+Languages pages - and, in the Angular half, the family's UI kit: its styles
+and palette, its components, the top bar and the frame. Both halves of the IAM
+are on 0.3.0 (`composer.json`'s `^0.3`). Both halves come from GitHub, never
+from a copy on disk; the Composer package brings the library's migration files
+and words with it (`vendor/anotoki/lib/php/migrations`, `/php/resources`),
+which `build-dist.php` uploads with the rest of `vendor/` and which are denied
+to the web like it.
 
 To update it (its `CHANGELOG.md` says what changed - while it is 0.x, a minor
 version may break things), both halves together where both changed, on a
@@ -394,7 +424,7 @@ development machine:
 
 ```bash
 cd backend
-composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.1"); change it first for 0.2
+composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.3"); change it first for 0.4
 # frontend/package.json: "@anotoki/lib": the new release's .tgz URL, then
 cd ../frontend
 bun install                         # bun.lock
@@ -422,25 +452,35 @@ and the access token lifetime.
 ### The words across an update
 
 The pages' and the mails' words are rows in the database (migration 006 and
-every migration with strings after it), so an update is still **upload, then
-Apply pending** - and between the two:
+every migration with strings after it, and the anotoki library's own set
+after the IAM's), so an update is still **upload, then Apply pending** - and
+between the two, on an IAM whose tables are not there yet (one from before
+006):
 
 - The pages read the English compiled into the build, and the mails go out in
   English: `GET /api/translations/{code}` answers `503 translations_unavailable`
-  until the tables are there. That 503 is expected in that window, not a fault
-  (and not `not_set_up`: the site is not sent to the installer's notice).
+  (with `Retry-After: 60`) until the tables are there. That 503 is expected in
+  that window, not a fault (and not `not_set_up`: the site is not sent to the
+  installer's notice). It is the answer too while the database cannot be
+  reached.
 - Discovery and `/api/public/config` offer `en` and `sk`, and accounts keep
   their language.
 - The admin panel's Translations and Languages pages say to apply the pending
   update first. The first navigation after Apply brings the words in, with no
   page load.
 
-A migration never writes over a string reworded in the admin panel. Before a
-release that changes strings, **export the live strings** (Admin panel → Translations
-→ Export, one JSON file per language) and keep them: they are the owner's
-wording, and the export is what puts it back if a release's rewording is not
-wanted. On a computer with the repository, `php translations.php --import`
-checks and loads such a file into a development database.
+On an IAM that has the tables, an update with new strings waits the same way:
+the pages read the strings there are, and a key a new page asks for that no
+string has yet shows as the key until Apply - the library's own keys never
+do (they have built-in words). So **Apply right after the upload**.
+
+A migration never writes over a string reworded in the admin panel, nor does
+the library's. Before a release that changes strings, **export every language**
+(Admin panel → Translations → Export, one JSON file per language) and keep
+the files: they are the owner's wording, and the export is what puts it back
+if a release's rewording is not wanted. On a computer with the repository,
+`php translations.php --import` checks and loads such a file into a
+development database.
 
 ## Day to day
 
@@ -489,7 +529,7 @@ php import-legacy.php                      # the import itself (writes the marke
 php create-admin.php you@example.com       # a first admin on an empty IAM, instead (ADMIN in every application)
 php clients.php --dev                      # put the sites' development addresses back
 php reset-password.php <email> [password] [--clear-2fa]
-php translations.php --status              # the frontend's keys against the database's, and how much of each language there is
+php translations.php --status              # the frontend's keys against the database's, how much of each language there is, the mails' keys against MAIL_KEYS
 php translations.php --export sk [file]    # a language's own strings as flat JSON
 php translations.php --import sk file      # and back in, checked as the admin panel checks a save
 php tests/run.php                          # every test, against throwaway databases

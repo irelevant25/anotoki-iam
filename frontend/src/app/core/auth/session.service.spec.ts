@@ -32,11 +32,12 @@ function account(username = 'Mira', id = 7): AccountUser {
 /**
  * Who is signed in, as this tab knows it - and the one rule every save that
  * answers with the account keeps: the account pages' (the name, the mails,
- * the dates, the language, the password, two-factor, Google, the deletion and
- * its cancelling), the theme switch's and the top bar's language all go
- * through setFrom() (or refresh()), so an answer that comes after Sign out
- * signs nobody back in. Only a sign-in's answer and the probe's are the
- * session as they are.
+ * the dates, the password, two-factor, Google, the deletion and its
+ * cancelling), the theme switch's and the language chosen on any page (the
+ * family's translations, core/i18n/translations.config.ts) all go through
+ * setFrom() (or refresh()), so an answer that comes after Sign out signs
+ * nobody back in. Only a sign-in's answer and the probe's are the session as
+ * they are.
  */
 describe('SessionService', () => {
   const accountApi = { me: vi.fn() };

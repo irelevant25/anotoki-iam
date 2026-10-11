@@ -21,7 +21,7 @@ const ENDED: Record<string, TranslationKey> = {
 
 /** How a session was signed in, as a key - the stored method names are the backend's, not words. */
 export function sessionMethodKey(method: string): TranslationKey {
-  return METHODS[method] ?? 'sessions.method.other';
+  return METHODS[method] ?? 'sessions.method.unknown';
 }
 
 /**
@@ -36,7 +36,7 @@ export function sessionStateKey(session: SessionEntry): TranslationKey {
     return 'sessions.active';
   }
   if (session.revoked_reason) {
-    return ENDED[session.revoked_reason] ?? 'sessions.ended.other';
+    return ENDED[session.revoked_reason] ?? 'sessions.ended.unknown';
   }
   return 'sessions.expired';
 }

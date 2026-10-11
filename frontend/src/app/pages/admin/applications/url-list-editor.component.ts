@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
-import { ButtonComponent, IconComponent, uniqueId } from '@anotoki/lib/ui';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { uniqueId } from '@anotoki/lib/ui/dom';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { validOrigin, validRedirectUri } from './url-rules';
 
 /**

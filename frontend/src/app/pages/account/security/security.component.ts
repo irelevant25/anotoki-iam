@@ -1,8 +1,13 @@
 import { ChangeDetectionStrategy, Component, inject, linkedSignal, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { SwitchComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { map } from 'rxjs';
 import { AccountApi } from '../../../core/api/account.api';

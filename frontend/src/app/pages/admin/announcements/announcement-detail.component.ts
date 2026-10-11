@@ -1,10 +1,19 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { HoldsUnsavedChanges } from '@anotoki/lib/translations';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { SelectComponent, SelectOption, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { PaginationComponent } from '@anotoki/lib/ui/pagination';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { catchError, debounceTime, distinctUntilChanged, map, of, skip, switchMap } from 'rxjs';
@@ -13,7 +22,6 @@ import { ApiError } from '../../../core/api/api-error';
 import { AnnouncementDetail, AnnouncementRecipient, Paged } from '../../../core/api/models';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
 import { adminErrorText } from '../admin-errors';
-import { HoldsUnsavedChanges } from '../localization/unsaved-changes.guard';
 import { RECIPIENT_LABELS, STATUS_LABELS, people, templateLabel } from './announcement-labels';
 
 /**

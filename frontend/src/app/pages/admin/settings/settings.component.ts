@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { AlertComponent, ButtonComponent, CardComponent, ErrorStateComponent, PageHeaderComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { SelectComponent, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';

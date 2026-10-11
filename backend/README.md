@@ -19,7 +19,7 @@ computer is [`../DEV.md`](../DEV.md).
 | `api/index.php` | the front controller: builds the Slim app (`buildIamApp()`) and fixes the middleware order |
 | `setup.php` | the installer - writes `config/*.local.php`, creates the database when the user may, applies the migrations, makes the first accounts. On this computer a nonce and re-runnable; on a host a token, then a lock and its own removal |
 | `migration.php` | `php migration.php [--status\|--dry-run]` - the migrations for the configured database |
-| `translations.php` | `--status` (the pages' keys against the database's), `--export sk [file]`, `--import sk file` |
+| `translations.php` | `--status` (the pages' keys against the database's, each language's coverage, the mails' keys against `MAIL_KEYS`), `--export sk [file]`, `--import sk file` - the anotoki library's command (`TranslationsCommand`) on the IAM's configuration |
 | `clients.php` | `php clients.php [--dev]` - lists the applications (whether each requires signing in and which roles may; before 010, its `access`; a client 011 will make public); `--dev` gives the anotoki sites their development addresses back |
 | `create-admin.php` | `php create-admin.php you@example.com [password]` - the first administrator of an IAM with no accounts, ADMIN in every application that has one |
 | `reset-password.php` | `php reset-password.php <email> [pw] [--clear-2fa]` - somebody back into their account, from the shell |
@@ -39,23 +39,28 @@ api/
   routes/                 by audience: oidc.php (the sites), login.php (sign-in pages),
                           account.php (requireSession), admin.php (+ requireAdmin: ADMIN of `iam`)
   oidc.php, session.php, applications.php, accounts.php, keys.php, jwt.php, crypto.php,
-  settings.php, audit.php, translations.php, mail.php, totp.php, trusted_device.php,
+  settings.php, audit.php, mail.php, totp.php, trusted_device.php,
   one_time_token.php, google_identity.php, housekeeping.php, helpers.php,
   announcements.php, account_deletion.php, sign_in_devices.php
                           the logic, in plain function files beside the routes
-  migration_runner.php    the anotoki family's library wired in: iamMigrator() - its migration engine, for the
-                          CLI, the installer and the admin panel - and iamSiteState() - where the IAM stands,
-                          for the gate and /api/site-status; ensureDatabase(), createFirstAdmin()
+  translations.php        the IAM's words through the anotoki family's library (anotoki/lib's Translations):
+                          iamTranslations() - its configuration -, the mails' rules (IamMailRules), the accounts
+                          per language, refusals in the IAM's body; iamKeyScanner() for the CLI and the tests
+  migration_runner.php    the anotoki family's library wired in: iamMigrator() - its migration engine, the IAM's
+                          set and then the library's translations set, for the CLI, the installer and the admin
+                          panel - and iamSiteState() - where the IAM stands, for the gate and /api/site-status;
+                          ensureDatabase(), createFirstAdmin()
   legacy_import.php       bringing the genshin site's accounts over
 config/
   config.php, db.php, iam.php, mail.php, secret.php, google.php
                           the loaders and the tunables that are the same everywhere (committed)
   *.local.php             what one installation is - written by setup.php, gitignored, required
-migrations/iam/           NNN_name.sql - the schema and the seeded data; never edit an applied one
+migrations/iam/           NNN_name.sql - the schema and the seeded data; never edit an applied one (the library's
+                          own set, anotoki_translations, is in vendor/anotoki/lib/php/migrations and runs after it)
 storage/                  cache/, mail in development (storage/mail/*.eml), the setup nonce, the install lock
-tests/                    run.php, lib.php, setup_lib.php, translation_keys.php and one *.test.php per area
-vendor/                   Slim, the anotoki family's library (anotoki/lib, from GitHub - never edited here) and
-                          their dependencies, committed
+tests/                    run.php, lib.php, setup_lib.php and one *.test.php per area
+vendor/                   Slim, the anotoki family's library (anotoki/lib, from GitHub - never edited here; its
+                          migration files and words come with it) and their dependencies, committed
 ```
 
 ## Commands
@@ -86,14 +91,15 @@ folder. Only the PostgreSQL server is borrowed, from this machine's
 | `oidc.test.php` | the sign-in flow the sites depend on, and the attacks each protocol rule stops |
 | `setup.test.php` | the IAM before it is set up (`503 not_set_up`, naming the installer; the status), and the installer on this computer: the nonce, "Test connection", saving - the database built from nothing -, running again |
 | `setup-remote.test.php` | the installer on a real host: the token, https, production addresses, lock and removal; an installed IAM that loses a configuration file, never naming the installer again |
-| `migrations.test.php` | the anotoki family's migrations module in the IAM: `/api/site-status` (ready, unavailable, an update waiting), an update waiting closing nothing - every way in, a site's sign-in, the account page, the admin panel -, the admin Migrations routes (the list, a file's SQL and no path past it, Apply and its audit; who may; the CSRF header; one apply at a time), the command line building a database from nothing, `--status`, `--dry-run`, waiting its turn, and a pooled connection letting go of the lock a dead request left |
+| `migrations.test.php` | the anotoki family's migrations module in the IAM: `/api/site-status` (ready, unavailable, an update waiting), an update waiting closing nothing - every way in, a site's sign-in, the account page, the admin panel -, the admin Migrations routes (the two sets, the IAM's and the library's translations set; the list, a file's SQL of either and no path past it, Apply and its audit, a library file as `set/name`; who may; the CSRF header; one apply at a time), the command line building a database from nothing, `--status`, `--dry-run`, waiting its turn, and a pooled connection letting go of the lock a dead request left |
 | `import.test.php` | the genshin site's accounts brought over |
 | `survey-application.test.php` | migration 005 on IAMs installed before it, and the survey site signing in |
 | `every-site.test.php` | migration 007 on a fresh IAM and on one shaped like an installed one; the first administrator's ADMIN in every application |
-| `top-bar-strings.test.php` | migration 008 (the top bar's words) on a fresh IAM and on one shaped like an installed one |
+| `top-bar-strings.test.php` | migration 008 (the top bar's words) on a fresh IAM (its button's name under the library's key since 017) and on one shaped like an installed one |
 | `admin-panel-strings.test.php` | migration 009 ("Admin panel") rewording only 006's words, on a fresh IAM and on one shaped like an installed one |
 | `sign-in-rules.test.php` | migration 010 (MEMBER for everyone, roles that may sign in, sign-in required) on a fresh IAM and on one shaped like an installed one - who gets in, before and after; its triggers on every way an account or application is made; the rule through every way in, personal tokens and codes given before included; two saves of one application at once; the public contract (`/api/public/applications/{client_id}`) and the SDK reading its answer; the admin API's rules; the window while 010 is pending. And migration 011 (public clients only, the same roles everywhere, no landing page settings) on a fresh IAM and on one through 010: a client secret refused, PKCE of every client, fixed roles, a new application's three roles and its place last; the panel's lists of who is blocked where |
-| `translations.test.php` | the strings: `en.ts`, the mails' fallback and the seeded English held together |
+| `translations.test.php` | the IAM's words on the anotoki library's code (whose own suite holds what every site's words do): the window before 006 - every way in, the mails in the code's English, Apply bringing the strings -; the catalogue - `en.ts`, `MAIL_KEYS` / `MAIL_FALLBACK` and the seeded English held together, the library's words its file's, every stored string passing the checks, the frontend's scan with the IAM's settings -; the IAM's configuration and its rules (the mails' - one short line, the bytes, the code's placeholders, no address -, the `{app}` sentences); the mails byte for byte, never failing, never turned against their reader; the contract on every route - the bundle, 304, 404 before any query, who may, the CSRF header, the body's refusals, the audit with a mail string's old and new text, `strings` and `accounts`, `ui_locales`, the `locale` claim, discovery and the pages' config without a database -; the command line |
+| `strings-through-the-library.test.php` | migration 017 and the library's set after it on a fresh IAM, and on one built through 016 as its owner left it: every string of the four moved keys there under the new names - word, writer, time, a blank kept blank -, the bundles before and after differing by the four names and the library's words alone; the window while they wait - the sign-in pages' words, every way in, the Translations page - and Apply |
 | `announcements.test.php` | migration 013 (announcements) on a fresh IAM and on one through 012: the composer, who an audience reaches and why the others are left out, a draft's checks - links and addresses to the anotoki sites only -, the preview's layout with every word escaped, a test to the administrator alone, sending in batches with each person's version, skipping who can no longer be written to, a row another sender holds, the host's hourly allowance, Stop; the link that stops the news and its forgeries, the account page's switch, the senders, who may call it, the window while 013 is pending; and migration 014, the news offered at registration - the form's box, Google from either page, and a stranger's yes gone when the owner claims the account |
 | `approvals.test.php` | migration 012 (new accounts waiting for an administrator's approval) on a fresh IAM and on one through 011: an account made by signing up - the form, a sign-up started from a site, Google - refused on every way in until approved, and every door refusing a waiting account's session and tokens should it hold any; approving and its mail, declining - never an address nobody confirmed, which its owner takes back; accounts made by an administrator never waiting; switching it off letting in everybody waiting, never one declined, and a sign-up going after a switch-off rather than beside it; the window while 012 is pending |
 | `preferences.test.php` | migration 015 (the theme, the dates and the clock are the account's) on a fresh IAM and on one through 014: the account page, the `preferences` claim, a site's save with the person's token - never the cookie - and what it asks of the token; CORS; the window while 015 is pending |
@@ -108,9 +114,11 @@ Slim's own parser, as production does, fixtures,
 `buildIamThrough()` / `applyMigrationsThrough()` for a database up to one migration,
 and `appliedMigrations()`, `pendingMigrations()`, `applyMigration()`, ... - the
 names the IAM's own engine had, now a few lines each over the library's
-`Migrator`, `iamMigrator()`),
-`setup_lib.php` (the installer driven in-process) and `translation_keys.php`
-(the frontend's keys and English, shared with `translations.php`).
+`Migrator`, `iamMigrator()`, naming a library set's file `set/name`) and
+`setup_lib.php` (the installer driven in-process). The frontend's keys and its
+compiled English are read by the library's `KeyScanner` and
+`EnglishDictionary` (`iamKeyScanner()` in `api/translations.php`), shared with
+`translations.php`.
 
 Any change to an endpoint or the installer comes with a test; a change to a
 security rule, with a test of the attack it stops. They must pass on the newest
