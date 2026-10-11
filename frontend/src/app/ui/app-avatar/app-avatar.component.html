@@ -1,5 +1,0 @@
-@if (logoUrl() && !failed()) {
-    <img class="avatar" [src]="logoUrl()" alt="" (error)="failed.set(true)" />
-} @else {
-    <span class="avatar avatar-initial" aria-hidden="true">{{ initial() }}</span>
-}

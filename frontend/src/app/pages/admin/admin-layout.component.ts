@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { UpdateBannerComponent } from '@anotoki/lib/migrations';
+import { ShellComponent, ShellNavItem } from '@anotoki/lib/shell';
+import { ButtonComponent, EmptyStateComponent } from '@anotoki/lib/ui';
 import { SessionService } from '../../core/auth/session.service';
-import { NavItem, ShellComponent } from '../../layouts/shell/shell.component';
-import { ButtonComponent } from '../../ui/button/button.component';
-import { EmptyStateComponent } from '../../ui/empty-state/empty-state.component';
+import { IconName } from '../../core/kit/icons';
+import { AppTopBarComponent } from '../../layouts/top-bar/top-bar.component';
 
-const NAV: NavItem[] = [
+/** The panel's sections: the frame's side navigation (a strip under the bar on a phone). */
+const NAV: readonly (ShellNavItem & { icon: IconName })[] = [
   { link: '/admin', label: 'Dashboard', icon: 'dashboard', exact: true },
   { link: '/admin/users', label: 'Users', icon: 'users' },
   { link: '/admin/approvals', label: 'Approvals', icon: 'clock' },
@@ -23,7 +25,8 @@ const NAV: NavItem[] = [
 ];
 
 /**
- * The admin panel, English only.
+ * The admin panel, English only: the family's frame (@anotoki/lib/shell) with
+ * its side navigation of the panel's sections, under the family's top bar.
  *
  * Somebody signed in without the IAM's ADMIN role sees "you don't have access"
  * in place of the page, at the address they asked for - no redirect, so the
@@ -41,7 +44,7 @@ const NAV: NavItem[] = [
  */
 @Component({
   selector: 'app-admin-layout',
-  imports: [RouterLink, RouterOutlet, UpdateBannerComponent, ShellComponent, ButtonComponent, EmptyStateComponent],
+  imports: [RouterLink, RouterOutlet, UpdateBannerComponent, ShellComponent, AppTopBarComponent, ButtonComponent, EmptyStateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss',

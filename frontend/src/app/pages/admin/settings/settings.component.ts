@@ -1,18 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { AlertComponent, ButtonComponent, CardComponent, ErrorStateComponent, PageHeaderComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { SelectComponent, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { Setting } from '../../../core/api/models';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { SelectComponent } from '../../../ui/select/select.component';
-import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
-import { SwitchComponent } from '../../../ui/switch/switch.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { adminErrorText } from '../admin-errors';
 
 /** What each switch does, said plainly - the setting's name alone does not say what happens when it is off. */

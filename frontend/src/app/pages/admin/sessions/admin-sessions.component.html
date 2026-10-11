@@ -1,5 +1,5 @@
 <div class="page">
-    <app-page-header heading="Sessions" lead="Every sign-in to the IAM. Ending one signs that browser out of every site.">
+    <anotoki-page-header heading="Sessions" lead="Every sign-in to the IAM. Ending one signs that browser out of every site.">
         @if (response(); as r) {
             <p pageMeta class="counts">
                 <span>
@@ -12,19 +12,19 @@
                 </span>
             </p>
         }
-    </app-page-header>
+    </anotoki-page-header>
 
-    <app-card [flush]="true">
+    <anotoki-card [flush]="true">
         <div class="filters" role="search" aria-label="Filter sessions">
-            <app-text-field class="filter-search" label="Search" type="search" name="session-search" placeholder="Username, email or address" [(value)]="searchText">
-                <span fieldPrefix class="field-affix"><app-icon name="search" [size]="16" /></span>
-            </app-text-field>
-            <app-select label="Signed in by" placeholder="Any" [options]="methodOptions()" [value]="method() ?? ''" (valueChange)="setFilter('method', $event)" />
-            <app-select label="State" placeholder="Any" [options]="statusOptions" [value]="status() ?? ''" (valueChange)="setFilter('status', $event)" />
+            <anotoki-text-field class="filter-search" label="Search" type="search" name="session-search" placeholder="Username, email or address" [(value)]="searchText">
+                <span fieldPrefix><anotoki-icon name="search" [size]="16" /></span>
+            </anotoki-text-field>
+            <anotoki-select label="Signed in by" placeholder="Any" [options]="methodOptions()" [value]="method() ?? ''" (valueChange)="setFilter('method', $event)" />
+            <anotoki-select label="State" placeholder="Any" [options]="statusOptions" [value]="status() ?? ''" (valueChange)="setFilter('status', $event)" />
             @if (filtered()) {
                 <div class="filter-reset">
-                    <button appButton variant="ghost" size="sm" (click)="clearFilters()">
-                        <app-icon name="x" [size]="15" />
+                    <button anotokiButton variant="ghost" size="sm" (click)="clearFilters()">
+                        <anotoki-icon name="x" [size]="15" />
                         Clear filters
                     </button>
                 </div>
@@ -33,14 +33,14 @@
 
         @if (user_id()) {
             <div class="toolbar">
-                <app-badge tone="primary">One user: #{{ user_id() }}</app-badge>
-                <button appButton variant="link" size="sm" (click)="setFilter('user_id', '')">Show everybody</button>
+                <anotoki-badge tone="primary">One user: #{{ user_id() }}</anotoki-badge>
+                <button anotokiButton variant="link" size="sm" (click)="setFilter('user_id', '')">Show everybody</button>
             </div>
         }
 
         @if (loadError()) {
             <div class="padded">
-                <app-error-state heading="The sessions could not be loaded" [message]="loadError()!" (retry)="reload()" />
+                <anotoki-error-state heading="The sessions could not be loaded" [message]="loadError()!" (retry)="reload()" />
             </div>
         } @else if (loading() && !response()) {
             <div class="skeletons" aria-hidden="true">
@@ -50,7 +50,7 @@
             </div>
         } @else if (response(); as r) {
             @if (r.sessions.length === 0) {
-                <app-empty-state icon="laptop" heading="No sessions match" [text]="filtered() ? 'Try fewer filters.' : 'Nobody has signed in yet.'" />
+                <anotoki-empty-state icon="laptop" heading="No sessions match" [text]="filtered() ? 'Try fewer filters.' : 'Nobody has signed in yet.'" />
             } @else {
                 @if (r.total > rowLimit) {
                     <p class="padded small muted">Showing the newest {{ rowLimit }} of {{ r.total }}. Narrow the filters to see older ones.</p>
@@ -84,14 +84,14 @@
                                         <span class="badges">
                                             {{ methodKey(session.method) | t }}
                                             @if (session.mfa) {
-                                                <app-badge tone="success">2FA</app-badge>
+                                                <anotoki-badge tone="success">2FA</anotoki-badge>
                                             }
                                         </span>
                                     </td>
                                     <td>
                                         <span class="badges">
                                             @for (app of session.applications; track app) {
-                                                <app-badge>{{ app }}</app-badge>
+                                                <anotoki-badge>{{ app }}</anotoki-badge>
                                             } @empty {
                                                 <span class="muted">-</span>
                                             }
@@ -102,14 +102,14 @@
                                     <td class="nowrap">{{ session.last_seen_at | appDate: "relative" : "-" }}</td>
                                     <td>
                                         @if (session.active) {
-                                            <app-badge tone="success" [dot]="true">Signed in</app-badge>
+                                            <anotoki-badge tone="success" [dot]="true">Signed in</anotoki-badge>
                                         } @else {
                                             <span [attr.title]="session.revoked_reason">{{ stateKey(session) | t }}</span>
                                         }
                                     </td>
                                     <td class="cell-actions">
                                         @if (session.active) {
-                                            <button appButton size="sm" variant="secondary" [loading]="endingId() === session.id" (click)="end(session)">End</button>
+                                            <button anotokiButton size="sm" variant="secondary" [loading]="endingId() === session.id" (click)="end(session)">End</button>
                                         }
                                     </td>
                                 </tr>
@@ -119,5 +119,5 @@
                 </div>
             }
         }
-    </app-card>
+    </anotoki-card>
 </div>

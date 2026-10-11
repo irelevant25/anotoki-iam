@@ -1,6 +1,7 @@
-<app-shell area="account">
+<anotoki-shell>
+    <app-top-bar topBar area="account" />
     @if (deletionDue(); as due) {
         <app-deletion-banner [due]="due" [takeFocus]="drawn()" />
     }
     <router-outlet />
-</app-shell>
+</anotoki-shell>

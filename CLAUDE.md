@@ -266,8 +266,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `<anotoki-update-banner>` in the admin panel (`docs/decisions.md`).
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
-  `frontend/package.json` (the release's tarball), one version, updated
-  together (`docs/operations.md`). Never edit the vendored copy: a change goes
+  `frontend/package.json` (the release's tarball), one version for both
+  halves, updated together where both change (`docs/operations.md`): the
+  frontend is on 0.2.0 (the UI kit), the backend on 0.1.0 - 0.2.0 changed only
+  the Angular half. Never edit the vendored copy: a change goes
   to the library and comes back as a release. Its routes here:
   `GET /api/site-status` (first-party, public, no CORS) and
   `/api/admin/migrations[/file|/apply]` inside the admin group.
@@ -299,7 +301,8 @@ a decision for `docs/decisions.md`, not a refactor.
 - **Every component is three files**: `x.component.ts`, `.html`, `.scss` - no
   inline `template` or `styles`, even when the `.scss` is empty. Styles shared
   by a group of pages are partials `@use`d by each page's own `.scss`
-  (`pages/auth/_auth-page.scss`, `pages/admin/_admin-list.scss`).
+  (`pages/auth/_auth-page.scss`, `pages/admin/_admin-list.scss`,
+  `pages/admin/_admin-field.scss`).
 - `frontend/src/app/core/` - the hand-written API services and models
   (`core/api/`, mirroring `docs/api.md`), the session state, the HTTP
   interceptor (adds `X-IAM-Request: 1` to every write; sends a 401 outside the
@@ -307,22 +310,32 @@ a decision for `docs/decisions.md`, not a refactor.
   `/not-set-up`; hands the migrations module's own requests their
   HttpErrorResponse back - the library's `siteStatusInterceptor` runs inside
   it), the family's migrations module (`migrations/migrations.config.ts`:
-  `provideAnotokiMigrations`, no gate and no boot check), translations
+  `provideAnotokiMigrations`, no gate and no boot check), the family's UI kit
+  and shell (`kit/kit.config.ts`: `provideAnotokiUi` - the kit's words are the
+  IAM's strings through its `lookup`, `kit/kit-words.ts`, and its icons
+  `kit/icons.ts` - and `provideAnotokiShell`: the theme, the account's while
+  signed in, and the languages), translations
   (`i18n/translation.service.ts`: the language
   and its bundle from `GET /api/translations/{code}`; `i18n/en.ts`: the keys
-  and the English shown only while no bundle is in memory; the `t` pipe), theme.
-- `frontend/src/app/ui/` - the app's own small UI kit; build on it.
+  and the English shown only while no bundle is in memory; the `t` pipe).
+- The UI kit is the family's (anotoki-lib 0.2.0): the `anotoki-*` components of
+  `@anotoki/lib/ui` and its entry points (`ui/forms`, `ui/dialog`, `ui/toast`,
+  ... - what only lazy pages use, only they import), and `@anotoki/lib/styles`
+  in `src/styles.scss` (the tokens - the IAM's palette is the family's -
+  Manrope, the base, utilities, tables). Build on it; a piece it lacks goes to
+  the library. `frontend/src/app/ui/` keeps the IAM's own (`google-button`).
 - Pages: the sign-in flow (`/login`, `/register`, `/confirm-email`,
   `/forgot-password`, `/reset-password`, `/logout`, `/error`, `/not-set-up`),
   the account page (`/account/**`), the admin panel (`/admin/**`, English
   only; `/admin/migrations` is the family's `<anotoki-migrations-page>`, and
-  `<anotoki-update-banner>` sits above the panel's pages). The library's
-  components draw with `--anotoki-*`, mapped onto the IAM's tokens in
-  `styles.scss` for both palettes.
-- **The top bar** (`layouts/top-bar`, in `layouts/shell`) is the anotoki
-  family's one bar; the survey site's `layouts/top-bar` is the reference.
-  One row: brand, the account pages as links, the language (`app-language-switcher
-  [compact]`, not in the admin panel), the theme, the person's menu (the
+  `<anotoki-update-banner>` sits above the panel's pages; the Migrations page
+  is `@anotoki/lib/migrations/page`, out of the first load).
+- **The top bar** (`layouts/top-bar`) is the anotoki family's one bar,
+  `<anotoki-top-bar>` from `@anotoki/lib/shell` (its menus, keys and fold are
+  the library's, tested there), worded and wired for the IAM; the account
+  pages and the admin panel are in the family's frame, `<anotoki-shell>`.
+  One row: brand, the account pages as links, the language (not in the admin
+  panel), the theme (the family's segmented switch), the person's menu (the
   admin panel for the IAM's ADMIN, "Back to your account" from it, Sign out
   - no "Your anotoki account": this is it). It folds into a menu button up to
   `PHONE_BAR_MAX` (1040 px, measured in English and Slovak plus a scrollbar:
@@ -334,8 +347,9 @@ a decision for `docs/decisions.md`, not a refactor.
   ("Language: Slovenčina (SK)", WCAG 2.5.3). The admin panel keeps
   its side navigation under the bar. The sign-in pages keep their own frame
   (`layouts/auth-layout`).
-- Zoneless and signals-first; OnPush everywhere; no UI library. Colours only
-  from the CSS custom properties in `styles.scss`, defined for light and dark.
+- Zoneless and signals-first; OnPush everywhere; no UI library but the
+  family's. Colours only from the family's `--anotoki-*` custom properties
+  (written for light and dark by `styles.scss`) and the sign-in pages' night sky.
   Every page works at 390 px (360 px for the top bar).
 - The auth and account pages' words, and the four mails', are rows in the
   database (`languages`, `translation_keys`, `translations`, migration 006),

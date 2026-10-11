@@ -1,14 +1,14 @@
 <div class="page">
-    <app-page-header heading="Dashboard" lead="The anotoki IAM at a glance." />
+    <anotoki-page-header heading="Dashboard" lead="The anotoki IAM at a glance." />
 
     @if (loadError()) {
-        <app-error-state heading="The numbers could not be loaded" [message]="loadError()!" (retry)="load()" />
+        <anotoki-error-state heading="The numbers could not be loaded" [message]="loadError()!" (retry)="load()" />
     } @else {
         <ul class="tiles">
             @for (tile of tiles; track tile.key) {
                 <li>
                     <a class="tile" [routerLink]="tile.link" [queryParams]="tile.query ?? {}" [attr.data-tone]="tile.tone && stats() && stats()![tile.key] > 0 ? tile.tone : null">
-                        <span class="tile-icon"><app-icon [name]="tile.icon" [size]="18" /></span>
+                        <span class="tile-icon"><anotoki-icon [name]="tile.icon" [size]="18" /></span>
                         <span class="tile-value">
                             @if (stats(); as s) {
                                 {{ s[tile.key] }}
@@ -30,7 +30,7 @@
             @for (item of links; track item.link) {
                 <li>
                     <a class="link-card" [routerLink]="item.link">
-                        <app-icon [name]="item.icon" [size]="20" />
+                        <anotoki-icon [name]="item.icon" [size]="20" />
                         <span>
                             <span class="link-title">{{ item.label }}</span>
                             <span class="link-text">{{ item.text }}</span>

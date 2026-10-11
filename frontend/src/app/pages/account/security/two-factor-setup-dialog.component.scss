@@ -10,9 +10,9 @@
   gap: 1.25rem;
   align-items: center;
   padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-2);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface-2);
 
   @media (max-width: 520px) {
     grid-template-columns: 1fr;

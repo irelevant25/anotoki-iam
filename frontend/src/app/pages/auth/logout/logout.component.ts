@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, booleanAttribute, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { AlertComponent, AutofocusDirective, ButtonComponent, IconComponent, SpinnerComponent } from '@anotoki/lib/ui';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
 import { RequestApplication } from '../../../core/api/models';
@@ -8,11 +9,6 @@ import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { AuthCardComponent } from '../../../layouts/auth-card/auth-card.component';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { AutofocusDirective } from '../../../ui/autofocus.directive';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
 
 type Step = 'loading' | 'ask' | 'done' | 'expired';
 

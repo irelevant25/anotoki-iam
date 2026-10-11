@@ -1,21 +1,14 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { BadgeComponent, BadgeTone, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { SelectComponent, SelectOption, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { PaginationComponent } from '@anotoki/lib/ui/pagination';
 import { catchError, debounceTime, distinctUntilChanged, of, skip, switchMap, tap } from 'rxjs';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { EmailFilters, EmailLogEntry, EmailQuery, Paged } from '../../../core/api/models';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
-import { BadgeComponent, BadgeTone } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { EmptyStateComponent } from '../../../ui/empty-state/empty-state.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { PaginationComponent } from '../../../ui/pagination/pagination.component';
-import { SelectComponent, SelectOption } from '../../../ui/select/select.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { adminErrorText } from '../admin-errors';
 
 /**

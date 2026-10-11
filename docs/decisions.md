@@ -1125,3 +1125,46 @@ hosts no more trusted but more numerous in what they receive.
 - **One place.** The cookie is read (`sessionSecretFrom()`), set, expired and
   renamed in `api/session.php` and nowhere else; the four endpoints the sites
   call cross-origin read no cookie, and rename none.
+
+## 2026-10-07 - The family's UI kit: one palette, Manrope, one theme switch, one admin wordmark
+
+The owner's decisions, for every anotoki site, with anotoki-lib 0.2.0 - the
+release that put the family's UI kit, its frame and its theme into the
+library beside the migrations. Since 0.2.0 the IAM's frontend is drawn by
+them: the kit (`@anotoki/lib/ui` and its entry points - buttons, fields,
+dialogs, toasts, menus, tabs and the rest), the shell (`<anotoki-shell>`,
+`<anotoki-top-bar>`, the language switcher, the theme switch, and
+`ThemeService` with its boot script) and the styles (`@anotoki/lib/styles`:
+the tokens, the font, the base, the utilities, the tables). The IAM's own kit
+under `ui/`, its theme service, its frame and its boot script are gone; `ui/`
+keeps the Google button, which is the IAM's alone. A piece the kit lacks goes
+to the library, not back into `ui/`.
+
+- **One palette, the library's, that a site overrides.** The kit draws only
+  with the `--anotoki-*` properties, light and dark, and their values are the
+  IAM's palette, which became the family's. A site whose colours differ
+  overrides the properties it needs (`anotoki.root((light: ..., dark: ...))`
+  in its `styles.scss`), never a component. The IAM overrides none; the night
+  sky of its sign-in pages stays its own.
+- **Manrope on every site**, from the library's styles (`anotoki.fonts`); the
+  IAM's own copy of the font went.
+- **The family's segmented theme switch** - light, dark, system in one radio
+  group - in the bar and on the sign-in pages, in place of the IAM's own of
+  the same shape. Signed in, the theme is still the account's (2026-10-06):
+  the shell reads `preferences.theme` and saves a choice there.
+- **The admin wordmark is "anotoki {site} · admin panel"** on every site. The
+  IAM's is "anotoki account · admin panel", in place of 2026-10-04's "anotoki
+  admin panel"; on a phone "account", with "admin panel" small under it, as
+  the bar shortens every site's; its link is named with the words shown
+  ("anotoki account admin panel - home").
+- **The IAM's words stay the database's.** A word of the kit or the bar that
+  the IAM said before is still its string, through the kit's `lookup`
+  (`core/kit/kit-words.ts`), reworded on the Translations page like the rest;
+  only what the IAM never said is the kit's own English and Slovak. The admin
+  panel stays English, and "Your anotoki account" stays out of the IAM's own
+  menu (2026-10-04): this site is that account.
+- **The look is kept.** The kit was drawn from the IAM's pieces; where it
+  differs - the fields' edges at 3:1 contrast, the spinner, 44 px targets for
+  links, the theme switch - the family's is meant. The backend stays on
+  anotoki/lib 0.1.0: 0.2.0 changed only the Angular half
+  (`docs/operations.md`).

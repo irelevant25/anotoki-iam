@@ -1,3 +1,5 @@
+@use "../admin-field";
+
 .list {
   display: flex;
   flex-direction: column;
@@ -25,11 +27,11 @@ legend {
 }
 
 .mono-input {
-  font-family: var(--font-mono);
+  font-family: var(--anotoki-font-mono);
   font-size: 0.875rem;
 }
 
 .empty {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.875rem;
 }

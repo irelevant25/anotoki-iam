@@ -1,11 +1,11 @@
 <div class="page">
     @if (loadError()) {
-        <app-page-header heading="Announcement" />
-        <app-error-state heading="The announcement could not be loaded" [message]="loadError()!" (retry)="reload()" />
+        <anotoki-page-header heading="Announcement" />
+        <anotoki-error-state heading="The announcement could not be loaded" [message]="loadError()!" (retry)="reload()" />
     } @else if (detail(); as d) {
-        <app-page-header [heading]="d.subject">
+        <anotoki-page-header [heading]="d.subject">
             <p pageMeta class="counts">
-                <app-badge [tone]="statusLabels[d.status].tone" [dot]="true">{{ statusLabels[d.status].label }}</app-badge>
+                <anotoki-badge [tone]="statusLabels[d.status].tone" [dot]="true">{{ statusLabels[d.status].label }}</anotoki-badge>
                 <span>
                     {{ templateLabel(d.template) }}
                     @if (d.application) {
@@ -19,13 +19,13 @@
                     }
                 </span>
             </p>
-            <a appButton variant="ghost" routerLink="/admin/announcements">
-                <app-icon name="arrowLeft" [size]="16" />
+            <a anotokiButton variant="ghost" routerLink="/admin/announcements">
+                <anotoki-icon name="arrowLeft" [size]="16" />
                 Announcements
             </a>
-        </app-page-header>
+        </anotoki-page-header>
 
-        <app-card heading="Sending">
+        <anotoki-card heading="Sending">
             <div class="stack">
                 <div class="progress-head">
                     <span>
@@ -59,32 +59,34 @@
                 </p>
 
                 @if (runError()) {
-                    <app-alert tone="danger" [announce]="true">{{ runError() }}</app-alert>
+                    <anotoki-alert tone="danger" [announce]="true">{{ runError() }}</anotoki-alert>
                 }
 
                 @switch (d.status) {
                     @case ("sending") {
                         @if (running() && waitingUntil()) {
-                            <app-alert tone="info">The host's hourly allowance of mails is used up: it goes on by itself at {{ waitingUntil() | appDate: "time" }} - keep this page open.</app-alert>
+                            <anotoki-alert tone="info">
+                                The host's hourly allowance of mails is used up: it goes on by itself at {{ waitingUntil() | appDate: "time" }} - keep this page open.
+                            </anotoki-alert>
                         } @else if (running() && othersSending()) {
-                            <app-alert tone="info">Another page is sending it too: this one waits its turn.</app-alert>
+                            <anotoki-alert tone="info">Another page is sending it too: this one waits its turn.</anotoki-alert>
                         } @else if (running()) {
-                            <app-alert tone="info">
+                            <anotoki-alert tone="info">
                                 <span class="cluster">
-                                    <app-spinner size="sm" />
+                                    <anotoki-spinner size="sm" />
                                     Sending, a batch at a time - keep this page open until it is done.
                                 </span>
-                            </app-alert>
+                            </anotoki-alert>
                         } @else {
-                            <app-alert tone="warning">Paused: it goes on only while this page sends it.</app-alert>
+                            <anotoki-alert tone="warning">Paused: it goes on only while this page sends it.</anotoki-alert>
                         }
                         <div class="form-actions">
-                            <button appButton variant="danger" [loading]="stopping()" (click)="stop()">Stop sending</button>
+                            <button anotokiButton variant="danger" [loading]="stopping()" (click)="stop()">Stop sending</button>
                             @if (running()) {
-                                <button appButton variant="secondary" (click)="pause()">Pause</button>
+                                <button anotokiButton variant="secondary" (click)="pause()">Pause</button>
                             } @else {
-                                <button appButton variant="primary" (click)="run()">
-                                    <app-icon name="send" [size]="16" />
+                                <button anotokiButton variant="primary" (click)="run()">
+                                    <anotoki-icon name="send" [size]="16" />
                                     Continue sending
                                 </button>
                             }
@@ -98,13 +100,13 @@
                     }
                 }
             </div>
-        </app-card>
+        </anotoki-card>
 
         <div class="columns">
-            <app-card heading="The mail">
+            <anotoki-card heading="The mail">
                 <div class="stack">
                     @if (tabs().length > 1) {
-                        <app-tabs label="Languages" idPrefix="version" [tabs]="tabs()" [(active)]="language" />
+                        <anotoki-tabs label="Languages" idPrefix="version" [tabs]="tabs()" [(active)]="language" />
                     }
                     @if (version(); as v) {
                         <dl class="facts" role="tabpanel" [id]="'version-panel-' + language()" [attr.aria-labelledby]="tabs().length > 1 ? 'version-tab-' + language() : null">
@@ -125,9 +127,9 @@
                     }
                     <p class="small muted">Readers of a language without a version got the English one.</p>
                 </div>
-            </app-card>
+            </anotoki-card>
 
-            <app-card heading="From and to">
+            <anotoki-card heading="From and to">
                 <dl class="facts">
                     <dt>From</dt>
                     <dd class="break">{{ d.sender.name ? d.sender.name + " <" + d.sender.address + ">" : d.sender.address }}</dd>
@@ -138,7 +140,7 @@
                         } @else {
                             <span class="audience">
                                 @for (grant of d.audience.roles; track grant.client_id + grant.role) {
-                                    <app-badge [mono]="true">{{ grant.client_id }} · {{ grant.role }}</app-badge>
+                                    <anotoki-badge [mono]="true">{{ grant.client_id }} · {{ grant.role }}</anotoki-badge>
                                 }
                                 @for (person of d.audience.users; track person.id) {
                                     <a [routerLink]="['/admin/users', person.id]">{{ person.username }}</a>
@@ -149,24 +151,24 @@
                     <dt>Languages</dt>
                     <dd>{{ d.languages.join(", ").toUpperCase() }}</dd>
                 </dl>
-            </app-card>
+            </anotoki-card>
         </div>
 
-        <app-card [flush]="true" heading="Recipients" subheading="Each person once, at the address and in the version it went in.">
+        <anotoki-card [flush]="true" heading="Recipients" subheading="Each person once, at the address and in the version it went in.">
             <div class="filters" role="search" aria-label="Filter the recipients">
-                <app-text-field class="filter-search" label="Person" type="search" name="recipient-search" placeholder="Name or address" [(value)]="recipientSearch">
-                    <span fieldPrefix class="field-affix"><app-icon name="search" [size]="16" /></span>
-                </app-text-field>
-                <app-select label="Status" placeholder="Any" [options]="statusOptions" [value]="recipientStatus()" (valueChange)="recipientStatus.set($event); recipientPage.set(1)" />
+                <anotoki-text-field class="filter-search" label="Person" type="search" name="recipient-search" placeholder="Name or address" [(value)]="recipientSearch">
+                    <span fieldPrefix><anotoki-icon name="search" [size]="16" /></span>
+                </anotoki-text-field>
+                <anotoki-select label="Status" placeholder="Any" [options]="statusOptions" [value]="recipientStatus()" (valueChange)="recipientStatus.set($event); recipientPage.set(1)" />
             </div>
 
             @if (recipientsError()) {
                 <div class="padded">
-                    <app-error-state heading="The recipients could not be loaded" [message]="recipientsError()!" />
+                    <anotoki-error-state heading="The recipients could not be loaded" [message]="recipientsError()!" />
                 </div>
             } @else if (recipients(); as r) {
                 @if (r.items.length === 0) {
-                    <app-empty-state icon="users" heading="Nobody matches" />
+                    <anotoki-empty-state icon="users" heading="Nobody matches" />
                 } @else {
                     <div class="table-scroll" [class.is-refreshing]="recipientsLoading()">
                         <table class="table table-stack">
@@ -189,10 +191,10 @@
                                             </div>
                                         </td>
                                         <td data-label="Version">
-                                            <app-badge [mono]="true">{{ recipient.language.toUpperCase() }}</app-badge>
+                                            <anotoki-badge [mono]="true">{{ recipient.language.toUpperCase() }}</anotoki-badge>
                                         </td>
                                         <td data-label="Status">
-                                            <app-badge [tone]="recipientLabels[recipient.status].tone" [dot]="true">{{ recipientLabels[recipient.status].label }}</app-badge>
+                                            <anotoki-badge [tone]="recipientLabels[recipient.status].tone" [dot]="true">{{ recipientLabels[recipient.status].label }}</anotoki-badge>
                                         </td>
                                         <td data-label="When">
                                             @if (recipient.sent_at) {
@@ -206,7 +208,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <app-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="recipientsLoading()" (pageChange)="recipientPage.set($event)" />
+                    <anotoki-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="recipientsLoading()" (pageChange)="recipientPage.set($event)" />
                 }
             } @else {
                 <div class="skeletons" aria-hidden="true">
@@ -214,8 +216,8 @@
                     <span class="skeleton"></span>
                 </div>
             }
-        </app-card>
+        </anotoki-card>
     } @else {
-        <div class="loading"><app-spinner size="lg" label="Loading the announcement" [showLabel]="true" /></div>
+        <div class="loading"><anotoki-spinner size="lg" label="Loading the announcement" [showLabel]="true" /></div>
     }
 </div>

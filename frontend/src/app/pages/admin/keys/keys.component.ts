@@ -1,17 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { SigningKey } from '../../../core/api/models';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
-import { BadgeComponent } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { ConfirmService } from '../../../ui/confirm/confirm.service';
-import { EmptyStateComponent } from '../../../ui/empty-state/empty-state.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { adminErrorText } from '../admin-errors';
 
 /** How long a retired key stays in the JWKS (the backend's KEY_RETIRED_GRACE). */

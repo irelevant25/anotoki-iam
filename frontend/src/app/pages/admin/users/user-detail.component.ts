@@ -1,6 +1,20 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import {
+  AlertComponent,
+  BadgeComponent,
+  BadgeTone,
+  ButtonComponent,
+  CardComponent,
+  EmptyStateComponent,
+  ErrorStateComponent,
+  IconComponent,
+  PageHeaderComponent,
+  SpinnerComponent,
+} from '@anotoki/lib/ui';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { Observable, catchError, forkJoin, of, switchMap, tap } from 'rxjs';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
@@ -9,17 +23,6 @@ import { SessionService } from '../../../core/auth/session.service';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { deviceLabel } from '../../../core/util/user-agent';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { BadgeComponent, BadgeTone } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { ConfirmService } from '../../../ui/confirm/confirm.service';
-import { EmptyStateComponent } from '../../../ui/empty-state/empty-state.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { sessionMethodKey, sessionStateKey } from '../../account/session-labels';
 import { adminErrorText } from '../admin-errors';
 import { EditUserDialogComponent } from './edit-user-dialog.component';

@@ -1,15 +1,13 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
+import { AlertComponent, ButtonComponent } from '@anotoki/lib/ui';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../core/api/account.api';
 import { ApiError } from '../../core/api/api-error';
-import { AccountUser } from '../../core/api/models';
 import { SessionService } from '../../core/auth/session.service';
 import { formatAppDate } from '../../core/i18n/app-date.pipe';
 import { errorText } from '../../core/i18n/error-text';
 import { TPipe } from '../../core/i18n/t.pipe';
 import { TranslationService } from '../../core/i18n/translation.service';
-import { AlertComponent } from '../../ui/alert/alert.component';
-import { ButtonComponent } from '../../ui/button/button.component';
-import { ToastService } from '../../ui/toast/toast.service';
 
 /**
  * The notice at the top of every account page while the account's deletion
@@ -61,12 +59,12 @@ export class DeletionBannerComponent {
   protected cancel(): void {
     this.busy.set(true);
     this.error.set(null);
-    this._accountApi.cancelDeletion().subscribe({
-      next: (user) => this._kept(user),
+    this._session.setFrom(this._accountApi.cancelDeletion()).subscribe({
+      next: () => this._kept(),
       error: (error: ApiError) => {
         if (error.code === 'deletion_not_requested') {
           // Cancelled already - in another tab: the account as it is now.
-          this._session.refresh().subscribe({ next: (user) => this._kept(user), error: () => this._failed(error) });
+          this._session.refresh().subscribe({ next: () => this._kept(), error: () => this._failed(error) });
           return;
         }
         this._failed(error);
@@ -74,12 +72,12 @@ export class DeletionBannerComponent {
     });
   }
 
-  private _kept(user: AccountUser): void {
+  /** The account, as the answer brought it, is the session's by now (setFrom(), refresh()): the notice goes with it. */
+  private _kept(): void {
     this.busy.set(false);
     // The notice and its button go with the change: the focus waits at the
     // top of the page they were on, rather than falling out of it.
     this._host.closest('main')?.focus();
-    this._session.set(user);
     this._toast.show(this._i18n.t('deletion.cancelled'), 'success', 9000);
   }
 

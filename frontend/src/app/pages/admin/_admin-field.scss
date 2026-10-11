@@ -1,0 +1,93 @@
+// Shared by the admin pages that draw a field by hand where the kit's fields
+// (@anotoki/lib/ui/forms) do not fit - a list of addresses with a button on
+// each row, the search above the translations' grid, a refusal under a
+// language or a string: the kit's look for them - the label, the control's
+// edge (3:1, the family's field edge) with its ring on the border, the input,
+// the hint and the error.
+
+.field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-weight: 650;
+  font-size: 0.875rem;
+  color: var(--anotoki-text);
+}
+
+.field-control {
+  display: flex;
+  align-items: center;
+  min-height: var(--anotoki-control-height);
+  border: 1px solid var(--anotoki-border-strong);
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-surface);
+  transition:
+    border-color var(--anotoki-duration) var(--anotoki-ease),
+    box-shadow var(--anotoki-duration) var(--anotoki-ease);
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--anotoki-border-strong) 60%, var(--anotoki-text) 40%);
+  }
+
+  &:focus-within {
+    border-color: var(--anotoki-primary);
+    box-shadow: 0 0 0 3px var(--anotoki-ring);
+  }
+
+  &.field-invalid {
+    border-color: var(--anotoki-danger);
+
+    &:focus-within {
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--anotoki-danger) 28%, transparent);
+    }
+  }
+}
+
+.field-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: calc(var(--anotoki-control-height) - 2px);
+  padding: 0 0.8rem;
+  border: 0;
+  background: transparent;
+  color: var(--anotoki-text);
+  // 16px, not 15: iOS zooms the page into any field smaller than that.
+  font-size: 1rem;
+  outline: none;
+
+  &::placeholder {
+    color: var(--anotoki-subtle);
+    opacity: 1;
+  }
+}
+
+.field-affix {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--anotoki-muted);
+
+  &:first-child {
+    padding-left: 0.75rem;
+  }
+
+  &:last-child {
+    padding-right: 0.25rem;
+  }
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--anotoki-muted);
+}
+
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--anotoki-danger);
+}

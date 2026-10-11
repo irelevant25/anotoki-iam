@@ -12,10 +12,10 @@
   flex-direction: column;
   gap: 0.9rem;
   padding: 1.2rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  box-shadow: var(--anotoki-shadow-sm);
 }
 
 .app.skeleton {
@@ -24,7 +24,7 @@
 }
 
 .app-locked {
-  background: var(--surface-2);
+  background: var(--anotoki-surface-2);
 }
 
 .app-head {
@@ -44,7 +44,7 @@
 }
 
 .app-host {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -52,7 +52,7 @@
 }
 
 .app-description {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.9rem;
   flex: 1;
 }
@@ -76,5 +76,5 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding-top: 0.8rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--anotoki-border);
 }

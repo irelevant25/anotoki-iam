@@ -1,4 +1,5 @@
 @use "../../admin-list";
+@use "../../admin-field";
 
 .page {
   max-width: 60rem;
@@ -24,15 +25,15 @@
   flex-direction: column;
   gap: 0.9rem;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  box-shadow: var(--anotoki-shadow-sm);
 
   // A hidden language stays whole and readable; its edge says it is off the switcher.
   &.is-hidden {
     border-style: dashed;
-    border-color: var(--border-strong);
+    border-color: var(--anotoki-border-strong);
     box-shadow: none;
   }
 }
@@ -51,14 +52,14 @@
 }
 
 .native {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   overflow-wrap: anywhere;
 }
 
 // How many accounts have it: at the row's far end, under the names on a phone.
 .accounts {
   margin-left: auto;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;

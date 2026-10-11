@@ -31,7 +31,7 @@
 .progress {
   height: 0.6rem;
   border-radius: 999px;
-  background: var(--surface-3);
+  background: var(--anotoki-surface-3);
   overflow: hidden;
 }
 
@@ -39,8 +39,8 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--primary);
-  transition: width var(--duration) var(--ease);
+  background: var(--anotoki-primary);
+  transition: width var(--anotoki-duration) var(--anotoki-ease);
 }
 
 .body {

@@ -1,16 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AlertComponent, AutofocusDirective, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { AuthCardComponent } from '../../../layouts/auth-card/auth-card.component';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { AutofocusDirective } from '../../../ui/autofocus.directive';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { looksLikeEmail } from '../auth-helpers';
 
 /**

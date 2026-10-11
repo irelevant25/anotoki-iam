@@ -1,4 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { AlertComponent, ButtonComponent } from '@anotoki/lib/ui';
+import { DialogComponent } from '@anotoki/lib/ui/dialog';
+import { CodeInputComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
 import { SessionService } from '../../../core/auth/session.service';
@@ -6,12 +10,6 @@ import { TranslationKey } from '../../../core/i18n/en';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CodeInputComponent } from '../../../ui/code-input/code-input.component';
-import { DialogComponent } from '../../../ui/dialog/dialog.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { RecoveryCodesComponent } from './recovery-codes.component';
 
 /**
@@ -65,10 +63,9 @@ export class TwoFactorCodeDialogComponent {
     this.busy.set(true);
 
     if (this.mode() === 'disable') {
-      this._accountApi.disableTwoFactor(code).subscribe({
-        next: (user) => {
+      this._session.setFrom(this._accountApi.disableTwoFactor(code)).subscribe({
+        next: () => {
           this.busy.set(false);
-          this._session.set(user);
           this._toast.success(this._i18n.t('security.twoFactor.turnedOff'));
           this.closed.emit(true);
         },

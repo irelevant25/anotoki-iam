@@ -1,12 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { AutofocusDirective, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
 import { safeNext } from '../../../core/auth/next-path';
 import { TranslationKey } from '../../../core/i18n/en';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { AuthCardComponent } from '../../../layouts/auth-card/auth-card.component';
-import { AutofocusDirective } from '../../../ui/autofocus.directive';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
 
 interface ErrorCopy {
   title: TranslationKey;

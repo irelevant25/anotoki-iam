@@ -1,27 +1,27 @@
 @if (user(); as me) {
     <div class="page">
-        <app-page-header [heading]="'overview.greeting' | t: { username: me.username }" [lead]="'overview.lead' | t" />
+        <anotoki-page-header [heading]="'overview.greeting' | t: { username: me.username }" [lead]="'overview.lead' | t" />
 
         @if (me.force_password_change) {
-            <app-alert tone="warning">
+            <anotoki-alert tone="warning">
                 {{ "overview.mustChange" | t }}
                 <div alertActions>
-                    <a appButton size="sm" variant="secondary" routerLink="/account/security">{{ "overview.mustChangeAction" | t }}</a>
+                    <a anotokiButton size="sm" variant="secondary" routerLink="/account/security">{{ "overview.mustChangeAction" | t }}</a>
                 </div>
-            </app-alert>
+            </anotoki-alert>
         }
         @if (!me.email_confirmed) {
-            <app-alert tone="info">{{ "overview.unconfirmedNotice" | t }}</app-alert>
+            <anotoki-alert tone="info">{{ "overview.unconfirmedNotice" | t }}</anotoki-alert>
         }
 
         <div class="grid">
-            <app-card [heading]="'overview.profile' | t">
+            <anotoki-card [heading]="'overview.profile' | t">
                 <dl class="facts">
                     <dt>{{ "overview.username" | t }}</dt>
                     <dd>
                         @if (editingUsername()) {
                             <form class="inline-form" novalidate (submit)="$event.preventDefault(); saveUsername()">
-                                <app-text-field
+                                <anotoki-text-field
                                     [label]="'overview.changeUsername' | t"
                                     name="nickname"
                                     autocomplete="nickname"
@@ -30,15 +30,15 @@
                                     [error]="usernameError()"
                                     [autofocus]="true" />
                                 <div class="inline-actions">
-                                    <button appButton type="submit" variant="primary" size="sm" [loading]="savingUsername()">{{ "common.save" | t }}</button>
-                                    <button appButton variant="ghost" size="sm" (click)="cancelUsername()">{{ "common.cancel" | t }}</button>
+                                    <button anotokiButton type="submit" variant="primary" size="sm" [loading]="savingUsername()">{{ "common.save" | t }}</button>
+                                    <button anotokiButton variant="ghost" size="sm" (click)="cancelUsername()">{{ "common.cancel" | t }}</button>
                                 </div>
                             </form>
                         } @else {
                             <span class="value-row">
                                 <strong>{{ me.username }}</strong>
-                                <button appButton variant="ghost" size="sm" [attr.aria-label]="'overview.changeUsername' | t" (click)="editUsername()">
-                                    <app-icon name="pencil" [size]="15" />
+                                <button anotokiButton variant="ghost" size="sm" [attr.aria-label]="'overview.changeUsername' | t" (click)="editUsername()">
+                                    <anotoki-icon name="pencil" [size]="15" />
                                     {{ "common.edit" | t }}
                                 </button>
                             </span>
@@ -50,9 +50,9 @@
                         <span class="value-row">
                             <span class="break">{{ me.email }}</span>
                             @if (me.email_confirmed) {
-                                <app-badge tone="success" [dot]="true">{{ "overview.confirmed" | t }}</app-badge>
+                                <anotoki-badge tone="success" [dot]="true">{{ "overview.confirmed" | t }}</anotoki-badge>
                             } @else {
-                                <app-badge tone="warning" [dot]="true">{{ "overview.unconfirmed" | t }}</app-badge>
+                                <anotoki-badge tone="warning" [dot]="true">{{ "overview.unconfirmed" | t }}</anotoki-badge>
                             }
                         </span>
                     </dd>
@@ -60,13 +60,13 @@
                     <dt>{{ "overview.memberSince" | t }}</dt>
                     <dd>{{ me.created_at | appDate: "date" }}</dd>
                 </dl>
-            </app-card>
+            </anotoki-card>
 
             <div class="side">
-                <app-card [heading]="(canChooseLanguage() ? 'overview.language' : 'overview.appearance') | t">
+                <anotoki-card [heading]="(canChooseLanguage() ? 'overview.language' : 'overview.appearance') | t">
                     <div class="stack">
                         @if (canChooseLanguage()) {
-                            <app-select
+                            <anotoki-select
                                 [label]="'overview.language' | t"
                                 [hideLabel]="true"
                                 [options]="languageOptions()"
@@ -79,18 +79,18 @@
                             @if (canChooseLanguage()) {
                                 <p class="setting-label">{{ "overview.appearance" | t }}</p>
                             }
-                            <app-theme-toggle />
+                            <anotoki-theme-toggle [iconsOnly]="false" />
                             <p class="small muted">{{ "overview.appearanceHint" | t }}</p>
                         </div>
                         @if (hasFormats()) {
                             <div class="stack stack-sm">
-                                <app-select
+                                <anotoki-select
                                     [label]="'overview.dateFormat' | t"
                                     [options]="dateFormatOptions()"
                                     [disabled]="savingFormat()"
                                     [(value)]="dateFormat"
                                     (valueChange)="changeFormat('date_format', $event)" />
-                                <app-select
+                                <anotoki-select
                                     [label]="'overview.timeFormat' | t"
                                     [options]="timeFormatOptions()"
                                     [disabled]="savingFormat()"
@@ -100,14 +100,14 @@
                             </div>
                         }
                     </div>
-                </app-card>
+                </anotoki-card>
 
                 @if (hasNewsSwitch()) {
-                    <app-card [heading]="'overview.emails' | t">
-                        <app-switch [(checked)]="newsMail" (checkedChange)="setNewsMail($event)" [busy]="savingNewsMail()" [hint]="'overview.newsMailHint' | t">
+                    <anotoki-card [heading]="'overview.emails' | t">
+                        <anotoki-switch [(checked)]="newsMail" (checkedChange)="setNewsMail($event)" [busy]="savingNewsMail()" [hint]="'overview.newsMailHint' | t">
                             {{ "overview.newsMail" | t }}
-                        </app-switch>
-                    </app-card>
+                        </anotoki-switch>
+                    </anotoki-card>
                 }
             </div>
         </div>
@@ -118,29 +118,29 @@
                 @for (item of quickLinks; track item.link) {
                     <li>
                         <a class="quick-link" [routerLink]="item.link">
-                            <span class="quick-icon"><app-icon [name]="item.icon" [size]="20" /></span>
+                            <span class="quick-icon"><anotoki-icon [name]="item.icon" [size]="20" /></span>
                             <span class="quick-text">
                                 <span class="quick-title">{{ item.title | t }}</span>
                                 <span class="quick-lead">{{ item.text | t }}</span>
                                 @if (item.link === "/account/security") {
-                                    <app-badge [tone]="me.totp_enabled ? 'success' : 'neutral'" [dot]="true">
+                                    <anotoki-badge [tone]="me.totp_enabled ? 'success' : 'neutral'" [dot]="true">
                                         {{ (me.totp_enabled ? "overview.twoFactorOn" : "overview.twoFactorOff") | t }}
-                                    </app-badge>
+                                    </anotoki-badge>
                                 }
                             </span>
-                            <app-icon class="quick-arrow" name="chevronRight" [size]="18" />
+                            <anotoki-icon class="quick-arrow" name="chevronRight" [size]="18" />
                         </a>
                     </li>
                 }
                 @if (me.is_admin) {
                     <li>
                         <a class="quick-link quick-admin" routerLink="/admin">
-                            <span class="quick-icon"><app-icon name="sliders" [size]="20" /></span>
+                            <span class="quick-icon"><anotoki-icon name="sliders" [size]="20" /></span>
                             <span class="quick-text">
                                 <span class="quick-title">{{ "overview.adminTitle" | t }}</span>
                                 <span class="quick-lead">{{ "overview.adminText" | t }}</span>
                             </span>
-                            <app-icon class="quick-arrow" name="chevronRight" [size]="18" />
+                            <anotoki-icon class="quick-arrow" name="chevronRight" [size]="18" />
                         </a>
                     </li>
                 }

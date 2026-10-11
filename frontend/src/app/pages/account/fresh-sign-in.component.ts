@@ -1,12 +1,10 @@
 import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, inject, input, signal, viewChild } from '@angular/core';
+import { AlertComponent, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
 import { ApiError } from '../../core/api/api-error';
 import { FreshSignInService } from '../../core/auth/fresh-sign-in';
 import { errorText } from '../../core/i18n/error-text';
 import { TPipe } from '../../core/i18n/t.pipe';
 import { TranslationService } from '../../core/i18n/translation.service';
-import { AlertComponent } from '../../ui/alert/alert.component';
-import { ButtonComponent } from '../../ui/button/button.component';
-import { IconComponent } from '../../ui/icon/icon.component';
 
 /**
  * "Sign in again first": what an account page shows for `403

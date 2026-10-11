@@ -12,7 +12,7 @@ running it is [operations.md](operations.md); why it is built this way is
 | Part | Where | What it is |
 | --- | --- | --- |
 | Backend | `backend/` | PHP 8.2+ + Slim 4 + PostgreSQL. The OpenID Connect provider, the JSON API the IAM's own pages use, and the installer. |
-| Frontend | `frontend/` | Angular 21. The sign-in pages, the account page, the admin panel. |
+| Frontend | `frontend/` | Angular 21. The sign-in pages, the account page, the admin panel - drawn with the anotoki family's UI kit (`@anotoki/lib`). |
 | SDKs | `sdk/js`, `sdk/php` | The small first-party clients every site copies in: a browser client for the sign-in, and a PHP verifier for access tokens and reader of the site's sign-in switch. |
 | Docs | `docs/` | This. |
 
@@ -386,9 +386,11 @@ The theme, the date order and the clock are the account's (migration 015),
 as its language is: the `preferences` claim beside `locale` tells every site,
 and the account page - or a site, with the person's access token, through
 `POST /api/oidc/preferences` - changes them. Signed in, the IAM's own pages
-follow them like any site: `ThemeService` shows the account's theme and saves
-a toggle to it, and the `appDate` pipe writes the account's order and clock.
-Signed out, each device keeps its own theme, as before.
+follow them like any site: the family's `ThemeService` (`@anotoki/lib/shell`,
+given the account by `frontend/src/app/core/kit/kit.config.ts`) shows the
+account's theme and saves a choice to it - one save at a time, the latest
+last - and the `appDate` pipe writes the account's order and clock. Signed
+out, each device keeps its own theme, as before.
 
 ## The IAM's own words
 
@@ -547,6 +549,7 @@ written down, not a refactor.
 | `backend/translations.php` | The strings from the command line: `--status`, `--export`, `--import`. Never uploaded. |
 | `frontend/src/app/core/i18n/` | `translation.service.ts` (which language, the bundle, the `t` pipe's strings), `en.ts` (the keys and the English of last resort), `localization-drafts.service.ts`. |
 | `frontend/src/app/core/migrations/` | How the pages use `@anotoki/lib/migrations`: who is the IAM's ADMIN, the sign-in, the language and the IAM's own not-set-up words, the account's dates. |
-| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `shell` (the account pages and the admin panel: the top bar, the panel's side navigation, the page), `top-bar` (the anotoki family's one bar: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). |
+| `frontend/src/app/core/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the IAM's strings (`kit-words.ts`), the icons the IAM's templates name, the account's theme and the languages. |
+| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). The account pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`. |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

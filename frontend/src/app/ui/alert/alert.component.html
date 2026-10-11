@@ -1,8 +1,0 @@
-<app-icon class="alert-icon" [name]="icon()" [size]="20" />
-<div class="alert-body">
-    @if (heading()) {
-        <p class="alert-heading">{{ heading() }}</p>
-    }
-    <div class="alert-text"><ng-content /></div>
-    <div class="alert-actions"><ng-content select="[alertActions]" /></div>
-</div>

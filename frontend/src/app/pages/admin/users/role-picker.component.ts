@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
+import { CheckboxComponent } from '@anotoki/lib/ui/forms';
 import { FilterApplication, RoleGrant } from '../../../core/api/models';
-import { CheckboxComponent } from '../../../ui/checkbox/checkbox.component';
 import { blockedApplications } from './sign-in-check';
 
 /** A grant as one string, `client_id:ROLE`, so a set of them compares and toggles simply. */

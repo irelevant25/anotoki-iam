@@ -1,22 +1,15 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { AvatarComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AdminApplication } from '../../../core/api/models';
-import { AppAvatarComponent } from '../../../ui/app-avatar/app-avatar.component';
-import { BadgeComponent } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { EmptyStateComponent } from '../../../ui/empty-state/empty-state.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
 import { adminErrorText } from '../admin-errors';
 
 /** /admin/applications - every site that signs in here, in the order they were added; whether each requires signing in, and which roles may. */
 @Component({
   selector: 'app-applications-list',
-  imports: [RouterLink, AppAvatarComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],
+  imports: [RouterLink, AvatarComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './applications-list.component.html',
   styleUrl: './applications-list.component.scss',

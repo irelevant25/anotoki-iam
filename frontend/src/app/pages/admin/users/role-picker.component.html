@@ -8,12 +8,12 @@
             @if (group.roles.length) {
                 <div class="roles">
                     @for (role of group.roles; track role) {
-                        <app-checkbox [checked]="isSelected(group.application.client_id, role)" [disabled]="disabled()" (checkedChange)="toggle(group.application.client_id, role, $event)">
+                        <anotoki-checkbox [checked]="isSelected(group.application.client_id, role)" [disabled]="disabled()" (checkedChange)="toggle(group.application.client_id, role, $event)">
                             <span class="role">{{ role }}</span>
                             @if (!maySignIn(group.application, role)) {
                                 <span class="no-sign-in">may not sign in</span>
                             }
-                        </app-checkbox>
+                        </anotoki-checkbox>
                     }
                 </div>
             } @else {

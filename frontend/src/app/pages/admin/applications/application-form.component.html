@@ -1,38 +1,38 @@
 <div class="page">
-    <app-page-header
+    <anotoki-page-header
         [heading]="creating() ? 'New application' : (application()?.name ?? 'Application')"
         [lead]="creating() ? 'A site that will sign people in through the IAM.' : (application()?.description ?? null)">
         <a pageEyebrow class="back" routerLink="/admin/applications">
-            <app-icon name="arrowLeft" [size]="15" />
+            <anotoki-icon name="arrowLeft" [size]="15" />
             Applications
         </a>
         <!-- One node per @if: a block with several would all land in the default slot. -->
         @if (application(); as app) {
             <span pageMeta class="badges">
-                <app-badge [mono]="true">{{ app.client_id }}</app-badge>
+                <anotoki-badge [mono]="true">{{ app.client_id }}</anotoki-badge>
                 @if (app.system) {
-                    <app-badge tone="primary">System</app-badge>
+                    <anotoki-badge tone="primary">System</anotoki-badge>
                 }
                 @if (!app.enabled) {
-                    <app-badge tone="danger" [dot]="true">Off</app-badge>
+                    <anotoki-badge tone="danger" [dot]="true">Off</anotoki-badge>
                 }
             </span>
         }
         @if (application() && !system()) {
-            <button appButton variant="danger" [loading]="deleting()" (click)="remove()">
-                <app-icon name="trash" [size]="15" />
+            <button anotokiButton variant="danger" [loading]="deleting()" (click)="remove()">
+                <anotoki-icon name="trash" [size]="15" />
                 Delete
             </button>
         }
-    </app-page-header>
+    </anotoki-page-header>
 
     @if (loading()) {
-        <div class="loading"><app-spinner size="lg" label="Loading the application" [showLabel]="true" /></div>
+        <div class="loading"><anotoki-spinner size="lg" label="Loading the application" [showLabel]="true" /></div>
     } @else if (loadError()) {
-        <app-error-state heading="The application could not be loaded" [message]="loadError()!" (retry)="reload()" />
+        <anotoki-error-state heading="The application could not be loaded" [message]="loadError()!" (retry)="reload()" />
     } @else {
         @if (!creating()) {
-            <app-tabs [tabs]="tabs()" [active]="tab()" (activeChange)="showTab($event)" label="Application" idPrefix="app" />
+            <anotoki-tabs [tabs]="tabs()" [active]="tab()" (activeChange)="showTab($event)" label="Application" idPrefix="app" />
         }
 
         @if (creating() || tab() === "settings") {
@@ -43,10 +43,10 @@
                 [attr.id]="creating() ? null : 'app-panel-settings'"
                 [attr.aria-labelledby]="creating() ? null : 'app-tab-settings'"
                 (submit)="$event.preventDefault(); save()">
-                <app-card heading="Identity" subheading="How the application is known - to the IAM, and to people signing in.">
+                <anotoki-card heading="Identity" subheading="How the application is known - to the IAM, and to people signing in.">
                     <div class="form-grid">
                         @if (creating()) {
-                            <app-text-field
+                            <anotoki-text-field
                                 label="Client id"
                                 name="client-id"
                                 autocomplete="off"
@@ -57,10 +57,10 @@
                                 [error]="errors().client_id ?? null"
                                 [autofocus]="true" />
                         } @else {
-                            <app-text-field label="Client id" name="client-id" [value]="clientId()" [readonly]="true" hint="Fixed after creation." />
+                            <anotoki-text-field label="Client id" name="client-id" [value]="clientId()" [readonly]="true" hint="Fixed after creation." />
                         }
-                        <app-text-field label="Name" name="app-name" autocomplete="off" [maxlength]="100" [(value)]="name" [error]="errors().name ?? null" />
-                        <app-text-field
+                        <anotoki-text-field label="Name" name="app-name" autocomplete="off" [maxlength]="100" [(value)]="name" [error]="errors().name ?? null" />
+                        <anotoki-text-field
                             label="Home page"
                             type="url"
                             name="home-url"
@@ -69,7 +69,7 @@
                             [optional]="true"
                             [(value)]="homeUrl"
                             [error]="errors().home_url ?? null" />
-                        <app-text-field
+                        <anotoki-text-field
                             label="Logo"
                             type="url"
                             name="logo-url"
@@ -80,7 +80,7 @@
                             [(value)]="logoUrl"
                             [error]="errors().logo_url ?? null" />
                     </div>
-                    <app-textarea
+                    <anotoki-textarea
                         class="description"
                         label="Description"
                         name="description"
@@ -89,21 +89,21 @@
                         [maxlength]="2000"
                         [(value)]="description"
                         [error]="errors().description ?? null" />
-                </app-card>
+                </anotoki-card>
 
-                <app-card heading="Signing in" subheading="A public client: the site proves each sign-in with PKCE and holds no secret.">
+                <anotoki-card heading="Signing in" subheading="A public client: the site proves each sign-in with PKCE and holds no secret.">
                     <div class="stack stack-lg">
                         @if (system()) {
                             <p class="muted small">The IAM's own pages always ask for an account; only Settings → Signing in decides who gets in.</p>
                         } @else {
-                            <app-switch
+                            <anotoki-switch
                                 [(checked)]="loginRequired"
                                 hint="On: every page of the site asks for an anotoki account. Off: anyone may use it without one - the site keeps what a visitor does for their browser, and signing in keeps it. Sites pick a change up within about a minute.">
                                 Sign-in required
-                            </app-switch>
+                            </anotoki-switch>
                         }
                         <div class="form-grid">
-                            <app-text-field
+                            <anotoki-text-field
                                 label="Access token lifetime"
                                 type="number"
                                 name="ttl"
@@ -113,19 +113,19 @@
                                 hint="Seconds, 60-3600. Signing out stops the next refresh, so this is how long a revoked account can still act."
                                 [(value)]="ttl"
                                 [error]="errors().ttl ?? null">
-                                <span fieldSuffix class="field-affix unit">s</span>
-                            </app-text-field>
+                                <span fieldSuffix class="unit">s</span>
+                            </anotoki-text-field>
                         </div>
                         @if (!system()) {
-                            <app-switch [(checked)]="enabled" hint="Off: nobody can sign in to it, and its refresh tokens stop working.">Enabled</app-switch>
+                            <anotoki-switch [(checked)]="enabled" hint="Off: nobody can sign in to it, and its refresh tokens stop working.">Enabled</anotoki-switch>
                         }
                     </div>
-                </app-card>
+                </anotoki-card>
 
-                <app-card heading="Addresses" subheading="Matched exactly, character for character.">
+                <anotoki-card heading="Addresses" subheading="Matched exactly, character for character.">
                     <div class="stack stack-lg">
                         @if (errors().lists) {
-                            <app-alert tone="danger">{{ errors().lists }}</app-alert>
+                            <anotoki-alert tone="danger">{{ errors().lists }}</anotoki-alert>
                         }
                         <app-url-list-editor
                             label="Redirect URIs"
@@ -140,12 +140,12 @@
                             kind="origin"
                             [(items)]="origins" />
                     </div>
-                </app-card>
+                </anotoki-card>
 
-                <app-card heading="Roles" [subheading]="rolesLead()">
+                <anotoki-card heading="Roles" [subheading]="rolesLead()">
                     <div class="stack">
                         @if (errors().roles) {
-                            <app-alert tone="danger">{{ errors().roles }}</app-alert>
+                            <anotoki-alert tone="danger">{{ errors().roles }}</anotoki-alert>
                         }
                         <div class="roles" role="list" aria-label="Roles">
                             @for (role of roles(); track role.name) {
@@ -158,18 +158,18 @@
                                             }
                                         </div>
                                     } @else {
-                                        <app-checkbox
+                                        <anotoki-checkbox
                                             [name]="'may-sign-in-' + role.name"
                                             [checked]="role.maySignIn"
                                             [hint]="role.description || null"
                                             (checkedChange)="setMaySignIn(role.name, $event)">
                                             <span class="role-name">{{ role.name }}</span>
                                             <span class="visually-hidden">may sign in</span>
-                                        </app-checkbox>
+                                        </anotoki-checkbox>
                                     }
                                     @if (!creating()) {
                                         <span class="role-members">
-                                            <app-badge [tone]="role.members > 0 ? 'primary' : 'neutral'">{{ role.members }} held</app-badge>
+                                            <anotoki-badge [tone]="role.members > 0 ? 'primary' : 'neutral'">{{ role.members }} held</anotoki-badge>
                                         </span>
                                     }
                                 </div>
@@ -182,16 +182,16 @@
                             </p>
                         }
                     </div>
-                </app-card>
+                </anotoki-card>
 
                 <div class="save-bar">
                     @if (formError()) {
-                        <app-alert class="save-error" tone="danger" [announce]="true">{{ formError() }}</app-alert>
+                        <anotoki-alert class="save-error" tone="danger" [announce]="true">{{ formError() }}</anotoki-alert>
                     }
                     <div class="save-actions">
-                        <a appButton variant="secondary" routerLink="/admin/applications">Cancel</a>
-                        <button appButton type="submit" variant="primary" [loading]="saving()">
-                            <app-icon name="check" [size]="16" />
+                        <a anotokiButton variant="secondary" routerLink="/admin/applications">Cancel</a>
+                        <button anotokiButton type="submit" variant="primary" [loading]="saving()">
+                            <anotoki-icon name="check" [size]="16" />
                             {{ creating() ? "Add application" : "Save changes" }}
                         </button>
                     </div>
@@ -200,13 +200,13 @@
         } @else {
             <div class="stack stack-lg" role="tabpanel" id="app-panel-members" aria-labelledby="app-tab-members">
                 @if (membersError()) {
-                    <app-card>
-                        <app-error-state heading="The members could not be loaded" [message]="membersError()!" (retry)="loadMembers()" />
-                    </app-card>
+                    <anotoki-card>
+                        <anotoki-error-state heading="The members could not be loaded" [message]="membersError()!" (retry)="loadMembers()" />
+                    </anotoki-card>
                 } @else if (members(); as shown) {
-                    <app-card heading="Roles beyond MEMBER" subheading="Every account holds MEMBER; these hold another role here too." [flush]="true">
+                    <anotoki-card heading="Roles beyond MEMBER" subheading="Every account holds MEMBER; these hold another role here too." [flush]="true">
                         @if (shown.members.length === 0) {
-                            <app-empty-state icon="users" heading="Nobody holds a role here beyond MEMBER" text="Give accounts roles from their page under Users." />
+                            <anotoki-empty-state icon="users" heading="Nobody holds a role here beyond MEMBER" text="Give accounts roles from their page under Users." />
                         } @else {
                             <div class="table-scroll">
                                 <table class="table">
@@ -227,7 +227,7 @@
                                                 <td>
                                                     <span class="badges">
                                                         @for (role of member.roles; track role) {
-                                                            <app-badge tone="primary" [mono]="true">{{ role }}</app-badge>
+                                                            <anotoki-badge tone="primary" [mono]="true">{{ role }}</anotoki-badge>
                                                         }
                                                     </span>
                                                 </td>
@@ -237,15 +237,15 @@
                                 </table>
                             </div>
                         }
-                    </app-card>
+                    </anotoki-card>
 
                     @if (!system()) {
-                        <app-card heading="Cannot sign in" subheading="Accounts whose MEMBER was taken away here, or who hold only roles that may not sign in." [flush]="true">
+                        <anotoki-card heading="Cannot sign in" subheading="Accounts whose MEMBER was taken away here, or who hold only roles that may not sign in." [flush]="true">
                             @if (membersOnly()) {
                                 <p class="padded muted small">MEMBER may not sign in here, so an account holding only MEMBER is not let in either - it is not listed.</p>
                             }
                             @if (shown.blocked.length === 0) {
-                                <app-empty-state icon="check" heading="Nobody is blocked" text="Take MEMBER from somebody under Users → the person → Roles to block them from this site." />
+                                <anotoki-empty-state icon="check" heading="Nobody is blocked" text="Take MEMBER from somebody under Users → the person → Roles to block them from this site." />
                             } @else {
                                 <div class="table-scroll">
                                     <table class="table">
@@ -268,10 +268,10 @@
                                     </table>
                                 </div>
                             }
-                        </app-card>
+                        </anotoki-card>
                     }
                 } @else {
-                    <div class="loading"><app-spinner label="Loading the members" /></div>
+                    <div class="loading"><anotoki-spinner label="Loading the members" /></div>
                 }
             </div>
         }

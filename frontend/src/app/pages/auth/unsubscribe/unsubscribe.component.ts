@@ -1,14 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AutofocusDirective, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { AuthCardComponent } from '../../../layouts/auth-card/auth-card.component';
-import { AutofocusDirective } from '../../../ui/autofocus.directive';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
 import { dropQueryParam } from '../auth-helpers';
 
 type Step = 'ask' | 'done' | 'failed' | 'missing';

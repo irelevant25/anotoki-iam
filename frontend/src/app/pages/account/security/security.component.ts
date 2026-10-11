@@ -1,5 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject, linkedSignal, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { SwitchComponent } from '@anotoki/lib/ui/forms';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { map } from 'rxjs';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
@@ -11,16 +15,7 @@ import { GoogleSignInService } from '../../../core/google/google-sign-in.service
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { BadgeComponent } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { ConfirmService } from '../../../ui/confirm/confirm.service';
 import { GoogleButtonComponent } from '../../../ui/google-button/google-button.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { SwitchComponent } from '../../../ui/switch/switch.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { FreshSignInComponent } from '../fresh-sign-in.component';
 import { DeletionDialogComponent } from './deletion-dialog.component';
 import { PasswordDialogComponent } from './password-dialog.component';
@@ -107,9 +102,9 @@ export class SecurityComponent {
    */
   private _googleCredential: string | null = null;
 
-  /** What the proof dialogs send. */
-  protected readonly switchPasswordOff = (password: string | undefined) => this._accountApi.setPasswordEnabled(false, password);
-  protected readonly connectGoogleWith = (password: string | undefined) => this._accountApi.connectGoogle(this._googleCredential ?? '', password);
+  /** What the proof dialogs send - the account each answers with is the session's, unless Sign out came first (setFrom()). */
+  protected readonly switchPasswordOff = (password: string | undefined) => this._session.setFrom(this._accountApi.setPasswordEnabled(false, password));
+  protected readonly connectGoogleWith = (password: string | undefined) => this._session.setFrom(this._accountApi.connectGoogle(this._googleCredential ?? '', password));
   protected readonly googleRefusal = (error: ApiError): string | null => (error.code === 'invalid_token' ? this._i18n.t('error.googleFailed') : null);
 
   constructor() {
@@ -144,7 +139,7 @@ export class SecurityComponent {
     }
 
     this.savingPasswordEnabled.set(true);
-    this._accountApi.setPasswordEnabled(enabled).subscribe({
+    this._session.setFrom(this._accountApi.setPasswordEnabled(enabled)).subscribe({
       next: (user) => this.passwordSwitched(user),
       error: (error: ApiError) => {
         this.savingPasswordEnabled.set(false);
@@ -159,11 +154,10 @@ export class SecurityComponent {
     });
   }
 
-  /** Password sign-in switched - by the switch, or once the dialog had the password. */
+  /** Password sign-in switched - by the switch, or once the dialog had the password. The account it answered with is the session's by now. */
   protected passwordSwitched(user: AccountUser): void {
     this.savingPasswordEnabled.set(false);
     this.dialog.set(null);
-    this._session.set(user);
     this._toast.success(this._i18n.t(user.password_login_enabled ? 'security.password.enabled' : 'security.password.disabled'));
   }
 
@@ -185,8 +179,8 @@ export class SecurityComponent {
     }
 
     this.googleBusy.set(true);
-    this._accountApi.connectGoogle(credential).subscribe({
-      next: (user) => this.googleConnected(user),
+    this._session.setFrom(this._accountApi.connectGoogle(credential)).subscribe({
+      next: () => this.googleConnected(),
       error: (error: ApiError) => {
         this.googleBusy.set(false);
         this._methodsRefused(error, this.googleRefusal(error));
@@ -194,10 +188,10 @@ export class SecurityComponent {
     });
   }
 
-  protected googleConnected(user: AccountUser): void {
+  /** Connected - at once, or once the dialog had the password. The account it answered with is the session's by now. */
+  protected googleConnected(): void {
     this.googleBusy.set(false);
     this.googleDialogClosed();
-    this._session.set(user);
     this._toast.success(this._i18n.t('security.google.connectedToast'));
   }
 
@@ -219,10 +213,9 @@ export class SecurityComponent {
     }
 
     this.googleBusy.set(true);
-    this._accountApi.disconnectGoogle().subscribe({
-      next: (user) => {
+    this._session.setFrom(this._accountApi.disconnectGoogle()).subscribe({
+      next: () => {
         this.googleBusy.set(false);
-        this._session.set(user);
         this._toast.success(this._i18n.t('security.google.disconnectedToast'));
       },
       error: (error: ApiError) => {

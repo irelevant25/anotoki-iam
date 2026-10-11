@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { AvatarComponent } from '@anotoki/lib/ui';
 import { RequestApplication } from '../../core/api/models';
-import { AppAvatarComponent } from '../../ui/app-avatar/app-avatar.component';
 
 /**
  * The card every sign-in page is drawn in.
@@ -17,7 +17,7 @@ import { AppAvatarComponent } from '../../ui/app-avatar/app-avatar.component';
  */
 @Component({
   selector: 'app-auth-card',
-  imports: [AppAvatarComponent],
+  imports: [AvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './auth-card.component.html',
   styleUrl: './auth-card.component.scss',

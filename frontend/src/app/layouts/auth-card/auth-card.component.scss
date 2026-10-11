@@ -10,10 +10,10 @@
   flex-direction: column;
   gap: 1.35rem;
   padding: 2rem 2rem 1.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-xl);
+  background: var(--anotoki-surface);
+  box-shadow: var(--anotoki-shadow);
 }
 
 .app {
@@ -21,7 +21,7 @@
   align-items: center;
   gap: 0.75rem;
   padding-bottom: 1.1rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--anotoki-border);
 }
 
 .app-name {
@@ -51,6 +51,6 @@
 @media (max-width: 520px) {
   .card {
     padding: 1.5rem 1.25rem 1.35rem;
-    border-radius: var(--radius-lg);
+    border-radius: var(--anotoki-radius-lg);
   }
 }

@@ -27,9 +27,9 @@
 .frame,
 .plain {
   width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: opacity var(--duration) var(--ease);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius);
+  transition: opacity var(--anotoki-duration) var(--anotoki-ease);
 
   &.is-stale {
     opacity: 0.55;
@@ -47,8 +47,8 @@
   margin: 0;
   padding: 1rem;
   overflow: auto;
-  background: var(--surface-2);
-  font-family: var(--font-mono);
+  background: var(--anotoki-surface-2);
+  font-family: var(--anotoki-font-mono);
   font-size: 0.8125rem;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -100,8 +100,8 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius);
   overflow: hidden;
 }
 
@@ -112,29 +112,29 @@
   width: 100%;
   padding: 0.55rem 0.8rem;
   border: 0;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--anotoki-surface);
+  color: var(--anotoki-text);
   font: inherit;
   font-size: 0.875rem;
   text-align: left;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: var(--surface-2);
+    background: var(--anotoki-surface-2);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--anotoki-focus);
     outline-offset: -2px;
   }
 
   &:disabled {
-    color: var(--muted);
+    color: var(--anotoki-muted);
     cursor: default;
   }
 
   li + li & {
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--anotoki-border);
   }
 }
 
@@ -154,8 +154,8 @@
   max-width: 100%;
   padding: 0.2rem 0.25rem 0.2rem 0.65rem;
   border-radius: 999px;
-  background: var(--primary-soft);
-  color: var(--primary-soft-text);
+  background: var(--anotoki-primary-soft);
+  color: var(--anotoki-primary-soft-text);
   font-size: 0.8125rem;
   font-weight: 600;
 }
@@ -177,7 +177,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--anotoki-focus);
     outline-offset: 1px;
   }
 }
@@ -187,8 +187,8 @@
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.85rem 1rem;
-  border-radius: var(--radius);
-  background: var(--surface-2);
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-surface-2);
 }
 
 .readers {
@@ -197,7 +197,7 @@
 }
 
 .error-text {
-  color: var(--danger);
+  color: var(--anotoki-danger);
   overflow-wrap: anywhere;
 }
 

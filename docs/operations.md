@@ -370,13 +370,18 @@ What the anotoki sites share lives in one library,
 [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib), with two
 halves and one version: the PHP package `anotoki/lib` (in `backend/vendor/`,
 committed and uploaded like the rest of `vendor/`) and the Angular package
-`@anotoki/lib` (the release's tarball, in `frontend/package.json`). Today it
-is the migrations module: the engine, the gate that answers "not set up", the
-status the pages ask, the Migrations page and the admin line. The IAM's
-version is 0.1.0. Both halves come from GitHub, never from a copy on disk.
+`@anotoki/lib` (the release's tarball, in `frontend/package.json`). It holds
+the migrations module - the engine, the gate that answers "not set up", the
+status the pages ask, the Migrations page and the admin line - and, in the
+Angular half, the family's UI kit: its styles and palette, its components, the
+top bar and the frame. The IAM's frontend is on 0.2.0 and its backend on
+0.1.0: 0.2.0 changed only the Angular half, and Composer's `^0.1` keeps the
+PHP half at 0.1.x, which is the same code. Both halves come from GitHub, never
+from a copy on disk.
 
 To update it (its `CHANGELOG.md` says what changed - while it is 0.x, a minor
-version may break things), both halves together, on a development machine:
+version may break things), both halves together where both changed, on a
+development machine:
 
 ```bash
 cd backend

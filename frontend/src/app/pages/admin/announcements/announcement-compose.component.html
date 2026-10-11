@@ -1,29 +1,29 @@
 <div class="page">
-    <app-page-header heading="New announcement" lead="Choose a template, change its words in every language you want, choose who gets it, and send.">
-        <a appButton variant="ghost" routerLink="/admin/announcements">
-            <app-icon name="arrowLeft" [size]="16" />
+    <anotoki-page-header heading="New announcement" lead="Choose a template, change its words in every language you want, choose who gets it, and send.">
+        <a anotokiButton variant="ghost" routerLink="/admin/announcements">
+            <anotoki-icon name="arrowLeft" [size]="16" />
             Announcements
         </a>
-    </app-page-header>
+    </anotoki-page-header>
 
     @if (loadError()) {
-        <app-error-state heading="The composer could not be loaded" [message]="loadError()!" />
+        <anotoki-error-state heading="The composer could not be loaded" [message]="loadError()!" />
     } @else if (compose(); as c) {
         <div class="compose">
             <div class="stack stack-lg">
-                <app-card heading="The mail">
+                <anotoki-card heading="The mail">
                     <div class="stack">
-                        <app-radio-group label="Template" [options]="templateOptions" [value]="template()" (valueChange)="chooseTemplate($event)" />
+                        <anotoki-radio-group label="Template" [options]="templateOptions" [value]="template()" (valueChange)="chooseTemplate($event)" />
                         <div class="form-grid">
-                            <app-select
+                            <anotoki-select
                                 label="Site"
                                 [options]="siteOptions()"
                                 [value]="clientId()"
                                 [hint]="template() === 'blank' ? 'Optional: its name stands at the top of the mail.' : 'Its name goes where the template says {project}.'"
                                 (valueChange)="chooseSite($event)" />
-                            <app-select label="From" [options]="senderOptions()" [(value)]="sender" hint="Replies go to the same address. Senders are kept on Announcements." />
+                            <anotoki-select label="From" [options]="senderOptions()" [(value)]="sender" hint="Replies go to the same address. Senders are kept on Announcements." />
                         </div>
-                        <app-text-field
+                        <anotoki-text-field
                             label="Link"
                             type="url"
                             name="announcement-link"
@@ -35,28 +35,28 @@
                             [value]="link()"
                             (valueChange)="setLink($event)" />
                     </div>
-                </app-card>
+                </anotoki-card>
 
-                <app-card heading="Words" subheading="A version per language: everybody reads the one in their language, or the English one where there is none.">
+                <anotoki-card heading="Words" subheading="A version per language: everybody reads the one in their language, or the English one where there is none.">
                     <div class="stack">
-                        <app-tabs label="Languages" idPrefix="words" [tabs]="tabs()" [(active)]="language" />
+                        <anotoki-tabs label="Languages" idPrefix="words" [tabs]="tabs()" [(active)]="language" />
                         <div class="stack" role="tabpanel" [id]="'words-panel-' + language()" [attr.aria-labelledby]="'words-tab-' + language()">
                             @if (versionEmpty() && language() !== "en") {
-                                <app-alert tone="info">
+                                <anotoki-alert tone="info">
                                     No {{ languageName()(language()) }} version: its readers get the English one.
                                     <div alertActions>
-                                        <button appButton size="sm" variant="secondary" (click)="refillVersion()">Fill from the template</button>
+                                        <button anotokiButton size="sm" variant="secondary" (click)="refillVersion()">Fill from the template</button>
                                     </div>
-                                </app-alert>
+                                </anotoki-alert>
                             }
-                            <app-text-field
+                            <anotoki-text-field
                                 label="Subject"
                                 [name]="'subject-' + language()"
                                 autocomplete="off"
                                 [maxlength]="c.limits.subject"
                                 [value]="version().subject"
                                 (valueChange)="setPart('subject', $event)" />
-                            <app-text-field
+                            <anotoki-text-field
                                 label="Heading"
                                 [name]="'heading-' + language()"
                                 autocomplete="off"
@@ -64,7 +64,7 @@
                                 hint="The big line at the top of the mail."
                                 [value]="version().heading"
                                 (valueChange)="setPart('heading', $event)" />
-                            <app-textarea
+                            <anotoki-textarea
                                 label="Text"
                                 [name]="'body-' + language()"
                                 [rows]="8"
@@ -73,7 +73,7 @@
                                 [value]="version().body"
                                 (valueChange)="setPart('body', $event)" />
                             @if (link().trim()) {
-                                <app-text-field
+                                <anotoki-text-field
                                     label="Button"
                                     [name]="'button-' + language()"
                                     autocomplete="off"
@@ -83,24 +83,24 @@
                                     (valueChange)="setPart('button', $event)" />
                             }
                             <div class="cluster">
-                                <button appButton size="sm" variant="ghost" (click)="refillVersion()">
-                                    <app-icon name="refresh" [size]="15" />
+                                <button anotokiButton size="sm" variant="ghost" (click)="refillVersion()">
+                                    <anotoki-icon name="refresh" [size]="15" />
                                     Fill {{ languageName()(language()) }} from the template
                                 </button>
                                 @if (language() !== "en" && !versionEmpty()) {
-                                    <button appButton size="sm" variant="ghost" (click)="clearVersion()">
-                                        <app-icon name="x" [size]="15" />
+                                    <button anotokiButton size="sm" variant="ghost" (click)="clearVersion()">
+                                        <anotoki-icon name="x" [size]="15" />
                                         No {{ languageName()(language()) }} version
                                     </button>
                                 }
                             </div>
                         </div>
                     </div>
-                </app-card>
+                </anotoki-card>
 
-                <app-card heading="Who it is for" subheading="Only people who can be written to get it: switched on, not being deleted, the address confirmed, approved, and the news not stopped.">
+                <anotoki-card heading="Who it is for" subheading="Only people who can be written to get it: switched on, not being deleted, the address confirmed, approved, and the news not stopped.">
                     <div class="stack">
-                        <app-checkbox [(checked)]="everybody" hint="Every account there is.">Everybody</app-checkbox>
+                        <anotoki-checkbox [(checked)]="everybody" hint="Every account there is.">Everybody</anotoki-checkbox>
 
                         @if (!everybody()) {
                             <fieldset class="roles">
@@ -110,9 +110,9 @@
                                         <div class="role-site">
                                             <p class="role-site-name">{{ application.name }}</p>
                                             @for (role of application.roles; track role) {
-                                                <app-checkbox [checked]="roleChosen(application.client_id, role)" (checkedChange)="toggleRole(application.client_id, role, $event)">
+                                                <anotoki-checkbox [checked]="roleChosen(application.client_id, role)" (checkedChange)="toggleRole(application.client_id, role, $event)">
                                                     <span class="mono">{{ role }}</span>
-                                                </app-checkbox>
+                                                </anotoki-checkbox>
                                             }
                                         </div>
                                     }
@@ -120,15 +120,22 @@
                             </fieldset>
 
                             <div class="stack stack-sm">
-                                <app-text-field label="People" type="search" name="people-search" autocomplete="off" placeholder="Name or address" hint="Type two letters or more." [(value)]="search">
-                                    <span fieldPrefix class="field-affix"><app-icon name="search" [size]="16" /></span>
-                                </app-text-field>
+                                <anotoki-text-field
+                                    label="People"
+                                    type="search"
+                                    name="people-search"
+                                    autocomplete="off"
+                                    placeholder="Name or address"
+                                    hint="Type two letters or more."
+                                    [(value)]="search">
+                                    <span fieldPrefix><anotoki-icon name="search" [size]="16" /></span>
+                                </anotoki-text-field>
                                 @if (found().length > 0) {
                                     <ul class="found" aria-label="People found">
                                         @for (user of found(); track user.id) {
                                             <li>
                                                 <button type="button" class="found-person" [disabled]="isChosen(user.id)" (click)="addPerson(user)">
-                                                    <app-icon name="plus" [size]="15" />
+                                                    <anotoki-icon name="plus" [size]="15" />
                                                     <span class="break">
                                                         <strong>{{ user.username }}</strong>
                                                         <span class="muted">{{ user.email }}</span>
@@ -144,7 +151,7 @@
                                             <li class="chip">
                                                 <span class="break">{{ person.username }}</span>
                                                 <button type="button" class="chip-remove" [attr.aria-label]="'Remove ' + person.username" (click)="removePerson(person.id)">
-                                                    <app-icon name="x" [size]="14" />
+                                                    <anotoki-icon name="x" [size]="14" />
                                                 </button>
                                             </li>
                                         }
@@ -180,11 +187,11 @@
                                     </ul>
                                 }
                             } @else {
-                                <app-spinner size="sm" label="Counting" [showLabel]="true" />
+                                <anotoki-spinner size="sm" label="Counting" [showLabel]="true" />
                             }
                         </div>
                     </div>
-                </app-card>
+                </anotoki-card>
 
                 <div class="send-bar">
                     @if (c.pacing.hourly_limit !== null) {
@@ -193,18 +200,18 @@
                             codes and resets.
                         </p>
                     } @else if (c.pacing.driver === "mail") {
-                        <app-alert tone="warning">
+                        <anotoki-alert tone="warning">
                             No hourly limit is named for the host's mail, so this goes out as fast as its page sends it. If the host allows only so many mails an hour, put that number in
                             config/mail.local.php (hourly_limit) - or sign-in codes and resets may not get out while it is sending.
-                        </app-alert>
+                        </anotoki-alert>
                     }
                     @if (sendError()) {
-                        <app-alert tone="danger" [announce]="true">{{ sendError() }}</app-alert>
+                        <anotoki-alert tone="danger" [announce]="true">{{ sendError() }}</anotoki-alert>
                     }
                     <div class="form-actions">
-                        <a appButton variant="ghost" routerLink="/admin/announcements">Cancel</a>
-                        <button appButton variant="primary" size="lg" [loading]="sending()" [disabled]="!audienceChosen()" (click)="send()">
-                            <app-icon name="send" [size]="16" />
+                        <a anotokiButton variant="ghost" routerLink="/admin/announcements">Cancel</a>
+                        <button anotokiButton variant="primary" size="lg" [loading]="sending()" [disabled]="!audienceChosen()" (click)="send()">
+                            <anotoki-icon name="send" [size]="16" />
                             Send
                         </button>
                     </div>
@@ -212,7 +219,7 @@
             </div>
 
             <div class="preview-column">
-                <app-card heading="Preview" [subheading]="'As a ' + languageName()(language()) + ' reader gets it.'">
+                <anotoki-card heading="Preview" [subheading]="'As a ' + languageName()(language()) + ' reader gets it.'">
                     <div class="stack">
                         @if (preview(); as p) {
                             <dl class="facts preview-facts">
@@ -227,7 +234,7 @@
                             </dl>
                         }
                         @if (previewError()) {
-                            <app-alert tone="warning">{{ previewError() }}</app-alert>
+                            <anotoki-alert tone="warning">{{ previewError() }}</anotoki-alert>
                         }
                         @if (plainText()) {
                             <pre class="plain" [class.is-stale]="previewing() || previewError()">{{ preview()?.text }}</pre>
@@ -240,21 +247,21 @@
                                 [srcdoc]="previewHtml()"
                                 [title]="'The mail as a ' + languageName()(language()) + ' reader gets it'"></iframe>
                         } @else if (!previewError()) {
-                            <div class="frame-loading"><app-spinner size="lg" label="Drawing the mail" [showLabel]="true" /></div>
+                            <div class="frame-loading"><anotoki-spinner size="lg" label="Drawing the mail" [showLabel]="true" /></div>
                         }
                         <div class="cluster cluster-between">
-                            <app-switch [(checked)]="plainText">Plain text</app-switch>
-                            <button appButton variant="secondary" [loading]="testing()" [disabled]="!!previewError()" (click)="sendTest()">
-                                <app-icon name="mail" [size]="16" />
+                            <anotoki-switch [(checked)]="plainText">Plain text</anotoki-switch>
+                            <button anotokiButton variant="secondary" [loading]="testing()" [disabled]="!!previewError()" (click)="sendTest()">
+                                <anotoki-icon name="mail" [size]="16" />
                                 Send me a test
                             </button>
                         </div>
                         <p class="small muted">The test goes to {{ c.email }}, its subject marked [Test].</p>
                     </div>
-                </app-card>
+                </anotoki-card>
             </div>
         </div>
     } @else {
-        <div class="loading"><app-spinner size="lg" label="Loading the composer" [showLabel]="true" /></div>
+        <div class="loading"><anotoki-spinner size="lg" label="Loading the composer" [showLabel]="true" /></div>
     }
 </div>

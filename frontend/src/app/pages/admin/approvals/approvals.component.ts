@@ -1,19 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, PageHeaderComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { ApprovalQueue, PendingAccount } from '../../../core/api/models';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { BadgeComponent } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { ConfirmService } from '../../../ui/confirm/confirm.service';
-import { EmptyStateComponent } from '../../../ui/empty-state/empty-state.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { adminErrorText } from '../admin-errors';
 
 /**

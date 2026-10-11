@@ -1,9 +1,0 @@
-<span class="spinner" [attr.role]="label() ? 'status' : null" [class.spinner-inline]="inline()">
-    <svg [attr.width]="px()" [attr.height]="px()" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <circle class="track" cx="12" cy="12" r="9.5" fill="none" stroke-width="2.5" />
-        <circle class="arc" cx="12" cy="12" r="9.5" fill="none" stroke-width="2.5" stroke-linecap="round" />
-    </svg>
-    @if (label()) {
-        <span [class.visually-hidden]="!showLabel()" class="spinner-label">{{ label() }}</span>
-    }
-</span>

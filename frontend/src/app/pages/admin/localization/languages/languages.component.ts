@@ -1,23 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, ErrorStateComponent, IconComponent, PageHeaderComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { firstValueFrom } from 'rxjs';
 import { AdminApi } from '../../../../core/api/admin.api';
 import { toApiError } from '../../../../core/api/api-error';
 import { AdminLanguage, LanguageChanges } from '../../../../core/api/models';
 import { LanguageDraft, LocalizationDrafts } from '../../../../core/i18n/localization-drafts.service';
 import { FALLBACK_LANGUAGE, TranslationService } from '../../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../../ui/alert/alert.component';
-import { BadgeComponent } from '../../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../../ui/button/button.component';
-import { CardComponent } from '../../../../ui/card/card.component';
-import { ConfirmService } from '../../../../ui/confirm/confirm.service';
-import { ErrorStateComponent } from '../../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../../ui/page-header/page-header.component';
-import { SpinnerComponent } from '../../../../ui/spinner/spinner.component';
-import { SwitchComponent } from '../../../../ui/switch/switch.component';
-import { TextFieldComponent } from '../../../../ui/text-field/text-field.component';
-import { ToastService } from '../../../../ui/toast/toast.service';
 import { adminErrorText } from '../../admin-errors';
 import { HoldsUnsavedChanges } from '../unsaved-changes.guard';
 

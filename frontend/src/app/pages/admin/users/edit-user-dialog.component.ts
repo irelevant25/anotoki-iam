@@ -1,14 +1,11 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import { AlertComponent, ButtonComponent } from '@anotoki/lib/ui';
+import { DialogComponent } from '@anotoki/lib/ui/dialog';
+import { CheckboxComponent, SelectComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AdminUser, UpdateUserBody } from '../../../core/api/models';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CheckboxComponent } from '../../../ui/checkbox/checkbox.component';
-import { DialogComponent } from '../../../ui/dialog/dialog.component';
-import { SelectComponent } from '../../../ui/select/select.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { adminErrorText } from '../admin-errors';
 import { languageOptions } from './language-options';
 

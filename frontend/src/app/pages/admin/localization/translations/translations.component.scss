@@ -1,7 +1,8 @@
 @use "../../admin-list";
+@use "../../admin-field";
 
 // The top bar (layouts/top-bar): what sticks under it starts here.
-$topbar: var(--topbar-height, 60px);
+$topbar: var(--anotoki-topbar-height, 60px);
 // Where the languages go under one another. The panel's side navigation
 // takes 15rem of the window, so side by side needs a wider window than the
 // grid alone would.
@@ -29,10 +30,10 @@ $stacked-below: 1100px;
   flex-direction: column;
   gap: 0.6rem;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  box-shadow: var(--anotoki-shadow-sm);
 }
 
 .language-name {
@@ -57,7 +58,7 @@ $stacked-below: 1100px;
   flex: 1;
   height: 0.4rem;
   border-radius: 999px;
-  background: var(--surface-3);
+  background: var(--anotoki-surface-3);
   overflow: hidden;
 }
 
@@ -65,11 +66,11 @@ $stacked-below: 1100px;
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--primary);
+  background: var(--anotoki-primary);
 }
 
 .coverage-count {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
@@ -136,10 +137,10 @@ $stacked-below: 1100px;
   top: $topbar;
   z-index: 2;
   padding: 0.55rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
-  color: var(--muted);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-surface-2);
+  color: var(--anotoki-muted);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -168,7 +169,7 @@ $stacked-below: 1100px;
 
 .part-lead {
   max-width: 60rem;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
   line-height: 1.5;
 }
@@ -187,20 +188,20 @@ $stacked-below: 1100px;
   flex-direction: column;
   gap: 0.85rem;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  box-shadow: var(--anotoki-shadow-sm);
 }
 
 // A mail: its subject and its paragraphs, held together in the order the
 // message has them.
 .block.is-mail {
-  border-color: var(--info-border);
+  border-color: var(--anotoki-info-border);
 
   .row + .row {
     padding-top: 0.85rem;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--anotoki-border);
   }
 }
 
@@ -210,8 +211,8 @@ $stacked-below: 1100px;
   align-items: center;
   gap: 0.3rem 0.6rem;
 
-  app-icon {
-    color: var(--info);
+  anotoki-icon {
+    color: var(--anotoki-info);
   }
 }
 
@@ -220,7 +221,7 @@ $stacked-below: 1100px;
 }
 
 .mail-sent {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
 }
 
@@ -244,7 +245,7 @@ $stacked-below: 1100px;
 }
 
 .description {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -261,15 +262,15 @@ $stacked-below: 1100px;
 // languages are under one another.
 .cell-head {
   display: none;
-  color: var(--text);
+  color: var(--anotoki-text);
   font-size: 0.75rem;
   font-weight: 650;
 }
 
 .empty {
   padding: 1rem;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-lg);
+  border: 1px dashed var(--anotoki-border-strong);
+  border-radius: var(--anotoki-radius-lg);
 }
 
 // The languages under one another: in a narrow window, and whenever there are
@@ -291,7 +292,7 @@ $stacked-below: 1100px;
 
   .row + .row {
     padding-top: 0.85rem;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--anotoki-border);
   }
 }
 
@@ -317,13 +318,13 @@ $stacked-below: 1100px;
   justify-content: space-between;
   gap: 0.5rem 1rem;
   padding: 0.6rem 0.75rem 0.6rem 1rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--anotoki-border-strong);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface-raised);
+  box-shadow: var(--anotoki-shadow-lg);
 
   &.is-changed {
-    border-color: var(--warning-border);
+    border-color: var(--anotoki-warning-border);
   }
 
   // The strip between the bar and the window's edge: the page's colour, so no
@@ -336,12 +337,12 @@ $stacked-below: 1100px;
     left: -1px;
     height: 0.8rem;
     margin-top: 1px;
-    background: var(--bg);
+    background: var(--anotoki-bg);
   }
 }
 
 .save-state {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.875rem;
   font-weight: 650;
   min-width: 0;
@@ -349,7 +350,7 @@ $stacked-below: 1100px;
 }
 
 .is-changed .save-state {
-  color: var(--text);
+  color: var(--anotoki-text);
 }
 
 // What became of the last save, when it saved nothing: said here, where Save
@@ -358,9 +359,9 @@ $stacked-below: 1100px;
   display: inline-flex;
   align-items: flex-start;
   gap: 0.35rem;
-  color: var(--danger);
+  color: var(--anotoki-danger);
 
-  app-icon {
+  anotoki-icon {
     flex: none;
     margin-top: 0.15rem;
   }

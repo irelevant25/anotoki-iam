@@ -1,22 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { PaginationComponent } from '@anotoki/lib/ui/pagination';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { catchError, of, switchMap, tap } from 'rxjs';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AnnouncementSummary, MailSender, MailSenders, Paged } from '../../../core/api/models';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
-import { BadgeComponent } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { ConfirmService } from '../../../ui/confirm/confirm.service';
-import { EmptyStateComponent } from '../../../ui/empty-state/empty-state.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { PaginationComponent } from '../../../ui/pagination/pagination.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { adminErrorText } from '../admin-errors';
 import { STATUS_LABELS, people, templateLabel } from './announcement-labels';
 

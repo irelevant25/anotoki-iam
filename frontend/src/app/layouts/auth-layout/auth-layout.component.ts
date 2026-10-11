@@ -1,9 +1,8 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { LanguageSwitcherComponent, ThemeToggleComponent } from '@anotoki/lib/shell';
+import { IconComponent } from '@anotoki/lib/ui';
 import { TPipe } from '../../core/i18n/t.pipe';
-import { IconComponent } from '../../ui/icon/icon.component';
-import { LanguageSwitcherComponent } from '../../ui/language-switcher/language-switcher.component';
-import { ThemeToggleComponent } from '../../ui/theme-toggle/theme-toggle.component';
 
 /**
  * The frame of every page that works without a session: signing in and out,

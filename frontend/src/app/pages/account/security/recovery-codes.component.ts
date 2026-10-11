@@ -1,11 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, model } from '@angular/core';
+import { AlertComponent, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { CopyButtonComponent } from '@anotoki/lib/ui/copy';
+import { CheckboxComponent } from '@anotoki/lib/ui/forms';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CheckboxComponent } from '../../../ui/checkbox/checkbox.component';
-import { CopyButtonComponent } from '../../../ui/copy-button/copy-button.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
 
 /**
  * A fresh set of recovery codes, shown the one time they exist in the clear.

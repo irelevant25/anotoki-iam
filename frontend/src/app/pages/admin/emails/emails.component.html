@@ -1,5 +1,5 @@
 <div class="page">
-    <app-page-header heading="Email log" lead="Every message the IAM tried to send, newest first.">
+    <anotoki-page-header heading="Email log" lead="Every message the IAM tried to send, newest first.">
         @if (result(); as r) {
             <p pageMeta class="counts">
                 <span>
@@ -8,21 +8,21 @@
                 </span>
             </p>
         }
-    </app-page-header>
+    </anotoki-page-header>
 
-    <app-card [flush]="true">
+    <anotoki-card [flush]="true">
         <div class="filters" role="search" aria-label="Filter the email log">
-            <app-text-field class="filter-search" label="Recipient" type="search" name="recipient" placeholder="Address, or part of one" [(value)]="recipientText">
-                <span fieldPrefix class="field-affix"><app-icon name="search" [size]="16" /></span>
-            </app-text-field>
-            <app-select label="Kind" placeholder="Any" [options]="kindOptions()" [value]="kind() ?? ''" (valueChange)="setFilter('kind', $event)" />
-            <app-select label="Status" placeholder="Any" [options]="statusOptions()" [value]="status() ?? ''" (valueChange)="setFilter('status', $event)" />
-            <app-text-field label="From" type="date" name="from" [value]="from() ?? ''" (valueChange)="setFilter('from', $event)" />
-            <app-text-field label="To" type="date" name="to" [value]="to() ?? ''" (valueChange)="setFilter('to', $event)" />
+            <anotoki-text-field class="filter-search" label="Recipient" type="search" name="recipient" placeholder="Address, or part of one" [(value)]="recipientText">
+                <span fieldPrefix><anotoki-icon name="search" [size]="16" /></span>
+            </anotoki-text-field>
+            <anotoki-select label="Kind" placeholder="Any" [options]="kindOptions()" [value]="kind() ?? ''" (valueChange)="setFilter('kind', $event)" />
+            <anotoki-select label="Status" placeholder="Any" [options]="statusOptions()" [value]="status() ?? ''" (valueChange)="setFilter('status', $event)" />
+            <anotoki-text-field label="From" type="date" name="from" [value]="from() ?? ''" (valueChange)="setFilter('from', $event)" />
+            <anotoki-text-field label="To" type="date" name="to" [value]="to() ?? ''" (valueChange)="setFilter('to', $event)" />
             @if (filtered()) {
                 <div class="filter-reset">
-                    <button appButton variant="ghost" size="sm" (click)="clearFilters()">
-                        <app-icon name="x" [size]="15" />
+                    <button anotokiButton variant="ghost" size="sm" (click)="clearFilters()">
+                        <anotoki-icon name="x" [size]="15" />
                         Clear filters
                     </button>
                 </div>
@@ -31,7 +31,7 @@
 
         @if (loadError()) {
             <div class="padded">
-                <app-error-state heading="The email log could not be loaded" [message]="loadError()!" (retry)="reload()" />
+                <anotoki-error-state heading="The email log could not be loaded" [message]="loadError()!" (retry)="reload()" />
             </div>
         } @else if (loading() && !result()) {
             <div class="skeletons" aria-hidden="true">
@@ -41,7 +41,7 @@
             </div>
         } @else if (result(); as r) {
             @if (r.items.length === 0) {
-                <app-empty-state icon="mail" heading="No messages match" [text]="filtered() ? 'Try fewer filters.' : 'Nothing has been sent yet.'" />
+                <anotoki-empty-state icon="mail" heading="No messages match" [text]="filtered() ? 'Try fewer filters.' : 'Nothing has been sent yet.'" />
             } @else {
                 <div class="table-scroll" [class.is-refreshing]="loading()">
                     <table class="table">
@@ -61,12 +61,12 @@
                                     <td class="nowrap">{{ email.created_at | appDate }}</td>
                                     <td class="break">{{ email.recipient }}</td>
                                     <td>
-                                        <app-badge [mono]="true">{{ email.kind }}</app-badge>
+                                        <anotoki-badge [mono]="true">{{ email.kind }}</anotoki-badge>
                                     </td>
                                     <td>{{ email.subject ?? "-" }}</td>
                                     <td>
                                         <div class="status">
-                                            <app-badge [tone]="statusTone(email.status)" [dot]="true">{{ email.status }}</app-badge>
+                                            <anotoki-badge [tone]="statusTone(email.status)" [dot]="true">{{ email.status }}</anotoki-badge>
                                             @if (email.error) {
                                                 <span class="error-text small">{{ email.error }}</span>
                                             }
@@ -84,8 +84,8 @@
                         </tbody>
                     </table>
                 </div>
-                <app-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="loading()" (pageChange)="setPage($event)" />
+                <anotoki-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="loading()" (pageChange)="setPage($event)" />
             }
         }
-    </app-card>
+    </anotoki-card>
 </div>

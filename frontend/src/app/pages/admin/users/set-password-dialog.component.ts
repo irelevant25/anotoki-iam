@@ -1,15 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { AlertComponent, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { CopyButtonComponent } from '@anotoki/lib/ui/copy';
+import { DialogComponent } from '@anotoki/lib/ui/dialog';
+import { CheckboxComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AdminUser, SetPasswordResponse } from '../../../core/api/models';
 import { GENERATED_PASSWORD_LENGTH, randomPassword } from '../../../core/util/random-password';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CheckboxComponent } from '../../../ui/checkbox/checkbox.component';
-import { CopyButtonComponent } from '../../../ui/copy-button/copy-button.component';
-import { DialogComponent } from '../../../ui/dialog/dialog.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { adminErrorText } from '../admin-errors';
 
 /**

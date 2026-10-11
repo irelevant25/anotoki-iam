@@ -5,7 +5,7 @@
 }
 
 // A refusal, or the way to a fresh sign-in, above the ways in it is about.
-.methods > app-alert,
+.methods > anotoki-alert,
 .methods > app-fresh-sign-in {
   margin-bottom: 0.75rem;
 }
@@ -18,7 +18,7 @@
   padding: 1rem 0;
 
   & + & {
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--anotoki-border);
   }
 
   &:first-of-type {
@@ -41,8 +41,8 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 12px;
-  background: var(--primary-soft);
-  color: var(--primary-soft-text);
+  background: var(--anotoki-primary-soft);
+  color: var(--anotoki-primary-soft-text);
 }
 
 .method-text {
@@ -56,7 +56,7 @@
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.9rem;
 }
 
@@ -90,6 +90,6 @@
 
 .deletion-lead {
   max-width: 44rem;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.9rem;
 }

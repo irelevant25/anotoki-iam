@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { SiteStatus, SiteStatusComponent } from '@anotoki/lib/migrations';
+import { SpinnerComponent } from '@anotoki/lib/ui';
 import { sameOriginPath } from '../../../core/auth/next-path';
 import { TPipe } from '../../../core/i18n/t.pipe';
-import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
 
 /**
  * /not-set-up - where every page lands while the backend answers

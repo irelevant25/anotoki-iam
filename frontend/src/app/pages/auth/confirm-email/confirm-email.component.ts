@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { AlertComponent, AutofocusDirective, ButtonComponent, IconComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
 import { ContinueTo } from '../../../core/api/models';
@@ -8,12 +10,6 @@ import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { AuthCardComponent } from '../../../layouts/auth-card/auth-card.component';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { AutofocusDirective } from '../../../ui/autofocus.directive';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { dropQueryParam, isInternalPath, looksLikeEmail } from '../auth-helpers';
 
 type Step = 'working' | 'done' | 'pending' | 'failed' | 'missing';

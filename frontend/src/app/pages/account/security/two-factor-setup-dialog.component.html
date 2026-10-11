@@ -1,4 +1,4 @@
-<app-dialog
+<anotoki-dialog
     [heading]="(step() === 'codes' ? 'security.codes.title' : 'security.twoFactor.setupTitle') | t"
     [description]="'security.twoFactor.step' | t: { step: step() === 'codes' ? 2 : 1, total: 2 }"
     [dismissible]="step() !== 'codes'"
@@ -6,10 +6,10 @@
     (dismiss)="closed.emit(false)">
     @switch (step()) {
         @case ("loading") {
-            <div class="centered"><app-spinner size="lg" [label]="'common.loading' | t" /></div>
+            <div class="centered"><anotoki-spinner size="lg" [label]="'common.loading' | t" /></div>
         }
         @case ("error") {
-            <app-alert tone="danger" [announce]="true" [heading]="'security.twoFactor.setupFailed' | t">{{ loadError() }}</app-alert>
+            <anotoki-alert tone="danger" [announce]="true" [heading]="'security.twoFactor.setupFailed' | t">{{ loadError() }}</anotoki-alert>
         }
         @case ("sign-in-again") {
             <app-fresh-sign-in [anchor]="anchor" />
@@ -21,19 +21,19 @@
                         <app-fresh-sign-in [anchor]="anchor" />
                     }
                     <div class="scan">
-                        <app-qr-code class="qr" [value]="secret.uri" [label]="'ui.qrCode' | t" />
+                        <anotoki-qr-code class="qr" [value]="secret.uri" [label]="'ui.qrCode' | t" />
                         <div class="stack stack-sm scan-text">
                             <p>{{ "security.twoFactor.scanLead" | t }}</p>
                             <a class="small" [href]="appLink()">{{ "security.twoFactor.openInApp" | t }}</a>
                             <p class="small muted">{{ "security.twoFactor.manualKey" | t }}</p>
                             <div class="key">
                                 <code class="secret">{{ groupedSecret() }}</code>
-                                <app-copy-button [text]="secret.secret" [iconOnly]="true" variant="ghost" />
+                                <anotoki-copy-button [text]="secret.secret" [iconOnly]="true" variant="ghost" />
                             </div>
                         </div>
                     </div>
                     <p>{{ "security.twoFactor.confirmLead" | t }}</p>
-                    <app-code-input [label]="'security.twoFactor.code' | t" name="totp" [(value)]="code" [error]="codeError()" [autofocus]="true" />
+                    <anotoki-code-input [label]="'security.twoFactor.code' | t" name="totp" [(value)]="code" [error]="codeError()" [autofocus]="true" />
                     <p class="small muted">{{ "security.twoFactor.otherSessionsNote" | t }}</p>
                 </form>
             }
@@ -46,27 +46,27 @@
     <div dialogFooter>
         @switch (step()) {
             @case ("scan") {
-                <button appButton variant="secondary" [disabled]="busy()" (click)="closed.emit(false)">{{ "common.cancel" | t }}</button>
+                <button anotokiButton variant="secondary" [disabled]="busy()" (click)="closed.emit(false)">{{ "common.cancel" | t }}</button>
                 @if (!freshSignIn()) {
-                    <button appButton type="submit" form="totp-enable-form" variant="primary" [loading]="busy()">{{ "security.twoFactor.turnOn" | t }}</button>
+                    <button anotokiButton type="submit" form="totp-enable-form" variant="primary" [loading]="busy()">{{ "security.twoFactor.turnOn" | t }}</button>
                 }
             }
             @case ("codes") {
-                <button appButton variant="primary" [disabled]="!saved()" (click)="finish()">{{ "common.done" | t }}</button>
+                <button anotokiButton variant="primary" [disabled]="!saved()" (click)="finish()">{{ "common.done" | t }}</button>
             }
             @case ("error") {
-                <button appButton variant="secondary" (click)="closed.emit(false)">{{ "common.close" | t }}</button>
-                <button appButton variant="primary" (click)="start()">
-                    <app-icon name="refresh" [size]="16" />
+                <button anotokiButton variant="secondary" (click)="closed.emit(false)">{{ "common.close" | t }}</button>
+                <button anotokiButton variant="primary" (click)="start()">
+                    <anotoki-icon name="refresh" [size]="16" />
                     {{ "common.retry" | t }}
                 </button>
             }
             @default {
-                <button appButton variant="secondary" (click)="closed.emit(false)">{{ "common.cancel" | t }}</button>
+                <button anotokiButton variant="secondary" (click)="closed.emit(false)">{{ "common.cancel" | t }}</button>
             }
         }
     </div>
-</app-dialog>
+</anotoki-dialog>
 
 <!-- The password, once the code is typed: beside the dialog above rather than in it, so its keys stay its own. -->
 @if (askProof()) {

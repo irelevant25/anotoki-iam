@@ -19,8 +19,8 @@
                     [value]="item"
                     (input)="update(index, $any($event.target).value)" />
             </div>
-            <button appButton variant="ghost" [iconOnly]="true" [attr.aria-label]="'Remove row ' + (index + 1)" (click)="remove(index)">
-                <app-icon name="trash" [size]="16" />
+            <button anotokiButton variant="ghost" [iconOnly]="true" [attr.aria-label]="'Remove row ' + (index + 1)" (click)="remove(index)">
+                <anotoki-icon name="trash" [size]="16" />
             </button>
             @if (invalid()[index]) {
                 <p class="field-error row-error" [id]="errorId + '-' + index" role="alert">
@@ -32,8 +32,8 @@
         <p class="empty">None yet.</p>
     }
     <div>
-        <button appButton variant="secondary" size="sm" (click)="add()">
-            <app-icon name="plus" [size]="15" />
+        <button anotokiButton variant="secondary" size="sm" (click)="add()">
+            <anotoki-icon name="plus" [size]="15" />
             Add
         </button>
     </div>

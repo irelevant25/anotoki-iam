@@ -1,5 +1,5 @@
 <div class="page">
-    <app-page-header heading="Audit log" lead="Who changed what, and from where. Newest first.">
+    <anotoki-page-header heading="Audit log" lead="Who changed what, and from where. Newest first.">
         @if (result(); as r) {
             <p pageMeta class="counts">
                 <span>
@@ -8,17 +8,17 @@
                 </span>
             </p>
         }
-    </app-page-header>
+    </anotoki-page-header>
 
-    <app-card [flush]="true">
+    <anotoki-card [flush]="true">
         <div class="filters" role="search" aria-label="Filter the audit log">
-            <app-text-field label="Actor" type="search" name="actor" placeholder="Username" [(value)]="actorText" />
-            <app-text-field label="Action" type="search" name="action" placeholder="user.roles_set, or just user." hint="Matches the start." [(value)]="actionText" />
-            <app-select label="Target" placeholder="Any" [options]="targetTypes" [value]="target_type() ?? ''" (valueChange)="setFilter('target_type', $event)" />
+            <anotoki-text-field label="Actor" type="search" name="actor" placeholder="Username" [(value)]="actorText" />
+            <anotoki-text-field label="Action" type="search" name="action" placeholder="user.roles_set, or just user." hint="Matches the start." [(value)]="actionText" />
+            <anotoki-select label="Target" placeholder="Any" [options]="targetTypes" [value]="target_type() ?? ''" (valueChange)="setFilter('target_type', $event)" />
             @if (filtered()) {
                 <div class="filter-reset">
-                    <button appButton variant="ghost" size="sm" (click)="clearFilters()">
-                        <app-icon name="x" [size]="15" />
+                    <button anotokiButton variant="ghost" size="sm" (click)="clearFilters()">
+                        <anotoki-icon name="x" [size]="15" />
                         Clear filters
                     </button>
                 </div>
@@ -27,7 +27,7 @@
 
         @if (loadError()) {
             <div class="padded">
-                <app-error-state heading="The audit log could not be loaded" [message]="loadError()!" (retry)="reload()" />
+                <anotoki-error-state heading="The audit log could not be loaded" [message]="loadError()!" (retry)="reload()" />
             </div>
         } @else if (loading() && !result()) {
             <div class="skeletons" aria-hidden="true">
@@ -37,7 +37,7 @@
             </div>
         } @else if (result(); as r) {
             @if (r.items.length === 0) {
-                <app-empty-state icon="history" heading="Nothing matches" [text]="filtered() ? 'Try fewer filters.' : 'Nothing has been recorded yet.'" />
+                <anotoki-empty-state icon="history" heading="Nothing matches" [text]="filtered() ? 'Try fewer filters.' : 'Nothing has been recorded yet.'" />
             } @else {
                 <div class="table-scroll" [class.is-refreshing]="loading()">
                     <table class="table">
@@ -63,7 +63,7 @@
                                         }
                                     </td>
                                     <td>
-                                        <app-badge [mono]="true">{{ entry.action }}</app-badge>
+                                        <anotoki-badge [mono]="true">{{ entry.action }}</anotoki-badge>
                                     </td>
                                     <td>
                                         @if (entry.target_type) {
@@ -94,8 +94,8 @@
                         </tbody>
                     </table>
                 </div>
-                <app-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="loading()" (pageChange)="setPage($event)" />
+                <anotoki-pagination [page]="r.page" [pageSize]="r.pageSize" [total]="r.total" [busy]="loading()" (pageChange)="setPage($event)" />
             }
         }
-    </app-card>
+    </anotoki-card>
 </div>

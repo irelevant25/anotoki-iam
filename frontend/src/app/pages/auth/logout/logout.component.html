@@ -3,55 +3,55 @@
         @case ("loading") {
             <h1 class="visually-hidden">{{ "logout.pageTitle" | t }}</h1>
             <div class="centered">
-                <app-spinner size="lg" [label]="'common.loading' | t" [showLabel]="true" />
+                <anotoki-spinner size="lg" [label]="'common.loading' | t" [showLabel]="true" />
             </div>
         }
 
         @case ("ask") {
             <header class="auth-head">
-                <span class="auth-icon"><app-icon name="logOut" [size]="22" /></span>
+                <span class="auth-icon"><anotoki-icon name="logOut" [size]="22" /></span>
                 @if (application(); as app) {
-                    <h1 tabindex="-1" appAutofocus>{{ "logout.askTitle" | t }}</h1>
+                    <h1 tabindex="-1" anotokiAutofocus>{{ "logout.askTitle" | t }}</h1>
                     <p>{{ "logout.askFromApp" | t: { app: app.name } }}</p>
                     <p>{{ "logout.askText" | t }}</p>
                 } @else {
-                    <h1 tabindex="-1" appAutofocus>{{ "logout.plainTitle" | t }}</h1>
+                    <h1 tabindex="-1" anotokiAutofocus>{{ "logout.plainTitle" | t }}</h1>
                     <p>{{ "logout.plainText" | t }}</p>
                 }
             </header>
             @if (error()) {
-                <app-alert tone="danger" [announce]="true">{{ error() }}</app-alert>
+                <anotoki-alert tone="danger" [announce]="true">{{ error() }}</anotoki-alert>
             }
             <div class="actions">
-                <button appButton variant="primary" size="lg" [block]="true" [loading]="busy()" (click)="signOut()">
-                    <app-icon name="logOut" [size]="16" />
+                <button anotokiButton variant="primary" size="lg" [block]="true" [loading]="busy()" (click)="signOut()">
+                    <anotoki-icon name="logOut" [size]="16" />
                     {{ "logout.confirm" | t }}
                 </button>
-                <button appButton variant="secondary" [block]="true" [disabled]="busy()" (click)="stay()">{{ "logout.stay" | t }}</button>
+                <button anotokiButton variant="secondary" [block]="true" [disabled]="busy()" (click)="stay()">{{ "logout.stay" | t }}</button>
             </div>
         }
 
         @case ("expired") {
             <header class="auth-head">
-                <span class="auth-icon is-warning"><app-icon name="clock" [size]="22" /></span>
-                <h1 tabindex="-1" appAutofocus>{{ "logout.expiredTitle" | t }}</h1>
+                <span class="auth-icon is-warning"><anotoki-icon name="clock" [size]="22" /></span>
+                <h1 tabindex="-1" anotokiAutofocus>{{ "logout.expiredTitle" | t }}</h1>
                 <p>{{ "logout.expiredText" | t }}</p>
             </header>
             <div class="actions">
                 @if (signedIn()) {
-                    <button appButton variant="primary" [block]="true" [loading]="busy()" (click)="signOut()">{{ "logout.confirm" | t }}</button>
+                    <button anotokiButton variant="primary" [block]="true" [loading]="busy()" (click)="signOut()">{{ "logout.confirm" | t }}</button>
                 }
-                <a appButton variant="secondary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+                <a anotokiButton variant="secondary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
             </div>
         }
 
         @case ("done") {
             <header class="auth-head">
-                <span class="auth-icon is-success"><app-icon name="checkCircle" [size]="22" /></span>
-                <h1 tabindex="-1" appAutofocus>{{ "logout.doneTitle" | t }}</h1>
+                <span class="auth-icon is-success"><anotoki-icon name="checkCircle" [size]="22" /></span>
+                <h1 tabindex="-1" anotokiAutofocus>{{ "logout.doneTitle" | t }}</h1>
                 <p>{{ "logout.doneText" | t }}</p>
             </header>
-            <a appButton variant="primary" size="lg" [block]="true" routerLink="/login">{{ "logout.signInAgain" | t }}</a>
+            <a anotokiButton variant="primary" size="lg" [block]="true" routerLink="/login">{{ "logout.signInAgain" | t }}</a>
         }
     }
 </app-auth-card>

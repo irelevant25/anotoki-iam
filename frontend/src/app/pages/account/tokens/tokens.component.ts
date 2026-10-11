@@ -1,4 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { CopyButtonComponent } from '@anotoki/lib/ui/copy';
+import { ConfirmService, DialogComponent } from '@anotoki/lib/ui/dialog';
+import { SelectComponent, SelectOption, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { forkJoin } from 'rxjs';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
@@ -8,20 +13,6 @@ import { TranslationKey } from '../../../core/i18n/en';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { BadgeComponent } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { ConfirmService } from '../../../ui/confirm/confirm.service';
-import { CopyButtonComponent } from '../../../ui/copy-button/copy-button.component';
-import { DialogComponent } from '../../../ui/dialog/dialog.component';
-import { EmptyStateComponent } from '../../../ui/empty-state/empty-state.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { SelectComponent, SelectOption } from '../../../ui/select/select.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 
 type TokenState = 'active' | 'expired' | 'revoked';
 

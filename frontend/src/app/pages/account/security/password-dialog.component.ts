@@ -1,5 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { AlertComponent, ButtonComponent } from '@anotoki/lib/ui';
+import { DialogComponent } from '@anotoki/lib/ui/dialog';
+import { PasswordFieldComponent } from '@anotoki/lib/ui/forms';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { catchError, map, of } from 'rxjs';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
@@ -8,11 +12,6 @@ import { SessionService } from '../../../core/auth/session.service';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { DialogComponent } from '../../../ui/dialog/dialog.component';
-import { PasswordFieldComponent } from '../../../ui/password-field/password-field.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { PASSWORD_MAX_BYTES, passwordBytes } from '../../auth/auth-helpers';
 import { FreshSignInComponent } from '../fresh-sign-in.component';
 import { SECURITY_ANCHORS } from './security-anchors';
@@ -110,10 +109,9 @@ export class PasswordDialogComponent {
         error: (error: ApiError) => this._refused(error),
       });
     } else {
-      this._accountApi.setPassword(next).subscribe({
-        next: (user) => {
+      this._session.setFrom(this._accountApi.setPassword(next)).subscribe({
+        next: () => {
           this.busy.set(false);
-          this._session.set(user);
           this._toast.success(this._i18n.t('security.password.setDone'));
           this.closed.emit(true);
         },

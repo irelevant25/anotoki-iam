@@ -1,4 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { AlertComponent, ButtonComponent, IconComponent } from '@anotoki/lib/ui';
+import { DialogComponent } from '@anotoki/lib/ui/dialog';
+import { PasswordFieldComponent } from '@anotoki/lib/ui/forms';
 import { Observable } from 'rxjs';
 import { ApiError } from '../../../core/api/api-error';
 import { AccountUser } from '../../../core/api/models';
@@ -7,12 +10,8 @@ import { SessionService } from '../../../core/auth/session.service';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { DialogComponent } from '../../../ui/dialog/dialog.component';
-import { IconComponent, IconName } from '../../../ui/icon/icon.component';
-import { PasswordFieldComponent } from '../../../ui/password-field/password-field.component';
 import { FreshSignInComponent } from '../fresh-sign-in.component';
+import { IconName } from '../../../core/kit/icons';
 
 /**
  * What a session alone cannot do, confirmed (docs/api.md, "The proof a

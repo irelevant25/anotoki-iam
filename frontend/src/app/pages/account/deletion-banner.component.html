@@ -1,9 +1,9 @@
-<app-alert tone="warning" [heading]="title()">
+<anotoki-alert tone="warning" [heading]="title()">
     <p>{{ "deletion.pendingText" | t }}</p>
     @if (error()) {
         <p class="error" role="alert">{{ error() }}</p>
     }
     <div alertActions>
-        <button #cancelButton appButton variant="secondary" size="sm" [loading]="busy()" (click)="cancel()">{{ "deletion.cancel" | t }}</button>
+        <button #cancelButton anotokiButton variant="secondary" size="sm" [loading]="busy()" (click)="cancel()">{{ "deletion.cancel" | t }}</button>
     </div>
-</app-alert>
+</anotoki-alert>

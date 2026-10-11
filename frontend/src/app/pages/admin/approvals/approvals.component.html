@@ -1,20 +1,20 @@
 <div class="page">
-    <app-page-header heading="Approvals" lead="New accounts waiting for an administrator's yes or no before they can sign in anywhere." />
+    <anotoki-page-header heading="Approvals" lead="New accounts waiting for an administrator's yes or no before they can sign in anywhere." />
 
     @if (loadError()) {
-        <app-error-state heading="The approvals could not be loaded" [message]="loadError()!" (retry)="load()" />
+        <anotoki-error-state heading="The approvals could not be loaded" [message]="loadError()!" (retry)="load()" />
     } @else if (queue(); as q) {
         @if (!q.account_approval) {
-            <app-alert tone="info">
+            <anotoki-alert tone="info">
                 New accounts do not wait at the moment: switch
                 <a routerLink="/admin/settings">Settings → New accounts need approval</a>
                 on to have every account made with the form or with Google wait here.
-            </app-alert>
+            </anotoki-alert>
         }
 
-        <app-card [flush]="true">
+        <anotoki-card [flush]="true">
             @if (q.accounts.length === 0) {
-                <app-empty-state icon="check" heading="Nobody is waiting" />
+                <anotoki-empty-state icon="check" heading="Nobody is waiting" />
             } @else {
                 <div class="table-scroll">
                     <table class="table table-stack">
@@ -34,7 +34,7 @@
                                             <a class="who-name" [routerLink]="['/admin/users', account.user_id]">{{ account.username }}</a>
                                             <span class="who-email break">{{ account.email }}</span>
                                             @if (!account.email_confirmed) {
-                                                <span class="badges"><app-badge tone="warning">Address not confirmed</app-badge></span>
+                                                <span class="badges"><anotoki-badge tone="warning">Address not confirmed</anotoki-badge></span>
                                             }
                                         </div>
                                     </td>
@@ -43,10 +43,10 @@
                                     </td>
                                     <td class="cell-actions">
                                         <span class="decisions">
-                                            <button appButton size="sm" variant="primary" [loading]="busy() === account.user_id" [disabled]="busy() !== null" (click)="approve(account)">
+                                            <button anotokiButton size="sm" variant="primary" [loading]="busy() === account.user_id" [disabled]="busy() !== null" (click)="approve(account)">
                                                 Approve
                                             </button>
-                                            <button appButton size="sm" variant="secondary" [disabled]="busy() !== null || !account.email_confirmed" (click)="decline(account)">Decline</button>
+                                            <button anotokiButton size="sm" variant="secondary" [disabled]="busy() !== null || !account.email_confirmed" (click)="decline(account)">Decline</button>
                                         </span>
                                     </td>
                                 </tr>
@@ -61,8 +61,8 @@
                     </p>
                 }
             }
-        </app-card>
+        </anotoki-card>
     } @else {
-        <div class="loading"><app-spinner size="lg" label="Loading the approvals" [showLabel]="true" /></div>
+        <div class="loading"><anotoki-spinner size="lg" label="Loading the approvals" [showLabel]="true" /></div>
     }
 </div>

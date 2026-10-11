@@ -1,5 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ThemeToggleComponent } from '@anotoki/lib/shell';
+import { AlertComponent, BadgeComponent, ButtonComponent, CardComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
+import { SelectComponent, SelectOption, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
 import { DateFormatChoice, TimeFormatChoice } from '../../../core/api/models';
@@ -10,17 +14,7 @@ import { TranslationKey } from '../../../core/i18n/en';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { BadgeComponent } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { IconComponent, IconName } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { SelectComponent, SelectOption } from '../../../ui/select/select.component';
-import { SwitchComponent } from '../../../ui/switch/switch.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
-import { ThemeToggleComponent } from '../../../ui/theme-toggle/theme-toggle.component';
-import { ToastService } from '../../../ui/toast/toast.service';
+import { IconName } from '../../../core/kit/icons';
 
 interface QuickLink {
   link: string;
@@ -173,10 +167,9 @@ export class OverviewComponent {
     }
 
     this.savingUsername.set(true);
-    this._accountApi.updateProfile({ username }).subscribe({
-      next: (user) => {
+    this._session.setFrom(this._accountApi.updateProfile({ username })).subscribe({
+      next: () => {
         this.savingUsername.set(false);
-        this._session.set(user);
         this.editingUsername.set(false);
         this._toast.success(this._i18n.t('overview.usernameSaved'));
       },
@@ -190,10 +183,9 @@ export class OverviewComponent {
   /** Saved the moment it is switched; refused, the switch goes back. */
   protected setNewsMail(on: boolean): void {
     this.savingNewsMail.set(true);
-    this._accountApi.updateProfile({ news_mail: on }).subscribe({
-      next: (user) => {
+    this._session.setFrom(this._accountApi.updateProfile({ news_mail: on })).subscribe({
+      next: () => {
         this.savingNewsMail.set(false);
-        this._session.set(user);
         this._toast.success(this._i18n.t(on ? 'overview.newsMailOn' : 'overview.newsMailOff'));
       },
       error: (error: ApiError) => {
@@ -216,10 +208,9 @@ export class OverviewComponent {
 
     this.savingFormat.set(true);
     const body = field === 'date_format' ? { date_format: (value || null) as DateFormatChoice | null } : { time_format: (value || null) as TimeFormatChoice | null };
-    this._accountApi.updateProfile(body).subscribe({
-      next: (user) => {
+    this._session.setFrom(this._accountApi.updateProfile(body)).subscribe({
+      next: () => {
         this.savingFormat.set(false);
-        this._session.set(user);
         this._toast.success(this._i18n.t('overview.preferencesSaved'));
       },
       error: (error: ApiError) => {
@@ -256,10 +247,9 @@ export class OverviewComponent {
       return;
     }
 
-    this._accountApi.updateProfile({ language: value }).subscribe({
-      next: (user) => {
+    this._session.setFrom(this._accountApi.updateProfile({ language: value })).subscribe({
+      next: () => {
         this.savingLanguage.set(false);
-        this._session.set(user);
         // Worded only now: in the language just chosen.
         this._toast.success(this._i18n.t('overview.languageSaved'));
       },

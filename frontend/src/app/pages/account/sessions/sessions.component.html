@@ -1,16 +1,16 @@
 <div class="page">
-    <app-page-header [heading]="'sessions.title' | t" [lead]="'sessions.lead' | t">
-        <button appButton variant="secondary" [disabled]="othersActive() === 0" [loading]="endingOthers()" (click)="endOthers()">
-            <app-icon name="logOut" [size]="16" />
+    <anotoki-page-header [heading]="'sessions.title' | t" [lead]="'sessions.lead' | t">
+        <button anotokiButton variant="secondary" [disabled]="othersActive() === 0" [loading]="endingOthers()" (click)="endOthers()">
+            <anotoki-icon name="logOut" [size]="16" />
             {{ "sessions.endOthers" | t }}
         </button>
-    </app-page-header>
+    </anotoki-page-header>
 
     @if (failedAttempts() > 0) {
-        <app-alert tone="warning">{{ "sessions.failedAttempts" | t: { count: failedAttempts() } }}</app-alert>
+        <anotoki-alert tone="warning">{{ "sessions.failedAttempts" | t: { count: failedAttempts() } }}</anotoki-alert>
     }
 
-    <app-card [flush]="true">
+    <anotoki-card [flush]="true">
         @if (loading()) {
             <div class="skeletons" aria-hidden="true">
                 <span class="skeleton"></span>
@@ -19,14 +19,14 @@
             </div>
         } @else if (loadError()) {
             <div class="padded">
-                <app-error-state [message]="loadError()!" [heading]="'sessions.failed' | t" (retry)="load()" />
+                <anotoki-error-state [message]="loadError()!" [heading]="'sessions.failed' | t" (retry)="load()" />
             </div>
         } @else if (sessions().length === 0) {
-            <app-empty-state icon="laptop" [heading]="'sessions.none' | t" />
+            <anotoki-empty-state icon="laptop" [heading]="'sessions.none' | t" />
         } @else {
             @if (hasEnded()) {
                 <div class="toolbar">
-                    <app-switch [(checked)]="showEnded">{{ "sessions.showEnded" | t }}</app-switch>
+                    <anotoki-switch [(checked)]="showEnded">{{ "sessions.showEnded" | t }}</anotoki-switch>
                 </div>
             }
             <div class="table-scroll">
@@ -50,7 +50,7 @@
                             <tr [class.row-muted]="!session.active" [class.row-current]="session.current">
                                 <td [attr.data-label]="'sessions.column.device' | t">
                                     <span class="device">
-                                        <app-icon [name]="mobile(session) ? 'smartphone' : 'laptop'" [size]="16" />
+                                        <anotoki-icon [name]="mobile(session) ? 'smartphone' : 'laptop'" [size]="16" />
                                         <span>{{ device(session) }}</span>
                                     </span>
                                 </td>
@@ -58,7 +58,7 @@
                                     <span class="how">
                                         {{ methodKey(session.method) | t }}
                                         @if (session.mfa) {
-                                            <app-badge tone="success" [attr.title]="'sessions.twoFactorTitle' | t">{{ "sessions.twoFactor" | t }}</app-badge>
+                                            <anotoki-badge tone="success" [attr.title]="'sessions.twoFactorTitle' | t">{{ "sessions.twoFactor" | t }}</anotoki-badge>
                                         }
                                     </span>
                                 </td>
@@ -66,7 +66,7 @@
                                     @if (session.applications.length) {
                                         <span class="apps">
                                             @for (app of session.applications; track app) {
-                                                <app-badge>{{ app }}</app-badge>
+                                                <anotoki-badge>{{ app }}</anotoki-badge>
                                             }
                                         </span>
                                     } @else {
@@ -84,9 +84,9 @@
                                 </td>
                                 <td [attr.data-label]="'sessions.column.state' | t">
                                     @if (session.current) {
-                                        <app-badge tone="primary" [dot]="true">{{ stateKey(session) | t }}</app-badge>
+                                        <anotoki-badge tone="primary" [dot]="true">{{ stateKey(session) | t }}</anotoki-badge>
                                     } @else if (session.active) {
-                                        <app-badge tone="success" [dot]="true">{{ stateKey(session) | t }}</app-badge>
+                                        <anotoki-badge tone="success" [dot]="true">{{ stateKey(session) | t }}</anotoki-badge>
                                     } @else {
                                         <span class="ended" [attr.title]="session.revoked_reason">
                                             {{ stateKey(session) | t }}
@@ -98,7 +98,7 @@
                                 </td>
                                 <td class="cell-actions">
                                     @if (session.active && !session.current) {
-                                        <button appButton size="sm" variant="secondary" [loading]="endingId() === session.id" (click)="end(session)">
+                                        <button anotokiButton size="sm" variant="secondary" [loading]="endingId() === session.id" (click)="end(session)">
                                             {{ "sessions.end" | t }}
                                         </button>
                                     }
@@ -109,5 +109,5 @@
                 </table>
             </div>
         }
-    </app-card>
+    </anotoki-card>
 </div>

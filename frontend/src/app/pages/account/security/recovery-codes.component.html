@@ -1,5 +1,5 @@
 <div class="stack">
-    <app-alert tone="warning" [heading]="'security.codes.title' | t">{{ "security.codes.lead" | t }}</app-alert>
+    <anotoki-alert tone="warning" [heading]="'security.codes.title' | t">{{ "security.codes.lead" | t }}</anotoki-alert>
     <ol class="codes" [attr.aria-label]="'security.codes.title' | t">
         @for (code of codes(); track code) {
             <li>
@@ -8,11 +8,11 @@
         }
     </ol>
     <div class="cluster">
-        <app-copy-button [text]="plain()" [label]="'security.codes.copy' | t" />
-        <button appButton size="sm" variant="secondary" (click)="download()">
-            <app-icon name="download" [size]="16" />
+        <anotoki-copy-button [text]="plain()" [label]="'security.codes.copy' | t" />
+        <button anotokiButton size="sm" variant="secondary" (click)="download()">
+            <anotoki-icon name="download" [size]="16" />
             {{ "security.codes.download" | t }}
         </button>
     </div>
-    <app-checkbox [(checked)]="saved">{{ "security.codes.saved" | t }}</app-checkbox>
+    <anotoki-checkbox [(checked)]="saved">{{ "security.codes.saved" | t }}</anotoki-checkbox>
 </div>

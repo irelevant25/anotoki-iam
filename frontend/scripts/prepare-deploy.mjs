@@ -53,6 +53,36 @@ if (inlineScript || inlineHandler) {
     process.exit(1);
 }
 
+// The database's strings - which any administrator rewords on the Translations page - are drawn by the
+// family's components (@anotoki/lib) as well as by the IAM's own. The IAM's own are held to "a string is
+// text, never HTML" by the backend's scan of src/app (backend/tests/translation_keys.php); the library is
+// outside it, so its bundles are held to it here, before anything is uploaded: a release that sets HTML
+// from a string, or switches Angular's sanitizer off for one, goes no further. (Angular's own sanitizer is
+// in @angular/core, not in these files.) Any spelling counts - Angular binds [innerHtml] too - and so does
+// a comment that names one: the fix is a release of the library, never a way around this check.
+const library = join(process.cwd(), "node_modules", "@anotoki", "lib", "fesm2022");
+const bundles = existsSync(library) ? readdirSync(library).filter((name) => name.endsWith(".mjs")) : [];
+if (!bundles.length) {
+    console.error(`No @anotoki/lib bundles in ${library}: install the packages (bun ci) and build again.`);
+    process.exit(1);
+}
+const htmlSink = /innerHTML|outerHTML|insertAdjacentHTML|bypassSecurityTrust/i;
+const drawsHtml = [];
+for (const name of bundles) {
+    readFileSync(join(library, name), "utf8")
+        .split(/\r?\n/)
+        .forEach((line, index) => {
+            const found = htmlSink.exec(line);
+            if (found) drawsHtml.push(`node_modules/@anotoki/lib/fesm2022/${name}:${index + 1}: ${found[0]}`);
+        });
+}
+if (drawsHtml.length) {
+    console.error("@anotoki/lib draws a string as HTML, or switches Angular's sanitizer off - the IAM's strings, which administrators reword, must stay text:");
+    for (const place of drawsHtml) console.error(`  ${place}`);
+    console.error("Take a release of the library without it (irelevant25/anotoki-lib) before deploying.");
+    process.exit(1);
+}
+
 // The family's visitor counter (Umami) reads the address as soon as it runs, and a confirm or reset link
 // carries its token in the query string: its tag must tell it to leave the query string and the fragment
 // out - and be async, so that no page of the sign-in waits for the counter. The snippet Umami's dashboard
@@ -116,3 +146,4 @@ const shown = dist
 console.log(`Prepared ${shown}/ for production (${files} entries; upload its contents to the web root, next to api/):`);
 console.log("  .htaccess  -> /api passed through, /.well-known -> api/index.php, SPA fallback");
 console.log("               X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy");
+console.log(`  checked    -> no inline script; @anotoki/lib's ${bundles.length} bundle${bundles.length === 1 ? "" : "s"}: no string drawn as HTML`);

@@ -1,25 +1,25 @@
 <div class="page">
-    <app-page-header heading="Settings" lead="Changes apply at once, to every site." />
+    <anotoki-page-header heading="Settings" lead="Changes apply at once, to every site." />
 
     @if (loadError()) {
-        <app-error-state heading="The settings could not be loaded" [message]="loadError()!" (retry)="load()" />
+        <anotoki-error-state heading="The settings could not be loaded" [message]="loadError()!" (retry)="load()" />
     } @else if (settings() === null) {
-        <div class="loading"><app-spinner size="lg" label="Loading the settings" [showLabel]="true" /></div>
+        <div class="loading"><anotoki-spinner size="lg" label="Loading the settings" [showLabel]="true" /></div>
     } @else {
         <form class="stack stack-lg" novalidate (submit)="$event.preventDefault(); save()">
             @for (group of groups(); track group.name) {
-                <app-card [heading]="groupTitle(group.name)">
+                <anotoki-card [heading]="groupTitle(group.name)">
                     <div class="settings">
                         @for (setting of group.settings; track setting.name) {
                             <div class="setting">
                                 @switch (setting.type) {
                                     @case ("boolean") {
-                                        <app-switch [checked]="value(setting) === 'true'" (checkedChange)="edit(setting, $event ? 'true' : 'false')" [hint]="describe(setting).text">
+                                        <anotoki-switch [checked]="value(setting) === 'true'" (checkedChange)="edit(setting, $event ? 'true' : 'false')" [hint]="describe(setting).text">
                                             {{ describe(setting).label }}
-                                        </app-switch>
+                                        </anotoki-switch>
                                     }
                                     @case ("choice") {
-                                        <app-select
+                                        <anotoki-select
                                             [label]="describe(setting).label"
                                             [options]="options(setting)"
                                             [hint]="describe(setting).text"
@@ -27,7 +27,7 @@
                                             (valueChange)="edit(setting, $event)" />
                                     }
                                     @default {
-                                        <app-text-field [label]="describe(setting).label" [hint]="describe(setting).text" [value]="value(setting)" (valueChange)="edit(setting, $event)" />
+                                        <anotoki-text-field [label]="describe(setting).label" [hint]="describe(setting).text" [value]="value(setting)" (valueChange)="edit(setting, $event)" />
                                     }
                                 }
                                 <p class="meta small muted" [class.indented]="setting.type === 'boolean'">
@@ -43,15 +43,15 @@
                             </div>
                         }
                     </div>
-                </app-card>
+                </anotoki-card>
             }
 
             @if (saveError()) {
-                <app-alert tone="danger" [announce]="true">{{ saveError() }}</app-alert>
+                <anotoki-alert tone="danger" [announce]="true">{{ saveError() }}</anotoki-alert>
             }
             <div class="form-actions">
-                <button appButton variant="ghost" [disabled]="changes().length === 0 || saving()" (click)="discard()">Discard changes</button>
-                <button appButton type="submit" variant="primary" [disabled]="changes().length === 0" [loading]="saving()">Save {{ changes().length ? "(" + changes().length + ")" : "" }}</button>
+                <button anotokiButton variant="ghost" [disabled]="changes().length === 0 || saving()" (click)="discard()">Discard changes</button>
+                <button anotokiButton type="submit" variant="primary" [disabled]="changes().length === 0" [loading]="saving()">Save {{ changes().length ? "(" + changes().length + ")" : "" }}</button>
             </div>
         </form>
     }

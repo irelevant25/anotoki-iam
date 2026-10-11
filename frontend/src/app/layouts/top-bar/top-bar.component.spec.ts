@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { provideAnotokiShell } from '@anotoki/lib/shell';
+import { provideAnotokiUi } from '@anotoki/lib/ui';
+import { ToastService } from '@anotoki/lib/ui/toast';
+import { Observable, Subject, defer, of, tap, throwError } from 'rxjs';
 import { AccountApi } from '../../core/api/account.api';
 import { ApiError } from '../../core/api/api-error';
 import { LoginApi } from '../../core/api/login.api';
@@ -10,8 +13,8 @@ import { SessionService } from '../../core/auth/session.service';
 import { TranslationKey, en } from '../../core/i18n/en';
 import { errorText } from '../../core/i18n/error-text';
 import { TranslationService } from '../../core/i18n/translation.service';
-import { ToastService } from '../../ui/toast/toast.service';
-import { PHONE_BAR_MAX, TopBarComponent } from './top-bar.component';
+import { iamShellConfig, iamUiConfig } from '../../core/kit/kit.config';
+import { AppTopBarComponent, PHONE_BAR_MAX } from './top-bar.component';
 
 /** The bar's words in Slovak, as migrations 006 and 008 write them. */
 const SLOVAK: Partial<Record<TranslationKey, string>> = {
@@ -30,7 +33,14 @@ const SLOVAK: Partial<Record<TranslationKey, string>> = {
   'account.nav.applications': 'Aplikácie',
   'account.nav.tokens': 'Tokeny pre skripty',
   'common.signIn': 'Prihlásiť sa',
+  'lang.label': 'Jazyk',
   'lang.button': 'Jazyk: {name} ({code})',
+  'theme.label': 'Vzhľad',
+  'theme.light': 'Svetlý',
+  'theme.dark': 'Tmavý',
+  'theme.auto': 'Systémový',
+  'theme.autoHint': 'Podľa nastavenia systému',
+  'error.generic': 'Niečo sa pokazilo. Skús to znova.',
 };
 
 const LANGUAGES: SiteLanguage[] = [
@@ -84,28 +94,58 @@ const MIRA: AccountUser = {
 @Component({ selector: 'app-test-page', changeDetection: ChangeDetectionStrategy.OnPush, template: '' })
 class PageComponent {}
 
-describe('TopBarComponent', () => {
+/**
+ * The IAM's top bar: the family's `<anotoki-top-bar>` (@anotoki/lib/shell,
+ * whose own specs hold its menus, keys and fold) as the IAM words and wires
+ * it - drawn here for real, so that what the IAM promises is checked on the
+ * bar people get: its order, its links and menu, its words from the IAM's
+ * strings, the language saved to the account one save at a time, signing in
+ * and out, PHONE_BAR_MAX, and Tab out of every menu onto its button.
+ */
+describe('AppTopBarComponent', () => {
   const user = signal<AccountUser | null>(null);
+  /** Moves on with set() and clear(), as SessionService's does (its rule is checked with the real one in core/auth/session.service.spec.ts). */
+  let generation = 0;
   const session = {
     user,
     signedIn: computed(() => !!user()),
     isAdmin: computed(() => !!user()?.is_admin),
-    set: (next: AccountUser) => user.set(next),
-    clear: () => user.set(null),
+    set: (next: AccountUser) => {
+      generation++;
+      user.set(next);
+    },
+    setFrom: (request: Observable<AccountUser>) =>
+      defer(() => {
+        const sent = generation;
+        return request.pipe(
+          tap((next) => {
+            if (sent === generation) {
+              user.set(next);
+            }
+          }),
+        );
+      }),
+    clear: () => {
+      generation++;
+      user.set(null);
+    },
   };
   const loginApi = { logout: vi.fn() };
   const accountApi = { updateProfile: vi.fn() };
   let i18n: FakeTranslations;
 
-  let fixture: ComponentFixture<TopBarComponent>;
+  let fixture: ComponentFixture<AppTopBarComponent>;
   let host: HTMLElement;
 
-  const userButton = () => host.querySelector<HTMLButtonElement>('.user-button')!;
-  const phoneButton = () => host.querySelector<HTMLButtonElement>('.menu-button')!;
-  const items = () => Array.from(host.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]'));
   const words = (element: Element | null) => element?.textContent?.replace(/\s+/g, ' ').trim();
   const parts = (selector: string) => Array.from(host.querySelectorAll(selector)).map(words);
-  const links = () => Array.from(host.querySelectorAll<HTMLAnchorElement>('.topbar-nav a'));
+  const personButton = () => host.querySelector<HTMLButtonElement>('.person-button')!;
+  const phoneButton = () => host.querySelector<HTMLButtonElement>('.menu-button')!;
+  const languageButton = () => host.querySelector<HTMLButtonElement>('anotoki-language-switcher .switcher')!;
+  /** The bar's own open menu (the person's or the phone's) - not the language switcher's. */
+  const menu = () => host.querySelector<HTMLElement>('.actions > anotoki-menu [role="menu"]');
+  const items = () => Array.from(menu()?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+  const links = () => Array.from(host.querySelectorAll<HTMLAnchorElement>('nav.nav a'));
   /** A link as "words href", with " [page]" for aria-current and " [here]" for the section the page is in. */
   const described = (link: HTMLAnchorElement) =>
     `${words(link)} ${link.getAttribute('href')}${link.getAttribute('aria-current') === 'page' ? ' [page]' : ''}${link.classList.contains('is-active') ? ' [here]' : ''}`;
@@ -114,7 +154,7 @@ describe('TopBarComponent', () => {
     Array.from(host.querySelector(selector)!.children).map((child) => child.tagName.toLowerCase() + (child.className ? '.' + String(child.className).split(' ')[0] : ''));
 
   async function draw(area: 'account' | 'admin' = 'account'): Promise<void> {
-    fixture = TestBed.createComponent(TopBarComponent);
+    fixture = TestBed.createComponent(AppTopBarComponent);
     fixture.componentRef.setInput('area', area);
     host = fixture.nativeElement;
     document.body.appendChild(host);
@@ -127,12 +167,15 @@ describe('TopBarComponent', () => {
   }
 
   async function openMenu(): Promise<void> {
-    (host.querySelector<HTMLButtonElement>('.user-button') ?? phoneButton()).click();
+    (host.querySelector<HTMLButtonElement>('.person-button') ?? phoneButton()).click();
     await fixture.whenStable();
   }
 
-  /** Whether a window `width` wide matches a (max-width: …) query. */
-  const fits = (width: number, query: string) => width <= Number(/max-width:\s*(\d+)px/.exec(query)?.[1] ?? Infinity);
+  /** Whether a window `width` wide matches a query: only (max-width: …) ones match anything here. */
+  const fits = (width: number, query: string) => {
+    const most = /max-width:\s*(\d+)px/.exec(query);
+    return most ? width <= Number(most[1]) : false;
+  };
   /** The media queries handed out, with the listeners they were given - told by `resizeTo`. */
   let queries: { query: string; list: { matches: boolean }; listeners: Set<() => void> }[] = [];
 
@@ -143,6 +186,7 @@ describe('TopBarComponent', () => {
       const listeners = new Set<() => void>();
       const list = {
         matches: fits(width, query),
+        media: query,
         addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
         removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
       };
@@ -175,6 +219,8 @@ describe('TopBarComponent', () => {
         { provide: SessionService, useValue: session },
         { provide: LoginApi, useValue: loginApi },
         { provide: AccountApi, useValue: accountApi },
+        provideAnotokiUi(iamUiConfig),
+        provideAnotokiShell(iamShellConfig),
       ],
     });
   });
@@ -186,14 +232,17 @@ describe('TopBarComponent', () => {
 
   it('is one row in the family’s order: the brand, the links, then the language, the theme and the person', async () => {
     await draw();
-    expect(childrenOf('.topbar-inner')).toEqual(['app-brand', 'nav.topbar-nav', 'div.topbar-actions']);
-    expect(childrenOf('.topbar-actions')).toEqual(['app-language-switcher.is-compact', 'app-theme-toggle', 'div.user-menu']);
-    expect(host.querySelector('.topbar-nav')?.getAttribute('aria-label')).toBe('Hlavná navigácia');
-    expect(parts('app-brand .wordmark > span')).toEqual(['anotoki', 'účet']);
-    expect(host.querySelector('app-brand a')?.getAttribute('aria-label')).toBe('anotoki účet - domov');
+    expect(childrenOf('.row')).toEqual(['anotoki-brand.anotoki-brand', 'nav.nav', 'div.actions']);
+    expect(childrenOf('.actions')).toEqual(['anotoki-language-switcher.anotoki-language-switcher', 'anotoki-theme-toggle.anotoki-theme-toggle', 'button.person-button', 'anotoki-menu.anotoki-menu']);
+    expect(host.querySelector('nav.nav')?.getAttribute('aria-label')).toBe('Hlavná navigácia');
+    expect(parts('anotoki-brand .wordmark > span')).toEqual(['anotoki', 'účet']);
+    expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe('anotoki účet - domov');
+    expect(host.querySelector('anotoki-brand a')?.getAttribute('href')).toBe('/account');
     // The language is the bar's 40 px button, saying the language it shows - and, in its name, the code on it (WCAG 2.5.3).
-    expect(host.querySelector('app-language-switcher .switcher')?.getAttribute('aria-label')).toBe('Jazyk: Slovenčina (SK)');
-    expect(words(host.querySelector('app-language-switcher .switcher'))).toBe('SK');
+    expect(languageButton().getAttribute('aria-label')).toBe('Jazyk: Slovenčina (SK)');
+    expect(words(languageButton())).toBe('SK');
+    // The theme, in the IAM's own words.
+    expect(host.querySelector('anotoki-theme-toggle [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Vzhľad');
   });
 
   it('links the account pages, and marks the one the page is on', async () => {
@@ -211,26 +260,35 @@ describe('TopBarComponent', () => {
     expect(links().map(described)[0]).toBe('Prehľad /account');
   });
 
-  it('the person’s menu: name, address, role; the admin panel for an administrator; signing out - no "Account", the pages are the links', async () => {
+  it('the person’s menu: name, address, role; the admin panel for an administrator; signing out - no "Your anotoki account", the pages are the links', async () => {
     await draw();
-    expect(userButton().getAttribute('aria-label')).toBe('Ponuka účtu: Mira');
+    expect(personButton().getAttribute('aria-label')).toBe('Ponuka účtu: Mira');
     await openMenu();
-    expect(host.querySelector('#user-menu')?.getAttribute('aria-label')).toBe('Ponuka účtu');
-    expect(parts('#user-menu .menu-head > span')).toEqual(['Mira', 'mira@example.test', 'Administrátor']);
+    expect(menu()?.getAttribute('aria-label')).toBe('Ponuka účtu');
+    expect(parts('.actions > anotoki-menu .menu-head > span')).toEqual(['Mira', 'mira@example.test', 'Administrátor']);
     expect(items().map(words)).toEqual(['Administrátorský panel', 'Odhlásiť sa']);
     expect(items()[0].getAttribute('href')).toBe('/admin');
+    // The family's "Your anotoki account" is this site: never an item of its own menu.
+    expect(words(menu())).not.toMatch(/Tvoj anotoki účet|Your anotoki account/i);
 
+    // No longer an administrator: no role, and no way to the panel.
     user.set({ ...MIRA, is_admin: false });
     await fixture.whenStable();
     expect(host.querySelector('.menu-role')).toBeNull();
     expect(items().map(words)).toEqual(['Odhlásiť sa']);
+
+    // Somebody else signed in (another tab): the menu open for the one before closes.
+    user.set({ ...MIRA, username: 'Tomas', email: 'tomas@example.test' });
+    await fixture.whenStable();
+    expect(menu()).toBeNull();
+    expect(personButton().getAttribute('aria-label')).toBe('Ponuka účtu: Tomas');
   });
 
   it('moves focus into the menu when it opens, arrow keys and End between its items, back to its button on Escape', async () => {
     await draw();
     expect(items()).toEqual([]);
     await openMenu();
-    expect(userButton().getAttribute('aria-expanded')).toBe('true');
+    expect(personButton().getAttribute('aria-expanded')).toBe('true');
     expect(document.activeElement).toBe(items()[0]);
 
     items()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -240,10 +298,12 @@ describe('TopBarComponent', () => {
     items()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
     expect(document.activeElement).toBe(items().at(-1));
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    items()
+      .at(-1)!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     await fixture.whenStable();
     expect(items()).toEqual([]);
-    expect(document.activeElement).toBe(userButton());
+    expect(document.activeElement).toBe(personButton());
   });
 
   /**
@@ -284,14 +344,14 @@ describe('TopBarComponent', () => {
     await draw('admin');
     await openMenu();
     expect(items().length).toBe(2);
-    await expectTabOut(userButton, 1);
+    await expectTabOut(personButton, 1);
     // And in the account area, an administrator's: the admin panel, signing out.
     host.remove();
     i18n.englishOnly.set(false);
     await draw();
     await openMenu();
     expect(items().length).toBe(2);
-    await expectTabOut(userButton, 1);
+    await expectTabOut(personButton, 1);
   });
 
   it('closes on a click outside it - a click inside it is no reason to', async () => {
@@ -304,21 +364,23 @@ describe('TopBarComponent', () => {
     document.body.click();
     await fixture.whenStable();
     expect(items()).toEqual([]);
-    expect(userButton().getAttribute('aria-expanded')).toBe('false');
+    expect(personButton().getAttribute('aria-expanded')).toBe('false');
   });
 
   it('in the admin panel: English whatever is chosen, no links and no language, the way back to the account', async () => {
     i18n.englishOnly.set(true);
     await draw('admin');
-    expect(parts('app-brand .wordmark > span')).toEqual(['anotoki', 'admin panel']);
-    expect(host.querySelector('app-brand a')?.getAttribute('href')).toBe('/admin');
-    expect(host.querySelector('app-brand a')?.getAttribute('aria-label')).toBe('anotoki admin panel - home');
-    expect(host.querySelector('.topbar-nav')).toBeNull();
-    expect(host.querySelector('app-language-switcher')).toBeNull();
-    expect(userButton().getAttribute('aria-label')).toBe('Account menu: Mira');
+    // The family's form for an admin area: "anotoki {site} · admin panel".
+    expect(parts('anotoki-brand .wordmark > span')).toEqual(['anotoki', 'account', '·', 'admin panel']);
+    expect(host.querySelector('anotoki-brand a')?.getAttribute('href')).toBe('/admin');
+    expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe('anotoki account admin panel - home');
+    expect(host.querySelector('nav.nav')).toBeNull();
+    expect(host.querySelector('anotoki-language-switcher')).toBeNull();
+    expect(personButton().getAttribute('aria-label')).toBe('Account menu: Mira');
+    expect(host.querySelector('anotoki-theme-toggle [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Appearance');
 
     await openMenu();
-    expect(parts('#user-menu .menu-head > span')).toEqual(['Mira', 'mira@example.test', 'Administrator']);
+    expect(parts('.actions > anotoki-menu .menu-head > span')).toEqual(['Mira', 'mira@example.test', 'Administrator']);
     expect(items().map(words)).toEqual(['Back to your account', 'Sign out']);
     expect(items()[0].getAttribute('href')).toBe('/account');
   });
@@ -327,16 +389,16 @@ describe('TopBarComponent', () => {
     await draw();
     i18n.language.set('en');
     await fixture.whenStable();
-    expect(userButton().getAttribute('aria-label')).toBe('Account menu: Mira');
+    expect(personButton().getAttribute('aria-label')).toBe('Account menu: Mira');
     expect(links().map(words)).toEqual(['Overview', 'Security', 'Sessions', 'Applications', 'Tokens for scripts']);
-    expect(parts('app-brand .wordmark > span')).toEqual(['anotoki', 'account']);
+    expect(parts('anotoki-brand .wordmark > span')).toEqual(['anotoki', 'account']);
   });
 
   describe('the language, chosen in the bar', () => {
     async function choose(code: string): Promise<void> {
-      host.querySelector<HTMLButtonElement>('app-language-switcher .switcher')!.click();
+      languageButton().click();
       await fixture.whenStable();
-      host.querySelector<HTMLButtonElement>(`app-language-switcher [role="menuitemradio"][lang="${code}"]`)!.click();
+      host.querySelector<HTMLButtonElement>(`anotoki-language-switcher [role="menuitemradio"][lang="${code}"]`)!.click();
       await fixture.whenStable();
     }
 
@@ -346,16 +408,16 @@ describe('TopBarComponent', () => {
       expect(i18n.choose).toHaveBeenCalledWith('en');
       expect(accountApi.updateProfile).toHaveBeenCalledWith({ language: 'en' });
       expect(user()?.language).toBe('en');
-      expect(words(host.querySelector('app-language-switcher .switcher'))).toBe('EN');
+      expect(words(languageButton())).toBe('EN');
+      expect(languageButton().getAttribute('aria-label')).toBe('Language: English (EN)');
       // The menu closed, the focus back on its button.
-      expect(host.querySelector('app-language-switcher [role="menu"]')).toBeNull();
-      expect(document.activeElement).toBe(host.querySelector('app-language-switcher .switcher'));
+      expect(host.querySelector('anotoki-language-switcher [role="menu"]')).toBeNull();
+      expect(document.activeElement).toBe(languageButton());
     });
 
     it('asks nothing of the account for the language already on the page', async () => {
       await draw();
       await choose('sk');
-      expect(i18n.choose).not.toHaveBeenCalled();
       expect(accountApi.updateProfile).not.toHaveBeenCalled();
     });
 
@@ -370,7 +432,7 @@ describe('TopBarComponent', () => {
       expect(toast).toHaveBeenCalledWith(errorText(refused, (key) => i18n.t(key)));
       expect(user()?.language).toBe('sk');
       expect(i18n.language()).toBe('en');
-      expect(words(host.querySelector('app-language-switcher .switcher'))).toBe('EN');
+      expect(words(languageButton())).toBe('EN');
     });
 
     it('signed out: switches the page and saves nothing - there is no account to save it to', async () => {
@@ -378,7 +440,7 @@ describe('TopBarComponent', () => {
       await draw();
       await choose('en');
       expect(i18n.choose).toHaveBeenCalledWith('en');
-      expect(words(host.querySelector('app-language-switcher .switcher'))).toBe('EN');
+      expect(words(languageButton())).toBe('EN');
       expect(accountApi.updateProfile).not.toHaveBeenCalled();
     });
 
@@ -393,9 +455,16 @@ describe('TopBarComponent', () => {
       return saves;
     }
 
-    function answer(save: Subject<AccountUser>, language: string): void {
+    /** Everything a save's answer sets going has happened - the session, the save it lets go - and the bar is drawn. */
+    async function settled(): Promise<void> {
+      await new Promise((done) => setTimeout(done));
+      await fixture.whenStable();
+    }
+
+    async function answer(save: Subject<AccountUser>, language: string): Promise<void> {
       save.next({ ...MIRA, language });
       save.complete();
+      await settled();
     }
 
     it('two quick choices: one save at a time, so the earlier cannot be answered last - the account ends on the page’s language', async () => {
@@ -407,11 +476,11 @@ describe('TopBarComponent', () => {
       expect(i18n.language()).toBe('sk');
       expect(accountApi.updateProfile.mock.calls).toEqual([[{ language: 'en' }]]);
       // The second save cannot be answered before the first: it has not been asked. The first answers...
-      answer(saves[0], 'en');
+      await answer(saves[0], 'en');
       expect(user()?.language).toBe('en');
       // ...and only then is the latest choice saved, so its answer is the last word.
       expect(accountApi.updateProfile.mock.calls).toEqual([[{ language: 'en' }], [{ language: 'sk' }]]);
-      answer(saves[1], 'sk');
+      await answer(saves[1], 'sk');
       expect(user()?.language).toBe('sk');
       expect(saves.length).toBe(2);
     });
@@ -423,7 +492,7 @@ describe('TopBarComponent', () => {
       await choose('sk');
       await choose('en');
       expect(accountApi.updateProfile).toHaveBeenCalledTimes(1);
-      answer(saves[0], 'en');
+      await answer(saves[0], 'en');
       // The latest choice is English, which the account now has: nothing more to save.
       expect(accountApi.updateProfile).toHaveBeenCalledTimes(1);
       expect(user()?.language).toBe('en');
@@ -438,26 +507,43 @@ describe('TopBarComponent', () => {
       await choose('en');
       await choose('sk');
       saves[0].error(refused);
+      await settled();
       expect(toast).not.toHaveBeenCalled();
       // The account kept Slovak, the latest choice: nothing more to save.
       expect(accountApi.updateProfile).toHaveBeenCalledTimes(1);
       expect(user()?.language).toBe('sk');
     });
 
+    it('a save answered after Sign out signs nobody back in', async () => {
+      const saves = heldSaves();
+      await draw();
+      await choose('en');
+      expect(accountApi.updateProfile.mock.calls).toEqual([[{ language: 'en' }]]);
+      // Sign out while the save is on its way; then it is answered, with the account as saved.
+      await openMenu();
+      items()
+        .find((item) => words(item) === 'Sign out')!
+        .click();
+      await settled();
+      expect(user()).toBeNull();
+      await answer(saves[0], 'en');
+      expect(user()).toBeNull();
+      expect(host.querySelector('.person-button')).toBeNull();
+    });
+
     it('closes its menu on Tab with the focus on its button', async () => {
       await draw();
-      const button = host.querySelector<HTMLButtonElement>('app-language-switcher .switcher')!;
-      button.click();
+      languageButton().click();
       await fixture.whenStable();
-      const options = Array.from(host.querySelectorAll<HTMLElement>('app-language-switcher [role="menuitemradio"]'));
+      const options = Array.from(host.querySelectorAll<HTMLElement>('anotoki-language-switcher [role="menuitemradio"]'));
       // Into the menu on the language in use.
       expect(document.activeElement).toBe(options[1]);
-      const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      const tab = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
       options[1].dispatchEvent(tab);
       expect(tab.defaultPrevented).toBe(true);
       await fixture.whenStable();
-      expect(host.querySelector('app-language-switcher [role="menu"]')).toBeNull();
-      expect(document.activeElement).toBe(button);
+      expect(host.querySelector('anotoki-language-switcher [role="menu"]')).toBeNull();
+      expect(document.activeElement).toBe(languageButton());
     });
   });
 
@@ -488,23 +574,35 @@ describe('TopBarComponent', () => {
     expect(TestBed.inject(Router).url).not.toBe('/logout');
   });
 
-  it('signed out: a link to sign in, coming back to the page', async () => {
+  it('signed out: Sign in, coming back to the page', async () => {
     user.set(null);
     await draw();
-    await at('/account/security');
-    const signIn = host.querySelector<HTMLAnchorElement>('.topbar-actions a.btn-primary, .topbar-actions a[appButton]')!;
+    await at('/account/security?tab=1');
+    const signIn = host.querySelector<HTMLButtonElement>('.actions .sign-in')!;
     expect(words(signIn)).toBe('Prihlásiť sa');
-    expect(signIn.getAttribute('href')).toBe('/login?next=%2Faccount%2Fsecurity');
+    signIn.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/login?next=%2Faccount%2Fsecurity');
+  });
+
+  it('the person’s name gives way up to 1240 px - the round button alone', async () => {
+    windowOf(1240);
+    await draw();
+    expect(host.querySelector('header')?.classList).toContain('is-nameless');
+    host.remove();
+    windowOf(1241);
+    await draw();
+    expect(host.querySelector('header')?.classList).not.toContain('is-nameless');
   });
 
   describe('on a phone', () => {
     it('is the brand (the mark and "účet"), the language, the theme and a menu button - nothing else in the row', async () => {
       windowOf(390);
       await draw();
-      expect(parts('app-brand .wordmark > span')).toEqual(['účet']);
-      expect(host.querySelector('.topbar-nav')).toBeNull();
-      expect(host.querySelector('.user-button')).toBeNull();
-      expect(childrenOf('.topbar-actions')).toEqual(['app-language-switcher.is-compact', 'app-theme-toggle', 'div.phone-menu']);
+      expect(parts('anotoki-brand .wordmark > span')).toEqual(['účet']);
+      expect(host.querySelector('nav.nav')).toBeNull();
+      expect(host.querySelector('.person-button')).toBeNull();
+      expect(childrenOf('.actions')).toEqual(['anotoki-language-switcher.anotoki-language-switcher', 'anotoki-theme-toggle.anotoki-theme-toggle', 'button.round', 'anotoki-menu.anotoki-menu']);
       expect(phoneButton().getAttribute('aria-label')).toBe('Ponuka');
       expect(phoneButton().getAttribute('aria-haspopup')).toBe('menu');
       expect(phoneButton().getAttribute('aria-expanded')).toBe('false');
@@ -516,10 +614,10 @@ describe('TopBarComponent', () => {
       await at('/account/sessions');
       await openMenu();
       expect(phoneButton().getAttribute('aria-expanded')).toBe('true');
-      expect(host.querySelector('#topbar-menu')?.getAttribute('aria-label')).toBe('Ponuka');
+      expect(menu()?.getAttribute('aria-label')).toBe('Ponuka');
       expect(items().map(words)).toEqual(['Prehľad', 'Zabezpečenie', 'Prihlásenia', 'Aplikácie', 'Tokeny pre skripty', 'Administrátorský panel', 'Odhlásiť sa']);
       expect(items()[2].getAttribute('aria-current')).toBe('page');
-      expect(parts('#topbar-menu .menu-head > span')).toEqual(['Mira', 'mira@example.test', 'Administrátor']);
+      expect(parts('.actions > anotoki-menu .menu-head > span')).toEqual(['Mira', 'mira@example.test', 'Administrátor']);
       expect(document.activeElement).toBe(items()[0]);
 
       items()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
@@ -529,7 +627,7 @@ describe('TopBarComponent', () => {
         .dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
       expect(document.activeElement).toBe(items()[0]);
 
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      items()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       await fixture.whenStable();
       expect(items()).toEqual([]);
       expect(document.activeElement).toBe(phoneButton());
@@ -558,10 +656,13 @@ describe('TopBarComponent', () => {
       i18n.englishOnly.set(true);
       windowOf(390);
       await draw('admin');
-      expect(parts('app-brand .wordmark > span')).toEqual(['admin panel']);
+      // The short form: "account", with "admin panel" small under it (the dot is not drawn).
+      expect(parts('anotoki-brand .wordmark > span')).toEqual(['account', '·', 'admin panel']);
+      expect(host.querySelector('anotoki-brand .wordmark')?.classList).toContain('is-short');
+      expect(host.querySelector('anotoki-brand .wordmark')?.classList).toContain('has-panel');
       await openMenu();
       expect(items().map(words)).toEqual(['Back to your account', 'Sign out']);
-      expect(host.querySelectorAll('#topbar-menu .menu-sep').length).toBe(1);
+      expect(menu()?.querySelectorAll('anotoki-menu-separator').length).toBe(1);
     });
 
     it('signed out: Sign in is in the menu, after the pages', async () => {
@@ -570,16 +671,23 @@ describe('TopBarComponent', () => {
       await draw();
       await openMenu();
       expect(items().map(words)).toEqual(['Prehľad', 'Zabezpečenie', 'Prihlásenia', 'Aplikácie', 'Tokeny pre skripty', 'Prihlásiť sa']);
-      expect(items().at(-1)?.getAttribute('href')).toMatch(/^\/login\?next=/);
+      items().at(-1)!.click();
+      await fixture.whenStable();
+      expect(TestBed.inject(Router).url).toMatch(/^\/login\?next=/);
     });
 
-    it(`is a desktop’s bar from ${PHONE_BAR_MAX + 1} px: the links and the person in the row again`, async () => {
+    it(`is a phone’s bar up to ${PHONE_BAR_MAX} px and a desktop’s from ${PHONE_BAR_MAX + 1}: the links and the person in the row again`, async () => {
+      windowOf(PHONE_BAR_MAX);
+      await draw();
+      expect(phoneButton()).not.toBeNull();
+      expect(links().length).toBe(0);
+      host.remove();
       windowOf(PHONE_BAR_MAX + 1);
       await draw();
       expect(host.querySelector('.menu-button')).toBeNull();
       expect(links().length).toBe(5);
-      expect(userButton()).not.toBeNull();
-      expect(parts('app-brand .wordmark > span')).toEqual(['anotoki', 'účet']);
+      expect(personButton()).not.toBeNull();
+      expect(parts('anotoki-brand .wordmark > span')).toEqual(['anotoki', 'účet']);
     });
 
     it(`closes an open menu when the window crosses ${PHONE_BAR_MAX} px, either way`, async () => {
@@ -594,7 +702,7 @@ describe('TopBarComponent', () => {
       expect(host.querySelector('.menu-button')).toBeNull();
       expect(links().length).toBe(5);
       expect(items()).toEqual([]);
-      expect(userButton().getAttribute('aria-expanded')).toBe('false');
+      expect(personButton().getAttribute('aria-expanded')).toBe('false');
       await resizeTo(390);
       expect(items()).toEqual([]);
       expect(phoneButton().getAttribute('aria-expanded')).toBe('false');
@@ -604,12 +712,12 @@ describe('TopBarComponent', () => {
       await openMenu();
       expect(items().length).toBe(2);
       await resizeTo(PHONE_BAR_MAX);
-      expect(host.querySelector('.user-button')).toBeNull();
+      expect(host.querySelector('.person-button')).toBeNull();
       expect(items()).toEqual([]);
       expect(phoneButton().getAttribute('aria-expanded')).toBe('false');
       await resizeTo(1280);
       expect(items()).toEqual([]);
-      expect(userButton().getAttribute('aria-expanded')).toBe('false');
+      expect(personButton().getAttribute('aria-expanded')).toBe('false');
     });
   });
 });

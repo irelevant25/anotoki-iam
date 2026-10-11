@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { AvatarComponent, BadgeComponent, ButtonComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AccountApplication } from '../../../core/api/models';
@@ -7,13 +8,6 @@ import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
-import { AppAvatarComponent } from '../../../ui/app-avatar/app-avatar.component';
-import { BadgeComponent } from '../../../ui/badge/badge.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { EmptyStateComponent } from '../../../ui/empty-state/empty-state.component';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
 
 /**
  * /account/applications - the anotoki sites, and what this account may do on
@@ -26,7 +20,7 @@ import { PageHeaderComponent } from '../../../ui/page-header/page-header.compone
  */
 @Component({
   selector: 'app-applications',
-  imports: [AppDatePipe, TPipe, AppAvatarComponent, BadgeComponent, ButtonComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],
+  imports: [AppDatePipe, TPipe, AvatarComponent, BadgeComponent, ButtonComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './applications.component.html',
   styleUrl: './applications.component.scss',

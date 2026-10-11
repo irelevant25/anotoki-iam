@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterRenderEffect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { ThemeService } from '@anotoki/lib/shell';
 import { GoogleSignInService } from '../../core/google/google-sign-in.service';
 import { TPipe } from '../../core/i18n/t.pipe';
 import { TranslationService } from '../../core/i18n/translation.service';
-import { ThemeService } from '../../core/theme/theme.service';
 
 /**
  * Google's own sign-in button, or nothing at all. Ported from the genshin site.

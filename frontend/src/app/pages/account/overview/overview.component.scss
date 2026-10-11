@@ -54,22 +54,22 @@
   gap: 0.9rem;
   height: 100%;
   padding: 1.1rem 1.1rem 1.1rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--text);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  color: var(--anotoki-text);
   text-decoration: none;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--anotoki-shadow-sm);
   transition:
-    border-color var(--duration) var(--ease),
-    transform var(--duration) var(--ease);
+    border-color var(--anotoki-duration) var(--anotoki-ease),
+    transform var(--anotoki-duration) var(--anotoki-ease);
 
   &:hover {
-    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    border-color: color-mix(in srgb, var(--anotoki-primary) 45%, var(--anotoki-border));
     transform: translateY(-1px);
 
     .quick-arrow {
-      color: var(--primary);
+      color: var(--anotoki-primary);
       transform: translateX(2px);
     }
   }
@@ -83,13 +83,13 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 12px;
-  background: var(--primary-soft);
-  color: var(--primary-soft-text);
+  background: var(--anotoki-primary-soft);
+  color: var(--anotoki-primary-soft-text);
 }
 
 .quick-admin .quick-icon {
-  background: var(--warning-soft);
-  color: var(--warning);
+  background: var(--anotoki-warning-soft);
+  color: var(--anotoki-warning);
 }
 
 .quick-text {
@@ -106,14 +106,14 @@
 }
 
 .quick-lead {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.875rem;
 }
 
 .quick-arrow {
   align-self: center;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   transition:
-    color var(--duration) var(--ease),
-    transform var(--duration) var(--ease);
+    color var(--anotoki-duration) var(--anotoki-ease),
+    transform var(--anotoki-duration) var(--anotoki-ease);
 }

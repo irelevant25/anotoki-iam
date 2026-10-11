@@ -1,15 +1,15 @@
 <div class="page">
-    <app-page-header heading="Applications" lead="The sites that sign people in through the IAM, and the roles each one has.">
-        <a appButton variant="primary" routerLink="/admin/applications/new">
-            <app-icon name="plus" [size]="16" />
+    <anotoki-page-header heading="Applications" lead="The sites that sign people in through the IAM, and the roles each one has.">
+        <a anotokiButton variant="primary" routerLink="/admin/applications/new">
+            <anotoki-icon name="plus" [size]="16" />
             Add application
         </a>
-    </app-page-header>
+    </anotoki-page-header>
 
-    <app-card [flush]="true">
+    <anotoki-card [flush]="true">
         @if (loadError()) {
             <div class="padded">
-                <app-error-state heading="The applications could not be loaded" [message]="loadError()!" (retry)="load()" />
+                <anotoki-error-state heading="The applications could not be loaded" [message]="loadError()!" (retry)="load()" />
             </div>
         } @else if (loading()) {
             <div class="skeletons" aria-hidden="true">
@@ -18,9 +18,9 @@
                 <span class="skeleton"></span>
             </div>
         } @else if (applications().length === 0) {
-            <app-empty-state icon="appWindow" heading="No applications yet">
-                <a appButton variant="primary" routerLink="/admin/applications/new">Add application</a>
-            </app-empty-state>
+            <anotoki-empty-state icon="appWindow" heading="No applications yet">
+                <a anotokiButton variant="primary" routerLink="/admin/applications/new">Add application</a>
+            </anotoki-empty-state>
         } @else {
             <div class="table-scroll">
                 <table class="table">
@@ -37,13 +37,13 @@
                             <tr class="row-link" [class.row-muted]="!app.enabled" (click)="open(app)">
                                 <td>
                                     <div class="app">
-                                        <app-app-avatar [name]="app.name" [logoUrl]="app.logo_url" [size]="34" />
+                                        <anotoki-avatar [name]="app.name" [imageUrl]="app.logo_url" [size]="34" />
                                         <div class="who">
                                             <a class="who-name" [routerLink]="['/admin/applications', app.id]" (click)="$event.stopPropagation()">{{ app.name }}</a>
                                             <code class="client-id">{{ app.client_id }}</code>
                                         </div>
                                         @if (app.system) {
-                                            <app-badge tone="primary">System</app-badge>
+                                            <anotoki-badge tone="primary">System</anotoki-badge>
                                         }
                                     </div>
                                 </td>
@@ -63,7 +63,7 @@
                                         <span class="badges">
                                             @for (role of app.roles; track role.name) {
                                                 @if (role.may_sign_in) {
-                                                    <app-badge [mono]="true">{{ role.name }}</app-badge>
+                                                    <anotoki-badge [mono]="true">{{ role.name }}</anotoki-badge>
                                                 }
                                             }
                                         </span>
@@ -71,9 +71,9 @@
                                 </td>
                                 <td>
                                     @if (app.enabled) {
-                                        <app-badge tone="success" [dot]="true">On</app-badge>
+                                        <anotoki-badge tone="success" [dot]="true">On</anotoki-badge>
                                     } @else {
-                                        <app-badge tone="danger" [dot]="true">Off</app-badge>
+                                        <anotoki-badge tone="danger" [dot]="true">Off</anotoki-badge>
                                     }
                                 </td>
                             </tr>
@@ -82,5 +82,5 @@
                 </table>
             </div>
         }
-    </app-card>
+    </anotoki-card>
 </div>

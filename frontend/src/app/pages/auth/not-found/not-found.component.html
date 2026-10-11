@@ -1,8 +1,8 @@
 <app-auth-card>
     <header class="auth-head">
-        <span class="auth-icon"><app-icon name="search" [size]="22" /></span>
-        <h1 tabindex="-1" appAutofocus>{{ "notFound.title" | t }}</h1>
+        <span class="auth-icon"><anotoki-icon name="search" [size]="22" /></span>
+        <h1 tabindex="-1" anotokiAutofocus>{{ "notFound.title" | t }}</h1>
         <p>{{ "notFound.text" | t }}</p>
     </header>
-    <a appButton variant="primary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+    <a anotokiButton variant="primary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
 </app-auth-card>

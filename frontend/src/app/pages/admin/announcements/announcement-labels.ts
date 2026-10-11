@@ -1,5 +1,5 @@
+import { BadgeTone } from '@anotoki/lib/ui';
 import { AnnouncementStatus, AnnouncementTemplate, AudienceCount, RecipientStatus } from '../../../core/api/models';
-import { BadgeTone } from '../../../ui/badge/badge.component';
 
 /** The four templates, as the composer offers them. */
 export const TEMPLATES: { value: AnnouncementTemplate; label: string; hint: string }[] = [

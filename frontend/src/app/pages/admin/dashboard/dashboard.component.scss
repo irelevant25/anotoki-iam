@@ -23,21 +23,21 @@
   row-gap: 0.15rem;
   align-items: center;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--text);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  color: var(--anotoki-text);
   text-decoration: none;
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--duration) var(--ease);
+  box-shadow: var(--anotoki-shadow-sm);
+  transition: border-color var(--anotoki-duration) var(--anotoki-ease);
 
   &:hover {
-    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    border-color: color-mix(in srgb, var(--anotoki-primary) 45%, var(--anotoki-border));
   }
 
   &[data-tone="warning"] .tile-icon {
-    background: var(--warning-soft);
-    color: var(--warning);
+    background: var(--anotoki-warning-soft);
+    color: var(--anotoki-warning);
   }
 }
 
@@ -49,8 +49,8 @@
   width: 2.4rem;
   height: 2.4rem;
   border-radius: 12px;
-  background: var(--primary-soft);
-  color: var(--primary-soft-text);
+  background: var(--anotoki-primary-soft);
+  color: var(--anotoki-primary-soft-text);
 }
 
 .tile-value {
@@ -66,7 +66,7 @@
 }
 
 .tile-label {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
   font-weight: 600;
 }
@@ -77,18 +77,18 @@
   gap: 0.8rem;
   height: 100%;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--text);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  color: var(--anotoki-text);
   text-decoration: none;
 
   &:hover {
-    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    border-color: color-mix(in srgb, var(--anotoki-primary) 45%, var(--anotoki-border));
   }
 
-  app-icon {
-    color: var(--primary);
+  anotoki-icon {
+    color: var(--anotoki-primary);
     margin-top: 0.1rem;
   }
 
@@ -104,6 +104,6 @@
 }
 
 .link-text {
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.875rem;
 }

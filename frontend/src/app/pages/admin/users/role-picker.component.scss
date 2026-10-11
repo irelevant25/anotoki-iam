@@ -7,9 +7,9 @@
 .group {
   margin: 0;
   padding: 0.75rem 0.9rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-surface-2);
   min-width: 0;
 }
 
@@ -27,7 +27,7 @@ legend {
 
 .app-id {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   background: none;
   padding: 0;
 }
@@ -40,25 +40,25 @@ legend {
 }
 
 .role {
-  font-family: var(--font-mono);
+  font-family: var(--anotoki-font-mono);
   font-size: 0.875rem;
 }
 
 .none {
   margin-top: 0.4rem;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
 }
 
 .no-sign-in {
   margin-left: 0.4rem;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.75rem;
 }
 
 .blocked {
   margin-top: 0.55rem;
-  color: var(--warning);
+  color: var(--anotoki-warning);
   font-size: 0.8125rem;
   font-weight: 600;
 }

@@ -1,20 +1,20 @@
 @if (user(); as me) {
     <div class="page">
-        <app-page-header [heading]="'security.title' | t" [lead]="'security.lead' | t" />
+        <anotoki-page-header [heading]="'security.title' | t" [lead]="'security.lead' | t" />
 
         @if (me.force_password_change) {
-            <app-alert tone="warning">
+            <anotoki-alert tone="warning">
                 {{ "overview.mustChange" | t }}
                 <div alertActions>
-                    <button appButton size="sm" variant="secondary" (click)="open(me.has_password ? 'change-password' : 'set-password')">{{ "overview.mustChangeAction" | t }}</button>
+                    <button anotokiButton size="sm" variant="secondary" (click)="open(me.has_password ? 'change-password' : 'set-password')">{{ "overview.mustChangeAction" | t }}</button>
                 </div>
-            </app-alert>
+            </anotoki-alert>
         }
 
-        <app-card [heading]="'security.methods' | t" [subheading]="'security.keepOne' | t" [headingId]="anchors.methods">
+        <anotoki-card [heading]="'security.methods' | t" [subheading]="'security.keepOne' | t" [headingId]="anchors.methods">
             <div class="methods">
                 @if (methodsError()) {
-                    <app-alert tone="danger" [announce]="true">{{ methodsError() }}</app-alert>
+                    <anotoki-alert tone="danger" [announce]="true">{{ methodsError() }}</anotoki-alert>
                 }
                 @if (methodsFreshSignIn()) {
                     <app-fresh-sign-in [anchor]="anchors.methods" />
@@ -22,7 +22,7 @@
 
                 <!-- Password -->
                 <section class="method" aria-labelledby="method-password">
-                    <span class="method-icon"><app-icon name="lock" [size]="20" /></span>
+                    <span class="method-icon"><anotoki-icon name="lock" [size]="20" /></span>
                     <div class="method-text">
                         <h3 id="method-password">{{ "security.password.title" | t }}</h3>
                         <p class="method-status">
@@ -41,23 +41,23 @@
                             }
                         </p>
                         @if (me.has_password) {
-                            <app-switch [(checked)]="passwordEnabled" (checkedChange)="setPasswordEnabled($event)" [busy]="savingPasswordEnabled()" [hint]="'security.password.acceptHint' | t">
+                            <anotoki-switch [(checked)]="passwordEnabled" (checkedChange)="setPasswordEnabled($event)" [busy]="savingPasswordEnabled()" [hint]="'security.password.acceptHint' | t">
                                 {{ "security.password.accept" | t }}
-                            </app-switch>
+                            </anotoki-switch>
                         }
                     </div>
                     <div class="method-actions">
                         @if (me.has_password) {
-                            <button appButton variant="secondary" size="sm" (click)="open('change-password')">{{ "security.password.change" | t }}</button>
+                            <button anotokiButton variant="secondary" size="sm" (click)="open('change-password')">{{ "security.password.change" | t }}</button>
                         } @else {
-                            <button appButton variant="primary" size="sm" (click)="open('set-password')">{{ "security.password.set" | t }}</button>
+                            <button anotokiButton variant="primary" size="sm" (click)="open('set-password')">{{ "security.password.set" | t }}</button>
                         }
                     </div>
                 </section>
 
                 <!-- Google -->
                 <section class="method" aria-labelledby="method-google">
-                    <span class="method-icon"><app-icon name="globe" [size]="20" /></span>
+                    <span class="method-icon"><anotoki-icon name="globe" [size]="20" /></span>
                     <div class="method-text">
                         <h3 id="method-google">{{ "security.google.title" | t }}</h3>
                         <p class="method-status">
@@ -76,22 +76,22 @@
                     </div>
                     <div class="method-actions">
                         @if (me.google_connected) {
-                            <button appButton variant="secondary" size="sm" [loading]="googleBusy()" (click)="disconnectGoogle()">{{ "security.google.disconnect" | t }}</button>
+                            <button anotokiButton variant="secondary" size="sm" [loading]="googleBusy()" (click)="disconnectGoogle()">{{ "security.google.disconnect" | t }}</button>
                         } @else if (googleAvailable()) {
                             <app-google-button class="google" text="continue_with" (credential)="connectGoogle($event)" />
                         }
                     </div>
                 </section>
             </div>
-        </app-card>
+        </anotoki-card>
 
         <!-- Two-factor -->
-        <app-card [heading]="'security.twoFactor.title' | t" [headingId]="anchors.twoFactor">
+        <anotoki-card [heading]="'security.twoFactor.title' | t" [headingId]="anchors.twoFactor">
             <div cardActions>
                 @if (me.totp_enabled) {
-                    <app-badge tone="success" [dot]="true">{{ "overview.twoFactorOn" | t }}</app-badge>
+                    <anotoki-badge tone="success" [dot]="true">{{ "overview.twoFactorOn" | t }}</anotoki-badge>
                 } @else {
-                    <app-badge [dot]="true">{{ "overview.twoFactorOff" | t }}</app-badge>
+                    <anotoki-badge [dot]="true">{{ "overview.twoFactorOff" | t }}</anotoki-badge>
                 }
             </div>
             <div class="stack">
@@ -106,58 +106,58 @@
                 </p>
 
                 @if (me.totp_enabled && me.recovery_codes_remaining === 0) {
-                    <app-alert tone="danger">{{ "security.twoFactor.noCodes" | t }}</app-alert>
+                    <anotoki-alert tone="danger">{{ "security.twoFactor.noCodes" | t }}</anotoki-alert>
                 } @else if (me.totp_enabled && me.recovery_codes_remaining <= lowCodes) {
-                    <app-alert tone="warning">{{ "security.twoFactor.lowCodes" | t }}</app-alert>
+                    <anotoki-alert tone="warning">{{ "security.twoFactor.lowCodes" | t }}</anotoki-alert>
                 }
 
                 <div class="cluster">
                     @if (me.totp_enabled) {
-                        <button appButton variant="secondary" (click)="open('regenerate-2fa')">
-                            <app-icon name="refresh" [size]="16" />
+                        <button anotokiButton variant="secondary" (click)="open('regenerate-2fa')">
+                            <anotoki-icon name="refresh" [size]="16" />
                             {{ "security.twoFactor.regenerate" | t }}
                         </button>
-                        <button appButton variant="ghost" (click)="open('disable-2fa')">{{ "security.twoFactor.disable" | t }}</button>
+                        <button anotokiButton variant="ghost" (click)="open('disable-2fa')">{{ "security.twoFactor.disable" | t }}</button>
                     } @else {
-                        <button appButton variant="primary" (click)="open('setup-2fa')">
-                            <app-icon name="shieldCheck" [size]="16" />
+                        <button anotokiButton variant="primary" (click)="open('setup-2fa')">
+                            <anotoki-icon name="shieldCheck" [size]="16" />
                             {{ "security.twoFactor.enable" | t }}
                         </button>
                     }
                 </div>
             </div>
-        </app-card>
+        </anotoki-card>
 
         <!-- Remembered devices: only a thing while there is a code to skip -->
         @if (me.totp_enabled) {
-            <app-card [heading]="'security.devices.title' | t">
+            <anotoki-card [heading]="'security.devices.title' | t">
                 <div class="devices">
                     <p class="method-status">
                         @if (me.trusted_devices > 0) {
-                            <app-icon name="laptop" [size]="18" />
+                            <anotoki-icon name="laptop" [size]="18" />
                             {{ "security.devices.count" | t: { count: me.trusted_devices } }}
                         } @else {
                             {{ "security.devices.none" | t }}
                         }
                     </p>
-                    <button appButton variant="secondary" size="sm" [disabled]="me.trusted_devices === 0" [loading]="devicesBusy()" (click)="forgetDevices()">
+                    <button anotokiButton variant="secondary" size="sm" [disabled]="me.trusted_devices === 0" [loading]="devicesBusy()" (click)="forgetDevices()">
                         {{ "security.devices.forget" | t }}
                     </button>
                 </div>
-            </app-card>
+            </anotoki-card>
         }
 
         <!-- Deleting the account. While it is asked for, the notice above every account page says when, and cancels it. -->
         @if (!me.deletion_due_at) {
-            <app-card tone="danger" [heading]="'deletion.title' | t" [headingId]="anchors.deletion">
+            <anotoki-card tone="danger" [heading]="'deletion.title' | t" [headingId]="anchors.deletion">
                 <div class="deletion">
                     <p class="deletion-lead">{{ "deletion.lead" | t }}</p>
-                    <button appButton variant="danger" (click)="open('delete-account')">
-                        <app-icon name="trash" [size]="16" />
+                    <button anotokiButton variant="danger" (click)="open('delete-account')">
+                        <anotoki-icon name="trash" [size]="16" />
                         {{ "deletion.submit" | t }}
                     </button>
                 </div>
-            </app-card>
+            </anotoki-card>
         }
     </div>
 
@@ -186,7 +186,7 @@
                 [anchor]="anchors.methods"
                 [send]="connectGoogleWith"
                 [explain]="googleRefusal"
-                (done)="googleConnected($event)"
+                (done)="googleConnected()"
                 (closed)="googleDialogClosed()" />
         }
         @case ("setup-2fa") {

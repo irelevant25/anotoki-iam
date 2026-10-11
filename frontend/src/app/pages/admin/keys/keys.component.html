@@ -1,15 +1,15 @@
 <div class="page">
-    <app-page-header heading="Signing keys" lead="Access and ID tokens are signed with the active key; applications verify them against the published JWKS.">
-        <button appButton variant="primary" [loading]="rotating()" (click)="rotate()">
-            <app-icon name="refresh" [size]="16" />
+    <anotoki-page-header heading="Signing keys" lead="Access and ID tokens are signed with the active key; applications verify them against the published JWKS.">
+        <button anotokiButton variant="primary" [loading]="rotating()" (click)="rotate()">
+            <anotoki-icon name="refresh" [size]="16" />
             Rotate now
         </button>
-    </app-page-header>
+    </anotoki-page-header>
 
-    <app-card [flush]="true">
+    <anotoki-card [flush]="true">
         @if (loadError()) {
             <div class="padded">
-                <app-error-state heading="The keys could not be loaded" [message]="loadError()!" (retry)="load()" />
+                <anotoki-error-state heading="The keys could not be loaded" [message]="loadError()!" (retry)="load()" />
             </div>
         } @else if (keys() === null) {
             <div class="skeletons" aria-hidden="true">
@@ -17,7 +17,7 @@
                 <span class="skeleton"></span>
             </div>
         } @else if (keys()!.length === 0) {
-            <app-empty-state icon="key" heading="No keys yet" text="The first one is made the first time a token is signed." />
+            <anotoki-empty-state icon="key" heading="No keys yet" text="The first one is made the first time a token is signed." />
         } @else {
             <div class="table-scroll">
                 <table class="table">
@@ -40,9 +40,9 @@
                                 <td class="mono">{{ key.alg }}</td>
                                 <td>
                                     @if (key.status === "active") {
-                                        <app-badge tone="success" [dot]="true">Active</app-badge>
+                                        <anotoki-badge tone="success" [dot]="true">Active</anotoki-badge>
                                     } @else {
-                                        <app-badge>Retired</app-badge>
+                                        <anotoki-badge>Retired</anotoki-badge>
                                     }
                                 </td>
                                 <td class="nowrap">{{ key.created_at | appDate }}</td>
@@ -56,7 +56,7 @@
                                 </td>
                                 <td class="cell-actions">
                                     @if (key.status === "retired") {
-                                        <button appButton size="sm" variant="secondary" [loading]="removing() === key.kid" (click)="remove(key)">Remove</button>
+                                        <button anotokiButton size="sm" variant="secondary" [loading]="removing() === key.kid" (click)="remove(key)">Remove</button>
                                     }
                                 </td>
                             </tr>
@@ -65,5 +65,5 @@
                 </table>
             </div>
         }
-    </app-card>
+    </anotoki-card>
 </div>

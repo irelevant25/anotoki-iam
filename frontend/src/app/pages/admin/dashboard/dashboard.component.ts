@@ -1,12 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ErrorStateComponent, IconComponent, PageHeaderComponent } from '@anotoki/lib/ui';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AdminStats } from '../../../core/api/models';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent, IconName } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
 import { adminErrorText } from '../admin-errors';
+import { IconName } from '../../../core/kit/icons';
 
 interface Tile {
   key: keyof AdminStats;

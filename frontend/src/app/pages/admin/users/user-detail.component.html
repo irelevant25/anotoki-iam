@@ -1,94 +1,94 @@
 @if (loading() && !detail()) {
     <div class="page">
-        <div class="loading"><app-spinner size="lg" label="Loading the user" [showLabel]="true" /></div>
+        <div class="loading"><anotoki-spinner size="lg" label="Loading the user" [showLabel]="true" /></div>
     </div>
 } @else if (loadError() && !detail()) {
     <div class="page">
         <a class="back" routerLink="/admin/users">
-            <app-icon name="arrowLeft" [size]="15" />
+            <anotoki-icon name="arrowLeft" [size]="15" />
             Users
         </a>
-        <app-error-state heading="The user could not be loaded" [message]="loadError()!" (retry)="reload()" />
+        <anotoki-error-state heading="The user could not be loaded" [message]="loadError()!" (retry)="reload()" />
     </div>
 } @else if (detail(); as d) {
     <div class="page">
-        <app-page-header [heading]="d.account.username" [lead]="d.account.email">
+        <anotoki-page-header [heading]="d.account.username" [lead]="d.account.email">
             <a pageEyebrow class="back" routerLink="/admin/users">
-                <app-icon name="arrowLeft" [size]="15" />
+                <anotoki-icon name="arrowLeft" [size]="15" />
                 Users
             </a>
             <span pageMeta class="badges">
                 @if (d.account.anonymized_at) {
-                    <app-badge [dot]="true">Anonymized</app-badge>
+                    <anotoki-badge [dot]="true">Anonymized</anotoki-badge>
                 } @else if (d.account.disabled) {
-                    <app-badge tone="danger" [dot]="true">Switched off</app-badge>
+                    <anotoki-badge tone="danger" [dot]="true">Switched off</anotoki-badge>
                 } @else {
-                    <app-badge tone="success" [dot]="true">Enabled</app-badge>
+                    <anotoki-badge tone="success" [dot]="true">Enabled</anotoki-badge>
                 }
                 @if (d.account.deletion_due_at) {
-                    <app-badge tone="danger">Deletion due {{ d.account.deletion_due_at | appDate: "date" }}</app-badge>
+                    <anotoki-badge tone="danger">Deletion due {{ d.account.deletion_due_at | appDate: "date" }}</anotoki-badge>
                 }
                 @if (!d.account.approved && !d.account.anonymized_at) {
-                    <app-badge tone="warning">{{ d.account.disabled ? "Not approved" : "Awaiting approval" }}</app-badge>
+                    <anotoki-badge tone="warning">{{ d.account.disabled ? "Not approved" : "Awaiting approval" }}</anotoki-badge>
                 }
                 @if (!d.account.email_confirmed && !d.account.anonymized_at) {
-                    <app-badge tone="warning">Unconfirmed</app-badge>
+                    <anotoki-badge tone="warning">Unconfirmed</anotoki-badge>
                 }
                 @if (d.account.totp_enabled) {
-                    <app-badge tone="success">2FA</app-badge>
+                    <anotoki-badge tone="success">2FA</anotoki-badge>
                 }
                 @if (d.account.force_password_change) {
-                    <app-badge tone="warning">Must change password</app-badge>
+                    <anotoki-badge tone="warning">Must change password</anotoki-badge>
                 }
                 @if (isSelf()) {
-                    <app-badge tone="primary">You</app-badge>
+                    <anotoki-badge tone="primary">You</anotoki-badge>
                 }
             </span>
 
             <!-- An anonymized account changes no more (409 account_anonymized): its buttons stay, switched off, and the note under the header says why. -->
             @if (!d.account.approved && !d.account.disabled) {
-                <button appButton variant="primary" [loading]="busyAction() === 'approve'" (click)="approve()">
-                    <app-icon name="check" [size]="15" />
+                <button anotokiButton variant="primary" [loading]="busyAction() === 'approve'" (click)="approve()">
+                    <anotoki-icon name="check" [size]="15" />
                     Approve
                 </button>
                 <!-- Not while the address is unconfirmed: its registrant may not own it, and the owner takes such an account back by a reset or Google. -->
                 @if (d.account.email_confirmed) {
-                    <button appButton variant="secondary" [loading]="busyAction() === 'decline'" (click)="decline()">Decline</button>
+                    <button anotokiButton variant="secondary" [loading]="busyAction() === 'decline'" (click)="decline()">Decline</button>
                 }
             }
-            <button appButton variant="secondary" [disabled]="anonymized()" (click)="dialog.set('edit')">
-                <app-icon name="pencil" [size]="15" />
+            <button anotokiButton variant="secondary" [disabled]="anonymized()" (click)="dialog.set('edit')">
+                <anotoki-icon name="pencil" [size]="15" />
                 Edit
             </button>
-            <button appButton variant="secondary" [disabled]="anonymized()" (click)="dialog.set('password')">
-                <app-icon name="key" [size]="15" />
+            <button anotokiButton variant="secondary" [disabled]="anonymized()" (click)="dialog.set('password')">
+                <anotoki-icon name="key" [size]="15" />
                 Set password
             </button>
             @if (d.account.totp_enabled) {
-                <button appButton variant="secondary" [disabled]="anonymized()" [loading]="busyAction() === '2fa'" (click)="resetTwoFactor()">Reset 2FA</button>
+                <button anotokiButton variant="secondary" [disabled]="anonymized()" [loading]="busyAction() === '2fa'" (click)="resetTwoFactor()">Reset 2FA</button>
             }
-            <button appButton [variant]="d.account.disabled ? 'primary' : 'danger'" [disabled]="anonymized()" [loading]="busyAction() === 'enabled'" (click)="toggleEnabled()">
-                <app-icon [name]="d.account.disabled ? 'checkCircle' : 'ban'" [size]="15" />
+            <button anotokiButton [variant]="d.account.disabled ? 'primary' : 'danger'" [disabled]="anonymized()" [loading]="busyAction() === 'enabled'" (click)="toggleEnabled()">
+                <anotoki-icon [name]="d.account.disabled ? 'checkCircle' : 'ban'" [size]="15" />
                 {{ d.account.disabled ? "Switch on" : "Switch off" }}
             </button>
-        </app-page-header>
+        </anotoki-page-header>
 
         @if (d.account.anonymized_at) {
-            <app-alert tone="info" heading="Deleted at its owner's request">
+            <anotoki-alert tone="info" heading="Deleted at its owner's request">
                 Anonymized on {{ d.account.anonymized_at | appDate: "date" }}. The row stays, so its id is never anybody else's, and nothing about it can be changed.
-            </app-alert>
+            </anotoki-alert>
         } @else if (d.account.deletion_due_at) {
-            <app-alert tone="warning" heading="Its owner asked for its deletion">
+            <anotoki-alert tone="warning" heading="Its owner asked for its deletion">
                 It is deleted on {{ d.account.deletion_due_at | appDate: "date" }} and signs in to no site until then. Only its owner can cancel it, on their account page.
-            </app-alert>
+            </anotoki-alert>
         }
 
         @if (actionError()) {
-            <app-alert tone="danger" [announce]="true" heading="That was refused">{{ actionError() }}</app-alert>
+            <anotoki-alert tone="danger" [announce]="true" heading="That was refused">{{ actionError() }}</anotoki-alert>
         }
 
         <div class="detail-grid">
-            <app-card heading="Account">
+            <anotoki-card heading="Account">
                 <dl class="facts">
                     <dt>Id</dt>
                     <dd class="mono">{{ d.account.id }}</dd>
@@ -119,42 +119,42 @@
                     <dt>Failed sign-ins</dt>
                     <dd>
                         @if (d.failed_since_last_login > 0) {
-                            <app-badge tone="warning">{{ d.failed_since_last_login }}</app-badge>
+                            <anotoki-badge tone="warning">{{ d.failed_since_last_login }}</anotoki-badge>
                             since the last successful one
                         } @else {
                             None since the last successful one
                         }
                     </dd>
                 </dl>
-            </app-card>
+            </anotoki-card>
 
             @if (anonymized()) {
-                <app-card heading="Roles">
+                <anotoki-card heading="Roles">
                     <p class="muted">None. A deleted account holds no role anywhere, and is given none.</p>
-                </app-card>
+                </anotoki-card>
             } @else {
-                <app-card
+                <anotoki-card
                     heading="Roles"
                     subheading="The complete set: anything unticked is taken away when saved. Every account holds MEMBER everywhere - unticking it blocks the person from that site.">
                     <div class="stack">
                         @if (rolesError()) {
-                            <app-alert tone="danger" [announce]="true">{{ rolesError() }}</app-alert>
+                            <anotoki-alert tone="danger" [announce]="true">{{ rolesError() }}</anotoki-alert>
                         }
                         @if (filters(); as f) {
                             <app-role-picker [applications]="f.applications" [(selected)]="roles" [disabled]="savingRoles()" />
                         }
                         <div class="form-actions">
-                            <button appButton variant="ghost" [disabled]="!rolesChanged() || savingRoles()" (click)="resetRoles()">Undo changes</button>
-                            <button appButton variant="primary" [disabled]="!rolesChanged()" [loading]="savingRoles()" (click)="saveRoles()">Save roles</button>
+                            <button anotokiButton variant="ghost" [disabled]="!rolesChanged() || savingRoles()" (click)="resetRoles()">Undo changes</button>
+                            <button anotokiButton variant="primary" [disabled]="!rolesChanged()" [loading]="savingRoles()" (click)="saveRoles()">Save roles</button>
                         </div>
                     </div>
-                </app-card>
+                </anotoki-card>
             }
         </div>
 
-        <app-card heading="Sessions" [subheading]="'Newest first. ' + d.active_sessions + ' signed in now.'" [flush]="true">
+        <anotoki-card heading="Sessions" [subheading]="'Newest first. ' + d.active_sessions + ' signed in now.'" [flush]="true">
             @if (d.sessions.length === 0) {
-                <app-empty-state icon="laptop" heading="No sessions yet" />
+                <anotoki-empty-state icon="laptop" heading="No sessions yet" />
             } @else {
                 <div class="table-scroll">
                     <table class="table">
@@ -178,14 +178,14 @@
                                         <span class="badges">
                                             {{ methodKey(session.method) | t }}
                                             @if (session.mfa) {
-                                                <app-badge tone="success">2FA</app-badge>
+                                                <anotoki-badge tone="success">2FA</anotoki-badge>
                                             }
                                         </span>
                                     </td>
                                     <td>
                                         <span class="badges">
                                             @for (app of session.applications; track app) {
-                                                <app-badge>{{ app }}</app-badge>
+                                                <anotoki-badge>{{ app }}</anotoki-badge>
                                             } @empty {
                                                 <span class="muted">-</span>
                                             }
@@ -196,14 +196,14 @@
                                     <td class="nowrap">{{ session.last_seen_at | appDate: "relative" : "-" }}</td>
                                     <td>
                                         @if (session.active) {
-                                            <app-badge tone="success" [dot]="true">Signed in</app-badge>
+                                            <anotoki-badge tone="success" [dot]="true">Signed in</anotoki-badge>
                                         } @else {
                                             <span [attr.title]="session.revoked_reason">{{ stateKey(session) | t }}</span>
                                         }
                                     </td>
                                     <td class="cell-actions">
                                         @if (session.active) {
-                                            <button appButton size="sm" variant="secondary" [loading]="busyAction() === 'session:' + session.id" (click)="endSession(session)">End</button>
+                                            <button anotokiButton size="sm" variant="secondary" [loading]="busyAction() === 'session:' + session.id" (click)="endSession(session)">End</button>
                                         }
                                     </td>
                                 </tr>
@@ -212,12 +212,12 @@
                     </table>
                 </div>
             }
-        </app-card>
+        </anotoki-card>
 
         <div class="detail-grid">
-            <app-card heading="Sign-in attempts" subheading="The last fifty, good and bad." [flush]="true">
+            <anotoki-card heading="Sign-in attempts" subheading="The last fifty, good and bad." [flush]="true">
                 @if (d.login_attempts.length === 0) {
-                    <app-empty-state icon="history" heading="No attempts recorded" />
+                    <anotoki-empty-state icon="history" heading="No attempts recorded" />
                 } @else {
                     <div class="table-scroll attempts">
                         <table class="table">
@@ -235,7 +235,7 @@
                                         <td class="nowrap">{{ attempt.created_at | appDate }}</td>
                                         <td>{{ attempt.method }}</td>
                                         <td>
-                                            <app-badge [tone]="outcomeTone(attempt.outcome)" [mono]="true">{{ attempt.outcome }}</app-badge>
+                                            <anotoki-badge [tone]="outcomeTone(attempt.outcome)" [mono]="true">{{ attempt.outcome }}</anotoki-badge>
                                         </td>
                                         <td class="mono">{{ attempt.ip ?? "-" }}</td>
                                     </tr>
@@ -244,12 +244,12 @@
                         </table>
                     </div>
                 }
-            </app-card>
+            </anotoki-card>
 
             <div class="stack stack-lg">
-                <app-card heading="Identities" [flush]="true">
+                <anotoki-card heading="Identities" [flush]="true">
                     @if (d.identities.length === 0) {
-                        <app-empty-state icon="globe" heading="No outside identities" text="The account signs in with its own password or emailed codes." />
+                        <anotoki-empty-state icon="globe" heading="No outside identities" text="The account signs in with its own password or emailed codes." />
                     } @else {
                         <div class="table-scroll">
                             <table class="table">
@@ -272,11 +272,11 @@
                             </table>
                         </div>
                     }
-                </app-card>
+                </anotoki-card>
 
-                <app-card heading="Personal tokens" [flush]="true">
+                <anotoki-card heading="Personal tokens" [flush]="true">
                     @if (d.tokens.length === 0) {
-                        <app-empty-state icon="terminal" heading="No tokens" />
+                        <anotoki-empty-state icon="terminal" heading="No tokens" />
                     } @else {
                         <div class="table-scroll">
                             <table class="table">
@@ -297,9 +297,9 @@
                                             <td class="nowrap">{{ token.expires_at | appDate: "date" }}</td>
                                             <td class="nowrap">{{ token.last_used_at | appDate: "relative" : "Never" }}</td>
                                             <td>
-                                                <app-badge [tone]="tokenState(token) === 'active' ? 'success' : tokenState(token) === 'revoked' ? 'danger' : 'neutral'">
+                                                <anotoki-badge [tone]="tokenState(token) === 'active' ? 'success' : tokenState(token) === 'revoked' ? 'danger' : 'neutral'">
                                                     {{ tokenState(token) }}
-                                                </app-badge>
+                                                </anotoki-badge>
                                             </td>
                                         </tr>
                                     }
@@ -307,7 +307,7 @@
                             </table>
                         </div>
                     }
-                </app-card>
+                </anotoki-card>
             </div>
         </div>
     </div>

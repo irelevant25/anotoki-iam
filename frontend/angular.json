@@ -59,9 +59,14 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "theme-boot.js",
+                "input": "node_modules/@anotoki/lib/assets",
+                "output": "/"
               }
             ],
-            "styles": ["node_modules/@fontsource-variable/manrope/index.css", "src/styles.scss"]
+            "styles": ["src/styles.scss"]
           },
           "configurations": {
             "production": {

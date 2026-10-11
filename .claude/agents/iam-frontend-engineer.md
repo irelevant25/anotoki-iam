@@ -30,19 +30,28 @@ call exactly those endpoints and must handle exactly those refusal codes.
   which language, and its bundle from `GET /api/translations/{code}`;
   `i18n/en.ts`: the typed list of keys and the English shown only while no
   bundle is in memory; `i18n/localization-drafts.service.ts`: the admin
-  pages' unsaved edits; the `t` pipe), theme, Google sign-in.
+  pages' unsaved edits; the `t` pipe), the family's UI kit and shell wired in
+  (`kit/kit.config.ts`: the kit's words from the IAM's strings through its
+  `lookup` - `kit/kit-words.ts` -, its icons `kit/icons.ts`, the theme and the
+  languages), Google sign-in.
 - `frontend/src/app/pages/admin/localization/` - the admin panel's
   Translations and Languages pages, the grid logic, and `unsavedChangesGuard`.
   After a save they call `TranslationService.reload()`.
-- `frontend/src/app/ui/` - the UI kit. Use it; extend it rather than styling a
-  one-off.
-- `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame),
-  `shell` (the account pages and the admin panel) and `top-bar` (the anotoki
-  family's one bar - CLAUDE.md says what it holds, its fold width and its
-  keyboard rules; `top-bar.component.spec.ts` checks them).
+- The UI kit is the anotoki family's: `@anotoki/lib/ui` and its entry points
+  (`anotoki-*`: buttons, fields in `ui/forms`, `ui/dialog`, `ui/toast`, ...),
+  its styles `@anotoki/lib/styles` in `src/styles.scss`. Use it; a piece it
+  lacks goes to the library rather than a one-off here. `frontend/src/app/ui/`
+  holds only the IAM's own (`google-button`).
+- `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame) and
+  `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
+  `@anotoki/lib/shell`, worded and wired for the IAM - CLAUDE.md says what it
+  holds, its fold width and its keyboard rules; `top-bar.component.spec.ts`
+  checks them on the real bar). The account pages and the admin panel are in
+  the family's frame, `<anotoki-shell>`.
 - Pages: the sign-in flow (with `/error` and `/not-set-up`), `/account/**`,
   `/admin/**`. Styles shared by a group of pages: `pages/auth/_auth-page.scss`,
-  `pages/admin/_admin-list.scss`, `@use`d from each page's own `.scss`.
+  `pages/admin/_admin-list.scss`, `pages/admin/_admin-field.scss`, `@use`d from
+  each page's own `.scss`.
 
 ## How to work
 
@@ -53,8 +62,9 @@ call exactly those endpoints and must handle exactly those refusal codes.
    `location.assign(redirect)`. Every refusal code in `docs/api.md` has a state
    on the page - keep that complete when adding flows.
 3. Signals and `computed`; OnPush; `inject()`; the new control flow. No zone.js,
-   no UI library.
-4. Colours only from the custom properties in `styles.scss` (light and dark);
+   no UI library but the family's.
+4. Colours only from the family's `--anotoki-*` custom properties (light and
+   dark, written by `styles.scss`) and the night sky's;
    check 390 px width; labels, `autocomplete`, focus, `role="alert"` on errors.
 5. The auth and account pages' words live in the database. A new string is a
    key and its English in `en.ts` plus a migration with the key, its English

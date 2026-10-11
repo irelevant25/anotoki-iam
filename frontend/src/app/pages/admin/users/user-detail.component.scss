@@ -9,13 +9,13 @@
   align-items: center;
   gap: 0.35rem;
   width: fit-content;
-  color: var(--muted);
+  color: var(--anotoki-muted);
   font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
 
   &:hover {
-    color: var(--text);
+    color: var(--anotoki-text);
   }
 }
 
@@ -32,8 +32,11 @@
   gap: 1.25rem;
   align-items: start;
 
+  // One column, as narrow as the page: a bare 1fr is at least as wide as its
+  // widest content, and the tables in it (in their own scrolling box) made the
+  // page 465 px wide on a 390 px phone.
   @media (max-width: 1100px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

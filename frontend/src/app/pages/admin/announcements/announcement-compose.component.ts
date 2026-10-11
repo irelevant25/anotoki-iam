@@ -2,6 +2,11 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
+import { AlertComponent, ButtonComponent, CardComponent, ErrorStateComponent, IconComponent, PageHeaderComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { CheckboxComponent, RadioGroupComponent, RadioOption, SelectComponent, SelectOption, SwitchComponent, TextareaComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { catchError, debounceTime, distinctUntilChanged, filter, map, of, switchMap, tap } from 'rxjs';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
@@ -17,22 +22,6 @@ import {
   AudienceCount,
   RoleGrant,
 } from '../../../core/api/models';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CardComponent } from '../../../ui/card/card.component';
-import { CheckboxComponent } from '../../../ui/checkbox/checkbox.component';
-import { ConfirmService } from '../../../ui/confirm/confirm.service';
-import { ErrorStateComponent } from '../../../ui/error-state/error-state.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PageHeaderComponent } from '../../../ui/page-header/page-header.component';
-import { RadioGroupComponent, RadioOption } from '../../../ui/radio-group/radio-group.component';
-import { SelectComponent, SelectOption } from '../../../ui/select/select.component';
-import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
-import { SwitchComponent } from '../../../ui/switch/switch.component';
-import { TabItem, TabsComponent } from '../../../ui/tabs/tabs.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
-import { TextareaComponent } from '../../../ui/textarea/textarea.component';
-import { ToastService } from '../../../ui/toast/toast.service';
 import { adminErrorText } from '../admin-errors';
 import { HoldsUnsavedChanges } from '../localization/unsaved-changes.guard';
 import { TEMPLATES, leftOutText, people } from './announcement-labels';

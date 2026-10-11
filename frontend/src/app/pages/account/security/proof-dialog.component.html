@@ -1,26 +1,32 @@
-<app-dialog [heading]="heading()" [description]="withPassword() ? ('deletion.passwordLead' | t) : lead()" [busy]="busy()" (dismiss)="closed.emit()">
+<anotoki-dialog [heading]="heading()" [description]="withPassword() ? ('deletion.passwordLead' | t) : lead()" [busy]="busy()" (dismiss)="closed.emit()">
     <form id="proof-form" class="stack" novalidate (submit)="$event.preventDefault(); submit()">
         @if (freshSignIn()) {
             <app-fresh-sign-in [anchor]="anchor()" />
         }
         @if (formError()) {
-            <app-alert tone="danger" [announce]="true">{{ formError() }}</app-alert>
+            <anotoki-alert tone="danger" [announce]="true">{{ formError() }}</anotoki-alert>
         }
         @if (withPassword()) {
             <input class="visually-hidden" type="email" name="username" autocomplete="username" [value]="email()" tabindex="-1" aria-hidden="true" readonly />
-            <app-password-field [label]="'security.password.current' | t" name="current-password" autocomplete="current-password" [(value)]="password" [error]="passwordError()" [autofocus]="true" />
+            <anotoki-password-field
+                [label]="'security.password.current' | t"
+                name="current-password"
+                autocomplete="current-password"
+                [(value)]="password"
+                [error]="passwordError()"
+                [autofocus]="true" />
         }
     </form>
     <div dialogFooter>
         <!-- Without a field to start in, the dialog starts on Cancel: a stray Enter changes nothing. -->
-        <button appButton variant="secondary" [attr.autofocus]="withPassword() ? null : ''" [disabled]="busy()" (click)="closed.emit()">{{ "common.cancel" | t }}</button>
+        <button anotokiButton variant="secondary" [attr.autofocus]="withPassword() ? null : ''" [disabled]="busy()" (click)="closed.emit()">{{ "common.cancel" | t }}</button>
         @if (!freshSignIn()) {
-            <button #actionButton appButton type="submit" form="proof-form" [variant]="danger() ? 'danger' : 'primary'" [loading]="busy()">
+            <button #actionButton anotokiButton type="submit" form="proof-form" [variant]="danger() ? 'danger' : 'primary'" [loading]="busy()">
                 @if (actionIcon(); as icon) {
-                    <app-icon [name]="icon" [size]="16" />
+                    <anotoki-icon [name]="icon" [size]="16" />
                 }
                 {{ action() }}
             </button>
         }
     </div>
-</app-dialog>
+</anotoki-dialog>

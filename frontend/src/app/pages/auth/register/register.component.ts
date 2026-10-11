@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
+import { AlertComponent, AutofocusDirective, ButtonComponent, IconComponent, SpinnerComponent } from '@anotoki/lib/ui';
+import { CheckboxComponent, PasswordFieldComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { Observable, catchError, forkJoin, of } from 'rxjs';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
@@ -11,15 +13,7 @@ import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { AuthCardComponent } from '../../../layouts/auth-card/auth-card.component';
-import { AlertComponent } from '../../../ui/alert/alert.component';
-import { AutofocusDirective } from '../../../ui/autofocus.directive';
-import { ButtonComponent } from '../../../ui/button/button.component';
-import { CheckboxComponent } from '../../../ui/checkbox/checkbox.component';
 import { GoogleButtonComponent } from '../../../ui/google-button/google-button.component';
-import { IconComponent } from '../../../ui/icon/icon.component';
-import { PasswordFieldComponent } from '../../../ui/password-field/password-field.component';
-import { SpinnerComponent } from '../../../ui/spinner/spinner.component';
-import { TextFieldComponent } from '../../../ui/text-field/text-field.component';
 import { PASSWORD_MAX_BYTES, looksLikeEmail, passwordBytes, splitAround } from '../auth-helpers';
 import { SignInHandoffService } from '../sign-in-handoff.service';
 

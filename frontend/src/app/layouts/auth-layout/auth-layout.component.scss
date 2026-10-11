@@ -17,10 +17,10 @@
   top: -4rem;
   z-index: 100;
   padding: 0.6rem 1rem;
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow);
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-surface);
+  color: var(--anotoki-text);
+  box-shadow: var(--anotoki-shadow);
 
   &:focus {
     top: 1rem;
@@ -201,7 +201,7 @@
     gap: 0.6rem;
   }
 
-  app-icon {
+  anotoki-icon {
     margin-top: 0.3rem;
     color: var(--star-blue);
   }
@@ -221,7 +221,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: radial-gradient(80% 40% at 100% 0%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 70%), var(--bg);
+  background: radial-gradient(80% 40% at 100% 0%, color-mix(in srgb, var(--anotoki-primary) 7%, transparent), transparent 70%), var(--anotoki-bg);
 }
 
 .controls {

@@ -31,8 +31,8 @@
   flex-wrap: wrap;
 }
 
-.device app-icon {
-  color: var(--muted);
+.device anotoki-icon {
+  color: var(--anotoki-muted);
 }
 
 .apps {
@@ -48,5 +48,5 @@
 }
 
 .row-current td:first-child {
-  box-shadow: inset 3px 0 0 var(--primary);
+  box-shadow: inset 3px 0 0 var(--anotoki-primary);
 }

@@ -1,12 +1,12 @@
-<app-alert tone="warning" [announce]="true">
+<anotoki-alert tone="warning" [announce]="true">
     <p>{{ "deletion.freshSignIn" | t }}</p>
     @if (error()) {
         <p class="error" role="alert">{{ error() }}</p>
     }
     <div alertActions>
-        <button #button appButton variant="primary" size="sm" [loading]="busy()" (click)="signIn()">
-            <app-icon name="logIn" [size]="16" />
+        <button #button anotokiButton variant="primary" size="sm" [loading]="busy()" (click)="signIn()">
+            <anotoki-icon name="logIn" [size]="16" />
             {{ "common.signIn" | t }}
         </button>
     </div>
-</app-alert>
+</anotoki-alert>

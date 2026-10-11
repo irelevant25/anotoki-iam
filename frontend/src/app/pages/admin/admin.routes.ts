@@ -64,7 +64,7 @@ export const ADMIN_ROUTES: Routes = [
       },
       { path: 'keys', title: 'Signing keys', loadComponent: () => import('./keys/keys.component').then((m) => m.KeysComponent) },
       // The anotoki family's Migrations page (@anotoki/lib), as every anotoki site has it.
-      { path: 'migrations', title: 'Migrations', loadComponent: () => import('@anotoki/lib/migrations').then((m) => m.MigrationsPageComponent) },
+      { path: 'migrations', title: 'Migrations', loadComponent: () => import('@anotoki/lib/migrations/page').then((m) => m.MigrationsPageComponent) },
     ],
   },
 ];
