@@ -55,11 +55,13 @@ function requireSession(): callable
             $refusal = respondError(new \Slim\Psr7\Response(), 401, 'no_session', 'Sign in first');
             // A cookie naming a session that is over is only clutter now - and
             // a sign-in hint with no session behind it would send every site
-            // that reads it on a hop for nothing (api/session.php).
+            // that reads it on a hop for nothing (api/session.php). So is one
+            // under the old bare name on https, which is never read: a browser
+            // that sends only that signs in once more.
             $refusal = sessionSecretFrom($request) !== null ? withoutSessionCookie($refusal) : $refusal;
             $refusal = signInHintSent($request) ? withoutSignInHint($refusal) : $refusal;
 
-            return withSessionCookieRenamed($request, $refusal);
+            return withoutOldSessionCookie($request, $refusal);
         }
 
         touchSession(iamDb(), $signIn['session']);
@@ -85,8 +87,8 @@ function requireSession(): callable
             }
         }
 
-        // A browser from before the session cookie's __Host- name gets it now.
-        return withSessionCookieRenamed($request, $response);
+        // A cookie under the old bare name, sent beside the __Host- one, goes.
+        return withoutOldSessionCookie($request, $response);
     };
 }
 

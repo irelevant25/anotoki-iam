@@ -195,10 +195,11 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
     // answered login_required, and the site's next page sees no hint. So does
     // one with a session whose account no site lets in (its deletion
     // pending). Every answer from here on goes through $answer: that, and a
-    // browser from before the session cookie's __Host- name given it.
+    // cookie under the session cookie's old bare name expired - on https it
+    // is never read, so it signs nobody in here, planted beside a hint or not.
     $dropHint = signInHintSent($request) && ($signIn === null || !signInHintAllowed($signIn['user']));
     $answer = static fn(Response $given): Response
-        => withSessionCookieRenamed($request, $dropHint ? withoutSignInHint($given) : $given);
+        => withoutOldSessionCookie($request, $dropHint ? withoutSignInHint($given) : $given);
 
     // Single sign-on: already signed in here, and nothing about this request
     // needs a page. Straight back with a code.
@@ -474,9 +475,11 @@ $app->get('/api/oidc/logout', function (Request $request, Response $response) {
     $signIn = currentSignIn($request);
 
     // Nobody signed in here: a sign-in hint this browser still carries is
-    // stale, and goes - no site is to sign anybody in by it.
+    // stale, and goes - no site is to sign anybody in by it - and so does a
+    // cookie under the session cookie's old bare name, which on https opens
+    // nothing.
     if ($signIn === null) {
-        $away = redirectTo($response, $landing ?? iamPageUrl('/logout', ['done' => 1]));
+        $away = withoutOldSessionCookie($request, redirectTo($response, $landing ?? iamPageUrl('/logout', ['done' => 1])));
 
         return signInHintSent($request) ? withoutSignInHint($away) : $away;
     }

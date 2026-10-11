@@ -25,9 +25,12 @@
  * brings no CSRF or CORS exemption.
  *
  * On https the session cookie is `__Host-anotoki_iam`, which no sibling host
- * can plant: a browser from before keeps its session and has it renamed at its
- * next answer, a cookie planted under the old name never stands in for a
- * session, and plain-http development is unchanged.
+ * can plant, and the bare `anotoki_iam` is never read there (the owner's
+ * decision of 2026-10-10): a cookie under it - even one carrying a live
+ * session's secret, as a browser from before the prefix does - opens nothing
+ * anywhere and is expired in the answer, while the sites keep their tokens; a
+ * planted one beside a planted hint signs nobody in; a __Host- session beside
+ * one is read by its exact name; and plain-http development is unchanged.
  */
 
 declare(strict_types=1);
@@ -149,6 +152,18 @@ function holdingOnly(string $hint, string $ip): Browser
 {
     $browser = new Browser($ip);
     $browser->cookies[HINT] = $hint;
+
+    return $browser;
+}
+
+/** A browser carrying a session's secret under the bare name - one from before the prefix, or one planted - and, if given, a hint. */
+function holdingBare(string $secret, string $ip, ?string $hint = null): Browser
+{
+    $browser = new Browser($ip);
+    $browser->cookies[SESSION_COOKIE] = $secret;
+    if ($hint !== null) {
+        $browser->cookies[HINT] = $hint;
+    }
 
     return $browser;
 }
@@ -287,7 +302,7 @@ function takeSurveyMember(int $userId): void
     )->execute([$userId]);
 }
 
-/** Moves a browser's session cookie from the __Host- name to the bare one: a browser from before the prefix. */
+/** Moves a browser's session cookie from the __Host- name to the bare one: a browser from before the prefix, whose bare cookie https no longer reads. */
 function underOldName(Browser $browser): string
 {
     $secret = $browser->cookies[HOST_SESSION_COOKIE] ?? '';
@@ -954,56 +969,109 @@ test('the hint is no CSRF or CORS handle: the exempt paths stay the four, a writ
 // The session cookie's __Host- name
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('a browser from before the __Host- name keeps its session: the old cookie is read, renamed at the next answer and expired as it was set - by the account pages, a site\'s sign-on, a sign-in', function () {
-    makeUser('before', 'before@example.test');
+test('on https the bare name opens nothing, even carrying a live session\'s secret - the account and admin pages, a write, authorize (prompt=none is login_required and clears a sent hint), the sign-in page\'s accept, both sign-outs - and is expired in the answer; the sites keep their tokens', function () {
+    $id = makeUser('before', 'before@example.test');
+    grantRole($id, 'iam', 'ADMIN');
 
-    onRealHost(function () {
+    onRealHost(function () use ($id) {
+        // A browser from before the __Host- name, signed in at the IAM and, through it, at a site.
         [$browser] = signInWithPassword('before@example.test', '10.18.19.1');
+        [$sso, $verifier] = authorizeSurvey($browser);
+        $tokens = surveyTokens(queryOf($sso->location())['code'] ?? '', $verifier);
         $secret = underOldName($browser);
+        $sessionId = (int) (sessionOf($browser)['id'] ?? 0);
+        check($sessionId > 0 && sessionLive(sessionById(iamDb(), $sessionId)), 'its session live, its secret under the bare name');
+        $bare = static fn(string $ip): Browser => holdingBare($secret, $ip, randomSecret(16));
 
-        $page = $browser->get('/api/account');
-        same([200, 'before'], [$page->status, $page->json()['username'] ?? null], 'still signed in, by the old name');
-        $renamed = cookieParts(cookieLines($page, HOST_SESSION_COOKIE)[0] ?? '');
-        same($secret, $renamed['value'] ?? null, 'the same secret, under the __Host- name');
-        check(isset($renamed['secure'], $renamed['httponly']) && ($renamed['path'] ?? null) === '/' && !isset($renamed['domain']), 'Secure, HttpOnly, Path=/, no Domain');
-        check(abs((int) ($renamed['max-age'] ?? 0) - REMEMBERED) <= 60, 'as long as the remembered session lasts: ' . ($renamed['max-age'] ?? 'none'));
-        $old = cookieParts(cookieLines($page, SESSION_COOKIE)[0] ?? '');
-        same(['', '0', '/', true, true, 'Lax'], [$old['value'] ?? null, $old['max-age'] ?? null, $old['path'] ?? null, $old['secure'] ?? null, $old['httponly'] ?? null, $old['samesite'] ?? null], 'and the old one expired, as it was set');
-        check(!isset($old['domain']), 'this host only, as it was set');
-        same([$secret, false], [$browser->cookies[HOST_SESSION_COOKIE] ?? null, isset($browser->cookies[SESSION_COOKIE])], 'one session cookie left, under the new name');
-        same([], cookieNames($browser->get('/api/account')), 'and nothing more to rename');
+        foreach (['/api/account', '/api/account/sessions', '/api/admin/stats', '/api/admin/users'] as $i => $path) {
+            $answer = $bare('10.18.19.' . (10 + $i))->get($path);
+            same([401, 'no_session'], [$answer->status, $answer->code()], "$path: nobody is signed in");
+            check(cookieExpired($answer, SESSION_COOKIE) && cookieLines($answer, HOST_SESSION_COOKIE) === [], "$path: the bare cookie expired, nothing set under the __Host- name");
+            check(hintCleared($answer), "$path: the hint sent with it cleared");
+        }
+        $expired = cookieParts(cookieLines($bare('10.18.19.20')->get('/api/account'), SESSION_COOKIE)[0] ?? '');
+        same(['', '0', '/', true, true, 'Lax'], [$expired['value'] ?? null, $expired['max-age'] ?? null, $expired['path'] ?? null, $expired['secure'] ?? null, $expired['httponly'] ?? null, $expired['samesite'] ?? null],
+            'expired with the attributes the IAM set it with before the prefix');
+        check(!isset($expired['domain']), 'this host only, as it was set');
 
-        [$sso] = signInWithPassword('before@example.test', '10.18.19.2');
-        $ssoSecret = underOldName($sso);
-        [$code] = authorizeSurvey($sso);
-        check(isset(queryOf($code->location())['code']), 'a site\'s single sign-on, by the old name');
-        same($ssoSecret, cookieParts(cookieLines($code, HOST_SESSION_COOKIE)[0] ?? '')['value'] ?? null, 'renamed there');
-        check(cookieExpired($code, SESSION_COOKIE), 'the old one expired');
+        $write = $bare('10.18.19.21')->post('/api/account/deletion', ['password' => PASSWORD]);
+        same([401, 'no_session'], [$write->status, $write->code()], 'no write either');
+        same(null, userById(iamDb(), $id)['deletion_due_at'] ?? null, 'nothing asked for');
 
-        [$short] = signInWithPassword('before@example.test', '10.18.19.3', ['remember' => false]);
-        underOldName($short);
-        $answer = $short->get('/api/account');
-        check(!isset(cookieParts(cookieLines($answer, HOST_SESSION_COOKIE)[0] ?? '')['max-age']), 'a session not remembered: renamed into a cookie that goes with the browser');
+        [$silent] = authorizeSurvey($bare('10.18.19.22'), ['prompt' => 'none']);
+        same(['login_required', false], [queryOf($silent->location())['error'] ?? null, isset(queryOf($silent->location())['code'])], 'a site\'s silent hop: nobody signed in here, no code');
+        check(hintCleared($silent) && cookieExpired($silent, SESSION_COOKIE), 'the hint cleared, the bare cookie expired');
 
-        [$again] = signInWithPassword('before@example.test', '10.18.19.4');
-        $replaced = underOldName($again);
+        $asked = $bare('10.18.19.23');
+        [$page] = authorizeSurvey($asked);
+        check(str_contains($page->location(), '/login?request=') && !isset(queryOf($page->location())['code']), 'an ordinary sign-in: the page, no code');
+        check(cookieExpired($page, SESSION_COOKIE), 'the bare cookie expired there too');
+        $asked->cookies[SESSION_COOKIE] = $secret;
+        $accept = $asked->post('/api/login/request/' . (queryOf($page->location())['request'] ?? '') . '/accept');
+        same([401, 'no_session'], [$accept->status, $accept->code()], 'the sign-in page\'s accept: no code by it');
+
+        $out = $bare('10.18.19.24')->post('/api/logout');
+        same(200, $out->status, 'a sign-out answers as ever');
+        check(cookieExpired($out, SESSION_COOKIE) && cookieExpired($out, HOST_SESSION_COOKIE), 'both names expired');
+        $siteOut = $bare('10.18.19.25')->get('/api/oidc/logout?' . http_build_query([
+            'client_id' => 'survey', 'id_token_hint' => $tokens['id_token'] ?? '', 'post_logout_redirect_uri' => SURVEY_FRONTEND . '/', 'state' => 'bye',
+        ]));
+        same(SURVEY_FRONTEND . '/?state=bye', $siteOut->location(), 'a site\'s sign-out with its ID token: nobody signed in here, straight back');
+        check(cookieExpired($siteOut, SESSION_COOKIE) && hintCleared($siteOut), 'the bare cookie expired there too, and the hint cleared');
+        check(sessionLive(sessionById(iamDb(), $sessionId)), 'neither sign-out ended the session: a cookie never read names none');
+
+        // The sites hold their own tokens, and refresh without the IAM's cookie.
+        $refreshed = (new Browser('10.18.99.1'))->request('POST', '/api/oidc/token', [
+            'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'] ?? '', 'client_id' => 'survey'],
+            'headers' => ['Origin' => SURVEY_FRONTEND],
+        ]);
+        same(200, $refreshed->status, 'the site\'s refresh still works: ' . ($refreshed->json()['error'] ?? ''));
+
+        $again = $bare('10.18.19.26');
         $signIn = $again->signIn('before@example.test', PASSWORD);
-        same(200, $signIn->status, 'signing in again, by the old name');
-        check(cookieExpired($signIn, SESSION_COOKIE) && ($again->cookies[HOST_SESSION_COOKIE] ?? $replaced) !== $replaced, 'a new session under the new name, the old cookie expired');
-        $statement = iamDb()->prepare('SELECT revoked_reason FROM sessions WHERE token_hash = ?');
-        $statement->execute([sha256($replaced)]);
-        same(SESSION_REVOKED_REPLACED, $statement->fetchColumn(), 'and the session it named replaced, as ever');
-
-        [$dead] = signInWithPassword('before@example.test', '10.18.19.5');
-        underOldName($dead);
-        revokeSession(iamDb(), (int) sessionOf($dead)['id'], SESSION_REVOKED_ELSEWHERE);
-        $refused = $dead->get('/api/account');
-        same(401, $refused->status, 'a session that is over, by the old name');
-        check(cookieExpired($refused, SESSION_COOKIE) && cookieExpired($refused, HOST_SESSION_COOKIE), 'nothing renamed: both names expired');
+        same(200, $signIn->status, 'signing in once more, from that browser');
+        $fresh = $again->cookies[HOST_SESSION_COOKIE] ?? '';
+        check($fresh !== '' && $fresh !== $secret && cookieExpired($signIn, SESSION_COOKIE), 'a new session under the __Host- name, the bare cookie expired');
+        same(200, $again->get('/api/account')->status, 'signed in by it');
+        check(sessionLive(sessionById(iamDb(), $sessionId)), 'the session the bare cookie named is not replaced: the sites keep their tokens until it ends');
     });
 });
 
-test('a cookie planted under the old name never stands in for a __Host- session: the account, a site\'s code and a sign-out are the owner\'s', function () {
+test('the attack the bare name left open: a session planted under it beside a planted hint, in a browser with no session at the IAM, signs nobody in - a site\'s silent hop is login_required, an ordinary one gets the sign-in page, and no code is issued under the planter\'s session', function () {
+    makeUser('hopper', 'hopper@example.test');
+
+    onRealHost(function () {
+        [$planter] = signInWithPassword('hopper@example.test', '10.18.26.1');
+        $planted = $planter->cookies[HOST_SESSION_COOKIE] ?? '';
+        $planterSession = (int) (sessionOf($planter)['id'] ?? 0);
+
+        // What a sibling host can set for the whole domain in somebody else's
+        // browser: its own session under the bare name, and a hint - which
+        // makes a site that lets visitors in hop to the IAM without a click.
+        $victim = holdingBare($planted, '10.18.26.2', randomSecret(16));
+        [$silent] = authorizeSurvey($victim, ['prompt' => 'none']);
+        same(['login_required', false], [queryOf($silent->location())['error'] ?? null, isset(queryOf($silent->location())['code'])], 'the silent hop: nobody is signed in here, and no code');
+        check(hintCleared($silent), 'the planted hint cleared, so the site does not hop on it again');
+
+        // Planted with a Domain, both are beyond a host-only expiry: the browser sends them again.
+        $victim->cookies[SESSION_COOKIE] = $planted;
+        $victim->cookies[HINT] = randomSecret(16);
+        [$page] = authorizeSurvey($victim);
+        check(str_contains($page->location(), '/login?request=') && !isset(queryOf($page->location())['code']), 'an ordinary hop: the sign-in page, no code');
+        $victim->cookies[SESSION_COOKIE] = $planted;
+        $accept = $victim->post('/api/login/request/' . (queryOf($page->location())['request'] ?? '') . '/accept');
+        same([401, 'no_session'], [$accept->status, $accept->code()], 'the sign-in page cannot accept as the planter');
+        $victim->cookies[SESSION_COOKIE] = $planted;
+        same(401, $victim->get('/api/account')->status, 'nor is the account page the planter\'s');
+
+        $codes = iamDb()->prepare('SELECT count(*) FROM auth_codes WHERE session_id = ?');
+        $codes->execute([$planterSession]);
+        same(0, (int) $codes->fetchColumn(), 'no code issued under the planter\'s session');
+        same(200, $planter->get('/api/account')->status, 'the planter\'s session untouched, in the planter\'s own browser');
+    });
+});
+
+test('a __Host- session beside a cookie under the bare name is still read by its exact name: the account, a site\'s code, a sign-in and a sign-out are the owner\'s, and the bare one is expired in the answer', function () {
     $ownerId = makeUser('owner', 'owner@example.test');
     makeUser('planter', 'planter@example.test');
 
@@ -1018,11 +1086,18 @@ test('a cookie planted under the old name never stands in for a __Host- session:
         $page = $owner->get('/api/account');
         same([200, 'owner'], [$page->status, $page->json()['username'] ?? null], 'the account is the owner\'s');
         same([], cookieLines($page, HOST_SESSION_COOKIE), 'the owner\'s own cookie is left as it is');
+        check(cookieExpired($page, SESSION_COOKIE), 'the bare one expired in the answer');
 
         $owner->cookies[SESSION_COOKIE] = $planted;
         [$sso, $verifier] = authorizeSurvey($owner);
+        check(cookieExpired($sso, SESSION_COOKIE), 'there too');
         $tokens = surveyTokens(queryOf($sso->location())['code'] ?? '', $verifier);
         same((string) $ownerId, jwtVerifyOwn($tokens['id_token'], 'JWT')['sub'] ?? null, 'a site gets the owner\'s code');
+
+        $owner->cookies[SESSION_COOKIE] = $planted;
+        $signIn = $owner->signIn('owner@example.test', PASSWORD);
+        same(200, $signIn->status, 'the owner signs in again');
+        check(cookieExpired($signIn, SESSION_COOKIE), 'the bare one expired by the sign-in too');
 
         $owner->cookies[SESSION_COOKIE] = $planted;
         same(200, $owner->post('/api/logout')->status, 'the owner signs out');
@@ -1031,14 +1106,17 @@ test('a cookie planted under the old name never stands in for a __Host- session:
     });
 });
 
-test('plain-http development is unchanged: the session cookie is anotoki_iam, not Secure, nothing renamed and nothing more expired', function () {
+test('plain-http development is unchanged: the session cookie is anotoki_iam - its one name, read as ever - and not Secure; nothing more set or expired, and a __Host- name is no session there', function () {
     makeUser('developer', 'developer@example.test');
     [$browser, $answer] = signInWithPassword('developer@example.test', '10.18.21.1');
 
     $cookie = cookieParts(cookieLines($answer, SESSION_COOKIE)[0] ?? '');
     check(isset($cookie['httponly']) && !isset($cookie['secure'], $cookie['domain']) && ($cookie['path'] ?? null) === '/', 'anotoki_iam: HttpOnly, Path=/, not Secure over plain http');
     same([], cookieLines($answer, HOST_SESSION_COOKIE), 'no __Host- name: it would have to be Secure');
-    same([], cookieNames($browser->get('/api/account')), 'nothing renamed');
+    $page = $browser->get('/api/account');
+    same([200, []], [$page->status, cookieNames($page)], 'the bare name is the session here: nothing set or expired');
+    $secret = $browser->cookies[SESSION_COOKIE] ?? '';
+    same(401, (new Browser('10.18.21.2'))->get('/api/account', ['headers' => ['Cookie' => "__Host-anotoki_iam={$secret}"]])->status, 'the __Host- name is not read over plain http');
     same([SESSION_COOKIE, HINT], cookieNames($browser->post('/api/logout')), 'a sign-out expires the one name');
 });
 
@@ -1061,17 +1139,17 @@ test('the session cookie is read by its exact name, as sent: a look-alike that o
             $owner->cookies = [$lookalike => $planted] + $owner->cookies;
             $page = $owner->get('/api/account');
             same([200, 'exact'], [$page->status, $page->json()['username'] ?? null], "$lookalike sent first: the account is the owner's");
-            same([], cookieLines($page, HOST_SESSION_COOKIE), 'nothing renamed or replaced');
+            same([], cookieLines($page, HOST_SESSION_COOKIE), 'nothing set in its place');
             unset($owner->cookies[$lookalike]);
         }
 
-        // A browser from before the prefix, a look-alike planted beside it: its own session, renamed with its own secret.
+        // A browser from before the prefix, a look-alike planted beside it: neither is the __Host- name as sent.
         [$before] = signInWithPassword('exact@example.test', '10.18.23.3');
-        $own = underOldName($before);
+        underOldName($before);
         $before->cookies = ['__%48ost-anotoki_iam' => $planted] + $before->cookies;
         $page = $before->get('/api/account');
-        same([200, 'exact'], [$page->status, $page->json()['username'] ?? null], 'a browser from before: its own session, by the bare name');
-        same($own, cookieParts(cookieLines($page, HOST_SESSION_COOKIE)[0] ?? '')['value'] ?? null, 'renamed with its own secret, the look-alike passed over');
+        same([401, 'no_session'], [$page->status, $page->code()], 'the bare name and a look-alike: no session - neither is read');
+        check(cookieLines($page, HOST_SESSION_COOKIE) === [] && cookieExpired($page, SESSION_COOKIE), 'nothing set under the __Host- name, the bare cookie expired');
 
         $owner->cookies = ['__%48ost-anotoki_iam' => $planted] + $owner->cookies;
         same(200, $owner->post('/api/logout')->status, 'the owner signs out, the look-alike still sent first');
@@ -1084,7 +1162,7 @@ test('the session cookie is read by its exact name, as sent: a look-alike that o
     });
 });
 
-test('the session cookie\'s name sent twice is no session - the __Host- one or the bare one, on https and on plain http', function () {
+test('the session cookie\'s name sent twice is no session - the __Host- one on https, the bare one on plain http - and on https the bare one is none even once', function () {
     makeUser('twice', 'twice@example.test');
 
     onRealHost(function () {
@@ -1097,6 +1175,7 @@ test('the session cookie\'s name sent twice is no session - the __Host- one or t
         $twice = [
             'the __Host- name twice, the same' => "__Host-anotoki_iam={$real}; __Host-anotoki_iam={$real}",
             'the __Host- name twice, two sessions' => "__Host-anotoki_iam={$second}; __Host-anotoki_iam={$real}",
+            'the bare name once' => "anotoki_iam={$real}",
             'the bare name twice, the same' => "anotoki_iam={$real}; anotoki_iam={$real}",
             'the bare name twice, two sessions' => "anotoki_iam={$second}; anotoki_iam={$real}",
         ];
@@ -1114,25 +1193,30 @@ test('the session cookie\'s name sent twice is no session - the __Host- one or t
     same([401, 'no_session'], [$answer->status, $answer->code()], 'plain http, twice: no session');
 });
 
-test('the four endpoints the sites call cross-origin set no cookie: sent a bare-name session cookie and the hint, token, userinfo, revoke and preferences rename and clear nothing', function () {
+test('the four endpoints the sites call cross-origin set no cookie: sent a bare-name session cookie - its session live, then revoked - and the hint, token, userinfo, revoke and preferences expire and clear nothing', function () {
     makeUser('crossing', 'crossing@example.test');
 
     onRealHost(function () {
         [$browser] = signInWithPassword('crossing@example.test', '10.18.25.1');
         underOldName($browser);
-        check(isset($browser->cookies[SESSION_COOKIE], $browser->cookies[HINT]), 'a browser from before the prefix, with its hint');
+        check(isset($browser->cookies[SESSION_COOKIE], $browser->cookies[HINT]), 'a browser holding the bare name from before the prefix, and its hint');
 
-        $answers = [
-            'token' => $browser->request('POST', '/api/oidc/token', ['form' => ['grant_type' => 'refresh_token', 'refresh_token' => 'iam_rt_nothing', 'client_id' => 'survey'], 'headers' => ['Origin' => SURVEY_FRONTEND]]),
-            'userinfo' => $browser->get('/api/oidc/userinfo', ['headers' => ['Origin' => SURVEY_FRONTEND]]),
-            'revoke' => $browser->request('POST', '/api/oidc/revoke', ['form' => ['token' => 'iam_rt_nothing', 'client_id' => 'survey'], 'headers' => ['Origin' => SURVEY_FRONTEND]]),
-            'preferences' => $browser->request('POST', '/api/oidc/preferences', ['json' => ['theme' => 'dark'], 'headers' => ['Origin' => SURVEY_FRONTEND]]),
-        ];
-        foreach ($answers as $endpoint => $answer) {
-            same([], cookieNames($answer), "$endpoint ({$answer->status}): no Set-Cookie");
+        foreach (['live', 'revoked'] as $state) {
+            if ($state === 'revoked') {
+                revokeSession(iamDb(), (int) (sessionOf($browser)['id'] ?? 0), SESSION_REVOKED_ELSEWHERE);
+            }
+            $answers = [
+                'token' => $browser->request('POST', '/api/oidc/token', ['form' => ['grant_type' => 'refresh_token', 'refresh_token' => 'iam_rt_nothing', 'client_id' => 'survey'], 'headers' => ['Origin' => SURVEY_FRONTEND]]),
+                'userinfo' => $browser->get('/api/oidc/userinfo', ['headers' => ['Origin' => SURVEY_FRONTEND]]),
+                'revoke' => $browser->request('POST', '/api/oidc/revoke', ['form' => ['token' => 'iam_rt_nothing', 'client_id' => 'survey'], 'headers' => ['Origin' => SURVEY_FRONTEND]]),
+                'preferences' => $browser->request('POST', '/api/oidc/preferences', ['json' => ['theme' => 'dark'], 'headers' => ['Origin' => SURVEY_FRONTEND]]),
+            ];
+            foreach ($answers as $endpoint => $answer) {
+                same([], cookieNames($answer), "$endpoint ({$answer->status}), its session $state: no Set-Cookie");
+            }
+            same([400, 401, 200, 401], array_values(array_map(static fn(TestResponse $answer): int => $answer->status, $answers)), "each answering as it would without the cookies, its session $state");
+            check(isset($browser->cookies[SESSION_COOKIE], $browser->cookies[HINT]) && !isset($browser->cookies[HOST_SESSION_COOKIE]), "the cookies still as they were, its session $state");
         }
-        same([400, 401, 200, 401], array_values(array_map(static fn(TestResponse $answer): int => $answer->status, $answers)), 'each answering as it would without the cookies');
-        check(isset($browser->cookies[SESSION_COOKIE], $browser->cookies[HINT]) && !isset($browser->cookies[HOST_SESSION_COOKIE]), 'the cookies still as they were');
     });
 });
 

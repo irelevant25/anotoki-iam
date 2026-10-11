@@ -1103,7 +1103,8 @@ hosts no more trusted but more numerous in what they receive.
   cookie comes, the bare name is not read at all. Plain-http development keeps
   `anotoki_iam`: a `__Host-` cookie must be `Secure` (`cookie_secure` on gives
   it the prefix there too).
-- **Nobody is signed out.** A browser from before carries `anotoki_iam`: it
+- **Nobody is signed out** - the transition the owner ended on 2026-10-10
+  (option 2, below). A browser from before carries `anotoki_iam`: it
   is read while no `__Host-` cookie comes, and the next answer that uses the
   session - the account pages (every IAM page asks for the account first), a
   site's single sign-on, a sign-in - sets the same secret under the new name,
@@ -1112,16 +1113,16 @@ hosts no more trusted but more numerous in what they receive.
   cookie expires both names. The device cookie keeps its name,
   `anotoki_iam_device`: under a new one every browser would be a new one, and
   everybody would be mailed.
-- **What stays until the bare name is no longer read**: a browser with no
-  `__Host-` cookie - nobody signed in at the IAM there - still takes a bare
-  `anotoki_iam`, so one planted there can still sign that browser into the
-  planter's session, as before; it never overrides the browser's own, and a
-  sign-in ends it. The sign-in hint makes it worse: planted beside it, it
-  makes a site that lets visitors in hop to the IAM, which signs the visitor
+- **What stayed while the bare name was read**: a browser with no
+  `__Host-` cookie - nobody signed in at the IAM there - still took a bare
+  `anotoki_iam`, so one planted there could still sign that browser into the
+  planter's session, as before; it never overrode the browser's own, and a
+  sign-in ended it. The sign-in hint made it worse: planted beside it, it
+  made a site that lets visitors in hop to the IAM, which signed the visitor
   into the planter's account there without a click. Whether to close it
-  sooner is the owner's decision; until then a later release stops reading
-  the bare name, once every session from before has ended - ninety days at
-  most.
+  sooner than the ninety days the sessions from before could last was left
+  to the owner, who closed it at once: since 2026-10-10 (option 2, below)
+  the bare name is never read on HTTPS.
 - **One place.** The cookie is read (`sessionSecretFrom()`), set, expired and
   renamed in `api/session.php` and nowhere else; the four endpoints the sites
   call cross-origin read no cookie, and rename none.
@@ -1168,3 +1169,64 @@ to the library, not back into `ui/`.
   links, the theme switch - the family's is meant. The backend stays on
   anotoki/lib 0.1.0: 0.2.0 changed only the Angular half
   (`docs/operations.md`).
+
+## 2026-10-10 - The owner's decision: option 2 - the bare session cookie is never read on HTTPS
+
+The owner's choice ("option 2") between the two ways to close what the
+`__Host-` hardening of 2026-10-07 left open (above): not reading the bare
+`anotoki_iam` for up to ninety days more, until every session from before
+the prefix had run out, but stopping at once. It replaces that entry's
+transition.
+
+- **On HTTPS the session cookie is `__Host-anotoki_iam` and nothing else.**
+  `sessionSecretFrom()` reads that exact name from the `Cookie` header and
+  never the bare one - neither beside it nor without it. A cookie under the
+  bare name, even one carrying a live session's secret, opens nothing: not
+  the account pages or the admin panel, not authorize (`prompt=none`
+  answers `login_required` and clears a hint sent with it), not the sign-in
+  page's accept; a sign-out by it ends no session. The exact name as sent,
+  and either name sent twice being no session, stay as they were.
+  Plain-http development keeps the bare name as its one name.
+- **What it closes**: a browser with no `__Host-` session took a bare
+  `anotoki_iam` as its session, so any host under the domain could plant
+  its own session there and sign the browser into the planter's account at
+  the IAM - and, with a hint planted beside it, have a site that lets
+  visitors in hop to the IAM and come back with the planter's code, without
+  a click. That hop now finds nobody signed in: `login_required`, and the
+  planted hint goes.
+- **Everybody signed in at the IAM signs in there once more** after the
+  upload that brings it: a session from before the prefix is held under the
+  bare name, which is not read. **The sites are not affected**: they hold
+  their own tokens and refresh without the IAM's cookie, so the old session
+  lives on for them until it runs out (ninety days at most) or is ended on
+  the account page's Sessions list. Signing in again does not replace it -
+  it was never read as this browser's. A browser already holding the
+  `__Host-` cookie notices nothing.
+- **The old cookie leaves the browsers.** Every answer that uses the
+  session - the account pages and the admin panel (every IAM page asks for
+  the account first), authorize, every sign-in - expires a bare one sent
+  over HTTPS, with the attributes the IAM set it with (this host,
+  `Path=/`); every sign-out and every refusal that drops the cookie expires
+  both names, as before. Nothing is set in its place: the transition's
+  renaming (`withSessionCookieRenamed()`) is gone, replaced by
+  `withoutOldSessionCookie()`. One planted with a `Domain` is beyond a
+  host-only expiry; it opens nothing either. The four endpoints the sites
+  call cross-origin still read no cookie and set none.
+- **What it costs**, beside the one sign-in: from a browser that still
+  holds only the bare cookie, a site's sign-out ends that site's own
+  sign-in but not the old session - the IAM no longer knows that browser
+  holds it - so the other sites signed in under it stay signed in until it
+  runs out or the person ends it on the Sessions page.
+
+## 2026-10-11 - The owner's clarification: nobody but the owner has signed in yet
+
+The anotoki sites are not public yet: the owner is the only person who has
+ever signed in, testing. So there are no browsers from before the prefix to
+look after, and option 2 (above) stands in its plain form - no transition,
+and nothing that handles an old browser. The one browser that held a bare
+`anotoki_iam` session is the owner's, which signs in at the IAM once more
+after the upload; what option 2 costs (above) reaches nobody else. A
+refinement that would have let a sign-out end the session held under the
+bare name - so that an old browser's sign-out still reached every site - was
+written on 2026-10-10 and dropped the next day, unmerged: with no old
+browsers, it was code for nothing.

@@ -70,20 +70,22 @@ a browser keeps a cookie of exactly that name only when the IAM's own host
 sets it. The IAM reads the session cookie by that exact name, as the `Cookie`
 header carries it - never a name that only decodes to it
 (`__%48ost-anotoki_iam`, which a sibling host can set for the whole domain) -
-and when `__Host-anotoki_iam` comes, a cookie under the bare name is not read
-at all. Either name sent twice is no session. A browser from before the prefix
-is not signed out: its `anotoki_iam` is read while no `__Host-` one comes, and
-the next answer that uses the session - the account pages, a site's single
-sign-on, a sign-in - sets the same secret under the new name and expires the
-old one (`Path=/`, this host, as it was set). Every sign-out and every refusal
-that drops the cookie expires both names.
+and by that name alone: on HTTPS a cookie under the bare `anotoki_iam` is never
+read (the owner's decision of 2026-10-10), beside a `__Host-` one or without
+it. Even carrying a live session's secret it opens nothing - no page, no
+code (`prompt=none` answers `login_required`), no sign-out - so one a sibling
+host plants, with a sign-in hint beside it or not, signs nobody in. Either
+name sent twice is no session.
 
-What remains while the bare name is read: a browser with no `__Host-` session
-can be handed a session planted under the bare name by a sibling host - and so
-be signed into somebody else's account; with the sign-in hint planted beside
-it, a site that lets visitors in does that without a click. A later release
-stops reading the bare name, once every session from before has ended (90
-days at most).
+A browser from before the prefix, which holds its session under the bare
+name, is signed out at the IAM: the person signs in there once more (as of
+2026-10-11 that is the owner alone - the sites are not public yet). The
+sites are not affected - they hold their own tokens, and their refreshes use
+no cookie. Every answer that uses the session - the `/api/account` and
+`/api/admin` endpoints, `GET /api/oidc/authorize`, every sign-in - expires a
+bare `anotoki_iam` sent over HTTPS (`Path=/`, this host, as it was set), and
+sets nothing in its place; every sign-out and every refusal that drops the
+cookie expires both names.
 
 Applications never see this cookie. They get tokens.
 

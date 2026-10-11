@@ -41,8 +41,8 @@ const SESSION_TOUCH_INTERVAL = 60;
 // The cookie
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Read, set, expired and renamed here and nowhere else: sessionSecretFrom(),
-// withSessionCookie(), withoutSessionCookie(), withSessionCookieRenamed().
+// Read, set and expired here and nowhere else: sessionSecretFrom(),
+// withSessionCookie(), withoutSessionCookie(), withoutOldSessionCookie().
 
 /** The session cookie's name as configured - `anotoki_iam` - before any prefix. The device cookie is named after it. */
 function sessionCookieBaseName(): string
@@ -57,8 +57,9 @@ function sessionCookieBaseName(): string
  * Domain. The IAM reads it by that exact name, as sent (sessionSecretFrom()):
  * a look-alike a sibling host can set - a name that only decodes to it, like
  * `__%48ost-anotoki_iam` - is not it, and the name sent twice is no session.
- * When it comes, a cookie under the bare name is not read at all. On a
- * plain-http development machine the bare name, as before: a __Host- cookie
+ * Wherever it is Secure, a cookie under the bare name is never read at all,
+ * beside a __Host- one or without it (the owner's decision of 2026-10-10). On
+ * a plain-http development machine the bare name, as before: a __Host- cookie
  * is Secure.
  */
 function sessionCookieName(): string
@@ -68,10 +69,15 @@ function sessionCookieName(): string
 
 /**
  * The bare name a Secure session cookie went by before the prefix, or null
- * where the name never changed. Still read when the new one is not there, so
- * the change signs nobody out, and renamed by the next answer that uses the
- * session (withSessionCookieRenamed()). A later release stops reading it, once
- * every session from before the change has ended - ninety days at most.
+ * where the name never changed. Never read (the owner's decision of
+ * 2026-10-10): a cookie under it opens nothing, not even in a browser that
+ * sends no __Host- one - where it once stood for a session from before the
+ * prefix, and where one a sibling host planted, beside a planted sign-in
+ * hint, signed the browser into the planter's account at the first site that
+ * hopped. Only expired: by every sign-out and every refusal that drops the
+ * cookie (withoutSessionCookie()), and by every answer that uses the session
+ * while a browser still sends one (withoutOldSessionCookie()), so the ones the
+ * IAM set before the prefix leave the browsers.
  */
 function sessionCookieOldName(): ?string
 {
@@ -164,51 +170,44 @@ function cookieValuesNamed(Request $request, string $name): array
 
 /**
  * The session's secret from the request's cookie, or null - the one place the
- * cookie is read, by its exact name in the Cookie header (cookieValuesNamed()).
- * Under its name first: when that came at all, nothing else is looked at, so a
- * cookie under the bare name - left over, or planted by a sibling host - never
- * stands in for it. Only without it, the old bare name: a browser from before
- * the prefix. The name sent more than once is no session: only the IAM's own
- * host sets a __Host- cookie, so two of them mean something is wrong - and of
- * two bare ones, one was planted.
+ * cookie is read, by its exact name in the Cookie header (cookieValuesNamed()),
+ * and by that one name alone: on https `__Host-anotoki_iam`, which only the
+ * IAM's own host can set. A cookie under the bare name is never looked at
+ * there (the owner's decision of 2026-10-10), beside a __Host- one or without
+ * it: one left from before the prefix opens nothing any more - its browser
+ * signs in once more - and one a sibling host planted for the whole domain
+ * never stands in for a session. On plain-http development the bare name is
+ * the only one. The name sent more than once is no session: only the IAM's
+ * own host sets a __Host- cookie, so two of them mean something is wrong - and
+ * of two bare ones, one was planted.
  */
 function sessionSecretFrom(Request $request): ?string
 {
     $values = cookieValuesNamed($request, sessionCookieName());
-    $old = sessionCookieOldName();
-
-    if ($values === [] && $old !== null) {
-        $values = cookieValuesNamed($request, $old);
-    }
 
     return count($values) === 1 && preg_match('/^[A-Za-z0-9_-]{40,64}$/D', $values[0]) === 1 ? $values[0] : null;
 }
 
 /**
- * The answer to a request that carried the session cookie under its old bare
- * name: the same secret set again under the __Host- name, for as long as its
- * session lasts, and the old one expired - so the browser keeps one cookie,
- * which no sibling host can plant, and nobody is signed out by the change.
- * Only for a session still live and the new name not sent, and not where the
- * answer sets or expires the session cookie itself (a sign-in, a sign-out, a
- * 401). Which names came is read as sessionSecretFrom() reads them, by the
- * exact name in the Cookie header. Called where the session is used -
- * requireSession(), authorize, completeSignIn() - never by the four endpoints
- * the sites call cross-origin, which read no cookie.
+ * The answer to a request that still carried a cookie under the old bare name
+ * over https: that cookie expired, with the attributes the IAM set it with
+ * before the prefix (this host, Path=/), so that it leaves the browser. It was
+ * not read, and nothing is set in its place: its session is no longer this
+ * browser's at the IAM, whose owner signs in once more. Not where the answer
+ * expires it already (a sign-out, a refusal that drops the cookie). One a
+ * sibling host planted, with a Domain or a longer Path, is not reached by
+ * this; it opens nothing either. Whether one came is asked as the session
+ * cookie is read, by the exact name in the Cookie header (cookieValuesNamed()).
+ * Called where the session is used - requireSession(), authorize,
+ * completeSignIn() - never by the four endpoints the sites call cross-origin,
+ * which read no cookie and set none.
  */
-function withSessionCookieRenamed(Request $request, Response $response): Response
+function withoutOldSessionCookie(Request $request, Response $response): Response
 {
     $old = sessionCookieOldName();
 
     if ($old === null || cookieValuesNamed($request, $old) === [] || responseSetsCookie($response, $old)) {
         return $response;
-    }
-
-    if (cookieValuesNamed($request, sessionCookieName()) === [] && !responseSetsCookie($response, sessionCookieName())) {
-        $session = sessionFromRequest(iamDb(), $request);
-        if ($session !== null) {
-            $response = withSessionCookie($response, (string) sessionSecretFrom($request), $session);
-        }
     }
 
     return withSessionCookieExpired($response, $old);

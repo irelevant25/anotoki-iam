@@ -152,12 +152,21 @@ overwrite each other's hint.
 On HTTPS the session cookie is `__Host-anotoki_iam` (since 2026-10-07; plain
 `anotoki_iam` before, and on a development machine still): a name only the
 IAM's own host can set, read by that exact name - look-alikes and a name sent
-twice are no session. Nothing to do and nobody signed out - a browser from
-before is read under the old name and moved to the new one at its next visit
-to the IAM or sign-in to a site. Until the old name is no longer read, a
-browser with no session at the IAM can still be handed a session planted under
-it by another host under the domain. A later release stops reading the old
-name once every session from before has ended (90 days).
+twice are no session. Since the owner's decision of 2026-10-10 the bare
+`anotoki_iam` is never read on HTTPS, so a session another host under the
+domain plants under it signs nobody in.
+
+**After the upload that brings this, everybody signs in at the IAM once
+more** - as of 2026-10-11 only the owner, the one person who has signed in
+(the sites are not public yet). A browser from before the `__Host-` name
+holds its session under the bare one, which is no longer read: the IAM's
+pages ask the person to sign in, and a site's silent sign-in finds nobody at
+the IAM until they have. **The sites keep working**: they hold their own
+tokens and refresh without the IAM's cookie, so nobody signed in on a site is
+signed out of it. The old sessions run out by themselves (90 days at most) -
+each person can end theirs on the account page's Sessions list - and the
+bare cookies are expired at the next visit to the IAM. No migration, and
+nothing for the sites to change.
 
 ### Moving the genshin site over - the order matters
 

@@ -35,17 +35,23 @@ the files you were given). You do not edit anything.
   session, roles that may sign in re-checked at every refresh.
 - **Sessions & CSRF**: the cookie is HttpOnly, SameSite=Lax, Secure on https
   and then named `__Host-anotoki_iam` (Path=/, never a Domain); it is read,
-  set, expired and renamed only through `api/session.php`
-  (`sessionSecretFrom()`, `withSessionCookie()`, `withoutSessionCookie()` -
-  both names -, `withSessionCookieRenamed()`), by its exact name from the raw
-  Cookie header - never the URL-decoding cookie params (try
-  `__%48ost-anotoki_iam` sent first) - either name twice is no session, and
-  when the `__Host-` cookie comes the bare `anotoki_iam` is never read (try a
-  planted one beside it); every first-party write passes the CSRF middleware,
-  whose exemptions are exact paths compared on the percent-decoded path the
+  set and expired only through `api/session.php` (`sessionSecretFrom()`,
+  `withSessionCookie()`, `withoutSessionCookie()` - both names -,
+  `withoutOldSessionCookie()`), by its exact name from the raw Cookie
+  header - never the URL-decoding cookie params (try `__%48ost-anotoki_iam`
+  sent first) - and either name twice is no session. On https the bare
+  `anotoki_iam` is never read, with a `__Host-` one or without (the owner's
+  decision of 2026-10-10): try a live session's secret under the bare name
+  alone - the account and admin pages, a write, authorize (`prompt=none`
+  must answer `login_required`), the sign-in page's accept and both
+  sign-outs must find nobody, and the answers that use the session must
+  expire it - and a planted one beside a planted hint (no code, ever);
+  nothing may set a session cookie in its place or read the bare name as a
+  fallback. Every first-party write passes the CSRF middleware, whose
+  exemptions are exact paths compared on the percent-decoded path the
   router matches (try `/%61pi/...`); OIDC endpoints read no cookie except
-  authorize/logout; CORS is echoed only for registered origins and never with
-  credentials.
+  authorize/logout; CORS is echoed only for registered origins and never
+  with credentials.
 - **The sign-in hint** (`anotoki_signed_in`, `api/session.php`): never proof
   - nothing may read it as more than "was it sent", no endpoint may let it
   stand in for a session, and its value is random per session, kept
@@ -59,7 +65,7 @@ the files you were given). You do not edit anything.
   ending this browser's own session; a handler's own set or clear is not
   overruled by `requireSession()`, which sets one only for a session still
   live after the handler. No CSRF or CORS exemption comes with it, and the
-  four cross-origin endpoints neither read nor rename any cookie.
+  four cross-origin endpoints neither read nor set any cookie.
 - **Second factor**: asked on every way in, resets included; an authenticator
   code accepted once (`totp_last_step`); every miss a counted attempt; an
   unconfirmed account's credentials cleared when its address is proved

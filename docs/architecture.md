@@ -372,13 +372,14 @@ On HTTPS the cookie is `__Host-anotoki_iam` (a hardening of 2026-10-07): a
 browser keeps a cookie of exactly that name only from the IAM's own host -
 `Secure`, `Path=/`, no `Domain`. It is read by that exact name from the
 `Cookie` header - a look-alike that only decodes to it is not it, and either
-name sent twice is no session - and when it comes, a bare-name cookie is not
-read. A browser from before keeps its session: the bare `anotoki_iam` is read
-while no `__Host-` one comes, and renamed by the next answer that uses it -
-which leaves one risk until the bare name is no longer read: a browser with no
-`__Host-` session can be handed a planted bare-name session (with the sign-in
-hint, without a click on a site that lets visitors in). The cookie is read,
-set, expired and renamed in `api/session.php` and nowhere else.
+name sent twice is no session - and by that name alone: the bare
+`anotoki_iam` is never read on HTTPS (the owner's decision of 2026-10-10), so
+a session a sibling host plants under it - beside a planted sign-in hint or
+not - signs nobody in, and a browser from before the prefix signs in once
+more (the sites keep their tokens; as of 2026-10-11 the owner's is the only
+such browser). A bare one that still arrives is expired by the answer that
+uses the session, and nothing is set in its place. The cookie is read, set
+and expired in `api/session.php` and nowhere else.
 
 ## The account's preferences
 
@@ -521,7 +522,9 @@ written down, not a refactor.
     worth a hop. An account no site lets in has none. It is the one IAM cookie
     a script reads and the one with a `Domain` - only one the family's sites
     sign in under; the session cookie stays host-only and `HttpOnly`,
-    `__Host-` on HTTPS, and no CSRF or CORS exemption comes with the hint.
+    `__Host-` on HTTPS - where the bare name is never read, so a planted one
+    beside a planted hint signs nobody in - and no CSRF or CORS exemption
+    comes with the hint.
 
 ## Where the code lives
 
@@ -537,7 +540,7 @@ written down, not a refactor.
 | `backend/api/routes/account.php` | The account page. |
 | `backend/api/routes/admin.php` | The admin panel. |
 | `backend/api/oidc.php` | Requests, codes, refresh tokens, minting tokens. |
-| `backend/api/session.php` | The session cookie (its `__Host-` name, and the move to it), the sign-in hint, sliding expiry, revocation, the limiter. |
+| `backend/api/session.php` | The session cookie (its `__Host-` name; the bare one never read on HTTPS, only expired), the sign-in hint, sliding expiry, revocation, the limiter. |
 | `backend/api/keys.php`, `jwt.php`, `crypto.php` | Keys (made on first use), signing, encryption. |
 | `backend/api/applications.php`, `accounts.php`, `settings.php` | The rules about who may use what. |
 | `backend/api/account_deletion.php` | An account's deletion: asked, cancelled, done when due (housekeeping), and the public list of deleted ids. |

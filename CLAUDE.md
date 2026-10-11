@@ -214,15 +214,18 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `anotoki_iam` on http development. It is read by its exact name from the
   raw Cookie header (`cookieValuesNamed()`), never from the cookie params -
   Slim's parser URL-decodes names, so a look-alike like `__%48ost-anotoki_iam`
-  would stand in for it - and either name sent twice is no session. A browser
-  from before is read under the bare name while no `__Host-` one comes, and
-  renamed by the next answer that uses the session
-  (`withSessionCookieRenamed()`); every sign-out and dropping refusal expires
-  both names. The remaining risk, until the bare name is no longer read: a
-  browser with no `__Host-` session can be handed a planted bare-name
-  session (zero-click with the hint on a site that lets visitors in) - the
-  owner decides whether to close it sooner. Read, set, expired and renamed
-  in `api/session.php` only. The device cookie keeps its name.
+  would stand in for it - and either name sent twice is no session. On https
+  the bare `anotoki_iam` is never read (the owner's decision of 2026-10-10,
+  "option 2"), beside a `__Host-` one or without it: even with a live
+  session's secret it opens nothing - no page, no code, no write, no
+  sign-out - so one a sibling host plants, beside a planted hint or not,
+  signs nobody in. No transition and nothing for old browsers (2026-10-11:
+  the sites are not public yet; the owner's own browser signs in once
+  more). A bare one that arrives is expired by the answer that uses the
+  session (`withoutOldSessionCookie()`: `requireSession()`, authorize,
+  `completeSignIn()`); every sign-out and dropping refusal expires both
+  names. Read, set and expired in `api/session.php` only. The device cookie
+  keeps its name.
 
 ## Backend layout & conventions
 
@@ -291,7 +294,7 @@ master-key ciphertext for TOTP secrets and signing keys; identical answers for
 known and unknown addresses; the limiter on every mail-sending and sign-in
 endpoint; the same switches on every way in; no self-lockout, no removing the
 last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; the sign-in hint opens nothing and no account no site lets in has one;
-the session cookie never gets a Domain, and is __Host- on https; no loopback address
+the session cookie never gets a Domain, and is __Host- on https, where the bare name is never read; no loopback address
 left on a real host's install, nor seeded into a live IAM by a later migration;
 the installer's proof (token, or nonce on this computer only). Changing one is
 a decision for `docs/decisions.md`, not a refactor.

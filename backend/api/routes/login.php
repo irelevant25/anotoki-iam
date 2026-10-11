@@ -110,8 +110,9 @@ function completeSignIn(Request $request, Response $response, array $user, strin
         $answer = withoutSignInHint($answer);
     }
 
-    // A session cookie this browser still had under its old name goes.
-    return noteSignInDevice($pdo, $request, withSessionCookieRenamed($request, $answer), $fresh);
+    // A cookie this browser still had under the old bare name goes. It was
+    // never read, so the session it named is not replaced.
+    return noteSignInDevice($pdo, $request, withoutOldSessionCookie($request, $answer), $fresh);
 }
 
 /**
