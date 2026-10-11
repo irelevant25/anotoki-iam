@@ -10,8 +10,8 @@ use RuntimeException;
 /**
  * The library's own words: the keys under `anotoki.` that its modules show on
  * every site (the UI kit - its top bar, language and theme switches, dialogs,
- * fields - and the status page), each with its description and its English
- * and Slovak (informal, "ty").
+ * fields -, the status page and the sign-in page), each with its description
+ * and its English and Slovak (informal, "ty").
  *
  * One file holds them, php/resources/library-words.json -
  * {"keys": {name: {description, en, sk}}} - and everything else follows it:

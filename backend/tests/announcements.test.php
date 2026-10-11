@@ -190,7 +190,7 @@ function keysSorted(mixed $value): mixed
 /** The details of the newest audit entry of an action, keys in order; null for none. */
 function lastAuditOf(string $action): ?array
 {
-    $statement = iamDb()->prepare('SELECT details FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT 1');
+    $statement = iamDb()->prepare('SELECT details FROM anotoki_audit_log WHERE action = ? ORDER BY id DESC LIMIT 1');
     $statement->execute([$action]);
     $details = $statement->fetchColumn();
 
@@ -751,7 +751,7 @@ test('the link at the end of every announcement stops the news, with no session,
     same([false, true], [newsOn($reader), newsOn($neighbour)], 'that account\'s news, and nobody else\'s');
     same(keysSorted(['by' => 'link', 'news_mail' => false]), lastAuditOf('account.news_mail'), 'in the audit log');
     same(200, $stranger->post('/api/news/unsubscribe', ['token' => $token])->status, 'once more: the same answer');
-    same(1, (int) $pdo->query("SELECT count(*) FROM audit_log WHERE action = 'account.news_mail' AND target_id = '{$reader}'")->fetchColumn(), 'and nothing more recorded');
+    same(1, (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE action = 'account.news_mail' AND target_id = '{$reader}'")->fetchColumn(), 'and nothing more recorded');
 
     [$id, $mac] = explode('.', $token);
     $forged = base64UrlEncode(pack('N', $neighbour)) . '.' . $mac;

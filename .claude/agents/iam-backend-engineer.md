@@ -26,9 +26,17 @@ API document is a contract the Angular frontend and all the sites depend on.
   `crypto.php`, `settings.php`, `audit.php`, `totp.php`, `trusted_device.php`,
   `one_time_token.php`, `google_identity.php`, `mail.php`, `legacy_import.php`,
   `migration_runner.php` (the family's library wired in: `iamMigrator()`, the
-  engine from `vendor/anotoki/lib` - never edited here - with the IAM's set
-  and then the library's translations set, `iamMigrationLabel()`,
-  `iamSiteState()` for the gate and `/api/site-status`), and `translations.php`
+  engine from `vendor/anotoki/lib` - never edited here - with the library's
+  admin set, the IAM's set and then the library's translations set,
+  `iamMigrationLabel()`, `iamSiteState()` for the gate and
+  `/api/site-status`), `admin_tools.php` (the library's admin tools on the
+  IAM: `iamAdminContext()` - the actor, the IAM's ADMIN, the proof
+  `accountProof()`, `requestIp()`, the IAM's error body -, `iamErrorLog()` and
+  `iamRedactSecrets()`, `iamBackups()` - encrypted under the master key,
+  never restored -, `iamMigratorWithBackup()`; their routes in
+  `routes/admin.php`), `audit.php` (`audit()` over the library's `AuditLog`,
+  `iamAuditLog()`: `anotoki_audit_log`, entries waiting in
+  `storage/logs/audit-pending.jsonl` until 018 has run), and `translations.php`
   (the IAM's configuration of the library's translations - `iamTranslations()`,
   the mails' rules `IamMailRules`, the accounts per language, refusals in the
   IAM's body, `iamKeyScanner()`; the routes are the library's
@@ -103,3 +111,10 @@ API document is a contract the Angular frontend and all the sites depend on.
 - Add a fallback from committed configuration, or an environment variable, for
   a per-installation value.
 - Edit an applied migration.
+- Write an audit entry any way but `audit()` / `iamAuditLog()` /
+  `auditTranslations()`, take the waiting entries in but by
+  `flushWaitingAuditEntries()`, make a backup without the master key's
+  encryption or without `accountProof()`, switch the IAM's restore on, write a
+  failure into the error log but by `iamRecordError()` or the IAM's handlers,
+  or let a secret, a cookie, a header, a body, a query string or an address
+  into it.

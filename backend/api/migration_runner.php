@@ -6,18 +6,24 @@
  * anotoki site runs - so a migration reads and applies the same in each
  * repository, and an update waiting behaves the same on each site.
  *
- * Here: two sets of files, in this order. The IAM's own, migrations/iam,
- * recorded in the `migrations` table as it always was (id, filename,
- * applied_at - the engine reads and writes that shape as it is, and never
- * changes it). Then the library's translations set, anotoki_translations
- * (vendor/anotoki/lib/php/migrations/translations): the tables of the words,
- * which the IAM's 006 made long before the library had them, proved to be in
- * the family's shape, and the library's own words under `anotoki.`. It runs
- * after the IAM's because the IAM's 006 makes those tables itself: listed
- * first, it would make them on a fresh database and 006's gate would then
- * find them already there and seeded. The table has no `folder` column, so the
- * engine records a library file as `anotoki_translations/001_....sql` beside
- * the IAM's bare file names - nothing in the table changes for it.
+ * Here: three sets of files, in this order. First the library's admin set,
+ * anotoki_admin (vendor/anotoki/lib/php/migrations/admin): the tables of the
+ * family's admin tools - the audit log (001) and feedback (002, which the IAM
+ * does not use: the set comes whole). It runs first because the IAM's 018
+ * moves the IAM's audit_log into its anotoki_audit_log, and nothing else
+ * makes a table named anotoki_*, so it never meets one of the IAM's. Then the
+ * IAM's own, migrations/iam, recorded in the `migrations` table as it always
+ * was (id, filename, applied_at - the engine reads and writes that shape as it
+ * is, and never changes it). Then the library's translations set,
+ * anotoki_translations (vendor/anotoki/lib/php/migrations/translations): the
+ * tables of the words, which the IAM's 006 made long before the library had
+ * them, proved to be in the family's shape, and the library's own words under
+ * `anotoki.`. It runs after the IAM's because the IAM's 006 makes those tables
+ * itself: listed first, it would make them on a fresh database and 006's gate
+ * would then find them already there and seeded. The table has no `folder`
+ * column, so the engine records a library file as `anotoki_admin/001_....sql`
+ * or `anotoki_translations/001_....sql` beside the IAM's bare file names -
+ * wherever its set stands in the list; nothing in the table changes for it.
  *
  * The command line (migration.php), the installer (setup.php) and the admin
  * panel's Migrations page all apply through iamMigrator(), which is the point
@@ -38,10 +44,11 @@
 // the autoloader itself.
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use Anotoki\Lib\Admin\Schema as AdminSchema;
 use Anotoki\Lib\Migrations\Http\SiteState;
 use Anotoki\Lib\Migrations\MigrationSet;
 use Anotoki\Lib\Migrations\Migrator;
-use Anotoki\Lib\Translations\Schema;
+use Anotoki\Lib\Translations\Schema as TranslationsSchema;
 
 /** migrations/iam: the IAM's own files, labelled `iam` on the Migrations page and in its answers. */
 function iamMigrationSet(): MigrationSet
@@ -50,15 +57,15 @@ function iamMigrationSet(): MigrationSet
 }
 
 /**
- * Every set the IAM's database is built from, in the order they run: the
- * IAM's own, then the library's translations set (the top of this file says
- * why it comes last).
+ * Every set the IAM's database is built from, in the order they run - the
+ * family's order: the library's admin set, the IAM's own, then the library's
+ * translations set (the top of this file says why each stands where it does).
  *
  * @return list<MigrationSet>
  */
 function iamMigrationSets(): array
 {
-    return [iamMigrationSet(), Schema::migrationSet()];
+    return [AdminSchema::migrationSet(), iamMigrationSet(), TranslationsSchema::migrationSet()];
 }
 
 /**
@@ -76,8 +83,8 @@ function iamMigrator(PDO $pdo, array $options = []): Migrator
  * A file as the IAM names it - in the command line's lines, in the audit log,
  * in the tests: its name for one of migrations/iam, `set/name` for a library
  * set's, as the bookkeeping table records it
- * (`anotoki_translations/001_languages_and_strings.sql`). The two sets'
- * numbers start again at 001, so a name alone would not say which file it is.
+ * (`anotoki_translations/001_languages_and_strings.sql`). Each set's numbers
+ * start again at 001, so a name alone would not say which file it is.
  */
 function iamMigrationLabel(string $set, string $name): string
 {
@@ -111,8 +118,8 @@ function iamMigrationFiles(Migrator $migrator): array
  *   storage/installed.lock - which a real host's install writes - is not
  *   there, so an IAM installed once never sends anybody to a setup.php that
  *   deleted itself;
- * - update_pending while a file waits to be applied - the IAM's or the
- *   library's translations set's;
+ * - update_pending while a file waits to be applied - of any of the three
+ *   sets;
  * - unavailable while the database cannot be reached;
  * - ready otherwise.
  *
@@ -121,8 +128,8 @@ function iamMigrationFiles(Migrator $migrator): array
  * and its administrator has to sign in through it to press Apply. Its features
  * check their own tables meanwhile, as they always have (signInRulesReady(),
  * translationsReady(), accountApprovalReady(), announcementsReady(),
- * preferencesReady(), accountDeletionReady(), ...), and its administrators
- * see a line in the admin panel saying an update waits.
+ * preferencesReady(), accountDeletionReady(), auditMovedToLibrary(), ...), and
+ * its administrators see a line in the admin panel saying an update waits.
  */
 function iamSiteState(): SiteState
 {

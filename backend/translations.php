@@ -110,7 +110,7 @@ $translations = new TranslationsCommand(
     static fn() => iamTranslations(),
     iamKeyScanner(),
     static function (string $action, ?string $type, ?string $id, array $details): void {
-        audit(null, null, $action, $type, $id, $details);
+        auditTranslations(null, null, $action, $type, $id, $details);
     },
     pendingMigrationLabels(...),
     'iam: the IAM\'s own strings',

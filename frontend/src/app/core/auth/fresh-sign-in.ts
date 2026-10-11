@@ -33,9 +33,10 @@ export class FreshSignInService {
   private readonly _session = inject(SessionService);
   private readonly _router = inject(Router);
 
-  /** Out, and to the sign-in page, back to `anchor` on this page afterwards. Fails only when signing out does. */
-  signInAgain(anchor: string): Observable<void> {
-    const back = `${this._router.url.split('#')[0]}#${anchor}`;
+  /** Out, and to the sign-in page, back to this page afterwards - at `anchor`, when there is one. Fails only when signing out does. */
+  signInAgain(anchor?: string): Observable<void> {
+    const page = this._router.url.split('#')[0];
+    const back = anchor ? `${page}#${anchor}` : page;
     return this._loginApi.logout().pipe(
       map(() => {
         this._session.clear();

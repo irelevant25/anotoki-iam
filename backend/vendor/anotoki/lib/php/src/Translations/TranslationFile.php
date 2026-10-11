@@ -6,6 +6,7 @@ namespace Anotoki\Lib\Translations;
 
 use JsonException;
 use RuntimeException;
+use stdClass;
 
 /**
  * A language's strings as a file - what the admin pages' export downloads and
@@ -31,9 +32,14 @@ final class TranslationFile
     /**
      * The strings in a file: one flat JSON object, {key: text}. A byte-order mark
      * in front (an editor on Windows may put one there) is passed over. What each
-     * value is is checked where the strings are kept (StringCheck), not here.
+     * value is is checked where the strings are kept (StringCheck), not here - and
+     * so is each key, as the admin pages' import has them checked: an object
+     * whose keys are numbers ({"0": …}) is an object like any other, and a list's
+     * items come numbered; either way the numbers are refused there as keys the
+     * site does not have (unknown_key). An empty list, or anything else, is no
+     * object of strings.
      *
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     public static function read(string $path): array
     {
@@ -45,14 +51,17 @@ final class TranslationFile
             $raw = substr($raw, 3);
         }
         try {
-            $values = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+            $values = json_decode($raw, false, 16, JSON_THROW_ON_ERROR);
         } catch (JsonException $e) {
             throw new RuntimeException("$path is not JSON: " . $e->getMessage() . '.');
         }
-        if (!is_array($values) || ($values !== [] && array_is_list($values))) {
-            throw new RuntimeException("$path does not hold one flat object, {key: text}.");
+        if ($values instanceof stdClass) {
+            return get_object_vars($values);
+        }
+        if (is_array($values) && $values !== []) {
+            return $values;
         }
 
-        return $values;
+        throw new RuntimeException("$path does not hold one flat object, {key: text}.");
     }
 }

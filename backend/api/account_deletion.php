@@ -280,7 +280,7 @@ function anonymizedLeftovers(PDO $pdo): void
         'UPDATE announcement_recipients r SET email = u.email
            FROM users u WHERE u.id = r.user_id AND u.anonymized_at IS NOT NULL AND r.email <> u.email'
     );
-    scrubAuditLog($pdo, $anonymized);
+    scrubAuditLog($pdo, array_map('intval', $pdo->query($anonymized)->fetchAll(PDO::FETCH_COLUMN)));
     $pdo->exec(
         'UPDATE users SET last_login_at = NULL, totp_last_step = NULL
           WHERE anonymized_at IS NOT NULL AND (last_login_at IS NOT NULL OR totp_last_step IS NOT NULL)'
@@ -288,35 +288,83 @@ function anonymizedLeftovers(PDO $pdo): void
 }
 
 /**
- * The audit log's rows by or about anonymized accounts - `$ids` is SQL that
- * selects their ids, `$params` its parameters - with the events kept and the
- * person taken out of them: the IP wherever it was the person's (their own
- * actions, and those about them with nobody else acting - a link followed;
- * an administrator's IP on an administrator's action stays, being the
- * administrator's); the names and addresses in the details of what was about
- * them (a username's change, an account's making); a personal token's name,
- * which they chose. The anonymization's own rules, and the sweep's: the
- * same, so a row written by a request on its way is treated as one written
- * before. Only rows that still hold something are written.
+ * The audit log's entries by or about anonymized accounts - `$ids`, their ids
+ * - with the events kept and the person taken out of them, by the IAM's three
+ * rules: the IP wherever it was the person's (their own actions, and those
+ * about them with nobody else acting - a link followed; an administrator's IP
+ * on an administrator's action stays, being the administrator's); the names
+ * and addresses in the details of what was about them (a username's change, an
+ * account's making); a personal token's name, which they chose. The
+ * anonymization's own rules, and the sweep's: the same, so an entry written by
+ * a request on its way is treated as one written before. Only entries that
+ * still hold something are written.
+ *
+ * The log is the anotoki library's table (migration 018 moved the IAM's rows
+ * into it): the first two rules are its scrubPeople() - the IAM's, made the
+ * family's - and the third is the IAM's own. And while they are there, the
+ * IAM's own table too: audit_log until 018 has run (a build is uploaded
+ * before Apply), audit_log_before_018 - the copy 018 keeps, unread - until a
+ * later migration drops it. An entry still waiting in the pending file for 018
+ * is scrubbed by the sweep after it goes in.
+ *
+ * @param list<int> $ids
  */
-function scrubAuditLog(PDO $pdo, string $ids, array $params = []): void
+function scrubAuditLog(PDO $pdo, array $ids): void
 {
-    $person = "ARRAY['from', 'to', 'username', 'email', 'name', 'address']";
+    if ($ids === []) {
+        return;
+    }
 
-    $pdo->prepare(
-        "UPDATE audit_log SET ip = NULL
-          WHERE ip IS NOT NULL
-            AND (actor_id IN ($ids) OR (actor_id IS NULL AND target_type = 'user' AND target_id IN (SELECT x::text FROM ($ids) s(x))))"
-    )->execute([...$params, ...$params]);
-    $pdo->prepare(
-        "UPDATE audit_log SET details = details - $person
-          WHERE target_type = 'user' AND target_id IN (SELECT x::text FROM ($ids) s(x))
-            AND jsonb_typeof(details) = 'object' AND jsonb_exists_any(details, $person)"
-    )->execute($params);
-    $pdo->prepare(
-        "UPDATE audit_log SET details = details - 'name'
-          WHERE actor_id IN ($ids) AND action = 'account.token_created' AND jsonb_typeof(details) = 'object' AND jsonb_exists(details, 'name')"
-    )->execute($params);
+    $idArray = '{' . implode(',', array_map('intval', $ids)) . '}';
+    $there = static fn(string $table): bool => asBool($pdo->query("SELECT to_regclass('{$table}') IS NOT NULL")->fetchColumn());
+
+    if ($there('anotoki_audit_log')) {
+        iamAuditLog($pdo)->scrubPeople($ids);
+        $pdo->prepare(
+            "UPDATE anotoki_audit_log SET details = details - 'name'
+              WHERE actor_id = ANY (CAST(? AS bigint[])) AND action = 'account.token_created' AND jsonb_typeof(details) = 'object' AND jsonb_exists(details, 'name')"
+        )->execute([$idArray]);
+    }
+
+    $person = "ARRAY['from', 'to', 'username', 'email', 'name', 'address']";
+    foreach (['audit_log', 'audit_log_before_018'] as $table) {
+        if (!$there($table)) {
+            continue;
+        }
+        $pdo->prepare(
+            "UPDATE {$table} SET ip = NULL
+              WHERE ip IS NOT NULL
+                AND (actor_id = ANY (CAST(? AS int[])) OR (actor_id IS NULL AND target_type = 'user' AND target_id = ANY (CAST(? AS text[]))))"
+        )->execute([$idArray, $idArray]);
+        $pdo->prepare(
+            "UPDATE {$table} SET details = details - $person
+              WHERE target_type = 'user' AND target_id = ANY (CAST(? AS text[]))
+                AND jsonb_typeof(details) = 'object' AND jsonb_exists_any(details, $person)"
+        )->execute([$idArray]);
+        $pdo->prepare(
+            "UPDATE {$table} SET details = details - 'name'
+              WHERE actor_id = ANY (CAST(? AS int[])) AND action = 'account.token_created' AND jsonb_typeof(details) = 'object' AND jsonb_exists(details, 'name')"
+        )->execute([$idArray]);
+    }
+}
+
+/**
+ * The audit entries that waited for migration 018 (storage/logs/audit-pending.jsonl)
+ * into the log, with their own times - and then the people of every anonymized
+ * account out of them at once (scrubAuditLog()): an entry may be about an
+ * account deleted while it waited, whose scrub ran on the old table before the
+ * entry was in any. After every Apply (the Migrations page, `php
+ * migration.php`) and at every housekeeping run, before its deletions. How many
+ * went in.
+ */
+function flushWaitingAuditEntries(PDO $pdo): int
+{
+    $flushed = iamAuditLog()->flushPending();
+    if ($flushed > 0 && accountDeletionReady($pdo)) {
+        scrubAuditLog($pdo, array_map('intval', $pdo->query('SELECT id FROM users WHERE anonymized_at IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN)));
+    }
+
+    return $flushed;
 }
 
 /**
@@ -407,7 +455,7 @@ function anonymizeAccount(PDO $pdo, int $userId): bool
         }
 
         $pdo->prepare('UPDATE announcement_recipients SET email = ? WHERE user_id = ?')->execute([$address, $userId]);
-        scrubAuditLog($pdo, 'SELECT ?::int', [$userId]);
+        scrubAuditLog($pdo, [$userId]);
 
         $pdo->prepare(
             "UPDATE users SET username = ?, email = ?, email_confirmed = FALSE, password = NULL, password_login_enabled = FALSE,

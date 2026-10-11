@@ -28,6 +28,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/api/audit.php';
 
 requireSetUpOnCli();
 
@@ -88,8 +89,8 @@ if ($clearTwoFactor) {
 $pdo->prepare('DELETE FROM login_attempts WHERE lower(email) = lower(?)')->execute([$email]);
 $pdo->prepare("UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'password_changed' WHERE user_id = ? AND revoked_at IS NULL")->execute([$user['id']]);
 $pdo->prepare("UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'password_changed' WHERE user_id = ? AND kind = 'rotating' AND revoked_at IS NULL")->execute([$user['id']]);
-$pdo->prepare("INSERT INTO audit_log (action, target_type, target_id, details) VALUES ('user.password_reset_cli', 'user', ?, ?)")
-    ->execute([(string) $user['id'], json_encode(['clear_2fa' => $clearTwoFactor])]);
+// By nobody, from no address: a shell is the owner's (the audit log, api/audit.php).
+audit(null, null, 'user.password_reset_cli', 'user', (int) $user['id'], ['clear_2fa' => $clearTwoFactor]);
 
 echo "Reset access for {$user['username']} <{$user['email']}>.\n";
 echo $forceChange ? "  New password: {$password}\n  A new one will be asked for at the first sign-in.\n" : "  The password is the one you gave.\n";

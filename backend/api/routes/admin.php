@@ -1,5 +1,8 @@
 <?php
 
+use Anotoki\Lib\Audit\Http\AuditRoutes;
+use Anotoki\Lib\Backups\Http\BackupsRoutes;
+use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
@@ -1166,49 +1169,40 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         });
     })->add(requireAnnouncements());
 
-    // ── Audit log ────────────────────────────────────────────────────────────
+    // ── The admin tools: audit log, error log, backups ──────────────────────
+    //
+    // The anotoki family's (anotoki-lib 0.4; api/admin_tools.php, api/audit.php),
+    // one page each in the admin panel. Their groups sit in this one, under its
+    // checks - the session, the IAM's ADMIN, the CSRF header on every write -
+    // and each asks the library's own ADMIN check (iamAdminContext()'s isAdmin,
+    // the same rule) before anything else besides.
 
-    $group->get('/audit', function (Request $request, Response $response) {
-        $query = $request->getQueryParams();
-        $pdo = iamDb();
-        $where = [];
-        $params = [];
+    $tools = iamAdminContext();
 
-        if (($actor = field($query, 'actor')) !== '') {
-            $where[] = 'u.username ILIKE ?';
-            $params[] = '%' . $actor . '%';
-        }
-        if (($action = field($query, 'action')) !== '') {
-            $where[] = 'l.action LIKE ?';
-            $params[] = $action . '%';
-        }
-        if (($targetType = field($query, 'target_type')) !== '') {
-            $where[] = 'l.target_type = ?';
-            $params[] = $targetType;
-        }
+    // GET /audit (the IAM's answer, AuditEntry, with actor_session, scope_type
+    // and scope_id beside it) and /audit/facets - 503 feature_unavailable until
+    // the library's table and 018 are there.
+    AuditRoutes::admin($group, '/audit', iamAuditLog(), $tools, auditActorNames(...));
 
-        $sql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
-        $page = max(1, (int) ($query['page'] ?? 1));
-        $size = 50;
+    // GET /errors, /errors/{fingerprint}; DELETE /errors[?before=] - audited
+    // errors.cleared. The log's own routes are never written into it.
+    ErrorLogRoutes::admin($group, '/errors', iamErrorLog(), $tools, iamAuditLog());
 
-        $count = $pdo->prepare("SELECT count(*) FROM audit_log l LEFT JOIN users u ON u.id = l.actor_id$sql");
-        $count->execute($params);
-
-        $rows = $pdo->prepare(
-            "SELECT l.id, l.actor_id, u.username AS actor_username, l.action, l.target_type, l.target_id, l.details, l.ip, l.created_at
-               FROM audit_log l LEFT JOIN users u ON u.id = l.actor_id
-             $sql ORDER BY l.created_at DESC, l.id DESC LIMIT $size OFFSET " . (($page - 1) * $size)
-        );
-        $rows->execute($params);
-
-        return respondJson($response, [
-            'total' => (int) $count->fetchColumn(),
-            'page' => $page,
-            'pageSize' => $size,
-            'items' => array_map(static fn(array $row): array => ['id' => (int) $row['id'], 'details' => json_decode((string) $row['details'], true)]
-                + isoTimes($row, ['created_at']), $rows->fetchAll()),
-        ]);
-    });
+    // Backups: encrypted under the master key, never restored here
+    // (iamBackups()). Made, downloaded and deleted with the proof the account
+    // page asks (the password, or a sign-in of the last 15 minutes), each
+    // audited. The download itself (GET /backups/{id}/file?ticket=) is a
+    // navigation: its single-use ticket is good for one minute, one backup and
+    // the administrator it was issued to - and it sits in this group too, so
+    // the session and the IAM's ADMIN are asked as well.
+    //
+    // The backups' key is derived from the master key, which there is none of
+    // until the IAM is set up: then every request is answered 503 by the gate
+    // in front of the routes, and these are not mounted at all.
+    if (iamSetUpProblems() === []) {
+        BackupsRoutes::admin($group, '/backups', iamBackups(), $tools);
+        BackupsRoutes::file($group, '/backups', iamBackups(), $tools, samePerson: true);
+    }
 
     // ── Applications ─────────────────────────────────────────────────────────
 
@@ -1468,8 +1462,10 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
     $translations = static fn(): Translations => iamTranslations();
     $writer = static fn(Request $request): ?int => (int) actor($request)['id'];
+    // A save's or an import's changed mail strings each in an entry of their
+    // own (auditTranslations()): one entry holds at most 64 KB.
     $audited = static function (Request $request, string $action, ?string $type, ?string $id, array $details): void {
-        audit($request, (int) actor($request)['id'], $action, $type, $id, $details);
+        auditTranslations($request, (int) actor($request)['id'], $action, $type, $id, $details);
     };
 
     TranslationsRoutes::strings($group, '', $translations, $writer, translationRefusalAnswer(...), $audited);
@@ -1491,11 +1487,16 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     // database has of them, a file's SQL, and Apply - under this group's
     // checks, which need nothing a pending migration makes (sessions, users,
     // roles are 001's). The CSRF header guards Apply like every write here.
-    MigrationsRoutes::admin($group, '/migrations', static fn(): Migrator => iamMigrator(iamDb()), static function (Request $request, array $result): void {
+    // Apply backs the database up first (iamMigratorWithBackup(): its name is
+    // the answer's `note`), and a backup that cannot be made applies nothing.
+    MigrationsRoutes::admin($group, '/migrations', static fn(): Migrator => iamMigratorWithBackup(), static function (Request $request, array $result): void {
         // A migration may have brought the languages table, or a language.
         languageCodes(null, true);
+        // The audit entries that waited for 018 go in now, with their own times,
+        // and an anonymized account's person out of them at once.
+        flushWaitingAuditEntries(iamDb());
         // The files by the IAM's names for them: a library set's as `set/name`
-        // (iamMigrationLabel()), since the two sets' numbers both start at 001.
+        // (iamMigrationLabel()), since every set's numbers start at 001.
         $label = static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']);
         audit($request, (int) actor($request)['id'], 'migrations.applied', null, null, [
             'applied' => array_map($label, $result['applied']),

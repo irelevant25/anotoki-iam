@@ -68,7 +68,7 @@ final class Translations
 
     public static function notFound(): Refusal
     {
-        return new Refusal(404, 'not_found', 'There is no such language');
+        return new Refusal(404, 'not_found', 'There is no such language.');
     }
 
     // ── Languages ────────────────────────────────────────────────────────────
@@ -116,12 +116,12 @@ final class Translations
     public function createLanguage(mixed $body): array|Refusal
     {
         if (!StringCheck::isMap($body)) {
-            return self::invalidLanguage('Send the language as {code, name, native_name}');
+            return self::invalidLanguage('Send the language as {code, name, native_name}.');
         }
 
         $code = $body['code'] ?? null;
         if (!LanguageCode::ok($code)) {
-            return self::invalidLanguage('A language\'s code is two small letters, or two and two with a dash between: "sk", "pt-br"');
+            return self::invalidLanguage('A language\'s code is two small letters, or two and two with a dash between: "sk", "pt-br".');
         }
         $name = StringCheck::languageName($body['name'] ?? null, 'The name in English', 'name', $this->config, $code);
         if ($name instanceof Refusal) {
@@ -136,12 +136,12 @@ final class Translations
         $enabled = true;
         if (array_key_exists('enabled', $body)) {
             if (!is_bool($body['enabled'])) {
-                return self::invalidLanguage('"enabled" is true or false');
+                return self::invalidLanguage('"enabled" is true or false.');
             }
             $enabled = $body['enabled'];
         }
 
-        $exists = new Refusal(409, 'language_exists', "There is a language \"$code\" already");
+        $exists = new Refusal(409, 'language_exists', "There is a language \"$code\" already.");
 
         $refusal = $this->transaction(function () use ($code, $name, $nativeName, $enabled, $exists): ?Refusal {
             // Whoever adds a language waits here for anybody else who is adding
@@ -197,7 +197,7 @@ final class Translations
             return self::notFound();
         }
         if (!StringCheck::isMap($body)) {
-            return self::invalidLanguage('Send what changes as {name, native_name, enabled, sort_order}');
+            return self::invalidLanguage('Send what changes as {name, native_name, enabled, sort_order}.');
         }
 
         $changes = [];
@@ -215,10 +215,10 @@ final class Translations
 
         if (array_key_exists('enabled', $body)) {
             if (!is_bool($body['enabled'])) {
-                return self::invalidLanguage('"enabled" is true or false');
+                return self::invalidLanguage('"enabled" is true or false.');
             }
             if ($code === self::FALLBACK && !$body['enabled']) {
-                return new Refusal(409, 'fallback_language', 'English cannot be switched off: every other language falls back to it');
+                return new Refusal(409, 'fallback_language', 'English cannot be switched off: every other language falls back to it.');
             }
             if ($body['enabled'] !== self::bool($row['enabled'])) {
                 $changes['enabled'] = $body['enabled'];
@@ -227,7 +227,7 @@ final class Translations
 
         if (array_key_exists('sort_order', $body)) {
             if (!is_int($body['sort_order']) || $body['sort_order'] < 0 || $body['sort_order'] > $this->config->sortOrderMax) {
-                return self::invalidLanguage("The order is a whole number from 0 to {$this->config->sortOrderMax}");
+                return self::invalidLanguage("The order is a whole number from 0 to {$this->config->sortOrderMax}.");
             }
             if ($body['sort_order'] !== (int) $row['sort_order']) {
                 $changes['sort_order'] = $body['sort_order'];
@@ -265,7 +265,7 @@ final class Translations
             return self::notFound();
         }
         if ($code === self::FALLBACK) {
-            return new Refusal(409, 'fallback_language', 'English cannot be deleted: every other language falls back to it');
+            return new Refusal(409, 'fallback_language', 'English cannot be deleted: every other language falls back to it.');
         }
         if (in_array($code, $this->config->releasedLanguages, true)) {
             return new Refusal(409, 'seeded_language', 'This language is one the site is released in: every update brings strings for it, and would fail without it. Switch it off instead.');
@@ -478,7 +478,11 @@ final class Translations
      * A language's strings back in, from a flat {key: text}: the same checks as a
      * save. An empty string is a key nobody has translated yet - as an export
      * filled in by hand leaves it - and is passed over: an import deletes nothing,
-     * English included. A key the site does not have is refused, empty or not.
+     * English included. A key the site does not have is refused (unknown_key),
+     * empty or not - a number too: an object whose keys are numbers ({"0": …})
+     * reaches PHP as a list, and a list's items are numbered, so either is keys no
+     * site has, never a body of another shape. Anything but an array is refused
+     * as one (invalid_value).
      *
      * @return array{languages: list<string>, count: int, keys: list<string>, more_keys?: int}|Refusal what save() answers
      */
@@ -487,8 +491,8 @@ final class Translations
         if (!LanguageCode::ok($code) || $this->row($code) === null) {
             return self::notFound();
         }
-        if (!StringCheck::isMap($body)) {
-            return Refusal::invalid('invalid_value', 'Send the strings as one flat object: {key: text}');
+        if (!is_array($body)) {
+            return Refusal::invalid('invalid_value', 'Send the strings as one flat object: {key: text}.');
         }
 
         $values = [];

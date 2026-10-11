@@ -12,9 +12,11 @@ description: >
 `backend/migrations/iam/NNN_name.sql`, the next free number, a short snake_case
 name. The engine - the anotoki family's, anotoki/lib's `Migrator`, wired in
 `backend/api/migration_runner.php` (`iamMigrator()`) - applies each file in one
-transaction and records it, the IAM's files first and then the library's
-translations set (`anotoki_translations`, which a file here never depends on,
-and which never depends on one here); the same engine runs from the CLI, from `setup.php`
+transaction and records it: the library's admin set first (`anotoki_admin`:
+the admin tools' tables - a file here may move rows into them, as 018 moved
+the audit log, since they are there before it), then the IAM's files, then the
+library's translations set (`anotoki_translations`, which a file here never
+depends on, and which never depends on one here); the same engine runs from the CLI, from `setup.php`
 (every time it saves) and from the admin panel's Migrations page, one apply at
 a time, so a file must work unattended on a host with no shell. The IAM keeps
 answering while a file waits (it does not block, unlike the other sites), so
@@ -112,8 +114,8 @@ runs after the IAM's files.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
   that no migration wrote. It also counts what the migrations leave (after
-  017 and the library's set: 585 keys - 483 of the pages, 48 of the mails, 54
-  of the library's - 1170 strings): a migration that adds or removes keys
+  018 and the library's sets: 625 keys - 483 of the pages, 48 of the mails, 94
+  of the library's - 1250 strings): a migration that adds or removes keys
   moves those numbers, and `tests/top-bar-strings.test.php` is the pattern for
   testing one on an installed IAM. A migration test that builds a database
   "up to" its file and applies what is pending applies every later file too

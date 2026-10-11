@@ -18,10 +18,12 @@ const NAV: readonly (ShellNavItem & { icon: IconName })[] = [
   { link: '/admin/announcements', label: 'Announcements', icon: 'send' },
   { link: '/admin/emails', label: 'Email log', icon: 'mail' },
   { link: '/admin/audit', label: 'Audit log', icon: 'history' },
+  { link: '/admin/errors', label: 'Error log', icon: 'alert' },
   { link: '/admin/settings', label: 'Settings', icon: 'sliders' },
   { link: '/admin/translations', label: 'Translations', icon: 'languages' },
   { link: '/admin/languages', label: 'Languages', icon: 'globe' },
   { link: '/admin/keys', label: 'Signing keys', icon: 'key' },
+  { link: '/admin/backups', label: 'Backups', icon: 'layers' },
   { link: '/admin/migrations', label: 'Migrations', icon: 'database' },
 ];
 

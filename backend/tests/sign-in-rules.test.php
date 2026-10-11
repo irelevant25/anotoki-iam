@@ -202,7 +202,7 @@ function surveyMaySignIn(Browser $admin, array $maySignIn): TestResponse
 
 function lastAuditOf(string $action): ?array
 {
-    $statement = iamDb()->prepare('SELECT details FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT 1');
+    $statement = iamDb()->prepare('SELECT details FROM anotoki_audit_log WHERE action = ? ORDER BY id DESC LIMIT 1');
     $statement->execute([$action]);
     $details = $statement->fetchColumn();
 

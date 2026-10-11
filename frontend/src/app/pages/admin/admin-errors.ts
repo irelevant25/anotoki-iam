@@ -14,12 +14,14 @@ export function adminErrorText(error: ApiError): string {
   }
   // Migration 010 not applied yet: the applications pages have no sign-in
   // rules to show until it is. And 012: the approvals have nothing to list;
-  // 013: announcements have nowhere to be kept.
-  if (error.code === 'sign_in_rules_unavailable' || error.code === 'announcements_unavailable') {
+  // 013: announcements have nowhere to be kept; the family's admin tools
+  // (feature_unavailable): a table of theirs waits for its update.
+  if (error.code === 'sign_in_rules_unavailable' || error.code === 'announcements_unavailable' || error.code === 'feature_unavailable') {
     return 'Apply the pending update first: Admin panel → Migrations.';
   }
+  // The server's own failures are in its error log (the family's, Admin panel → Error log).
   if (error.status >= 500 && (!error.message || error.message === 'Internal Server Error')) {
-    return 'Something went wrong on the server. Try again, and check the PHP error log if it keeps happening.';
+    return 'Something went wrong on the server. Try again - if it keeps happening, the Error log says what failed.';
   }
   return error.message || 'The request failed.';
 }

@@ -1313,7 +1313,7 @@ interface AdminUserDetail {
 | `DELETE /api/admin/sessions/{id}` | ends it and its refresh tokens; the administrator's own, from this browser, is answered as a sign-out (the session cookie and the sign-in hint cleared) |
 | `GET /api/admin/emails?kind=&status=&recipient=&from=&to=&page=` | `{ total, page, pageSize, items: EmailLogEntry[] }` |
 | `GET /api/admin/emails/filters` | `{ kinds, statuses }` |
-| `GET /api/admin/audit?actor=&action=&target_type=&page=` | `{ total, page, pageSize, items: AuditEntry[] }` |
+| `GET /api/admin/audit?actor=&action=&target_type=&...&page=` | `{ total, page, pageSize, items: AuditEntry[] }` - the anotoki library's route since 0.4 (below, "The admin tools") |
 | `GET /api/admin/stats` | `{ users, disabled, admins, active_sessions, applications, signins_24h, failed_24h, emails_24h, awaiting_approval }` - `admins`: switched on and not on their way out (a pending deletion); `disabled` includes the deleted accounts; the last: accounts waiting for approval and switched on (0 while 012 is pending) |
 
 `AdminSession` is a `SessionEntry` plus `user_id`, `username`, `email`.
@@ -1323,7 +1323,9 @@ the kinds of migration 016 are `account_deletion_requested`,
 account's placeholder address and no `user_id`: the log keeps no address of
 a deleted account, and every other row of it goes with the account) and
 `new_sign_in`, each logged with its subject.
-`AuditEntry` is `{ id, actor_id, actor_username, action, target_type, target_id, details, ip, created_at }`;
+`AuditEntry` is `{ id, actor_id, actor_username, action, target_type, target_id, details, ip, created_at }`
+and, since the log is the library's (migration 018), `actor_session`, `scope_type`, `scope_id` - always
+null here ("The admin tools" below);
 016 adds `account.deletion_requested` (`{ due, proof }`),
 `account.deletion_cancelled` and `account.anonymized` (`{ requested_at }`,
 by nobody).
@@ -1598,7 +1600,7 @@ and `error` (and `placeholder` where it is about one, `keys` for unknown keys):
 | `code` | |
 | --- | --- |
 | `invalid_value` | not `{ key: { language: text } }` (an import: not a flat object); a value that is not text; a page's string over 2,000 characters; a mail's string with a line break or a tab; a mail's string with a character that turns the direction of the text - U+202A-202E, U+2066-2069, U+200E, U+200F, U+061C - or a C1 control (U+0080-009F): the panel checks a string in the order it is stored, a mail program shows it in the order those say (`moc.live//:sptth` after a right-to-left override reads as an address); a mail subject over 150 characters or another mail string over 400; a mail string of more bytes than one line of mail may have - 900, less 400 for every `{username}` in a greeting (the longest name there can be, kept for each: 500 with one, 100 with two, none with three), and less 10 for every `{date}` |
-| `unknown_key` | a key the IAM does not have, empty or not (with `keys`: every such key sent) |
+| `unknown_key` | a key the IAM does not have, empty or not (with `keys`: every such key sent) - a key that is a number among them, so a JSON list (`["Save", "Close"]`) or `{"0": ...}` is refused so (anotoki-lib 0.4.0; an empty list or a body that is no object stays `invalid_value`) |
 | `unknown_language` | a language the IAM does not have |
 | `fallback_required` | a blank English string: every other language falls back to it |
 | `invalid_placeholder` | a `{` or `}` that is not part of a `{placeholder}`, in any string: `{ count }`, `{počet}`, `{count`, `{{count}}` |
@@ -1618,8 +1620,13 @@ which the server writes on lines of their own.
 The audit log records `language.created` (`name`, `native_name`, `enabled`),
 `language.updated` (what changed), `language.deleted` (`name`, `accounts`,
 `strings`), `translations.saved` and `translations.imported` (the languages,
-how many strings changed, the first hundred keys, and every changed `mail.`
-string's old and new text whole).
+how many strings changed, the first hundred keys, and `mail_changed`: how many
+`mail.` strings changed) - and every changed `mail.` string's old and new
+text whole in an entry of its own, `translations.mail_changed` (target
+`translation` and the key; `{ language, old, new, part_of, via? }` - `part_of`
+the save or import it belongs to, `via: "command line"` for the command
+line's). One entry keeps at most 64 KB of details, so a save of many long mail
+strings - padded on purpose, say - still keeps every one of them.
 
 ### Settings, keys, migrations
 
@@ -1631,8 +1638,8 @@ string's old and new text whole).
 | `POST /api/admin/keys/rotate` | a new active key; the old one is retired but stays in the JWKS a day |
 | `DELETE /api/admin/keys/{kid}` | drops a retired key from the JWKS |
 | `GET /api/admin/migrations` | `MigrationsStatus` (below) |
-| `GET /api/admin/migrations/file?set={iam\|anotoki_translations}&name={file}` | `{ set, name, sql }` - the file's SQL as it is on disk |
-| `POST /api/admin/migrations/apply` | `ApplyResult` (below) |
+| `GET /api/admin/migrations/file?set={anotoki_admin\|iam\|anotoki_translations}&name={file}` | `{ set, name, sql }` - the file's SQL as it is on disk |
+| `POST /api/admin/migrations/apply` | `ApplyResult` (below) - a backup of the database first |
 
 Settings: `login_enabled`, `registration_enabled`, `registration_approval`
 (since migration 012; off by default), `google_login_enabled` (booleans). A save
@@ -1644,19 +1651,28 @@ every anotoki site; the admin panel's Migrations page is the family's page,
 `@anotoki/lib/migrations`), under this group's checks: the session, the IAM's
 `ADMIN` - none of which needs a table a pending migration makes - and the CSRF
 header on Apply. The engine applies the files the IAM has not recorded yet, in
-order - those of `migrations/iam`, then the anotoki library's translations set
-(`anotoki_translations`, in `vendor/anotoki/lib/php/migrations/translations`:
-the tables of the words proved, and the library's own words) - each in a
-transaction of its own with its record in the `migrations` table, and stops at
-the first that fails (rolled back whole: the files after it never run, the
-library's included). The table keeps the IAM's files by their names and a
-library set's as `set/name` (`anotoki_translations/001_languages_and_strings.sql`).
+order - the anotoki library's admin set (`anotoki_admin`, in
+`vendor/anotoki/lib/php/migrations/admin`: the tables of the admin tools - the
+audit log, and feedback, which the IAM does not use), those of
+`migrations/iam`, then the library's translations set (`anotoki_translations`,
+in `vendor/anotoki/lib/php/migrations/translations`: the tables of the words
+proved, and the library's own words) - each in a transaction of its own with
+its record in the `migrations` table, and stops at the first that fails
+(rolled back whole: the files after it never run, the library's included). The
+table keeps the IAM's files by their names and a library set's as `set/name`
+(`anotoki_admin/001_audit_log.sql`, `anotoki_translations/001_languages_and_strings.sql`).
 One apply at a time, whoever starts it - this page, `php migration.php`, the
 installer: each takes the same lock.
 
+Apply - here and `php migration.php` - first makes a backup of the database as
+it is (a `before-migration` backup, "Backups" below; once for each list of
+pending files, none on a database with nothing applied yet), and names it in
+`note`. A backup that cannot be made applies nothing: `failed` is null, `error`
+says why.
+
 ```ts
 interface MigrationsStatus {
-  sets: string[];   // ['iam', 'anotoki_translations']: the IAM's files, then the library's translations set
+  sets: string[];   // ['anotoki_admin', 'iam', 'anotoki_translations']: the library's admin set, the IAM's files, the library's translations set
   applied: { set: string; name: string; applied_at: string | null }[];  // recorded and on disk, in the order they ran; ISO 8601 UTC
   pending: { set: string; name: string; ready: boolean; blocked: boolean }[];  // in the order they will run; the IAM has no drafts: ready true, blocked false
   missing: { set: string; name: string; applied_at: string | null }[];  // recorded as applied, but the file is not there
@@ -1665,8 +1681,8 @@ interface MigrationsStatus {
 interface ApplyResult {
   applied: { set: string; name: string }[];
   failed: { set: string; name: string } | null;  // the file that stopped the run
-  error: string | null;  // "statement N of M: <what PostgreSQL said>" and the statement's first six lines
-  note: string | null;   // always null here
+  error: string | null;  // "statement N of M: <what PostgreSQL said>" and the statement's first six lines; or why the backup before it could not be made
+  note: string | null;   // "A backup of the database as it was is <id>." - null when nothing was applied before
 }
 ```
 
@@ -1678,6 +1694,173 @@ interface ApplyResult {
 - Every apply that was not busy is audited, `migrations.applied`, with
   `{ applied: string[], failed: string | null, error: string | null }` (the
   files' names - a library set's as `set/name`) - one with nothing to apply too.
+  The audit entries that waited for migration 018 go in before it, with their
+  own times ("The admin tools" below).
+
+### The admin tools: audit log, error log, backups
+
+The anotoki family's (anotoki-lib 0.4; `docs/decisions.md`, 2026-10-11): the
+same routes and answers on every anotoki site, the admin panel's Audit log,
+Error log and Backups pages drawing them (`@anotoki/lib/admin/*`). Here they
+sit inside the admin group - the session, the IAM's `ADMIN` (not while one's
+own deletion is pending), the CSRF header on every write - and each group asks
+the library's own ADMIN check besides, the same rule, so that one mounted
+anywhere else would let nobody in either. Refusals are in the IAM's body,
+`{ error, code }`.
+
+#### Audit log
+
+| Method + path | |
+| --- | --- |
+| `GET /api/admin/audit?actor=&action=&target_type=&target_id=&scope_type=&scope_id=&from=&to=&page=` | `{ total, page, pageSize: 50, items: AuditEntry[] }`, newest first |
+| `GET /api/admin/audit/facets` | `{ actions: string[], target_types: string[], scope_types: string[], actors: { id, username }[] }` - the page's choices, at most 500 of each |
+
+- `actor`: an id (digits alone), or a part of a username, regardless of case;
+  `action`: its beginning (`account.` finds every `account.*`; `%` and `_` are
+  characters like any other); `from`, `to`: a date (`to` is the whole of its
+  day) or an ISO 8601 time. A filter that is none is no filter.
+- `503 { code: "feature_unavailable" }` (`Retry-After: 60`) until the library's
+  table and migration 018 are there: the entries recorded meanwhile wait in a
+  file and go in after the Apply, with their own times.
+
+```ts
+interface AuditEntry {
+  id: number;
+  created_at: string;            // ISO 8601 UTC, to the millisecond
+  actor_id: number | null;       // the account that acted; null: nobody (housekeeping, the command line, a link followed)
+  actor_username: string | null; // its username as it is now - an anonymized account's placeholder
+  action: string;                // area.verb: user.roles_set, account.deletion_requested, backup.created, ...
+  target_type: string | null;
+  target_id: string | null;
+  details: unknown;              // what changed, as the action records it
+  ip: string | null;             // the requester's address (requestIp(): the trusted proxy's header from a trusted proxy)
+  actor_session: string | null;  // the library's three: always null here
+  scope_type: string | null;
+  scope_id: string | null;
+}
+```
+
+Every admin change and security-relevant self-service change is an entry (the
+actions are under each area above); the tools add `errors.cleared`
+(`{ files, before? }`), `backup.created` (`{ kind, size, tables, rows,
+encrypted, description? }` - by nobody for the daily backup and the one before
+an update), `backup.downloaded` and `backup.deleted` (`{ kind, size }`).
+`legacy.imported` and `user.password_reset_cli` are by nobody, from no
+address. When an account is deleted its person is taken out of the log by the
+IAM's rules ("Deleting the account"): no address on its own entries or on those
+about it nobody else made, its names and addresses out of the details of what
+was about it, a personal token's name - an administrator's address on an
+administrator's entry stays.
+
+#### Error log
+
+| Method + path | |
+| --- | --- |
+| `GET /api/admin/errors?days=&level=&status=&search=` | `ErrorLogReport` - `days` 1 to 30 (7) |
+| `GET /api/admin/errors/{fingerprint}?days=&level=&status=&search=` | every occurrence of one kind (`ErrorLogEntry[]`); `404 not_found` for none |
+| `DELETE /api/admin/errors?before=YYYY-MM-DD` | `{ deleted }` - the files gone: every day's, or (with `before`, a UTC date) the days before it; `422 date_invalid` for anything else; audited `errors.cleared` |
+
+What fails is written down in `storage/logs/errors-YYYY-MM-DD.jsonl` (UTC
+days, 30 kept, 64 MB at most, a hundred lines of one kind a day), one JSON line
+an event: an exception the IAM answered (with its status and code), an answer
+worth seeing (every 5xx, 404, 405, 413, 415, 429), PHP's warnings and fatal
+errors. Never a query string, a header, a cookie, a body, a token or the
+session; a message only redacted - the library's rules (`password=` and its
+kin, Bearer credentials, JWTs, runs of a token's alphabet, e-mail and IP
+addresses, PostgreSQL's DETAIL), and before them the IAM's own names
+(`iamRedactSecrets()`: its session and device cookies, `iam_rt_` and `iam_pat_`
+tokens, a current or new password, a remembered device's token, a code, a
+recovery code, a two-factor secret, Google's credential); a trace without a
+call's arguments; the address as a keyed hash of it (12 hex), never itself.
+Requests to these routes are never written into it. The IAM mounts no route
+for the pages' own errors.
+
+```ts
+interface ErrorLogEntry {
+  v: number; at: string;                           // ISO 8601 UTC, to the millisecond
+  source: 'server' | 'php'; level: 'error' | 'warning' | 'notice';
+  status: number; type: string; code: string | null; message: string;
+  file: string | null; line: number | null;        // relative to backend/
+  method: string | null; route: string | null; path: string | null;
+  user_id: number | null; client: string | null;   // 12 hex of a keyed hash of the address
+  trace: string[] | null; fingerprint: string;     // 12 hex: one kind of failure
+}
+interface ErrorLogReport {
+  total: number; errors: number; warnings: number; notices: number; distinct: number;
+  truncated: boolean;                              // more lines than the 2,000 newest read
+  days: string[]; daily: { key: string; errors: number; warnings: number; notices: number }[];
+  statuses: { key: string; errors: number; warnings: number; notices: number }[];
+  groups: { fingerprint: string; level: string; status: number; type: string; code: string | null; message: string;
+            file: string | null; line: number | null; route: string | null; source: string;
+            count: number; first_at: string; last_at: string; paths: string[]; latest: ErrorLogEntry }[];
+  dropped: Record<string, number>;                 // lines only counted, by UTC date
+}
+```
+
+#### Backups
+
+| Method + path | |
+| --- | --- |
+| `GET /api/admin/backups` | `{ backups: BackupInfo[], status: BackupsStatus }`, newest first |
+| `GET /api/admin/backups/proof` | `{ kind: 'password' \| 'recent_sign_in' }` - what the page asks for |
+| `POST /api/admin/backups` | `{ description?, password? }` → `201 { backup: BackupInfo }`; audited `backup.created` |
+| `GET /api/admin/backups/{id}` | `{ backup: BackupInfo }`, with its tables |
+| `DELETE /api/admin/backups/{id}` | `{ password? }` → `{ deleted: true }`; audited `backup.deleted` |
+| `POST /api/admin/backups/{id}/ticket` | `{ password? }` → `{ url, expires_in: 60 }`; audited `backup.downloaded` |
+| `GET /api/admin/backups/{id}/file?ticket=` | the file, as an attachment: `application/octet-stream`, `Content-Disposition: attachment; filename="iam-{id}.anotoki-backup"`, `no-store`, `nosniff`, `no-referrer`; `403 ticket_invalid` |
+| `GET /api/admin/backups/{id}/preview` | what a restore would take away, table by table - `restorable: false` here, with the reason |
+| `POST /api/admin/backups/{id}/restore` | `403 restore_disabled`, always: restoring is switched off on the IAM |
+
+- **The proof**, for a backup made, downloaded or deleted - the account page's
+  ("The proof a session alone cannot give"): the administrator's password where
+  it is a way in (`password`), else a sign-in of the last 15 minutes. `422
+  wrong_password` (counted by the sign-in limiter, as `admin_backup` in the
+  person's sign-in attempts), `403 reauthentication_required`, `429
+  too_many_attempts`. A body is JSON - nothing, or an object.
+- **Encrypted**, every one: AES-256-GCM in chunks under a key derived from the
+  master key (HKDF, `anotoki-lib/iam-backup/v1`, a fresh salt each) - its rows
+  never in the clear on the disk, not even while it is made. A backup holds
+  every table: every account's password hash, the two-factor secrets and
+  signing keys (under the master key besides), every hash of a session and a
+  token. Without the master key a downloaded one opens nothing
+  (`php backup.php`, `docs/operations.md`).
+- **Never restored here** (`status.restore_enabled: false`): an IAM put back
+  as it was would bring back revoked tokens and sessions, old passwords,
+  removed roles and deleted people (`docs/decisions.md`, 2026-10-11).
+- **The ticket** is good once, for a minute, for that backup and the
+  administrator it was issued to - and the route sits in the admin group, so
+  the session and the IAM's `ADMIN` are asked as well. The page navigates to
+  `url` (the browser writes the file to disk); used, expired, of another backup
+  or another administrator, it is `403 ticket_invalid`, spent by the try.
+- **Kinds**: `daily` (the first housekeeping of a UTC day, made after the
+  answer, while nothing waits to be applied; 14 kept), `before-migration`
+  (Apply's, above; 5 kept), `manual` (until deleted; `stale` after 90 days).
+  Only files of the library's own names are ever deleted. `409 busy` while
+  another backup or an Apply runs, `507 no_space` when the disk has less than
+  twice the last backup free.
+
+```ts
+interface BackupInfo {
+  id: string;                    // YYYYMMDD-HHMMSSZ-<kind>-<32 hex>
+  site: 'iam'; kind: 'daily' | 'manual' | 'before-migration' | 'before-restore';
+  created_at: string; library_version: string | null;
+  encrypted: true; status: string; file: string;
+  size: number;                  // bytes on disk
+  created_by: number | null;     // the administrator; null for the daily and the before-migration ones
+  description: string | null;
+  table_count: number; rows: number; sequences: number; duration_ms: number;
+  stale: boolean;                // a manual one kept for more than 90 days
+  restorable: boolean;           // false here
+  tables?: { name: string; rows: number; bytes: number }[];  // GET {id} alone
+}
+interface BackupsStatus {
+  directory_writable: boolean; free_bytes: number | null; last_daily: string | null;
+  copy_available: boolean; encrypted: true; cipher_available: boolean;
+  restore_enabled: false; restorable: false; problems: string[];
+  count: number; total_bytes: number; database_bytes: number | null;
+  schema: { migrations_sha256: string; columns_sha256: string } | null;
+}
+```
 
 ### Public
 

@@ -310,7 +310,7 @@ $required = anotoki_iam_login_required($config, $reason); // bool; $reason is fo
   a minute. The whole table, and why `cache_dir` must be the site's own folder:
   `sdk/README.md`.
 - **The server decides, the frontend follows.** The site relays the answer to
-  its own frontend as `loginRequired` in its public configuration (the
+  its own frontend as `login_required` in its public configuration (the
   survey's `/api/auth/config`), so the browser never asks the IAM; the
   frontend's use of it only spares people a page that would refuse them.
 - In tests, `'application_file'` replaces asking the IAM, as `jwks_file`
@@ -398,8 +398,9 @@ only option." The study apps' old mode with sign-in switched off - one
 configured user with every role, on this computer only - goes from each of
 them; on a development machine every site signs in through a locally running
 IAM, as the genshin and survey sites always have (each site's `DEV.md`). A
-site's own tests sign in through a stand-in IAM instead (the survey's
-`backend/tests/tools/fake-iam.php` is the pattern).
+site's own tests sign in through a stand-in IAM instead (the anotoki
+library's `Anotoki\Lib\Auth\Testing\StandInIam` since 0.4, which every site
+uses).
 
 ## 5. Scripts
 

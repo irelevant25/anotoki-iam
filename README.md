@@ -22,8 +22,9 @@ runs as its own subdomain.
   accounts can be made to wait for an administrator's approval -,
   announcements (news mailed to everybody, the holders of some roles or some
   people, from a template, in every language), signing keys, migrations (the
-  anotoki family's Migrations page), an
-  audit log of every change - and the words: every sentence of the sign-in
+  anotoki family's Migrations page), the family's admin tools - an audit log
+  of every change, an error log, and backups of the database, encrypted under
+  the master key and never restored in place - and the words: every sentence of the sign-in
   and account pages, of the IAM's own mails and of the announcements' templates is
   a string in the database, reworded there, and a new language is added
   there, with no build. English and Slovak come with it.
@@ -81,7 +82,7 @@ fixed port it is registered with:
   the genshin site, and every administrator there when 007 ran - a grant at
   those moments: promoting or removing an administrator later changes no
   site's roles. 007 goes on an installed IAM after the sites are updated.
-- Migrations 001-016, applied by the engine every anotoki site shares - the
+- Migrations 001-018, applied by the engine every anotoki site shares - the
   family's library, anotoki-lib (`anotoki/lib` in `backend/vendor/`,
   `@anotoki/lib` in the frontend); an installed IAM gets the later ones through
   the admin panel's Migrations page (or setup.php / `php migration.php` on

@@ -28,6 +28,9 @@ call exactly those endpoints and must handle exactly those refusal codes.
   (`migrations/migrations.config.ts`, `@anotoki/lib/migrations`: the admin
   Migrations page, the update line in the admin layout, the not-set-up page's
   `<anotoki-site-status>` - no gate, the IAM never blocks), the family's
+  admin tools wired in (`admin/admin-tools.config.ts`, `@anotoki/lib/admin`:
+  the IAM's ADMIN, the Users page for a person the logs name, the account's
+  dates, Migrations), the family's
   translations wired in (`@anotoki/lib/translations`;
   `i18n/translations.config.ts`: the IAM's storage names, the compiled
   English, the account - its language decides while signed in, a choice is
@@ -47,6 +50,15 @@ call exactly those endpoints and must handle exactly those refusal codes.
   per language, the panel's failure texts. The pages call `reload()`
   themselves after a change; drafts and the unsaved-changes guard are the
   library's (`anotokiUnsavedChangesGuard`, the announcement pages' too).
+- `frontend/src/app/pages/admin/admin-tools.ts` - the admin panel's part of
+  the family's admin tools (`@anotoki/lib/admin/errors`, `/audit`, `/backups`,
+  lazy routes in `admin.routes.ts`, which hand it over as the panel loads, as
+  they do the localization): a refusal in `adminErrorText()`'s words, "Sign in
+  again" for the proof a session alone cannot give (signs out, back to the
+  page; a failed sign-out is a toast), why restoring is off. The pages are
+  the library's (their requests go through the IAM's interceptor: the CSRF
+  header, an ended session to the sign-in page); a change to one goes to the
+  library. `core/admin/admin-tools.config.spec.ts` draws them for real.
 - The UI kit is the anotoki family's, a piece an entry point - import each
   from its own (`@anotoki/lib/ui/button`, `/config`, `/icon`, fields in
   `ui/forms`, `ui/dialog`, `ui/toast`, ...), never from the `@anotoki/lib/ui`

@@ -410,9 +410,11 @@ const FIRST_PARTY_SITES = ['build-analyzer', 'genshin', 'japanese-academy', 'pia
 // a test builds its databases exactly as the command line, the installer and
 // the admin panel do, and reads as it did. Answers carry the files by the
 // IAM's names for them (iamMigrationLabel()): one of migrations/iam by its
-// name ('016_x.sql'), one of the library's translations set, which runs after
-// them, as `set/name` ('anotoki_translations/001_languages_and_strings.sql')
-// - the engine's own are {set, name} pairs.
+// name ('016_x.sql'), one of the library's sets - its admin set, which runs
+// before them, and its translations set, which runs after them - as
+// `set/name` ('anotoki_admin/001_audit_log.sql',
+// 'anotoki_translations/001_languages_and_strings.sql') - the engine's own are
+// {set, name} pairs.
 
 /** The engine's answer to an apply, as the tests read it: the files' names, and the failed one's. */
 function migrationResult(array $result): array
@@ -479,8 +481,9 @@ function applyPendingMigrations(PDO $pdo, string $set = 'iam'): array
  * the engine (its `ready` hook), which it never applies. A migration's own
  * test asserts the state its file leaves - "apply what is pending" would apply
  * every later file too, and a later one (010's MEMBER for everyone) rewrite it.
- * "After" is in the order the files run: through one of migrations/iam, none
- * of the library's translations set, which comes after them all.
+ * "After" is in the order the files run: through one of migrations/iam, the
+ * library's admin set before them all, none of its translations set, which
+ * comes after them all.
  *
  * @return array{applied: string[], failed: ?string, error: ?string}
  */
@@ -504,7 +507,9 @@ function applyMigrationsThrough(PDO $pdo, string $lastFile): array
 /**
  * Applies one file, the next one pending, whole or not at all; throws when it
  * fails - or when it is not the next one, which the engine would not apply on
- * its own either.
+ * its own either. The library's admin set runs before the IAM's files
+ * (anotoki_admin, iamMigrationSets()): building an IAM a file at a time
+ * applies it with the first of them, and nothing else may come along.
  */
 function applyMigration(PDO $pdo, string $set, string $file): void
 {
@@ -513,7 +518,9 @@ function applyMigration(PDO $pdo, string $set, string $file): void
     if ($result['failed'] !== null) {
         throw new RuntimeException("{$result['failed']}: {$result['error']}");
     }
-    if ($result['applied'] !== [$file]) {
+    $before = array_slice($result['applied'], 0, -1);
+    $libraryFirst = array_filter($before, static fn(string $name): bool => str_starts_with($name, 'anotoki_admin/'));
+    if (end($result['applied']) !== $file || count($libraryFirst) !== count($before)) {
         throw new LogicException("{$file} is not the next migration to apply - applied " . json_encode($result['applied']));
     }
 }

@@ -27,6 +27,10 @@
  *     went - a session, a token, a mail logged, an audit entry's IP or name
  *     (anonymizedLeftovers()), at every run.
  *
+ * And what is made: the day's backup of the database, queued by the first run
+ * of a UTC day and made after the answer (iamBackups(), the library's daily -
+ * 14 kept, encrypted).
+ *
  * What stays: sessions, the mail log and the audit log, which are history and
  * the reason anybody can answer "when did this happen". Of a deleted
  * account's person, nothing: the anonymization takes what was there, and the
@@ -75,10 +79,30 @@ function iamHousekeeping(): void
         error_log('[housekeeping] ' . $e->getMessage());
     }
 
+    // Audit entries that waited for migration 018 and found no Apply to take
+    // them in (one run by the installer, say): in, once it has run - before
+    // the deletions below, whose sweep then finds them in the log - and the
+    // anonymized accounts' people out of them at once.
+    try {
+        flushWaitingAuditEntries($pdo);
+    } catch (\Throwable $e) {
+        iamRecordError($e);
+    }
+
     // Apart from the sweep, so neither stops the other.
     try {
         anonymizeDueAccounts($pdo);
     } catch (\Throwable $e) {
         error_log('[housekeeping] the accounts due for deletion: ' . $e->getMessage());
+    }
+
+    // The day's backup (api/admin_tools.php): queued by the first run of a
+    // UTC day, made after the answer by the library's runner - one process,
+    // skipped while an update waits; a failure on the Error log page, never on
+    // the page that carried it.
+    try {
+        iamBackups()->dailyIfDue();
+    } catch (\Throwable $e) {
+        iamRecordError($e);
     }
 }

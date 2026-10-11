@@ -39,6 +39,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/lib.php';
 
+use Anotoki\Lib\Audit\AuditLog;
 use Anotoki\Lib\Support\Refusal;
 use Anotoki\Lib\Translations\Cli\EnglishDictionary;
 use Anotoki\Lib\Translations\Cli\KeyScanner;
@@ -228,16 +229,32 @@ function ordered(mixed $value): mixed
 /** The newest audit row of an action: [actor_id, target_type, target_id, details (ordered())] - or null. */
 function lastAudit(string $action): ?array
 {
-    $statement = iamDb()->prepare('SELECT actor_id, target_type, target_id, details FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT 1');
+    $statement = iamDb()->prepare('SELECT actor_id, target_type, target_id, details FROM anotoki_audit_log WHERE action = ? ORDER BY id DESC LIMIT 1');
     $statement->execute([$action]);
     $row = $statement->fetch();
 
     return $row ? [$row['actor_id'] === null ? null : (int) $row['actor_id'], $row['target_type'], $row['target_id'], ordered(json_decode((string) $row['details'], true))] : null;
 }
 
+/**
+ * The newest translations.mail_changed entry - a changed mail string, in an entry of its own
+ * (auditTranslations()) - as the save's summary used to carry it: ordered([key, language, old, new]).
+ */
+function lastMailChange(): ?array
+{
+    $row = iamDb()->query("SELECT target_type, target_id, details FROM anotoki_audit_log WHERE action = 'translations.mail_changed' ORDER BY id DESC LIMIT 1")->fetch();
+    if (!$row) {
+        return null;
+    }
+    $details = (array) json_decode((string) $row['details'], true);
+    same('translation', $row['target_type'], 'a mail string\'s entry is about a translation');
+
+    return ordered(['key' => $row['target_id'], 'language' => $details['language'] ?? null, 'old' => $details['old'] ?? null, 'new' => $details['new'] ?? null]);
+}
+
 function auditCount(string $action): int
 {
-    $statement = iamDb()->prepare('SELECT count(*) FROM audit_log WHERE action = ?');
+    $statement = iamDb()->prepare('SELECT count(*) FROM anotoki_audit_log WHERE action = ?');
     $statement->execute([$action]);
 
     return (int) $statement->fetchColumn();
@@ -529,7 +546,9 @@ test('before 006 is applied the IAM still runs: config, discovery, a site\'s sig
         // 006 is pending, every migration written after it (007 on), and the library's set after them.
         $fromStrings = array_slice(migrationFiles(), array_search(STRINGS_MIGRATION, migrationFiles(), true));
         same(STRINGS_MIGRATION, $fromStrings[0] ?? null, 'the first of what is pending is 006');
-        same(['anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'], array_slice($fromStrings, -2), 'and the library\'s two files the last');
+        $libraryFiles = array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_translations/')));
+        same(['anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'], array_slice($libraryFiles, 0, 2), 'the library\'s translations set: its tables, then its words');
+        same($libraryFiles, array_slice($fromStrings, -count($libraryFiles)), 'and its files the last');
         same($fromStrings, migrationNames($admin->get('/api/admin/migrations')->json()['pending'] ?? []), '006 and what came after it are what is pending');
 
         $applied = $admin->post('/api/admin/migrations/apply');
@@ -572,7 +591,7 @@ test('the two languages the IAM is released in, and every key - the IAM\'s and t
         'the languages'
     );
     $library = count(LibraryWords::keys());
-    same(54, $library, 'the library\'s words: 54 keys (anotoki_translations/002)');
+    same(94, $library, 'the library\'s words: 94 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 - and 004 - the feedback form\'s 31)');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the IAM\'s own: 483 keys of the pages and 48 of the mails');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'and the library\'s beside them');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('en')), 'each has an English string');
@@ -1163,7 +1182,7 @@ test('a code that is not one is 404, and the database never hears of it', functi
     $visitor = new Browser('10.9.1.2');
     foreach (['EN', 'Sk', 'e', 'eng', 'en-', 'en-GB', 'en_gb', 'en-gbr', 'sk%0A', '%20sk', 'sk%27', '%FF', '%C3%28', 'en.json'] as $code) {
         $answer = $visitor->get("/api/translations/$code");
-        same([404, 'not_found', 'There is no such language'], [$answer->status, $answer->code(), $answer->json()['error'] ?? null], $code);
+        same([404, 'not_found', 'There is no such language.'], [$answer->status, $answer->code(), $answer->json()['error'] ?? null], $code);
     }
     same(404, $visitor->get('/api/translations/en/more')->status, 'nothing under a language');
     same(404, $visitor->get('/api/translations')->status, 'there is no list of its own: the bundle carries it');
@@ -1558,7 +1577,7 @@ test('saving strings: all of it is checked before any of it is written, and each
         ['common.passwordHint', 'en', '{{count}} characters or more.', 'like {count}:'],
         ['common.passwordHint', 'sk', 'Aspoň {počet} znakov.', 'like {count}:'],
         ['login.continueTo', 'sk', 'Prihlás sa a pokračuj do { app }', 'like {app}:'],
-        ['common.save', 'sk', 'Uložiť }', 'that is not part of a placeholder'],
+        ['common.save', 'sk', 'Uložiť }', 'a brace belongs only around a placeholder'],
     ] as [$key, $code, $text, $says]) {
         $refused = save($admin, [$key => [$code => $text]]);
         same([422, 'invalid_placeholder', $key, $code], [$refused->status, $refused->code(), $refused->json()['key'] ?? null, $refused->json()['language'] ?? null], "$key ($code): $text");
@@ -1714,16 +1733,17 @@ test('a mail\'s words through the panel: reworded, refused - and every change re
     $intro = 'Niekto chce k tomuto účtu nové heslo. Otvor odkaz nižšie a zvoľ si ho:';
     same(200, save($admin, ['mail.reset.intro' => ['sk' => $intro], 'common.save' => ['sk' => 'Ulož']])->status, 'a mail string and a page string');
     same([$adminId, null, null, ordered([
-        'languages' => ['sk'], 'count' => 2, 'keys' => ['common.save', 'mail.reset.intro'],
-        'mail' => [['key' => 'mail.reset.intro', 'language' => 'sk', 'old' => seeded('sk')['mail.reset.intro'], 'new' => $intro]],
-    ])], lastAudit('translations.saved'), 'the mail string with its old and its new text; the page string by name only');
+        'languages' => ['sk'], 'count' => 2, 'keys' => ['common.save', 'mail.reset.intro'], 'mail_changed' => 1,
+    ])], lastAudit('translations.saved'), 'the save: the page string by name only, and how many mail strings changed');
+    same(ordered(['key' => 'mail.reset.intro', 'language' => 'sk', 'old' => seeded('sk')['mail.reset.intro'], 'new' => $intro]), lastMailChange(), 'the mail string with its old and its new text, in an entry of its own');
+    same([$adminId, 'translations.saved'], [lastAudit('translations.mail_changed')[0], lastAudit('translations.mail_changed')[3]['part_of'] ?? null], 'by the administrator, part of the save');
     sendPasswordResetMail(['id' => null, 'username' => 'Anna', 'email' => 'reworded@example.test', 'language' => 'sk'], str_repeat('cd', 32));
     check(str_starts_with(lastMailTo('reworded@example.test')['body'], "Ahoj Anna,\n\n$intro\n\n" . TEST_ISSUER . '/reset-password?token='), 'the next reset says it');
 
     // The log keeps a mail string whole: what it keeps is as long as the panel lets one be.
     $long = str_repeat('ž', 400);
     same(200, save($admin, ['mail.reset.intro' => ['sk' => $long]])->status, 'a paragraph of 400 characters');
-    $entry = lastAudit('translations.saved')[3]['mail'][0];
+    $entry = lastMailChange();
     same([$intro, $long], [$entry['old'], $entry['new']], 'a mail string of the longest the panel takes is in the log whole');
     same($long, stored('mail.reset.intro', 'sk')[0], 'and whole in the table');
     check(iamTranslationsConfig()->auditTextMax >= TRANSLATION_MAIL_VALUE_MAX, 'whatever the longest becomes, the log\'s bound is not under it');
@@ -1732,12 +1752,12 @@ test('a mail\'s words through the panel: reworded, refused - and every change re
     $outside = str_repeat('š', 450);
     iamDb()->prepare("UPDATE translations SET value = ? WHERE key_name = 'mail.reset.intro' AND language_code = 'sk'")->execute([$outside]);
     same(200, save($admin, ['mail.reset.intro' => ['sk' => $long]])->status, 'a string written by SQL, 450 characters of it, is replaced in the panel');
-    $entry = lastAudit('translations.saved')[3]['mail'][0];
+    $entry = lastMailChange();
     same([400, str_repeat('š', 400), $long], [Text::length($entry['old']), $entry['old'], $entry['new']], 'the log has its first 400 characters');
 
     // Taken out: Slovak reads that one paragraph in English, and the log says what it was.
     same(200, save($admin, ['mail.reset.intro' => ['sk' => '']])->status, 'emptied');
-    same(ordered(['key' => 'mail.reset.intro', 'language' => 'sk', 'old' => $long, 'new' => null]), lastAudit('translations.saved')[3]['mail'][0], 'a deleted mail string, with the whole of what it was');
+    same(ordered(['key' => 'mail.reset.intro', 'language' => 'sk', 'old' => $long, 'new' => null]), lastMailChange(), 'a deleted mail string, with the whole of what it was');
     sendPasswordResetMail(['id' => null, 'username' => 'Anna', 'email' => 'reworded@example.test', 'language' => 'sk'], str_repeat('cd', 32));
     check(str_starts_with(lastMailTo('reworded@example.test')['body'], "Ahoj Anna,\n\n" . seeded('en')['mail.reset.intro'] . "\n\n"), 'that paragraph in English, the greeting still Slovak');
 
@@ -1749,13 +1769,13 @@ test('a mail\'s words through the panel: reworded, refused - and every change re
     $added = 'Or go to anotoki-login.test/reset and type your current password there:';
     same(300, Text::length($padding), '300 characters of ordinary wording first');
     same(200, save($admin, ['mail.reset.intro' => ['en' => $padding . $added]])->status, 'the paragraph with a sentence added at its end is saved: the panel cannot tell it from a rewording');
-    $entry = lastAudit('translations.saved')[3]['mail'][0];
+    $entry = lastMailChange();
     same(['mail.reset.intro', 'en', seeded('en')['mail.reset.intro'], $padding . $added], [$entry['key'], $entry['language'], $entry['old'], $entry['new']], 'the log has the new text word for word');
     check(str_contains($entry['new'], 'anotoki-login.test') && strpos($entry['new'], 'anotoki-login.test') > 300, 'the added sentence among it, though it begins after the 300th character');
     sendPasswordResetMail(['id' => null, 'username' => 'Anna', 'email' => 'added@example.test', 'language' => 'en'], str_repeat('cd', 32));
     check(str_contains(lastMailTo('added@example.test')['body'], "\n\n$padding$added\n\n" . TEST_ISSUER . '/reset-password?token='), 'and it is what the next reset says');
     same(200, save($admin, ['mail.reset.intro' => ['en' => seeded('en')['mail.reset.intro']]])->status, 'put back');
-    $entry = lastAudit('translations.saved')[3]['mail'][0];
+    $entry = lastMailChange();
     same([$padding . $added, seeded('en')['mail.reset.intro']], [$entry['old'], $entry['new']], 'the entry of putting it back has the whole of what it was');
     same(0, (int) iamDb()->query("SELECT count(*) FROM translations WHERE value LIKE '%anotoki-login.test%'")->fetchColumn(), 'which by now is kept nowhere else');
 
@@ -1778,7 +1798,64 @@ test('a mail\'s words through the panel: reworded, refused - and every change re
     same(200, save($admin, ['mail.reset.ignore' => ['sk' => seeded('sk')['mail.reset.ignore']], 'mail.reset.greeting' => ['sk' => seeded('sk')['mail.reset.greeting']]])->status, 'and those two back');
 
     same(200, save($admin, ['mail.reset.intro' => ['sk' => seeded('sk')['mail.reset.intro']], 'common.save' => ['sk' => seeded('sk')['common.save']]])->status, 'and back');
-    same(ordered(['old' => null, 'new' => seeded('sk')['mail.reset.intro']]), array_intersect_key(lastAudit('translations.saved')[3]['mail'][0], ['old' => 0, 'new' => 0]), 'a mail string that had none before');
+    same(ordered(['old' => null, 'new' => seeded('sk')['mail.reset.intro']]), array_intersect_key(lastMailChange(), ['old' => 0, 'new' => 0]), 'a mail string that had none before');
+});
+
+test('a save of every mail string at its longest, in English and Slovak: the summary in one entry, every old and new text whole in an entry of its own - padding hides none', function () {
+    $admin = admin();
+    $adminId = $GLOBALS['adminId'];
+    $pdo = iamDb();
+
+    // The longest each mail string may be, in a letter of two bytes: its placeholders, then as many letters as fit.
+    $longest = static function (string $key, string $letter): string {
+        $names = MAIL_KEYS[$key];
+        $tail = $names === [] ? '' : ' ' . implode(' ', array_map(static fn(string $name): string => '{' . $name . '}', $names));
+        $characters = str_ends_with($key, '.subject') ? TRANSLATION_MAIL_SUBJECT_MAX : TRANSLATION_MAIL_VALUE_MAX;
+        $octets = TRANSLATION_MAIL_LINE_OCTETS - TRANSLATION_MAIL_USERNAME_OCTETS * count(array_keys($names, 'username', true)) - TRANSLATION_MAIL_DATE_OCTETS * count(array_keys($names, 'date', true));
+
+        return str_repeat($letter, min($characters - Text::length($tail), intdiv($octets - strlen($tail), strlen($letter)))) . $tail;
+    };
+    $values = [];
+    $cells = [];
+    foreach (array_keys(MAIL_KEYS) as $key) {
+        foreach (['en' => 'é', 'sk' => 'ž'] as $code => $letter) {
+            $values[$key][$code] = $longest($key, $letter);
+            $cells["$key $code"] = ['old' => stored($key, $code)[0] ?? null, 'new' => $values[$key][$code]];
+        }
+    }
+    // Kept as one entry, as the library hands it over, it would be more than an entry may hold - and cut to nothing.
+    check(strlen((string) json_encode(['mail' => array_values($cells)], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) > AuditLog::DETAILS_LIMIT, 'the save\'s mail strings alone are more than one entry of the log holds');
+    $last = (int) $pdo->query('SELECT COALESCE(max(id), 0) FROM anotoki_audit_log')->fetchColumn();
+
+    same(200, ($saved = save($admin, $values))->status, 'every mail string, at its longest, in two languages: ' . substr($saved->body, 0, 300));
+    $keys = array_keys(MAIL_KEYS);
+    sort($keys, SORT_STRING);
+    same([$adminId, null, null, ordered(['languages' => ['en', 'sk'], 'count' => count($cells), 'keys' => $keys, 'mail_changed' => count($cells)])], lastAudit('translations.saved'), 'the summary: the languages, how many, every key, how many mail strings');
+
+    $entries = $pdo->prepare("SELECT actor_id, target_id, details FROM anotoki_audit_log WHERE id > ? AND action = 'translations.mail_changed' ORDER BY id");
+    $entries->execute([$last]);
+    $found = [];
+    foreach ($entries->fetchAll() as $row) {
+        $details = json_decode((string) $row['details'], true);
+        same([$adminId, 'translations.saved'], [(int) $row['actor_id'], $details['part_of'] ?? null], "{$row['target_id']} ({$details['language']}): by the administrator, part of the save");
+        $found["{$row['target_id']} {$details['language']}"] = ['old' => $details['old'], 'new' => $details['new']];
+    }
+    ksort($found, SORT_STRING);
+    ksort($cells, SORT_STRING);
+    same($cells, $found, 'every mail string\'s old and new text, whole, each in an entry of its own');
+    same(0, (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE jsonb_typeof(details) = 'object' AND jsonb_exists(details, '_cut')")->fetchColumn(), 'and no entry was cut');
+
+    // Put back, recorded the same way.
+    $back = [];
+    foreach ($cells as $cell => ['old' => $old]) {
+        [$key, $code] = explode(' ', $cell);
+        $back[$key][$code] = $old ?? '';
+    }
+    same(200, save($admin, $back)->status, 'every mail string back');
+    same(seeded('sk')['mail.reset.intro'], stored('mail.reset.intro', 'sk')[0], 'as they were');
+    $undone = $pdo->query("SELECT details FROM anotoki_audit_log WHERE action = 'translations.mail_changed' AND target_id = 'mail.reset.intro' AND details->>'language' = 'sk' ORDER BY id DESC LIMIT 1")->fetchColumn();
+    $undone = (array) json_decode((string) $undone, true);
+    same([$values['mail.reset.intro']['sk'], seeded('sk')['mail.reset.intro']], [$undone['old'] ?? null, $undone['new'] ?? null], 'the putting back has the whole of what it was too');
 });
 
 // ── Languages ────────────────────────────────────────────────────────────────
@@ -2132,9 +2209,9 @@ test('a language out as a file and back in: its own strings only; unknown keys r
     same(['common.save' => 'Speichern', 'login.continueTo' => 'Anmelden und weiter zu {app}', 'mail.reset.greeting' => 'Hallo {username},'], $admin->get('/api/admin/translations/de/export')->json(), 'what German has now');
     same(['Speichern', $adminId], array_slice(stored('common.save', 'de'), 0, 2), 'by who imported it');
     same([$adminId, 'language', 'de', ordered([
-        'languages' => ['de'], 'count' => 3, 'keys' => ['common.save', 'login.continueTo', 'mail.reset.greeting'],
-        'mail' => [['key' => 'mail.reset.greeting', 'language' => 'de', 'old' => null, 'new' => 'Hallo {username},']],
-    ])], lastAudit('translations.imported'), 'recorded, the mail string with its text');
+        'languages' => ['de'], 'count' => 3, 'keys' => ['common.save', 'login.continueTo', 'mail.reset.greeting'], 'mail_changed' => 1,
+    ])], lastAudit('translations.imported'), 'recorded');
+    same(ordered(['key' => 'mail.reset.greeting', 'language' => 'de', 'old' => null, 'new' => 'Hallo {username},']), lastMailChange(), 'and the mail string with its text, in an entry of its own');
 
     // A German account's reset: greeted in German, the rest in English - string by string.
     sendPasswordResetMail(['id' => null, 'username' => 'Dieter', 'email' => 'dieter-mail@example.test', 'language' => 'de'], str_repeat('cd', 32));
@@ -2168,7 +2245,7 @@ test('a language out as a file and back in: its own strings only; unknown keys r
         $refused = $admin->put("/api/admin/translations/$language/import", $body);
         same([422, $code], [$refused->status, $refused->code()], $refused->body);
     }
-    same([422, 'invalid_value'], [$admin->put('/api/admin/translations/de/import', ['Sichern', 'Schließen'])->status, $admin->put('/api/admin/translations/de/import', ['Sichern', 'Schließen'])->code()], 'a list is not a language\'s strings');
+    same([422, 'unknown_key'], [$admin->put('/api/admin/translations/de/import', ['Sichern', 'Schließen'])->status, $admin->put('/api/admin/translations/de/import', ['Sichern', 'Schließen'])->code()], 'a list is not a language\'s strings: its keys are numbers, which no key is (the library since 0.4.0)');
     same([415, 'unsupported_media_type'], [($r = $admin->request('PUT', '/api/admin/translations/de/import'))->status, $r->code()], 'nor is no body');
     same(404, $admin->put('/api/admin/translations/fr/import', ['common.save' => 'Enregistrer'])->status, 'a language there is not');
     same($before, everyString(), 'nothing refused was kept');
@@ -2198,10 +2275,11 @@ test('the command line: --export and --import on the same strings, by nobody and
     same(['Schließen', null], array_slice(stored('common.close', 'de'), 0, 2), 'a new one too');
     same($before['login.continueTo de'], everyString()['login.continueTo de'], 'a string as it was is still whose it was');
     same([null, 'language', 'de', ordered([
-        'languages' => ['de'], 'count' => 3, 'keys' => ['common.close', 'common.save', 'mail.reset.greeting'],
-        'mail' => [['key' => 'mail.reset.greeting', 'language' => 'de', 'old' => 'Hallo {username},', 'new' => 'Guten Tag {username},']],
+        'languages' => ['de'], 'count' => 3, 'keys' => ['common.close', 'common.save', 'mail.reset.greeting'], 'mail_changed' => 1,
         'via' => 'command line',
-    ])], lastAudit('translations.imported'), 'recorded with no actor, and the mail string with its old and new text');
+    ])], lastAudit('translations.imported'), 'recorded with no actor');
+    same(ordered(['key' => 'mail.reset.greeting', 'language' => 'de', 'old' => 'Hallo {username},', 'new' => 'Guten Tag {username},']), lastMailChange(), 'and the mail string with its old and new text, in an entry of its own');
+    same([null, 'translations.imported', 'command line'], [lastAudit('translations.mail_changed')[0], lastAudit('translations.mail_changed')[3]['part_of'] ?? null, lastAudit('translations.mail_changed')[3]['via'] ?? null], 'by nobody, from the command line too');
 
     // Checked as a save is, and all of it or none of it.
     $before = everyString();

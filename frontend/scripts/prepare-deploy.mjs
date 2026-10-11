@@ -10,6 +10,14 @@
 //                                api/index.php, which routes on the original
 //                                path (REQUEST_URI survives an internal rewrite).
 //
+//   /config, /migrations, /storage, /vendor
+//                                the backend's own folders - the master key,
+//                                the backups (every hash and encrypted secret),
+//                                the logs - refused (403) before anything else,
+//                                in any case of letters; each also denies the
+//                                web in its own .htaccess (backend/build-dist.php,
+//                                the library's guard).
+//
 //   everything else              the app is one page with client-side routes,
 //                                so a path that is not a real file falls back to
 //                                index.html - or a refresh on /account/security
@@ -60,24 +68,30 @@ if (inlineScript || inlineHandler) {
 // outside it, so its bundles are held to it here, before anything is uploaded: a release that sets HTML
 // from a string, or switches Angular's sanitizer off for one, goes no further. (Angular's own sanitizer is
 // in @angular/core, not in these files.) Every way a string becomes markup counts: setting innerHTML or
-// outerHTML, inserting HTML, an iframe's srcdoc, document.write, parsing it (DOMParser,
-// parseFromString, a Range's createContextualFragment), and the sanitizer's bypasses. Any spelling counts
-// - Angular binds [innerHtml] and [srcdoc] too - and so does a comment that names one: the fix is a release
-// of the library, never a way around this check.
-const library = join(process.cwd(), "node_modules", "@anotoki", "lib", "fesm2022");
-const bundles = existsSync(library) ? readdirSync(library).filter((name) => name.endsWith(".mjs")) : [];
-if (!bundles.length) {
-    console.error(`No @anotoki/lib bundles in ${library}: install the packages (bun ci) and build again.`);
+// outerHTML, the newer setHTMLUnsafe, inserting HTML, an iframe's srcdoc, document.write, parsing it
+// (DOMParser, parseFromString, Document.parseHTMLUnsafe, a Range's createContextualFragment), and the
+// sanitizer's bypasses. Any spelling counts - Angular binds [innerHtml] and [srcdoc] too - and so does a
+// comment that names one: the fix is a release of the library, never a way around this check. Every
+// script of the library that reaches the web root is read: its bundles (fesm2022/) and the boot script
+// angular.json copies beside index.html (assets/theme-boot.js, which runs before the app).
+const packageRoot = join(process.cwd(), "node_modules", "@anotoki", "lib");
+const scripts = [
+    ...(existsSync(join(packageRoot, "fesm2022")) ? readdirSync(join(packageRoot, "fesm2022")).filter((name) => name.endsWith(".mjs")).map((name) => `fesm2022/${name}`) : []),
+    ...(existsSync(join(packageRoot, "assets")) ? readdirSync(join(packageRoot, "assets")).filter((name) => /\.m?js$/.test(name)).map((name) => `assets/${name}`) : []),
+];
+const bundles = scripts.filter((name) => name.startsWith("fesm2022/"));
+if (!bundles.length || !scripts.includes("assets/theme-boot.js")) {
+    console.error(`No @anotoki/lib bundles, or no assets/theme-boot.js, in ${packageRoot}: install the packages (bun ci) and build again.`);
     process.exit(1);
 }
-const htmlSink = /innerHTML|outerHTML|insertAdjacentHTML|bypassSecurityTrust|srcdoc|document\.write|DOMParser|parseFromString|createContextualFragment/i;
+const htmlSink = /innerHTML|outerHTML|setHTMLUnsafe|parseHTMLUnsafe|insertAdjacentHTML|bypassSecurityTrust|srcdoc|document\.write|DOMParser|parseFromString|createContextualFragment/i;
 const drawsHtml = [];
-for (const name of bundles) {
-    readFileSync(join(library, name), "utf8")
+for (const name of scripts) {
+    readFileSync(join(packageRoot, name), "utf8")
         .split(/\r?\n/)
         .forEach((line, index) => {
             const found = htmlSink.exec(line);
-            if (found) drawsHtml.push(`node_modules/@anotoki/lib/fesm2022/${name}:${index + 1}: ${found[0]}`);
+            if (found) drawsHtml.push(`node_modules/@anotoki/lib/${name}:${index + 1}: ${found[0]}`);
         });
 }
 if (drawsHtml.length) {
@@ -121,6 +135,14 @@ RewriteEngine On
 # The API is its own handler (api/.htaccess routes it to api/index.php).
 RewriteRule ^api/ - [L]
 
+# The backend's own folders are never pages: its configuration (the master
+# key), its migrations, its storage (the backups - every hash and encrypted
+# secret -, the logs, the caches) and its libraries. Each also denies the web
+# in its own .htaccess; this refuses them before anything else is tried - in
+# any case of letters, since a host's file system may not tell /Storage from
+# /storage.
+RewriteRule ^(config|migrations|storage|vendor)(/|$) - [F,L,NC]
+
 # OpenID Connect discovery lives at the issuer's root. The front controller
 # routes on the original request path, so it sees /.well-known/... as asked.
 RewriteRule ^\\.well-known/(openid-configuration|jwks\\.json)$ api/index.php [L]
@@ -148,6 +170,6 @@ const shown = dist
     .replace(process.cwd() + "/", "")
     .replace(/\\/g, "/");
 console.log(`Prepared ${shown}/ for production (${files} entries; upload its contents to the web root, next to api/):`);
-console.log("  .htaccess  -> /api passed through, /.well-known -> api/index.php, SPA fallback");
+console.log("  .htaccess  -> /api passed through, /.well-known -> api/index.php, config|migrations|storage|vendor refused, SPA fallback");
 console.log("               X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy");
-console.log(`  checked    -> no inline script; @anotoki/lib's ${bundles.length} bundle${bundles.length === 1 ? "" : "s"}: no string drawn as HTML`);
+console.log(`  checked    -> no inline script; @anotoki/lib's ${bundles.length} bundle${bundles.length === 1 ? "" : "s"} and ${scripts.length - bundles.length} boot script${scripts.length - bundles.length === 1 ? "" : "s"}: no string drawn as HTML`);

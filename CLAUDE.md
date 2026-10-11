@@ -33,6 +33,7 @@ php create-admin.php you@example.com      # first admin on an empty IAM, ADMIN i
 php reset-password.php <email> [pw] [--clear-2fa]
 php translations.php --status             # the pages' keys against the database's; each language's coverage; the mails' keys against MAIL_KEYS
 php translations.php --export sk [file]   # a language's own strings as flat JSON; --import sk file puts them back (both refuse while a migration waits)
+php backup.php --list                     # the database's backups (encrypted; --create, --inspect=<id>, --extract=<id> <folder>; --from= --key= for a downloaded one)
 php build-dist.php                        # -> backend/dist/ for upload
 composer update anotoki/lib --prefer-dist # the family's library, with frontend/package.json's @anotoki/lib URL (docs/operations.md)
 
@@ -245,12 +246,55 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   applied, no build from before it goes on the host again (it would show
   those four as keys). Both route groups stay behind `requireAdmin()`; the
   CSRF header and `audit()` as before.
+- **The admin panel's tools are the family's library's** (anotoki-lib 0.4.1,
+  the owner's decisions of 2026-10-11; `docs/decisions.md`): the error log,
+  the audit log and backups - one page each, the library's routes inside the
+  admin group (the session, the IAM's ADMIN, the CSRF header; each group asks
+  the library's own ADMIN check besides, `iamAdminContext()`); not feedback,
+  not the file explorer. The IAM's configuration is `api/admin_tools.php` and
+  `api/audit.php`. **The audit log** is the library's `anotoki_audit_log`:
+  `audit()` stays every route's one way in and keeps what it kept (who, what,
+  to what, the details, `requestIp()`, the time), behind a savepoint, never
+  throwing; migration 018 moved every entry of `audit_log` there with its id
+  and kept the old table, unread but scrubbed, as `audit_log_before_018` until
+  a later migration drops it once both IAMs run 018. Until 018 has run an
+  entry waits in `storage/logs/audit-pending.jsonl` (`auditMovedToLibrary()`),
+  flushed after the Apply, by `php migration.php` and by housekeeping (before
+  its deletions) through `flushWaitingAuditEntries()`, which scrubs the
+  anonymized accounts' people out of them at once - once 018 is applied, no
+  build from before it goes on the host again. An account's deletion scrubs it
+  by the IAM's rules (the library's `scrubPeople()` plus the personal-token
+  rule). A change of the strings keeps each changed mail string's old and new
+  text whole in an entry of its own, `translations.mail_changed`
+  (`auditTranslations()`): one entry holds at most 64 KB. **The error log**
+  is files in `storage/logs`, with no secret, token, cookie, header, body,
+  query string or address - the IAM takes its own names of secrets out first
+  (`iamRedactSecrets()`) on every way in: its error handler, a middleware just
+  inside the log's outer half (an exception nothing answered), its own PHP
+  handlers (`iamInstallPhpHandlers()`) and `iamRecordError()` for every
+  failure it writes itself; its client hashes keyed by the master key. **Backups**
+  (`storage/backups`) are ENCRYPTED under a key derived from the master key,
+  made / downloaded (a single-use ticket: one backup, one administrator, a
+  minute) / deleted only with `accountProof()` (the password, or a sign-in of
+  the last 15 minutes) and audited, daily (after the answer, the library's
+  `AfterResponse`), before every Apply (`iamMigratorWithBackup()`: no backup,
+  nothing applied) and by hand, kept until the owner deletes them (no maximum
+  age - the owner's decision of 2026-10-11: a deleted person's data stays in
+  the backups made before, encrypted, until then) - and NEVER restored here (`restore: false`)
+  until an `afterRestore` that ends every session and token and deletes again
+  the accounts deleted since has been reviewed. `php backup.php` reads one
+  offline with the master key. Backups are built only once the IAM is set up
+  (their key is the master key's).
 
 ## Backend layout & conventions
 
 - `api/index.php` builds the Slim app (`buildIamApp()`, built once; tests call
-  it with `IAM_NO_RUN` defined) and fixes the middleware order: security headers
-  → not set up → CORS → error handler → CSRF → body parsing → routes.
+  it with `IAM_NO_RUN` defined) and fixes the middleware order: the error log
+  (the library's, outermost) → the IAM's names of secrets out of an exception
+  nothing answered (`iamRedactingMiddleware()`) → security headers → not set
+  up → CORS → error
+  handler (the IAM's, wrapped by the error log) → CSRF → body parsing →
+  routes; after `$app->run()`, the library's `AfterResponse` (the day's backup).
 - Routes by audience: `routes/oidc.php` (applications: discovery, JWKS,
   authorize, token, userinfo, preferences, logout, revoke), `routes/login.php` (the sign-in
   pages), `routes/account.php` (`requireSession()`), `routes/admin.php`
@@ -265,10 +309,14 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `iamKeyScanner()` for the CLI and the tests), and the carried-over `totp.php`,
   `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php`
   (whose words now come from the database, `MAIL_FALLBACK` the last resort),
-  `account_deletion.php` and `sign_in_devices.php` (016), and
+  `account_deletion.php` and `sign_in_devices.php` (016),
   `migration_runner.php` (the family's library wired in: `iamMigrator()` - the
-  IAM's set, then the library's translations set -, `iamMigrationLabel()`,
-  `iamSiteState()`; beside them `ensureDatabase()`, `createFirstAdmin()`).
+  library's admin set, the IAM's set, then the library's translations set -,
+  `iamMigrationLabel()`, `iamSiteState()`; beside them `ensureDatabase()`,
+  `createFirstAdmin()`), and `admin_tools.php` (the library's admin tools on
+  the IAM: `iamAdminContext()`, `iamErrorLog()` and `iamRedactSecrets()`,
+  `iamBackups()`, `iamMigratorWithBackup()`; `audit.php` is `audit()` over the
+  library's `AuditLog`, `iamAuditLog()`).
   `helpers.php` holds `languageCodes()` / `languageOrDefault()` (read through
   the library's `offeredCodes()`, `en`/`sk` before the tables exist) and the
   text and refusal helpers the announcements use.
@@ -281,14 +329,19 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - Errors are `respondError($response, $status, 'code', 'sentence')`; the OIDC
   endpoints answer OAuth's `{error, error_description}` via `oauthError()`.
 - Every admin change and security-relevant self-service change writes
-  `audit()`.
+  `audit()` - into the library's `anotoki_audit_log` since 018 (never an
+  INSERT of its own: the command line and the import go through
+  `audit()` / `iamAuditLog()` too).
 - **Migrations are the schema**: `backend/migrations/iam/NNN_name.sql`, applied
   in order by the anotoki family's engine, anotoki/lib's `Migrator`
   (`iamMigrator()` in `api/migration_runner.php` - CLI, installer and the
   admin panel's Migrations page all use it, one apply at a time; the table
-  `migrations` stays as it is), and after them the library's translations set
-  (`anotoki_translations`, in `vendor/anotoki/lib/php/migrations`), recorded
-  as `anotoki_translations/NNN_....sql`. Never edit an applied migration. A migration
+  `migrations` stays as it is), the library's admin set before them
+  (`anotoki_admin`: the audit log's and feedback's tables) and its
+  translations set after them (`anotoki_translations`), both in
+  `vendor/anotoki/lib/php/migrations` and recorded as `set/NNN_....sql`. The
+  Migrations page's Apply and `php migration.php` back the database up first
+  (`iamMigratorWithBackup()`); the installer does not. Never edit an applied migration. A migration
   that changes data carries a `DO $$ … $$` gate that fails loudly. **An update
   waiting closes nothing** (`blockWhilePending: false`, the one anotoki site
   that does not block - every site signs in through it): each feature checks
@@ -298,12 +351,16 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
   halves, updated together where both change (`docs/operations.md`): both on
-  0.3.0 (the migrations module, the translations module, the UI kit). Never
+  0.4.1 (the migrations module, the translations module, the UI kit, the
+  admin tools; never 0.4.0, which fails on PHP 8.2). Never
   edit the vendored copy: a change goes to the library and comes back as a
   release. Its routes here: `GET /api/site-status` (first-party, public, no
   CORS), `/api/admin/migrations[/file|/apply]` inside the admin group, the
-  bundle `GET /api/translations/{code}` (public, no cookie, no CORS) and the
-  eight `/api/admin/languages|translations` routes inside the admin group.
+  bundle `GET /api/translations/{code}` (public, no cookie, no CORS), the
+  eight `/api/admin/languages|translations` routes, and the admin tools'
+  `/api/admin/audit[/facets]`, `/api/admin/errors[/{fingerprint}]` and
+  `/api/admin/backups/**` (the download `/{id}/file?ticket=` among them) - all
+  inside the admin group.
 - **Tests** (`backend/tests/*.test.php`, `lib.php`, `setup_lib.php`) drive the
   real app and the installer in-process with a `Browser` that keeps cookies,
   each file with its own temp configuration and `iam_test_*` databases, borrowing
@@ -324,6 +381,9 @@ endpoint; the same switches on every way in; no self-lockout, no removing the
 last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; the sign-in hint opens nothing and no account no site lets in has one;
 the session cookie never gets a Domain, and is __Host- on https, where the bare name is never read; no loopback address
 left on a real host's install, nor seeded into a live IAM by a later migration;
+backups only encrypted under the master key, made, downloaded and deleted only
+with the account page's proof, never restored in place; no secret, token,
+cookie or address in the error log;
 the installer's proof (token, or nonce on this computer only). Changing one is
 a decision for `docs/decisions.md`, not a refactor.
 
@@ -346,6 +406,12 @@ a decision for `docs/decisions.md`, not a refactor.
   migrations module (`migrations/migrations.config.ts`:
   `provideAnotokiMigrations`, no gate and no boot check; the status page's
   words `siteStatusWords()` under the IAM's own `notSetUp.*`), the family's
+  admin tools (`admin/admin-tools.config.ts`: `provideAnotokiAdmin` - the
+  IAM's ADMIN, a person the logs name opened on the Users page, the account's
+  dates, Migrations; what only the panel says and does - a refusal in
+  `adminErrorText()`'s words, "Sign in again" (`FreshSignInService`: out, and
+  back to the page), why restoring is off - handed over by the admin routes
+  from `pages/admin/admin-tools.ts`, out of the first load), the family's
   UI kit and shell (`kit/kit.config.ts`: `provideAnotokiUi` - the kit's words
   from the database: the IAM's own keys where it has them, `kit/kit-words.ts`,
   the library's `anotoki.*` otherwise, `forKit()` - and its icons
@@ -360,7 +426,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.3.0), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.4.1), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they
@@ -378,10 +444,15 @@ a decision for `docs/decisions.md`, not a refactor.
   `<anotoki-languages-page>` (`@anotoki/lib/translations/admin`, lazy; worded
   for the IAM - its mails, the accounts per language - by
   `pages/admin/localization.ts`, behind `anotokiUnsavedChangesGuard`, as the
-  announcement pages are); `/admin/migrations` is the family's
-  `<anotoki-migrations-page>`, and `<anotoki-update-banner>` sits above the
-  panel's pages; the Migrations page is `@anotoki/lib/migrations/page`, out of
-  the first load).
+  announcement pages are); `/admin/audit`, `/admin/errors` and
+  `/admin/backups` are the family's admin tools (`@anotoki/lib/admin/audit`,
+  `/errors`, `/backups`, each lazy: the audit log - the IAM's own page is
+  gone; its filters are the address's query parameters -, the error log, and
+  the backups - encrypted, restoring off with the IAM's reason, each made,
+  downloaded and deleted behind the password or a sign-in of the last 15
+  minutes); `/admin/migrations` is the family's `<anotoki-migrations-page>`,
+  and `<anotoki-update-banner>` sits above the panel's pages; the Migrations
+  page is `@anotoki/lib/migrations/page`, out of the first load).
 - **The top bar** (`layouts/top-bar`) is the anotoki family's one bar,
   `<anotoki-top-bar>` from `@anotoki/lib/shell` (its menus, keys and fold are
   the library's, tested there), worded and wired for the IAM; the account
@@ -420,13 +491,16 @@ a decision for `docs/decisions.md`, not a refactor.
 ## Deployment
 
 One web root on the IAM's subdomain: the Angular build (`npm run build:deploy`,
-which writes the `.htaccess` routing `/api/` and `/.well-known/` to PHP) plus
+which writes the `.htaccess` routing `/api/` and `/.well-known/` to PHP and
+refusing `/config`, `/migrations`, `/storage` and `/vendor` outright) plus
 `backend/dist/`. First install through `backend/setup.php` (uploaded by hand,
 token proof, writes every `config/*.local.php`, takes the production addresses,
 imports the genshin accounts or makes the first admin, locks and self-deletes);
-later schema changes through the admin panel's Migrations page.
-`config/secret.local.php` is the master key - never commit it, and keep a copy
-off the server. Full steps: `docs/operations.md`.
+later schema changes through the admin panel's Migrations page, which backs
+the database up first. `config/secret.local.php` is the master key - never
+commit it, and keep a copy off the server, with the backups downloaded from
+the admin panel: they open with it alone (an older one, with the key it was
+made under). Full steps: `docs/operations.md`.
 
 ## Working conventions
 

@@ -269,6 +269,206 @@
             "description": "The anotoki library's theme switch: said to somebody signed in when the look chosen there could not be saved to their anotoki account; the page shows the account's own again. No placeholders.",
             "en": "The theme could not be saved to your anotoki account.",
             "sk": "Vzhľad sa nepodarilo uložiť do tvojho anotoki účtu."
+        },
+        "anotoki.signIn.signingIn": {
+            "description": "The anotoki library's sign-in page (the site's address the anotoki account sends the reader back to): what it says for the moment the sign-in is being finished, before the page the reader was on comes back. No placeholders.",
+            "en": "Signing you in…",
+            "sk": "Prihlasujeme ťa…"
+        },
+        "anotoki.signIn.failedTitle": {
+            "description": "The anotoki library's sign-in page: the heading over why a sign-in came back without one, could not start, or cannot be offered right now - the reason under it, then the buttons to try again and to go back. No placeholders.",
+            "en": "Signing in did not work",
+            "sk": "Prihlásenie sa nepodarilo"
+        },
+        "anotoki.signIn.notCompleted": {
+            "description": "The anotoki library's sign-in page: said when the reader came back from their anotoki account without signing in - they went back from its page, or the account was turned away. Under it, the buttons to try again and to go back. No placeholders.",
+            "en": "The sign-in was not completed.",
+            "sk": "Prihlásenie sa nedokončilo."
+        },
+        "anotoki.signIn.expired": {
+            "description": "The anotoki library's sign-in page: said when a sign-in came back that did not start on this page or took too long (an old tab, a link opened twice). No placeholders.",
+            "en": "The sign-in took too long or did not start on this page. Try again.",
+            "sk": "Prihlásenie trvalo príliš dlho alebo sa nezačalo na tejto stránke. Skús to znova."
+        },
+        "anotoki.signIn.storageUnavailable": {
+            "description": "The anotoki library's sign-in page: said when the browser does not let the site keep anything (its storage blocked or switched off), so a sign-in cannot even start. No placeholders.",
+            "en": "This browser does not let the site remember a sign-in. Allow the site's storage, then try again.",
+            "sk": "Tento prehliadač nedovolí stránke zapamätať si prihlásenie. Povoľ jej ukladanie údajov a skús to znova."
+        },
+        "anotoki.signIn.unavailable": {
+            "description": "The anotoki library's sign-in page: said when the site cannot offer signing in right now (its server did not say where the anotoki accounts are, or they do not know the site). Under it, only the button to try again. No placeholders.",
+            "en": "Signing in is not available right now. Try again in a few minutes.",
+            "sk": "Prihlásenie teraz nie je dostupné. Skús to znova o pár minút."
+        },
+        "anotoki.signIn.failed": {
+            "description": "The anotoki library's sign-in page: said when a sign-in came back with any other failure. {code}: the failure's short code (\"server_error\"), shown as it is, for whoever helps the reader. Placeholders: {code}.",
+            "en": "The sign-in failed ({code}).",
+            "sk": "Prihlásenie zlyhalo ({code})."
+        },
+        "anotoki.signIn.retry": {
+            "description": "The anotoki library's sign-in page: the button under what went wrong that starts the sign-in again. No placeholders.",
+            "en": "Try again",
+            "sk": "Skúsiť znova"
+        },
+        "anotoki.signIn.back": {
+            "description": "The anotoki library's sign-in page: the button under what went wrong that goes back to the page the sign-in started on, without signing in. No placeholders.",
+            "en": "Back",
+            "sk": "Späť"
+        },
+        "anotoki.feedback.title": {
+            "description": "The anotoki library's feedback form (the form a site's visitors send it a message with): its title, and the name of the dialog a site opens it in. No placeholders.",
+            "en": "Send feedback",
+            "sk": "Pošli nám spätnú väzbu"
+        },
+        "anotoki.feedback.lead": {
+            "description": "The anotoki library's feedback form: the sentence under its title. No placeholders.",
+            "en": "Something broken, an idea, a question? Tell us - every message is read.",
+            "sk": "Niečo nefunguje, máš nápad alebo otázku? Napíš nám - čítame každú správu."
+        },
+        "anotoki.feedback.kind": {
+            "description": "The anotoki library's feedback form: the question over the kinds of message (something does not work, an idea, something else). No placeholders.",
+            "en": "What is it about?",
+            "sk": "O čo ide?"
+        },
+        "anotoki.feedback.kindBug": {
+            "description": "The anotoki library's feedback form: the kind of message about something on the site that does not work. No placeholders.",
+            "en": "Something does not work",
+            "sk": "Niečo nefunguje"
+        },
+        "anotoki.feedback.kindIdea": {
+            "description": "The anotoki library's feedback form: the kind of message with an idea for the site. No placeholders.",
+            "en": "An idea",
+            "sk": "Nápad"
+        },
+        "anotoki.feedback.kindOther": {
+            "description": "The anotoki library's feedback form: the kind of message that is neither (a question, a thank-you). No placeholders.",
+            "en": "Something else",
+            "sk": "Niečo iné"
+        },
+        "anotoki.feedback.section": {
+            "description": "The anotoki library's feedback form: the label of the list of the site's places the message can be about. No placeholders.",
+            "en": "Where on the site?",
+            "sk": "Kde na stránke?"
+        },
+        "anotoki.feedback.sectionNone": {
+            "description": "The anotoki library's feedback form: the first choice of the list of the site's places, for a message about none of them. No placeholders.",
+            "en": "Nowhere in particular",
+            "sk": "Nikde konkrétne"
+        },
+        "anotoki.feedback.subject": {
+            "description": "The anotoki library's feedback form: the label of the message's subject. No placeholders.",
+            "en": "Subject",
+            "sk": "Predmet"
+        },
+        "anotoki.feedback.message": {
+            "description": "The anotoki library's feedback form: the label of the message itself. No placeholders.",
+            "en": "Your message",
+            "sk": "Tvoja správa"
+        },
+        "anotoki.feedback.messageHint": {
+            "description": "The anotoki library's feedback form: the hint under the message. No placeholders.",
+            "en": "What happened and what should have happened - or what would be better.",
+            "sk": "Čo sa stalo a čo sa malo stať - alebo čo by bolo lepšie."
+        },
+        "anotoki.feedback.email": {
+            "description": "The anotoki library's feedback form: the label of the sender's e-mail address, which they may leave empty. No placeholders.",
+            "en": "Your e-mail address",
+            "sk": "Tvoja e-mailová adresa"
+        },
+        "anotoki.feedback.emailHint": {
+            "description": "The anotoki library's feedback form: the hint under the e-mail address. No placeholders.",
+            "en": "Only if you would like an answer. It is used for nothing else.",
+            "sk": "Len ak chceš odpoveď. Na nič iné ju nepoužijeme."
+        },
+        "anotoki.feedback.anonymous": {
+            "description": "The anotoki library's feedback form: the box a signed-in sender ticks to send the message without their name. No placeholders.",
+            "en": "Send it without my name",
+            "sk": "Poslať bez môjho mena"
+        },
+        "anotoki.feedback.anonymousHint": {
+            "description": "The anotoki library's feedback form: the hint under the box that sends a message without the sender's name. No placeholders.",
+            "en": "Neither your account nor your address goes with it.",
+            "sk": "Nepôjde s ňou ani tvoj účet, ani tvoja adresa."
+        },
+        "anotoki.feedback.send": {
+            "description": "The anotoki library's feedback form: the button that sends the message. No placeholders.",
+            "en": "Send",
+            "sk": "Poslať"
+        },
+        "anotoki.feedback.sending": {
+            "description": "The anotoki library's feedback form: the button while the message is on its way. No placeholders.",
+            "en": "Sending…",
+            "sk": "Posielam…"
+        },
+        "anotoki.feedback.thanks": {
+            "description": "The anotoki library's feedback form: the title said once the message came. No placeholders.",
+            "en": "Thank you!",
+            "sk": "Ďakujeme!"
+        },
+        "anotoki.feedback.thanksText": {
+            "description": "The anotoki library's feedback form: the sentence under the thanks. No placeholders.",
+            "en": "Your message is on its way to us.",
+            "sk": "Tvoja správa je na ceste k nám."
+        },
+        "anotoki.feedback.another": {
+            "description": "The anotoki library's feedback form: the button under the thanks that opens an empty form again. No placeholders.",
+            "en": "Send another",
+            "sk": "Poslať ďalšiu"
+        },
+        "anotoki.feedback.messageRequired": {
+            "description": "The anotoki library's feedback form: said beside the message when it was sent empty. No placeholders.",
+            "en": "Write a message first.",
+            "sk": "Najprv napíš správu."
+        },
+        "anotoki.feedback.subjectRequired": {
+            "description": "The anotoki library's feedback form: said beside the subject when a message of a kind that needs one was sent without it. No placeholders.",
+            "en": "Give it a subject.",
+            "sk": "Doplň predmet."
+        },
+        "anotoki.feedback.tooLong": {
+            "description": "The anotoki library's feedback form: said beside a field that is longer than the site takes. {max}: how many characters it takes. Placeholders: {max}.",
+            "en": "This is longer than {max} characters.",
+            "sk": "Toto je dlhšie ako {max} znakov."
+        },
+        "anotoki.feedback.emailInvalid": {
+            "description": "The anotoki library's feedback form: said beside an e-mail address that is not one. No placeholders.",
+            "en": "That does not look like an e-mail address.",
+            "sk": "Toto nevyzerá ako e-mailová adresa."
+        },
+        "anotoki.feedback.tooManyHour": {
+            "description": "The anotoki library's feedback form: said when one sender sent many messages within an hour; the message is not taken. No placeholders.",
+            "en": "Thank you - but that is a lot of messages in a short while. Try again in an hour.",
+            "sk": "Ďakujeme - no to je veľa správ za krátky čas. Skús to znova o hodinu."
+        },
+        "anotoki.feedback.tooManyDay": {
+            "description": "The anotoki library's feedback form: said when one sender, or everybody, sent many messages today; the message is not taken. No placeholders.",
+            "en": "Thank you - but there have been a lot of messages today. Try again tomorrow.",
+            "sk": "Ďakujeme - no dnes prišlo veľa správ. Skús to znova zajtra."
+        },
+        "anotoki.feedback.unavailable": {
+            "description": "The anotoki library's feedback form: said when the site cannot take messages right now (its database waits for an update). No placeholders.",
+            "en": "Messages cannot be sent right now. Try again in a few minutes.",
+            "sk": "Správy teraz nemôžeš poslať. Skús to znova o pár minút."
+        },
+        "anotoki.feedback.signInRequired": {
+            "description": "The anotoki library's feedback form: said on a site that takes messages from signed-in people alone, to somebody who is not. No placeholders.",
+            "en": "Sign in to send a message.",
+            "sk": "Na poslanie správy sa prihlás."
+        },
+        "anotoki.feedback.failed": {
+            "description": "The anotoki library's feedback form: said when a message could not be sent for any other reason; what was written stays in the form. No placeholders.",
+            "en": "The message could not be sent. Try again - what you wrote is still here.",
+            "sk": "Správu sa nepodarilo poslať. Skús to znova - tvoj text tu stále je."
+        },
+        "anotoki.feedback.network": {
+            "description": "The anotoki library's feedback form: said when the site could not be reached at all. No placeholders.",
+            "en": "The site could not be reached. Check the connection, then try again.",
+            "sk": "Stránka nie je dostupná. Skontroluj pripojenie a skús to znova."
+        },
+        "anotoki.feedback.honeypot": {
+            "description": "The anotoki library's feedback form: the label of a field people never see or reach (robots fill it in, and their messages are dropped) - for a screen reader that finds it anyway. No placeholders.",
+            "en": "Leave this field empty",
+            "sk": "Toto pole nechaj prázdne"
         }
     }
 }

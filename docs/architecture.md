@@ -104,16 +104,20 @@ front of the API, the status the pages ask, the admin Migrations page and its
 routes. The IAM wires it in `backend/api/migration_runner.php` and
 `frontend/src/app/core/migrations/migrations.config.ts`.
 
-- **The engine** (`iamMigrator()`): two sets, in this order - the IAM's own,
-  `iam` (`migrations/iam`), then the library's translations set,
+- **The engine** (`iamMigrator()`): three sets, in this order - the library's
+  admin set, `anotoki_admin` (`vendor/anotoki/lib/php/migrations/admin`: the
+  admin tools' tables, "The admin panel's tools" below), the IAM's own, `iam`
+  (`migrations/iam`), then the library's translations set,
   `anotoki_translations` (`vendor/anotoki/lib/php/migrations/translations`:
   the tables of the words proved to be in the family's shape, and the
-  library's own words; "The IAM's own words" below). The library's comes last
-  because the IAM's 006 made those tables long before the library had them. Both
-  are recorded in the `migrations` table as it always was (`id`, `filename`,
-  `applied_at` - the library reads that shape and never changes it): the IAM's
-  files by their names, the library's as `set/name`
-  (`anotoki_translations/001_languages_and_strings.sql`), which is also how the
+  library's own words; "The IAM's own words" below). The admin set comes first
+  because the IAM's 018 moves its audit log into the library's table; the
+  translations set last because the IAM's 006 made those tables long before
+  the library had them. All three are recorded in the `migrations` table as it
+  always was (`id`, `filename`, `applied_at` - the library reads that shape and
+  never changes it): the IAM's files by their names, the library's as
+  `set/name` (`anotoki_admin/001_audit_log.sql`,
+  `anotoki_translations/001_languages_and_strings.sql`), which is also how the
   command line and the audit log name them. Each file in a transaction
   of its own with its record; the run stops at the first that fails, which is
   rolled back whole and named with the database's words (`statement N of M:
@@ -140,7 +144,7 @@ routes. The IAM wires it in `backend/api/migration_runner.php` and
   keeps answering: its features check their own tables, as they always have
   (`signInRulesReady()`, `translationsReady()`, `accountApprovalReady()`,
   `announcementsReady()`, `preferencesReady()`, `accountDeletionReady()`,
-  `signInDevicesReady()`), and of its pages only the admin panel says so:
+  `signInDevicesReady()`, `auditMovedToLibrary()`), and of its pages only the admin panel says so:
   `<anotoki-update-banner>` - "A database update is waiting. Migrations" -
   above every page of it, which asks the status once. (The status path itself
   is public, as on every anotoki site: anybody may learn that an update
@@ -151,8 +155,11 @@ routes. The IAM wires it in `backend/api/migration_runner.php` and
   "Apply pending" behind a confirmation. Its routes,
   `/api/admin/migrations[/file|/apply]`, sit in the admin group: the session
   and the IAM's ADMIN - nothing a pending migration makes - and the CSRF header
-  on Apply. Applying is audited (`migrations.applied`), and the strings are
-  read again: a migration may have brought some.
+  on Apply. Apply backs the database up first (`iamMigratorWithBackup()`, the
+  library's `beforeApply`) and applies nothing when that backup cannot be
+  made; applying is audited (`migrations.applied`, after the audit entries
+  that waited for 018), and the strings are read again: a migration may have
+  brought some.
 - **Not set up**: the pages' `/not-set-up` is the family's
   `<anotoki-site-status>` in the IAM's own words - "This IAM is not set up
   yet", "Open the installer" - with the developer's line, while it was never
@@ -228,7 +235,8 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `auth_requests` | What an application asked for while the person signs in (and logouts waiting for confirmation). |
 | `auth_codes`, `refresh_tokens` | Codes and refresh / personal tokens - hashes only; refresh tokens grouped into families for reuse detection. |
 | `signing_keys` | RSA key pairs; the private half **encrypted**. One active, retired ones published for a day. |
-| `settings`, `audit_log` | The switches, and every change made from the admin panel. |
+| `settings` | The switches. |
+| `anotoki_audit_log` | What was done: every admin change and every security-relevant change an account made to itself - who, what, to what, the details, the address, the time. The anotoki library's table (its set `anotoki_admin`, 001), the IAM's own `audit_log` with three columns the IAM leaves empty (a session, a scope); migration 018 moved every entry there with its id, and kept the old table, unread, as `audit_log_before_018` until a later migration drops it. Kept for good, its person scrubbed out when an account is deleted. (`anotoki_feedback`, the set's 002, stays empty: the IAM takes no feedback.) |
 | `languages` | The languages the IAM speaks: `code` (`xx` or `xx-yy`, small letters), `name` in English, `native_name`, `enabled` (offered), `sort_order`. English and Slovak are seeded. |
 | `translation_keys` | Every key the pages and the mails ask for, with a description for the translator. Written by migrations only. |
 | `translations` | One string per key and language, who reworded it last (`updated_by`, null for a migration) and when. No empty string: a language without one has no row and reads the English. |
@@ -429,8 +437,10 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 - **The library's own words** are keys under `anotoki.` - its UI kit's (the
   dialogs, fields, page numbers, the top bar, the language and theme
   switches) and its status page's - written by its second migration
-  (`anotoki_translations/002`, 54 keys in English and Slovak) and reworded on
-  the Translations page like the IAM's. That migration writes a key's strings
+  (`anotoki_translations/002`, 54 keys in English and Slovak), and since 0.4
+  its sites' sign-in screen's and feedback form's (`003`, `004`: 40 more,
+  which no page of the IAM's shows) - and reworded on the Translations page
+  like the IAM's. That migration writes a key's strings
   only where the key has none, so an owner's rewording - and a language left
   blank on purpose - stays; their descriptions are the library's, and their
   placeholders are the library's English's whatever a stored rewording says.
@@ -504,6 +514,43 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   before a link or Back leaves a page with drafts - not once nobody is signed
   in - and closing the tab is the browser's `beforeunload` question.
 
+## The admin panel's tools: the error log, the audit log, backups
+
+Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
+owner's decision of 2026-10-11): the same pages, routes and answers on every
+anotoki site. What is the IAM's is their configuration - `api/admin_tools.php`
+and `api/audit.php` - and where they are mounted: inside the admin group
+(`routes/admin.php`), behind the session, the IAM's ADMIN and the CSRF header,
+each group asking the library's own ADMIN check besides
+(`iamAdminContext()`: the same rule, so a group mounted anywhere else would
+still let nobody in).
+
+- **The audit log** (`/admin/audit`) is `anotoki_audit_log`, written by the
+  library's `AuditLog` through the IAM's `audit()`: what it always kept, behind
+  a savepoint inside the caller's transaction, never throwing. Until migration
+  018 has moved the old table in, an entry waits in
+  `storage/logs/audit-pending.jsonl` and goes in after the Apply with its own
+  time. An account's deletion scrubs it by the IAM's rules (the library's
+  `scrubPeople()` and the IAM's personal-token rule), the kept old table too.
+- **The error log** (`/admin/errors`) is files, `storage/logs/errors-*.jsonl`:
+  what failed (an exception the IAM answered, every 5xx and 404, 405, 413,
+  415, 429, PHP's warnings and fatal errors) - files, so that it works while
+  the database does not. The library's middleware sits outside every other
+  (`api/index.php`), its handler wraps the IAM's error handler, its PHP
+  handlers are chained to whatever was there. It keeps no query string,
+  header, cookie, body, token or session, a message only redacted - the IAM
+  takes its own names of secrets out first (`iamRedactSecrets()`) - a trace
+  without arguments, an address as a hash keyed by the master key.
+- **Backups** (`/admin/backups`) of the whole database, in
+  `storage/backups`: COPY through PDO, every table in one snapshot, with the
+  migrations it had applied; **encrypted** under a key derived from the master
+  key, the rows never in the clear on the disk; made daily (after the answer
+  of the day's first housekeeping - the library's `AfterResponse` runs after
+  `$app->run()`), before every update, and by hand; made, downloaded (a
+  single-use ticket for a minute, for the administrator it was issued to) and
+  deleted only with the account page's proof (`accountProof()`); **never
+  restored here**. `php backup.php` reads one offline with the master key.
+
 ## The rules that carry the weight
 
 Each of these is load-bearing; a change that loosens one needs a decision
@@ -569,6 +616,15 @@ written down, not a refactor.
     `__Host-` on HTTPS - where the bare name is never read, so a planted one
     beside a planted hint signs nobody in - and no CSRF or CORS exemption
     comes with the hint.
+18. **A backup opens nothing without the master key, and nothing restores
+    one here.** Every backup is encrypted under a key derived from the master
+    key, its rows never in the clear on the disk; it is made, downloaded and
+    deleted only with the account page's proof (the password, or a sign-in of
+    the last 15 minutes) and audited; a download is a single-use ticket for
+    one backup, one administrator and a minute. Restoring is off until an
+    `afterRestore` that ends every session and token and deletes again the
+    accounts deleted since has been reviewed. The error log keeps no secret,
+    token, cookie, header, body, query string or address.
 
 ## Where the code lives
 
@@ -576,9 +632,12 @@ written down, not a refactor.
 | --- | --- |
 | `backend/setup.php` | The installer: writes `config/*.local.php`, builds the database, the accounts, the sites' production addresses. |
 | `backend/config/` | `config.php` (reading `*.local.php`, whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`. |
-| `backend/api/index.php` | Front controller: requires, middleware order (the family's gate where "not set up" is answered), error handler. |
-| `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`: the IAM's set, then the library's translations set; `iamMigrationLabel()` names a library file `set/name`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
-| `backend/vendor/anotoki/lib` | The anotoki family's library (Composer): the migration engine, the gate, the status and Migrations routes; the translations - the tables' migration set and the library's words, the checks of a string, the bundle and the admin routes, the command line's tools. Never edited here - updated by Composer (`docs/operations.md`). |
+| `backend/api/index.php` | Front controller: requires, middleware order (the error log's outermost, the family's gate where "not set up" is answered), error handler; the library's after-the-answer runner after `$app->run()`. |
+| `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`: the library's admin set, the IAM's set, then the library's translations set; `iamMigrationLabel()` names a library file `set/name`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
+| `backend/api/admin_tools.php` | The IAM's configuration of the library's admin tools: `iamAdminContext()` (who acts, who the ADMIN is, the proof, the address, the error body), `iamErrorLog()` and the IAM's own names of secrets (`iamRedactSecrets()`), `iamBackups()` (encrypted, never restored), `iamMigratorWithBackup()`. |
+| `backend/api/audit.php` | `audit()`, every route's one way into the audit log - the library's `AuditLog` (`iamAuditLog()`), waiting in a file until 018 has run (`auditMovedToLibrary()`). |
+| `backend/backup.php` | The backups from the command line - the library's command on the IAM's backups: list, make, inspect, extract; another IAM's with its master key. Never uploaded. |
+| `backend/vendor/anotoki/lib` | The anotoki family's library (Composer): the migration engine, the gate, the status and Migrations routes; the translations - the tables' migration set and the library's words, the checks of a string, the bundle and the admin routes, the command line's tools; the admin tools - their tables' set, the error log, the audit log, backups, their routes. Never edited here - updated by Composer (`docs/operations.md`). |
 | `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, a site's save of its reader's preferences, logout, revoke, the public list of sites, the public "is sign-in required here?" answer. |
 | `backend/api/routes/login.php` | Sign-in (password, emailed code, Google), registration, confirmation, resets, the pending request (accept/cancel), sign-out, stopping the news. |
 | `backend/api/routes/account.php` | The account page. |

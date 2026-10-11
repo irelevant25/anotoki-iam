@@ -31,6 +31,10 @@
  * dropped before this copy exists.
  */
 
+// The import is recorded in the audit log (iamAuditLog()), and the installer
+// loads this file without the API's front controller.
+require_once __DIR__ . '/audit.php';
+
 /**
  * The columns of the old users table the import reads - the shape the genshin
  * site's migrations up to 031 leave it in.
@@ -279,8 +283,12 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
             throw new RuntimeException('None of those accounts is an ADMIN, so nobody could administer the IAM afterwards. Make one an admin in the genshin site first, or start with create-admin.php instead.');
         }
 
-        $iam->prepare("INSERT INTO audit_log (action, details) VALUES ('legacy.imported', ?)")
-            ->execute([json_encode($summary, JSON_UNESCAPED_SLASHES)]);
+        // Into the audit log in this transaction, by nobody (the library's
+        // AuditLog on the import's own connection - the installer's is not
+        // iamDb()'s). A rehearsal records nothing: it is rolled back whole.
+        if (!$dryRun) {
+            iamAuditLog($iam)->record(null, null, 'legacy.imported', null, null, $summary);
+        }
 
         if ($dryRun) {
             $iam->rollBack();

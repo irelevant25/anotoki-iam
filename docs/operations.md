@@ -37,7 +37,12 @@ it too, lets real files (the installer among them) through, falls back to
 CGI / FastCGI, which drops it - without it no site's bearer token (userinfo, a
 site's save of its reader's preferences) would reach PHP.
 `config/`, `migrations/`, `storage/` and `vendor/` carry a deny-all `.htaccess`
-of their own.
+of their own - and every folder the anotoki library writes under `storage/`
+(`logs/`, `backups/`, `cache/backup-tickets/`) gets another, with an empty
+`index.html`, the first time it is written: what `storage/` holds - the error
+log, the backups of the database - is never served. That rests on the host
+reading `.htaccess` (Apache, LiteSpeed); on one that does not, `storage/` must
+be kept out of the web root by other means.
 
 Until the installer has run, the API answers every request with
 `503 not_set_up` and the pages say "not set up yet", with a link to the
@@ -204,9 +209,12 @@ nobody else is told anything. The Migrations page lists what is pending and
 what is applied (**View** shows a file's SQL), asks before it applies, and
 then says what happened: "Up to date", or which file stopped the run with what
 the database said - that file is rolled back whole, and the ones before it
-stand. **Back the database up first.** Only one apply runs at a time - the
-page, `php migration.php`, the installer: a second is told "Another database
-update is running" and applies nothing; look again in a moment.
+stand. Apply backs the database up first, by itself (a `before-migration`
+backup, encrypted, on the Backups page - "Backups" below), and applies nothing
+when that backup cannot be made; a backup of the hosting's own besides does no
+harm. Only one apply runs at a time - the page, `php migration.php`, the
+installer: a second is told "Another database update is running" and applies
+nothing; look again in a moment.
 
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 without an address or a card on the landing page: a `localhost` address there
@@ -383,6 +391,25 @@ Sessions list would show `sessions.method.unknown` for a way of signing in it
 does not know. Once applied, a build from before it never goes back on the
 host (it would show four keys as keys); fix forward.
 
+**The library's admin set and migration 018** (the admin panel's tools from
+the anotoki library, anotoki-lib 0.4.1 - `docs/decisions.md`, 2026-10-11): the
+Error log, Audit log and Backups pages are the family's library's. The upload
+brings, in this order: `anotoki_admin/001_audit_log.sql` and
+`002_feedback.sql` (the library's tables - the audit log, and feedback, which
+the IAM does not use), then 018, which moves every entry of the IAM's
+`audit_log` into the library's `anotoki_audit_log` with its id, and keeps the
+old table, unread, as `audit_log_before_018` (a later migration drops it once
+both IAMs run 018); then the library's translations set's `003` and `004`
+(the words of the sites' sign-in screen and feedback form - the IAM shows
+neither, but they are in its Translations page like every library word).
+**Apply right after the upload**; the first Apply makes the first backup
+before it starts. Until then nothing closes and every way in works; the audit
+entries made meanwhile wait in `storage/logs/audit-pending.jsonl` and go in
+with the Apply, with their own times, and the Audit page says to apply the
+update first. **Once 018 is applied, a build from before it never goes on the
+host again** - it would lose every audit entry and stop the deletion of
+accounts; fix forward.
+
 Deleted accounts are made nobody's by housekeeping, which runs on ordinary
 traffic (the sites' sign-ins and refreshes, the IAM's own pages, the sites
 reading the list), at most an hour after one is due - no cron. **A database
@@ -410,9 +437,12 @@ translations module, both halves - the tables of the words and the library's
 own words (a migration set of its own, `anotoki_translations`, applied after
 the IAM's), the checks of a string, the bundle and the admin routes, the
 command line's tools; the service, the switcher and the Translations and
-Languages pages - and, in the Angular half, the family's UI kit: its styles
-and palette, its components, the top bar and the frame. Both halves of the IAM
-are on 0.3.0 (`composer.json`'s `^0.3`). Both halves come from GitHub, never
+Languages pages -, the admin tools the IAM takes, both halves - the error log,
+the audit log and backups (a migration set of its own, `anotoki_admin`,
+applied before the IAM's), their routes and their pages - and, in the Angular
+half, the family's UI kit: its styles and palette, its components, the top bar
+and the frame. Both halves of the IAM are on 0.4.1 (`composer.json`'s
+`^0.4.1`; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/php/migrations`, `/php/resources`),
 which `build-dist.php` uploads with the rest of `vendor/` and which are denied
@@ -424,7 +454,7 @@ development machine:
 
 ```bash
 cd backend
-composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.3"); change it first for 0.4
+composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.4.1"); change it first for 0.5
 # frontend/package.json: "@anotoki/lib": the new release's .tgz URL, then
 cd ../frontend
 bun install                         # bun.lock
@@ -482,6 +512,86 @@ if a release's rewording is not wanted. On a computer with the repository,
 `php translations.php --import` checks and loads such a file into a
 development database.
 
+### Backups
+
+The admin panel's **Backups** page (the anotoki library's, `docs/decisions.md`
+2026-10-11) keeps copies of the whole database in `storage/backups/`, made
+without pg_dump (COPY through PHP's PostgreSQL driver):
+
+- **Daily**, by itself: the first time housekeeping runs on a UTC day (any
+  sign-in, any site's refresh, the IAM's own pages), after the answer has gone
+  - and not while an update waits to be applied. The newest 14 are kept.
+- **Before every update**: Apply on the Migrations page (and `php
+  migration.php`) makes one first and names it; it applies nothing when that
+  backup cannot be made. The newest 5 are kept.
+- **By hand**: Back up now, with a description; kept until deleted (marked old
+  after 90 days).
+
+Each is **encrypted** under a key derived from the master key
+(`config/secret.local.php`) and holds every table - every account's password
+hash, the two-factor secrets and signing keys (encrypted under the master key
+besides), every hash of a session and a token, the audit log. Making one,
+downloading one and deleting one ask for the administrator's password (or,
+without one, a sign-in of the last 15 minutes) and are in the audit log. A
+download is a link good once, for a minute. **Keep the master key with the
+downloaded backups** (off the server, as ever): without it they open to
+nothing, and a backup made before the master key was ever replaced opens only
+with the old one - keep that one too.
+
+**The IAM never restores a backup in place** (restore is off, the page says
+why): it would bring back revoked tokens and sessions, old passwords, removed
+roles and deleted people. A backup's data is read on a computer with the
+repository and the IAM's master key:
+
+```bash
+cd backend
+php backup.php --from=<the folder the downloaded file is in> --key=<a copy of the live config/secret.local.php> --inspect=<id>
+php backup.php --from=<...> --key=<...> --extract=<id> <a new folder>
+```
+
+`--extract` writes everything decrypted into the new folder - the manifest, the
+SQL of every migration the database had applied, each table's rows as
+PostgreSQL's COPY text - and says how to load it into an empty database (the
+schema files in order, then `psql \copy`, parents first). That folder is the
+database in the clear: delete it when done. **`--inspect` decrypts the whole
+database too**, into a folder of its own under the system's temp folder
+(`anotoki-backup-inspect-...`), and removes it when it is done - but a run
+stopped half-way (Ctrl-C, a kill, a crash) leaves it there, every table in the
+clear. Run either only on a computer of your own you trust, and after an
+interrupted run delete what is left in the temp folder - until the library's
+`--inspect` reads the manifest alone. A backup is never restored to
+bring an account back (above, "A database backup is never restored...").
+
+**Backups are kept until you delete them - nothing deletes one for its age**
+(the owner's decision of 2026-10-11, `docs/decisions.md`): the daily and
+before-update ones go only as newer ones of their kind replace them (14 and 5
+kept), a manual one never by itself. So **a deleted account's data stays in
+every backup made before its deletion** - its row, its hashes, its address,
+its history - until that backup is deleted. They are encrypted under the master
+key, and the IAM never restores one, so none brings an account back; delete
+the old manual ones when they are no longer wanted.
+
+The backups take room on the host - their sizes and the disk's free space are
+on the page; one is refused (`no_space`) while the disk has less than twice the
+last one free. Delete old manual ones there. Only files the library made
+itself, by their names, are ever deleted; anything else put in
+`storage/backups/` stays.
+
+### The error log
+
+The admin panel's **Error log** page reads `storage/logs/errors-YYYY-MM-DD.jsonl`
+(UTC days): every failure the IAM answered (500), the answers worth seeing
+(every 5xx, 404, 405, 413, 415, 429), PHP's warnings and fatal errors -
+grouped by kind, a chart by day, each with its trace and every occurrence. It
+keeps 30 days and 64 MB, a hundred lines of one kind a day (the rest counted).
+No address, cookie, header, body, query string, token or password is in it -
+the IAM's own names of secrets (its cookies, its tokens, a password field, a
+code, a two-factor secret) taken out on every way in, before the library's
+redactor -; a person is an account id at most. **Clear** empties it
+(everything, or the days before today or before the last week) and is
+audited. PHP's own error log still gets a line for every 500, its message
+redacted the same way.
+
 ## Day to day
 
 | Task | Where |
@@ -504,6 +614,9 @@ development database.
 | Somebody wants their account deleted | They do it themselves: the account page → **Delete my account**, with their password (or, without one, right after signing in). It is closed at once - signed out everywhere, refused by every site - mailed, and deleted thirty days later unless they cancel it on the same page. Nobody can ask or cancel for them, an administrator included; the last administrator of the IAM must make another one first. Then the row stays as `deleted-{id}`, switched off, and nothing about it can be changed |
 | See whose deletion is pending, and who was deleted | Admin panel → Users: an account's deletion date while it is pending; the time it was deleted, and its placeholder name, after |
 | Somebody got a "New sign-in" mail they do not recognise | Change the password (the account page → Security, or "Forgot password" - a reset also forgets every browser the account knew); everywhere else is signed out with it. The account page → Sessions shows where the account is signed in |
+| See what went wrong | Admin panel → **Error log**: failures grouped by kind, each with its trace and every occurrence; Clear when they are dealt with |
+| See who did what | Admin panel → **Audit log**: who, what, about what, from where - filtered by person, action, what it is about and dates (the address keeps the filters, so a link to a filtered log works) |
+| Back the database up, or take a copy home | Admin panel → **Backups** → Back up now / Download (the password asked each time). A copy opens only with the master key - "Backups" above |
 | Rotate the signing key | Admin panel → Keys → Rotate. Tokens signed by the old key keep working until they expire; sites refetch the key set by themselves. Remove the retired key after a day. |
 | A script needs to call a site's API | The account page → Tokens for scripts |
 | Reword a sentence of the pages or a mail | Admin panel → Translations: edit, Save. Readers get it at their next page load; the change is in the audit log |
@@ -532,6 +645,7 @@ php reset-password.php <email> [password] [--clear-2fa]
 php translations.php --status              # the frontend's keys against the database's, how much of each language there is, the mails' keys against MAIL_KEYS
 php translations.php --export sk [file]    # a language's own strings as flat JSON
 php translations.php --import sk file      # and back in, checked as the admin panel checks a save
+php backup.php --list                      # the database's backups in storage/backups (--create, --inspect=<id>, --extract=<id> <folder>)
 php tests/run.php                          # every test, against throwaway databases
 ```
 
@@ -542,6 +656,8 @@ php tests/run.php                          # every test, against throwaway datab
 | Every request answers 503 `not_set_up`; the pages say "not set up yet" | The installer has not run, or a `config/*.local.php` is missing or wrong. On a development machine `setup.php` lists which. |
 | The pages say "The site is not available right now", on an installed IAM | A `config/*.local.php` is missing or wrong (uploaded over, or deleted) - the API answers 503 `not_set_up` with `installed: true` - or the database does not answer (`/api/site-status` says `unavailable`). Restore the file from your copy; the installer is gone and is not offered. The pages notice by themselves |
 | Migrations says "Another database update is running" | Another apply holds the lock - another administrator, `php migration.php`, the installer. Wait a moment and look again; nothing was applied |
+| Apply says "The backup before the update could not be made, so nothing was applied" | The backup it makes first failed: `storage/backups/` is not writable by PHP, the disk is too full, or the host's PHP lacks COPY (pdo_pgsql) or AES-256-GCM (openssl) - the Backups page's status says which. Mend that and Apply again |
+| The Audit log page says to apply the pending update first | Migration 018 (and the library's admin set) waits: Admin panel → Migrations → Apply pending. The entries made meanwhile are kept in `storage/logs/audit-pending.jsonl` and go in then |
 | "The active signing key cannot be decrypted" | The master key is not the one the key was made with. Restore the right `secret.local.php`; failing that, delete the rows of `signing_keys` (everybody signs in again) and re-enable two-factor for those who had it. |
 | `setup.php` says "Already installed" | `storage/installed.lock` is there. It deletes itself if it can; otherwise delete `setup.php` and `config/setup.local.php` by hand. |
 | A site says "invalid_redirect_uri" before any page | Its redirect URI is not registered exactly as it sends it (scheme, host, port, path, trailing slash) - or it was left blank at install. |

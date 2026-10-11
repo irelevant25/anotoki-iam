@@ -27,7 +27,7 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.3.0) - which every anotoki site
+its GitHub release, named in `package.json` (0.4.1) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
 tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,
@@ -36,9 +36,13 @@ through the `@anotoki/lib/ui` barrel, which would pull every piece into the
 first load), `@anotoki/lib/shell` (the theme, the language switcher, the top
 bar, the frame), `@anotoki/lib/translations` (the pages' words and language
 from the database; `@anotoki/lib/translations/admin` is the admin panel's
-Translations and Languages pages) and `@anotoki/lib/migrations` (the
+Translations and Languages pages), `@anotoki/lib/migrations` (the
 not-set-up page, the admin panel's "A database update is waiting" line;
-`@anotoki/lib/migrations/page` is the Migrations page). Its PHP half is the
+`@anotoki/lib/migrations/page` is the Migrations page) and
+`@anotoki/lib/admin` (the admin tools' configuration; `@anotoki/lib/admin/errors`,
+`/audit` and `/backups` are the admin panel's Error log, Audit log and Backups
+pages). The IAM takes nothing of its auth, people or feedback modules: it is
+the IAM. Its PHP half is the
 backend's `anotoki/lib`. A new version: its release's URL in `package.json`,
 then `bun install` and `npm install --package-lock-only`, so that
 `package-lock.json` agrees - with the backend's half, where the version
@@ -67,7 +71,13 @@ and the language's all go through `SessionService.setFrom()` or `refresh()`,
 so an answer after Sign out signs nobody back in; only a sign-in's answer and
 the probe's are the session as they are), the admin panel's "Cannot sign in" rule
 (`pages/admin/users/sign-in-check.ts`, the same as the server's `blocked_in`;
-`sign-in-check.spec.ts`), and the
+`sign-in-check.spec.ts`), the family's admin tools as the IAM wires them
+(`core/admin/admin-tools.config.spec.ts`: the library's Backups and Audit log
+pages drawn for real behind the IAM's interceptor and session - the IAM's
+ADMIN alone, a refusal in the panel's words, the CSRF header on every write,
+the password as the proof, "Sign in again" signing out and coming back, a
+failed sign-out said in a toast, restoring off with the IAM's reason, a person
+the log names linked to the Users page), and the
 address the not-set-up page sends the browser back to - a path that stays on
 this site, as the browser reads it (`core/auth/next-path.ts`'s
 `sameOriginPath()`; `next-path.spec.ts`).
@@ -111,6 +121,12 @@ src/
                            wired in: who is ADMIN, the sign-in, the words, the dates.
                            No gate, no check at boot: the IAM keeps working while
                            an update waits
+      admin/               the family's admin tools (@anotoki/lib/admin) wired in
+                           (admin-tools.config.ts): who is ADMIN, the people the logs
+                           name (the Users page), the dates, Migrations; the admin
+                           panel's words for a refusal, "Sign in again" and why
+                           restoring is off are handed over by its routes
+                           (pages/admin/admin-tools.ts), out of the first load
       auth/                the session signal, the guard, `next` validation,
                            the remembered-device token
       i18n/                the family's translations (@anotoki/lib/translations)
@@ -144,13 +160,17 @@ src/
       admin/               /admin, in the family's frame with the panel's side
                            navigation: users, approvals, sessions, applications,
                            announcements (the history and senders, the composer,
-                           one announcement and its sending), logs, settings,
-                           keys; /admin/translations and /admin/languages are the
-                           family's pages (@anotoki/lib/translations/admin), worded
-                           for the IAM by localization.ts (its mails, the accounts
-                           per language), and /admin/migrations is the family's
-                           (@anotoki/lib/migrations/page), whose update line sits
-                           above them all
+                           one announcement and its sending), the email log,
+                           settings, keys; /admin/translations and /admin/languages
+                           are the family's pages (@anotoki/lib/translations/admin),
+                           worded for the IAM by localization.ts (its mails, the
+                           accounts per language); /admin/audit, /admin/errors and
+                           /admin/backups are the family's admin tools
+                           (@anotoki/lib/admin/*: the audit log, the error log, the
+                           backups - encrypted, restoring off, behind the password -,
+                           the panel's part in admin-tools.ts); and /admin/migrations
+                           is the family's (@anotoki/lib/migrations/page), whose
+                           update line sits above them all
 public/
   anotoki.png, favicon.png - and the build copies the family's theme-boot.js beside
                            them (angular.json): the stored theme before the first
@@ -204,8 +224,8 @@ scripts/
   built-in words. `en.ts`'s English is shown only while no bundle is in memory
   (between an upload and "Apply pending", or when the server cannot be
   reached). There is no Slovak in the build. The admin panel is English only,
-  written in its templates; its Translations and Languages pages are the
-  family's.
+  written in its templates; its Translations, Languages, Error log, Audit log,
+  Backups and Migrations pages are the family's.
 - **The top bar** (`layouts/top-bar`) is the anotoki family's one bar -
   `<anotoki-top-bar>` from `@anotoki/lib/shell`, whose order, menus, keys and
   fold are the family's - worded and wired here. One row: the brand ("anotoki
@@ -250,6 +270,10 @@ scripts/
 the web root, next to the backend's `api/`. The `.htaccess` it writes:
 
 - passes `/api/…` through to the backend untouched;
+- refuses `/config`, `/migrations`, `/storage` and `/vendor` (403), in any
+  case of letters - the backend's own folders: the master key, the backups
+  (every hash and encrypted secret), the logs - before anything else, as each
+  one's own `.htaccess` does;
 - rewrites `/.well-known/openid-configuration` and `/.well-known/jwks.json` to
   `api/index.php` (the front controller routes on the original path);
 - answers every other path that is not a real file with `index.html`;
@@ -270,10 +294,12 @@ components as well as the IAM's own, and the backend's "a string is text,
 never HTML" scan (`php translations.php --status`, the library's
 `KeyScanner`) reads only `src/app`.
 So the script reads the library's bundles
-(`node_modules/@anotoki/lib/fesm2022/*.mjs`) and stops at `innerHTML`,
-`outerHTML`, `insertAdjacentHTML`, `bypassSecurityTrust…`, `srcdoc`,
-`document.write`, `DOMParser`, `parseFromString` or
-`createContextualFragment` - every way a string becomes markup -, in any
+(`node_modules/@anotoki/lib/fesm2022/*.mjs`) and the boot script copied beside
+`index.html` (`assets/theme-boot.js`), and stops at `innerHTML`,
+`outerHTML`, `setHTMLUnsafe`, `insertAdjacentHTML`, `bypassSecurityTrust…`,
+`srcdoc`, `document.write`, `DOMParser`, `parseFromString`,
+`parseHTMLUnsafe` or `createContextualFragment` - every way a string becomes
+markup -, in any
 spelling and in a comment too, naming the file and line. Angular's own
 sanitizer is not in those files. The fix is a release of the library, never a
 way around the check.

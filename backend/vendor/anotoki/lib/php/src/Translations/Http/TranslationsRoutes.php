@@ -192,7 +192,9 @@ final class TranslationsRoutes
                     return self::refuse($response, Translations::unavailable(), $error);
                 }
 
-                $result = $words->import($code, JsonBody::map($body), $actor($request));
+                // An object's members; a list's items, numbered - keys no site has, refused as such (unknown_key).
+                // An empty list holds nothing to import and is no object: refused as the shape it is.
+                $result = $words->import($code, JsonBody::map($body) ?? (is_array($body) && $body !== [] ? $body : null), $actor($request));
                 if ($result instanceof Refusal) {
                     return self::refuse($response, $result, $error);
                 }

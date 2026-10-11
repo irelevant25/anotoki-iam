@@ -48,6 +48,12 @@ final class StringCheck
      * saves of the same strings wait for each other instead of each holding a row
      * the other needs.
      *
+     * Every key is read as a name - (string) $key - and one the site does not
+     * have is unknown_key, whatever came with it: PHP makes a list of an object
+     * whose keys are numbers ({"0": …}, {"0": …, "1": …}), and a list's items
+     * are numbered, so neither is another shape of body - each is keys no site
+     * has.
+     *
      * @param mixed                 $values     {key: {language code: text}}
      * @param list<string>          $keys       every key there is
      * @param array<string, string> $languages  every language there is: code => its name in English
@@ -57,8 +63,8 @@ final class StringCheck
      */
     public static function changes(mixed $values, array $keys, array $languages, array $english, TranslationsConfig $config): array|Refusal
     {
-        if (!self::isMap($values)) {
-            return Refusal::invalid('invalid_value', 'Send the strings by key and language: {key: {language: text}}');
+        if (!is_array($values)) {
+            return Refusal::invalid('invalid_value', 'Send the strings by key and language: {key: {language: text}}.');
         }
 
         $known = array_fill_keys($keys, true);
@@ -67,9 +73,6 @@ final class StringCheck
 
         foreach ($values as $key => $cells) {
             $key = (string) $key; // PHP made a number of a key like "12"
-            if (!self::isMap($cells)) {
-                return Refusal::invalid('invalid_value', 'The strings of ' . self::quote($key) . ' are not given by language: {language: text}', ['key' => Text::clip($key, 200)]);
-            }
             if (!isset($known[$key])) {
                 $unknown = array_values(array_filter(array_map('strval', array_keys($values)), static fn (string $name): bool => !isset($known[$name])));
 
@@ -82,6 +85,10 @@ final class StringCheck
                     ['key' => Text::clip($key, 200), 'keys' => array_map(static fn (string $name): string => Text::clip($name, 200), $unknown)]
                 );
             }
+            // By language: a list of strings is languages numbered, which no site has (unknown_language).
+            if (!is_array($cells)) {
+                return Refusal::invalid('invalid_value', 'The strings of ' . self::quote($key) . ' are not given by language: {language: text}.', ['key' => Text::clip($key, 200)]);
+            }
 
             $placeholders = self::placeholdersOf($key, $rules, $english[$key] ?? Text::clean($cells[Translations::FALLBACK] ?? null) ?? '');
 
@@ -89,18 +96,18 @@ final class StringCheck
                 $code = (string) $code;
                 $about = ['key' => $key, 'language' => Text::clip($code, 20)];
                 if (!isset($languages[$code])) {
-                    return Refusal::invalid('unknown_language', 'The site has no language ' . self::quote($code), $about);
+                    return Refusal::invalid('unknown_language', 'The site has no language ' . self::quote($code) . '.', $about);
                 }
                 $name = $languages[$code];
 
                 $text = Text::clean($value);
                 if ($text === null) {
-                    return Refusal::invalid('invalid_value', "The $name string of \"$key\" is not text", $about);
+                    return Refusal::invalid('invalid_value', "The $name string of \"$key\" is not text.", $about);
                 }
                 $text = Text::trim($text);
                 if (Text::blank($text)) {
                     if ($code === Translations::FALLBACK) {
-                        return Refusal::invalid('fallback_required', "\"$key\" needs its English string: every other language falls back to it", $about);
+                        return Refusal::invalid('fallback_required', "\"$key\" needs its English string: every other language falls back to it.", $about);
                     }
                     $changes[] = ['key' => $key, 'language' => $code, 'value' => null];
                     continue;
@@ -133,12 +140,12 @@ final class StringCheck
     {
         $text = Text::clean($value);
         if ($text === null) {
-            return Refusal::invalid('invalid_language', "$what is not text");
+            return Refusal::invalid('invalid_language', "$what is not text.");
         }
 
         $text = Text::trim($text);
         if (Text::blank($text) || Text::length($text) > $config->languageNameMax || preg_match('/[\r\n\t]/', $text) === 1) {
-            return Refusal::invalid('invalid_language', "$what must be one line of 1 to {$config->languageNameMax} characters");
+            return Refusal::invalid('invalid_language', "$what must be one line of 1 to {$config->languageNameMax} characters.");
         }
 
         if ($config->extraCheck !== null) {
@@ -194,15 +201,18 @@ final class StringCheck
         }
 
         if (Text::length($text) > $config->valueMax) {
-            return Refusal::invalid('invalid_value', "The $name string of \"$key\" is longer than {$config->valueMax} characters", $about);
+            return Refusal::invalid('invalid_value', "The $name string of \"$key\" is longer than {$config->valueMax} characters.", $about);
         }
         if (Placeholders::strayBrace($text)) {
             // It names one of the key's own placeholders: told "like {count}" on a key whose placeholder is
-            // {app}, a translator would add one the key does not have.
+            // {app}, a translator would add one the key does not have - and on a key with none at all, a
+            // placeholder to copy would be one more thing the string must not have.
             return Refusal::invalid(
                 'invalid_placeholder',
-                "The $name string of \"$key\" has a { or } that is not part of a placeholder. A placeholder is written exactly as the English string has it, like {"
-                    . ($placeholders[0] ?? 'count') . '}: no spaces, and its name is not translated.',
+                $placeholders === []
+                    ? "The $name string of \"$key\" has a { or }, and its English string has no placeholders: a brace belongs only around a placeholder, so take it out."
+                    : "The $name string of \"$key\" has a { or } that is not part of a placeholder. A placeholder is written exactly as the English string has it, like {"
+                        . $placeholders[0] . '}: no spaces, and its name is not translated.',
                 $about
             );
         }
@@ -223,8 +233,8 @@ final class StringCheck
                 return Refusal::invalid(
                     'placeholder_changed',
                     in_array($placeholder, $placeholders, true)
-                        ? "The English string of \"$key\" must keep {{$placeholder}}: the page puts a value there"
-                        : "The English string of \"$key\" cannot use {{$placeholder}}: the page has no value for it",
+                        ? "The English string of \"$key\" must keep {{$placeholder}}: the page puts a value there."
+                        : "The English string of \"$key\" cannot use {{$placeholder}}: the page has no value for it.",
                     $about + ['placeholder' => $placeholder]
                 );
             }
@@ -233,7 +243,7 @@ final class StringCheck
             if ($unknown !== []) {
                 return Refusal::invalid(
                     'unknown_placeholder',
-                    "The $name string of \"$key\" uses {{$unknown[0]}}, which its English string does not have",
+                    "The $name string of \"$key\" uses {{$unknown[0]}}, which its English string does not have.",
                     $about + ['placeholder' => $unknown[0]]
                 );
             }

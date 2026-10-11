@@ -1326,3 +1326,109 @@ for the move:
   problem after it is fixed forward. Its engine would list the library's two
   records as missing files - harmless, but confusing.
 
+## 2026-10-11 - The admin panel's tools from the family's library; backups encrypted, never restored here
+
+anotoki-lib 0.4 (0.4.1 - 0.4.0 fails on PHP 8.2) brings the admin tools every
+anotoki site's panel shares: the error log, the audit log, feedback, backups
+and the file explorer, each a page of the library's, for the site's ADMIN
+alone (the owner's decision of 2026-10-07). The IAM takes three - the error
+log, the audit log and backups; not feedback (its visitors write to the sites)
+and not the file explorer (it serves no files). Its configuration of them is
+`backend/api/admin_tools.php` and `backend/api/audit.php`; what was decided:
+
+- **One audit log, the library's, with every entry the IAM ever wrote.** The
+  library's table `anotoki_audit_log` is the IAM's `audit_log` with three more
+  columns (a session, and what an entry belongs to) the IAM leaves empty. Its
+  set `anotoki_admin` runs first, before the IAM's files - the family's order,
+  in the installer, the command line and the Migrations page alike - and the
+  IAM's migration 018 moves every row of `audit_log` into it with its id, its
+  time, its address and its details exactly, proving it in its gate (as many,
+  each equal, the next number after the highest). `audit()` stays the IAM's one
+  function every route calls, and keeps what it kept: who, what, to what, the
+  details, the address (`requestIp()`), the time; written behind a savepoint
+  inside the caller's transaction, never throwing. The old table is kept,
+  unread, as `audit_log_before_018`, and scrubbed by an account's deletion like
+  the log, until a later migration drops it once both IAMs run 018 - the
+  family's pattern for moved data (the sites drop theirs the same way).
+- **The IAM never closes while 018 waits.** Between the upload and Apply,
+  `audit()` writes into neither table: an entry waits in
+  `storage/logs/audit-pending.jsonl` and goes in after the Apply with its own
+  time (`flushWaitingAuditEntries()`, from the Apply, `php migration.php`
+  and housekeeping - before its deletions -, which scrubs the people of the
+  accounts deleted meanwhile out of them as they go in, not an hour later).
+  So nothing writes into `audit_log` while it moves, every
+  way in works, and no request fails for its entry
+  (`tests/audit-log-into-the-library.test.php`). The Audit page asks for the
+  update first meanwhile. **Once 018 is applied, no build from before it goes
+  on the host again**: its `audit()` would lose every entry, its Audit page
+  fail, and its anonymization stop on the old table's name. Fix forward.
+- **The deletion of an account scrubs the library's table by the IAM's rules**:
+  the library's `scrubPeople()` is the IAM's two rules made the family's (no
+  address on the person's own entries or on those about them nobody else made;
+  their names and addresses out of the details of what was about them), and
+  the IAM adds its third (a personal token's name).
+- **A change of the strings keeps every mail string whole** (from the security
+  review of 2026-10-11): one audit entry holds at most 64 KB of details, and
+  the library keeps nothing but the names of details that do not fit - a save
+  of every mail string, long, in two languages would have kept none of its
+  texts, and an administrator could pad a save to hide the one rewording that
+  matters. So the save's or import's entry keeps its summary (and how many mail
+  strings changed), and each changed mail string has an entry of its own,
+  `translations.mail_changed`, with its old and new text whole
+  (`auditTranslations()`).
+- **The error log keeps no secret.** The library's redactor takes the family's
+  names of secrets and every run that looks like a token; it has no way to be
+  told a site's own, so the IAM takes its own names out first - its session
+  and device cookies, its `iam_rt_` and `iam_pat_` tokens, the body fields
+  that carry a credential, a two-factor secret (`iamRedactSecrets()`) - since
+  a random value with no digit in it is no token-like run to the library. On
+  every way into the log: the IAM's error handler; a middleware just inside the
+  log's outer half, for an exception nothing answered (thrown by the security
+  headers, the gate or the CORS check); PHP's warning and fatal-error handlers,
+  which are the IAM's own for that (`iamInstallPhpHandlers()`, the library's
+  `installPhpHandlers()` with the names taken out first); and every failure
+  the IAM writes itself (`iamRecordError()`). Nothing the
+  IAM throws names one; this is for what might. No route for the pages' own
+  errors: nothing asked for one. The client hashes are keyed by the master
+  key, so no other key file is kept.
+- **Backups: encrypted, always.** Every table, every account's password hash,
+  the encrypted two-factor secrets and signing keys, every hash of a session
+  and a token: AES-256-GCM chunks under a key derived from the master key, the
+  rows sealed as COPY hands them over - never in the clear on the disk. A
+  downloaded backup opens only with the master key (`php backup.php --from
+  --key`, on the owner's computer), and an older one only with the master key
+  it was made under.
+- **Backups: the proof the account page asks, never a session alone.** Making,
+  downloading and deleting one asks for the administrator's password where it
+  is a way in, otherwise a sign-in of the last 15 minutes (`accountProof()`, its
+  wrong passwords counted by the limiter); each is audited. A download is a
+  single-use ticket for a minute, for one backup and the administrator it was
+  issued to, its route inside the admin group as well.
+- **Backups: never restored here.** An IAM put back as it was would bring
+  back revoked refresh tokens and sessions, old passwords, removed roles and
+  deleted people. Restore stays off (`restore: false`) until an `afterRestore`
+  exists that ends every session and token and deletes again every account
+  deleted since - and has been reviewed; then it is a decision of its own. A
+  backup's data is read offline meanwhile (`php backup.php --extract`).
+- **Backups are made by themselves**: daily (the first housekeeping run of a
+  UTC day, after the answer - the host has no cron; 14 kept) and before every
+  update the Migrations page or `php migration.php` applies (5 kept; one that
+  cannot be made applies nothing); by hand, until deleted. The installer makes
+  none: it builds the database it was just given.
+- **Backups are kept until the owner deletes them - no maximum age** (the
+  owner's decision of 2026-10-11, on the security review). Nothing deletes a
+  backup for its age: the daily and before-migration ones go only as newer
+  ones of their kind push them out (14 and 5 kept), whatever their age, and a
+  manual one stays until the owner deletes it. The consequence, accepted: a
+  deleted person's data - their row, hashes, address, history - stays in every
+  backup made before their deletion until the owner deletes that backup. Those
+  backups are encrypted under the master key, and the IAM never restores one,
+  so no backup brings an account back; a restore made by hand elsewhere must
+  delete again the accounts deleted since (`docs/operations.md`).
+- **Where they live**: `storage/backups` and `storage/logs`, denied to the web
+  twice (the build's `storage/.htaccess`, and each folder's own the library
+  writes, with an empty `index.html`). Backup names carry 128 random bits; the
+  two files of known names name no backup. The genshin site's old pg_dump
+  folders and the sites' own copies are none of the IAM's business, and no
+  file of the IAM's is deleted by this change.
+

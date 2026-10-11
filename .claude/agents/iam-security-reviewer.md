@@ -145,11 +145,14 @@ the files you were given). You do not edit anything.
   override -, a subject that stays one header line, a body line within 998
   bytes with room kept for every `{username}` and `{date}`; `mail` a server
   namespace, never in a bundle; a changed mail string's old and new text whole
-  in the audit log. A string is text, never HTML, on every page - and
+  in the audit log, each in an entry of its own (`translations.mail_changed`,
+  `auditTranslations()`: one entry keeps at most 64 KB, and a padded save must
+  hide none). A string is text, never HTML, on every page - and
   `frontend/scripts/prepare-deploy.mjs` refuses a release of `@anotoki/lib`
-  whose bundles name an HTML sink (innerHTML, outerHTML, insertAdjacentHTML,
+  whose bundles or boot script (`assets/theme-boot.js`) name an HTML sink
+  (innerHTML, outerHTML, setHTMLUnsafe, insertAdjacentHTML,
   bypassSecurityTrust, srcdoc, document.write, DOMParser / parseFromString,
-  createContextualFragment). The bundle route reads and sets no cookie
+  parseHTMLUnsafe, createContextualFragment). The bundle route reads and sets no cookie
   and is in no CORS list; the eight admin routes sit in the admin group
   (`requireSession()`, `requireAdmin()`), every write under the CSRF header,
   the writer the session's account (never a body's); the library reads a body
@@ -158,6 +161,31 @@ the files you were given). You do not edit anything.
   `LanguageCode::ok()` before any query. The library's set
   (`anotoki_translations`) writes only the three tables, and a library key's
   strings only where it has none.
+- **The admin tools** (`api/admin_tools.php`, `api/audit.php`; the library's
+  `AuditRoutes`, `ErrorLogRoutes`, `BackupsRoutes` mounted in
+  `routes/admin.php`): every group inside the admin group (`requireSession()`,
+  `requireAdmin()`, the CSRF header on every write) and asking the library's
+  own ADMIN check (`iamAdminContext()`'s `isAdmin`, the same rule: not while
+  one's own deletion is pending). Backups: encrypted under
+  `Keys::derive(iamMasterKey(), 'iam-backup')`, never a plain one; made,
+  downloaded and deleted only after `accountProof()` (the password, its wrong
+  ones counted as `admin_backup`, or a sign-in of the last 15 minutes) and
+  audited; the download ticket single-use, a minute, one backup, the person it
+  was issued to (`samePerson`), its route inside the admin group too;
+  `restore: false` - a restore is a decision for `docs/decisions.md`, with a
+  reviewed `afterRestore`; `storage/backups` and `storage/logs` never served.
+  The error log: no query string, header, cookie, body, token or address - the
+  IAM's own names of secrets out before the library's redactor
+  (`iamRedactSecrets()`) on every way in - the IAM's error handler, the
+  middleware just inside the outer half (an exception nothing answered), the
+  IAM's own PHP handlers (`iamInstallPhpHandlers()`: warnings and fatal
+  errors) and `iamRecordError()` - and its client hashes keyed by the master
+  key. The audit log: `audit()` keeps what it kept, never throws, writes behind
+  a savepoint; a deleted account's person scrubbed by the IAM's rules in
+  `anotoki_audit_log` and in `audit_log_before_018`, and out of the entries
+  that waited for 018 as they go in (`flushWaitingAuditEntries()`). Backups
+  are kept until the owner deletes them (no maximum age - the owner's decision
+  of 2026-10-11).
 - **Tests**: the change has them, including the attack a rule stops; `php
   tests/run.php` passes (you may run it - it uses throwaway databases).
 

@@ -6,22 +6,28 @@ version:
 
 | Half | Package | Where |
 | --- | --- | --- |
-| PHP 8.2+, Slim 4, PostgreSQL | `anotoki/lib` (Composer) | `composer.json`, `php/src/`, `php/migrations/`, `php/resources/` |
+| PHP 8.2+, Slim 4, PostgreSQL | `anotoki/lib` (Composer) | `composer.json`, `php/src/`, `php/migrations/`, `php/resources/`, `php/testing/` |
 | Angular 21 (standalone, zoneless, signals) | `@anotoki/lib` (npm tarball) | `angular/projects/lib/` |
 
-Version 0.2.0 holds:
+Version 0.4.1 holds:
 
-- **migrations** - the engine that brings a site's database up to date, and one
-  behaviour for every site while an update waits (both halves);
+- **migrations** - the engine that brings a site's database up to date, with
+  the library's own migration sets beside a site's, and one behaviour for every
+  site while an update waits (both halves);
 - **the UI kit** (Angular) - the family's styles and palette
   (`@anotoki/lib/styles`), its components (`@anotoki/lib/ui` and its entry
-  points) and its top bar and frame (`@anotoki/lib/shell`).
-
-The PHP half is unchanged since 0.1.0. Unreleased (0.3.0, CHANGELOG.md): the
-engine's **library sets** - the library's own migration files beside a site's -
-and **translations**, both halves: a site's words, its languages and their admin
-pages, one implementation for every site (the section "Translations" below); and
-the kit's core a file per piece, its class names its own ("Upgrading from 0.2.x").
+  points, the core a file per piece) and its top bar and frame
+  (`@anotoki/lib/shell`);
+- **translations** (both halves) - a site's words, its languages and their admin
+  pages, one implementation for every site (the section "Translations" below);
+- **auth** (both halves) - signing in through the anotoki IAM, with the sign-in
+  hint and the screen of a sign-in that failed (the section "Auth");
+- **people** (both halves) - each site's record of the accounts that use it, the
+  scrub of the accounts the IAM deleted and the administrators' People page (the
+  section "People");
+- **the admin tools** (both halves) - the error log, the audit log, feedback,
+  backups and the file explorer, each an admin page, and the visitors' feedback
+  form in their language (the section "Admin tools").
 
 ## The behaviour
 
@@ -63,25 +69,27 @@ PHP - in `backend/composer.json`:
 
 ```json
 "repositories": [{ "type": "vcs", "url": "https://github.com/irelevant25/anotoki-lib" }],
-"require": { "anotoki/lib": "^0.1" }
+"require": { "anotoki/lib": "^0.4.1" }
 ```
 
 then `php composer.phar update anotoki/lib --prefer-dist` in `backend/`. Composer
 takes the version from the git tag and installs GitHub's archive of it, which
 holds the PHP half only - its code (`php/src`), the migration files of the
-library's sets (`php/migrations`) and its resources (`php/resources`), with
+library's sets (`php/migrations`), its resources (`php/resources`) and, from
+0.4.0, the stand-in IAM a site's tests start (`php/testing`), with
 `composer.json`, this README and CHANGELOG.md: `.gitattributes` is an
 allow-list, and CI builds the archive and checks it
 (`.github/scripts/check-archive.sh`). Where the site uploads `vendor/`,
 `vendor/anotoki/lib` goes with it - kept from being served as the site's own
 `migrations/` is (a deny-all `.htaccess`), since it holds SQL too. (0.2.0
-changed only the Angular half: `^0.1` keeps a site's PHP half at 0.1.x, which
-is the same code.)
+changed only the Angular half; 0.3.0 and 0.4.0 changed both: a site takes the
+constraint and the tarball of one version together. 0.4.1 is 0.4.0 working on
+PHP 8.2 - a site goes straight to `^0.4.1` and the 0.4.1 tarball.)
 
 Angular - in `frontend/package.json`:
 
 ```json
-"@anotoki/lib": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.2.0/anotoki-lib-0.2.0.tgz"
+"@anotoki/lib": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.4.1/anotoki-lib-0.4.1.tgz"
 ```
 
 then `bun install` in `frontend/` (and `npm install` too where the site keeps a
@@ -151,7 +159,7 @@ MigrationsRoutes::admin($app, '/api/admin/migrations', $migrator, function ($req
   (filename))`, with `folder VARCHAR(64) NOT NULL` and `UNIQUE (folder,
   filename)` for more than one set of the site's own. A table it cannot read (no
   file column) counts as nothing applied until `prepare` adopts it.
-- **Library sets** (unreleased, 0.3.0): `MigrationSet::library($name, $dir)` is a
+- **Library sets** (0.3.0): `MigrationSet::library($name, $dir)` is a
   set the library ships - `Translations\Schema::migrationSet()` is one - and the
   names that begin with `anotoki_` are theirs alone (a site's set named so is
   refused). A site lists them with its own, in the order they run:
@@ -190,7 +198,7 @@ uses is in the first load again.
 | --- | --- | --- |
 | `@anotoki/lib/styles` | Sass: the tokens (one palette, light and dark), Manrope, the base, utilities, tables | the site's `styles.scss` |
 | `@anotoki/lib/ui` | re-exports the core's pieces below, nothing of its own | - |
-| `@anotoki/lib/ui/config` | `provideAnotokiUi`, `AnotokiWords`, the kit's words and the library's (`LIBRARY_WORDS`) | yes |
+| `@anotoki/lib/ui/config` | `provideAnotokiUi`, `AnotokiWords`, the kit's words (`KIT_LIBRARY_WORDS`), every library key's name (`LibraryKey`), a module's registration of its words (`provideLibraryWords`, `ANOTOKI_LIBRARY_WORDS`) | yes |
 | `@anotoki/lib/ui/icon`, `/dom` | `<anotoki-icon>`, `AnotokiIcons` and the kit's own icons; `uniqueId`, `keepOnScreen`, `mediaQuery`, `tabbable`, `isShown` | yes (the bar) |
 | `@anotoki/lib/ui/button`, `/spinner` | the button, the spinner | yes (the status page) |
 | `@anotoki/lib/ui/badge`, `/alert`, `/card`, `/empty-state`, `/error-state`, `/page-header`, `/avatar`, `/segmented`, `/autofocus` | one piece each | where a first page uses it |
@@ -206,6 +214,17 @@ uses is in the first load again.
 | `@anotoki/lib/translations` | the translation service, the `translate` and `translatePlural` pipes, the kit's and the shell's wiring, the status page's words, the admin pages' guard | yes (every page) |
 | `@anotoki/lib/translations/admin` | the admin Translations and Languages pages, their drafts | lazy admin routes |
 | `@anotoki/lib/translations/testing` | `provideTestTranslations()`, a stand-in for a site's specs | a site's specs |
+| `@anotoki/lib/auth` (0.4.0) | signing in through the IAM: its browser client, `AnotokiAuth`, the interceptor, the guards, `AccountPreferences`, the callback page and the failure's screen ("Auth" below) | yes (every page of a site that signs in) |
+| `@anotoki/lib/auth/testing` (0.4.0) | `provideTestAnotokiAuth()`, `FakeAuthClient`: the module without an IAM, for a site's specs | a site's specs |
+| `@anotoki/lib/people` (0.4.0) | `provideAnotokiPeople()` and the shape of the People API ("People" below) | where the site configures the page (its app.config, or the page's route) |
+| `@anotoki/lib/people/page` (0.4.0) | the admin People page | a lazy admin route |
+| `@anotoki/lib/admin` (0.4.0) | the admin tools' configuration (`provideAnotokiAdmin`) and `FeedbackUnread`, the new feedback beside a site's admin navigation ("Admin tools" below) | where the admin navigation is |
+| `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, `/files` (0.4.0) | the admin tools' pages, one each | lazy admin routes |
+| `@anotoki/lib/admin/parts` (0.4.0) | what those pages share - their requests, failures, dates, question dialog and styles; the library's own, a site imports nothing of it | with the first of them |
+| `@anotoki/lib/feedback` (0.4.0) | the visitors' feedback form's configuration (`provideAnotokiFeedback`, which registers its words) and its words | yes, beside the translations module |
+| `@anotoki/lib/feedback/form` (0.4.0) | `<anotoki-feedback-form>`, on the kit's fields | loaded when the person opens it |
+| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's) | with its module, which alone imports it and registers it with the translations module |
+| `@anotoki/lib/words` (0.4.0, generated) | `LIBRARY_WORDS`, every module's words (the kit's and each namespace's) | never - a site's specs, the showcase |
 
 Every component is standalone, OnPush and zoneless-safe; colours only through
 `--anotoki-*` custom properties, each read with the family's own value as its
@@ -300,7 +319,8 @@ The tokens (each `--anotoki-<name>`, light and dark): `bg`, `surface`,
 `surface-2`, `surface-3`, `surface-raised`, `border`, `border-strong`, `text`,
 `muted`, `subtle`, `primary`, `primary-hover`, `primary-contrast`,
 `primary-soft`, `primary-soft-text`, `accent`, `link`, `danger`, `danger-hover`,
-`danger-contrast`, `danger-soft`, `danger-border`, `success`, `success-text`,
+`danger-contrast`, `danger-soft`, `danger-border`, `danger-text` (0.4.0),
+`success`, `success-text`,
 `success-soft`, `success-border`, `warning`, `warning-text`, `warning-soft`,
 `warning-border`, `info`, `info-soft`, `info-border`, `ring`, `focus`,
 `backdrop`, `skeleton`, `skeleton-shine`, `switch-thumb` (the switch's knob:
@@ -314,6 +334,13 @@ ground the kit draws reaches 4.5:1 in both themes (badges: `success-text`
 edge of every control: fields, selects, code boxes, radio cards, segmented
 controls, the bar's round buttons - 3:1 on every ground (WCAG 1.4.11; light
 `#7a8ca5`, dark `#5e72a3`). The decorative `border` (cards, separators) stays light.
+`danger-text` is the ink of words that say something went wrong - a field's
+error, a refusal, a danger badge, the People page's Delete - at 4.5:1 at least on
+every ground and on `danger-soft` (light `#b42833`, 5.4:1 at the least; dark
+`#ff6b75`, 5.2:1), apart from `danger`, the fill of a button under white words: a
+site whose own red fill is darker (Japanese Academy's dark `#ae4a3f`, 3:1 on its
+surfaces) keeps its error words readable, or names its words red for them
+(`dark: (danger: #ae4a3f, danger-text: <its words red>)`).
 
 A site with a palette of its own (Japanese, Piano) gives its colours, light and
 dark, and keeps the family's for the rest:
@@ -363,7 +390,8 @@ The keys: `ui.close`, `ui.dismiss`, `ui.notifications`, `ui.cancel`,
 `theme.autoHint`, `theme.notSaved` - the library's words under the namespaces
 `anotoki.ui|topbar|language|theme.*`, English and Slovak generated from
 `php/resources/library-words.json` ("The library's own words" below;
-`LIBRARY_WORDS` has every one). A site words its own menu items with them too:
+`KIT_LIBRARY_WORDS` has them by their library keys, `@anotoki/lib/words`'
+`LIBRARY_WORDS` every module's). A site words its own menu items with them too:
 `words.t('topbar.account')` is "Tvoj anotoki účet" in Slovak.
 
 **Icons** - `<anotoki-icon name="..." [size] [strokeWidth] [filled] [label]>`
@@ -422,8 +450,11 @@ buttons in `<ng-template anotokiDialogFooter>`. `ConfirmService.ask({ title, mes
 `<anotoki-toast-host>` is a polite region, always in the page.
 
 **`ui/forms`** - every field: `label`, `[(value)]`, `name`, `hint`, `error`
-(role="alert", tied by aria-describedby, aria-invalid), `required`,
-`optional`, `disabled`, `hideLabel`, `autofocus`, `focus()`.
+(role="alert", tied by aria-describedby, aria-invalid), `invalid` (0.4.0:
+aria-invalid and the danger edge without a message of its own - for fields
+whose words are said once elsewhere, under a range's two dates, in a form's
+summary; the text field, textarea, password field, select and code input),
+`required`, `optional`, `disabled`, `hideLabel`, `autofocus`, `focus()`.
 `anotoki-text-field` (`type`, `autocomplete`, `inputmode`, `placeholder`,
 `readonly`, `maxlength`, `minlength`, `min`, `max`, `pattern`, `spellcheck`,
 `autocapitalize`, `(blurred)`, `[fieldPrefix]` / `[fieldSuffix]`),
@@ -445,7 +476,8 @@ and `copyText()`; `ui/qr` `<anotoki-qr-code value label>` and `encodeQr()`.
 
 `provideAnotokiShell(factory)`: `theme` (`storageKey` - the same as the boot
 script's `data-storage-key`; `account` - the account's theme, null while there
-is none; `save` - rejects when the account refuses; `themeColor`) and
+is none; `save` - rejects when the account refuses, and a rejection whose `code`
+is `login_required` - nobody signed in any more - is no refusal; `themeColor`) and
 `languages` (`current`, `offered`, `choose` -> true once the page reads in it,
 `notSaved`, `clearNotSaved`).
 
@@ -454,7 +486,10 @@ is none; `save` - rejects when the account refuses; `themeColor`) and
   `<meta name="theme-color">`; follows the device while `auto`; keeps the mode
   in localStorage (nothing for auto); shows the account's theme from its first
   moment and whenever it changes - not while its own save is out; one save at a
-  time, the latest last; a refusal puts the account's theme back and sets `refused`.
+  time, the latest last; a refusal puts the account's theme back and sets
+  `refused` - only while there is an account: a save that failed because the
+  account went meanwhile (signed out here or in another tab) leaves the choice
+  shown and says nothing (0.4.0).
 - `latestChoiceSaver(save, onRefused)` - that rule for a site's own saves (the
   language): `const saveLanguage = latestChoiceSaver((code) => api.save(code), () => notSaved.set(true))`.
 - `<anotoki-theme-toggle [iconsOnly]>` - light / dark / as the device is set
@@ -486,7 +521,7 @@ is none; `save` - rejects when the account refuses; `themeColor`) and
 | `languages` | the language switcher (where the site's pages are translated) |
 | `phoneMax` | the site's measured fold, px (760 by default) |
 | `nameMin` | the person's name shows from here (phoneMax + 201) |
-| `shortBrandMax` | the brand short up to here (phoneMax) - the survey's admin panel: 960 |
+| `shortBrandMax` | the brand short up to here (phoneMax by default) - the survey's admin panel: 960. Given, it alone decides (0.4.0): below phoneMax too, a folded bar keeps the full wordmark above it - a bar that folds wide (Piano Academy's 1320 px) measures where "anotoki Piano Academy" still fits beside the language, the theme and the menu button |
 | `width` | `wide` (84rem) or `narrow` (49rem); `--anotoki-topbar-max-width` overrides; in a frame with a side navigation, 88rem, and in one with a `maxWidth`, that |
 | `phoneMark` | `{ badge?, label? }` (the button's name says the count) or `{ dot, description? }` |
 | `menuNote` | `{ title, text? }` heading both menus |
@@ -496,7 +531,7 @@ is none; `save` - rejects when the account refuses; `themeColor`) and
   stands before the language (a widget reads `bar.phone()`); `closeMenu(returnFocus)`.
   A menu closes when the bar folds or unfolds, when the person changes and when
   the links do; in development the bar warns once when its row overflows above
-  `phoneMax` (measure again).
+  `phoneMax`, or folded with the full wordmark above `shortBrandMax` (measure again).
 
 A site keeps a thin wrapper where its roles, status and words meet the bar - the
 survey's, for example:
@@ -568,9 +603,14 @@ provideAppInitializer(() => inject(SiteStatus).check()),   // early in the boot;
   buttons (the quiet Sign in: a link button, 44 px high).
 - `<anotoki-update-banner>` - the IAM's one line for its administrators.
 - `<anotoki-migrations-page>` (`@anotoki/lib/migrations/page`) - the admin page
-  (English; for the site's ADMIN only), drawn with the kit: Pending (with
-  drafts), Applied (with each file's SQL in a dialog), Missing, and "Apply
-  pending" behind a question whose focus starts on Cancel.
+  (English; for the site's ADMIN only), drawn with the kit: Pending (in the
+  order they run, with drafts), Applied (with each file's SQL in a dialog),
+  Missing, and "Apply pending" behind a question whose focus starts on Cancel.
+  Every file is named as its set's records name it, the same in every card and
+  in what an Apply did: the site's one set's by the file's name alone, every
+  other with its set (`anotoki_translations/003_sign_in_words.sql`; genshin's
+  two sets, `users/041_news.sql`). A name breaks after its slash or between its
+  words (`<wbr>`, which adds nothing to its text), never inside a word.
 
 A site that does not block while an update waits (the IAM, `blockWhilePending:
 false`) puts **no** gate around its outlet and does not ask at boot: the status
@@ -619,14 +659,15 @@ of the Migrations page; everything else is new.
    `is-link`, no more `.button.quiet`). Its words and behaviour are the same,
    except that it reloads without first marking the site ready.
 
-## Upgrading from 0.2.x (0.3.0, unreleased)
+## Upgrading from 0.2.x (0.3.0)
 
 1. **The kit's core, a piece at a time.** Nothing has to change to keep
    building: `@anotoki/lib/ui` re-exports every piece. For the smaller first
    load a site imports each piece from its own entry point - in every file its
    first page loads, best everywhere: `provideAnotokiUi`, `AnotokiWords`,
-   `ANOTOKI_UI_CONFIG`, `ANOTOKI_ICONS`, `LIBRARY_WORDS`, `BUILT_IN_WORDS`,
-   `fillWords` and the words' types from `@anotoki/lib/ui/config`;
+   `ANOTOKI_UI_CONFIG`, `ANOTOKI_ICONS`, `LIBRARY_WORDS` (0.4.0:
+   `@anotoki/lib/words`'), `BUILT_IN_WORDS`, `fillWords` and the words' types
+   from `@anotoki/lib/ui/config`;
    `IconComponent`, `AnotokiIcons`, `KIT_ICONS`, `circle`, `rect` from
    `@anotoki/lib/ui/icon`; `uniqueId`, `keepOnScreen`, `mediaQuery`,
    `tabbable`, `isShown` from `@anotoki/lib/ui/dom`; each component from its own
@@ -656,7 +697,64 @@ of the Migrations page; everything else is new.
    no property takes) - by themselves; the IAM's account pages give their frame
    its 88rem: `<anotoki-shell maxWidth="88rem">`.
 
-## Translations (unreleased, 0.3.0)
+## Upgrading from 0.3.x (0.4.0, 0.4.1)
+
+Take 0.4.1, never 0.4.0: 0.4.0's search on the admin Feedback page fails on
+PHP 8.2 (CHANGELOG.md). Everything below is the same for both.
+
+1. **The library's words, a namespace at a time.** `LIBRARY_WORDS` (every
+   library word) is `@anotoki/lib/words`' now, no longer `@anotoki/lib/ui/config`'s
+   or `@anotoki/lib/ui`'s: a site that imports it changes the import (none is
+   known to). `LibraryKey` stays in `@anotoki/lib/ui/config`, every key's name as
+   before (the build analyzer's `WordKey` reads it); the kit's own share is
+   `KIT_LIBRARY_WORDS` there. The kit's first loads no longer carry the status
+   page's words, nor any other module's ("The library's own words").
+2. **A module's words come with the module.** The translations module holds the
+   kit's built-in words alone; a module's (the status page's, the sign-in
+   page's) arrive with its `provide*()` function, which registers them
+   (`provideLibraryWords`). A site's app needs nothing; a site's spec that reads
+   a module's key with no string in its bundle provides that module, or its
+   words: `provideLibraryWords(SITE_STATUS_LIBRARY_WORDS)` (from
+   `@anotoki/lib/ui/config` and `@anotoki/lib/words/site-status`).
+3. A site on the translations module applies `anotoki_translations/003` (the
+   sign-in page's words) and `004` (the feedback form's) as any migration; the
+   modules 0.4.0 brings are taken when the site adopts them ("Auth", "People",
+   "Admin tools").
+4. **The kit's fixes the sites found** - nothing to change to keep building;
+   what a site may do, or what its specs read:
+   - `danger-text`, the ink of error words, apart from the fill `danger`: a site
+     with a red fill of its own that is too dark for words (Japanese Academy's
+     dark) gets the family's `danger-text`, or gives its words red
+     (`root((dark: (danger-text: …)))`). A field's error, the translations pages'
+     refusals and a danger badge read it now.
+   - `shortBrandMax`, given, alone says where the brand is short - below
+     `phoneMax` too: a bar that folds wide (Piano Academy, the IAM) measures where
+     its full wordmark still fits and passes it, and keeps "anotoki <area>" above.
+     No site passes one below its `phoneMax` today, so nothing moves by itself.
+   - A field takes `invalid` (aria-invalid and the edge, no message).
+   - The Migrations page names a file as its set's records do, in Pending as in
+     Applied: Pending is one list in the order the files run, with no heading for
+     a set (`[data-pending] h3` is gone), and a file of any set but the site's one
+     reads `<set>/<file>` there too (`anotoki_translations/003_sign_in_words.sql`).
+     A spec that reads a name by its `textContent` reads it whole.
+   - The translations admin pages: `admin.allows.importStrings`, `addLanguages`
+     and `deleteLanguages`, each as its page's permission unless the site says
+     otherwise (the survey: `deleteLanguages: () => auth.isAdmin()`); the
+     Translations page's note about what is typed no longer mentions signing out;
+     no `beforeunload` question once nobody is signed in. The Languages page
+     takes the width the site's panel gives it (it stopped at 60rem), and its
+     code's hint reads "Two small letters, a region after a dash if needed: cs,
+     de, pt-br".
+   - The PHP half's `invalid_placeholder` for a key with no placeholders reads
+     "… has a { or }, and its English string has no placeholders: a brace belongs
+     only around a placeholder, so take it out." (a test reading the message).
+   - The PHP half's refusals end with a full stop, as the family's others do
+     (`StringCheck`'s, `Translations`' and `RequiredPlaceholders`'): a test that
+     reads a whole message adds it. An import or a save whose keys are numbers - a
+     JSON list, `{"0": "…"}` - is refused `unknown_key` naming them, as any key the
+     site does not have; it was `invalid_value`.
+
+## Translations (0.3.0)
 
 Every site keeps its words in three tables - `languages`, `translation_keys`,
 `translations` - which the IAM wrote first and the survey, Piano Academy,
@@ -699,6 +797,14 @@ $migrator = new Migrator($pdo, [new MigrationSet('survey', __DIR__ . '/../migrat
   descriptions are the library's; their strings are written only for a library
   key that has none, so a site that took a key over - its own words, a language
   left blank on purpose - keeps them, and so does an owner's rewording.
+- `003_sign_in_words.sql` (0.4.0) adds the auth module's sign-in page's words
+  (`anotoki.signIn.*`: "Signing you in…", the failure's heading "Signing in did
+  not work", why a sign-in came back without one, Try again, Back), 9 keys in
+  English and Slovak, by 002's rule.
+- `004_feedback_words.sql` (0.4.0) adds the visitors' feedback form's words
+  (`anotoki.feedback.*`: its title, the kinds, the fields and their hints, Send,
+  the thanks, every refusal it says), 31 keys in English and informal Slovak, by
+  002's rule.
 - The house rules: every library file ends with `-- end of NNN` (Japanese
   Academy's draft rule accepts it), has LF line endings, one string a line with
   `''` for an apostrophe and nothing else escaped, names no site table, runs
@@ -746,13 +852,15 @@ TranslationsRoutes::languages($app, '/api/admin', $translations, $error, $audit)
   `FOR UPDATE`; its strings cascade), `grid()`, `save($values, $userId)` (one
   transaction; a string sent as it is keeps its writer and time; a blank one in
   another language goes; the IAM's audit summary), `export()`, `import()` (a flat
-  `{key: text}`; a blank is passed over, an unknown key refused),
+  `{key: text}`; a blank is passed over, an unknown key refused - a number too,
+  as a JSON list's items or `{"0": …}` come: `unknown_key`),
   `forgetWriter($id)`, `storedRefusals()`, `keyNames()`, `keysWithout($code)`.
   None of them throws for a refusal: they answer a `Support\Refusal` (status,
   code, message, extra).
 - `StringCheck::changes()` - the IAM's checks in the IAM's order, the changes
   sorted by key and language (one lock order for every save): `invalid_value`,
-  `unknown_key` (+ `keys`), `unknown_language`, `fallback_required`,
+  `unknown_key` (+ `keys`; a key is read as a name, so a number PHP made of one
+  is a key the site does not have), `unknown_language`, `fallback_required`,
   `invalid_placeholder`, `placeholder_changed`, `unknown_placeholder`, and what a
   site's rules add. Text is measured as the browser does (`Text`: its `trim()`
   set, blank when nothing is to be seen, code points); a run of a million spaces
@@ -805,14 +913,40 @@ library's migrations write on a new database to it. A new library string is an
 entry there and a new library migration; a rewording of a released one is a
 migration that changes it only where it still has the earlier words. The
 Angular half reads the same file and keeps no copy by hand: `bun run words`
-(`angular/scripts/library-words.mjs`) generates its built-in words,
-`angular/projects/lib/ui/config/src/library-words.ts` (committed; `LIBRARY_WORDS`
-of `@anotoki/lib/ui/config`) - the kit reads its own from there, the status page
-its `siteStatus.*`, the translations module every one - and a spec
-(`library-words.spec.ts`), CI (`bun run words --check`) and the PHP half's
-`LibraryWordsTest` fail when that file is stale. So a page has the library's
-words while the database cannot be reached, and never shows a library key as a
-key. They are in a site's first load once, in `ui/config`.
+(`angular/scripts/library-words.mjs`) generates its built-in words a namespace
+at a time (`anotoki.<namespace>.<word>`; committed), each where only its readers
+import it:
+
+- the kit's namespaces (`language`, `ui`, `topbar`, `theme`) in
+  `angular/projects/lib/ui/config/src/library-words.ts` - `KIT_LIBRARY_WORDS`
+  and `LibraryKey` (every key's name, a type) of `@anotoki/lib/ui/config`, which
+  the kit reads (`AnotokiWords`), and the translations module too;
+- every other namespace in an entry point of its own,
+  `angular/projects/lib/words/<namespace>/` - `@anotoki/lib/words/site-status`
+  (the status page's), `@anotoki/lib/words/sign-in` (the sign-in page's),
+  `@anotoki/lib/words/feedback` (the feedback form's) - which its module alone
+  imports, and registers with the translations module from its `provide*()`
+  function: `provideLibraryWords(SITE_STATUS_LIBRARY_WORDS)` in
+  `provideAnotokiMigrations()`, `provideLibraryWords(SIGN_IN_LIBRARY_WORDS)` in
+  `provideAnotokiAuth()`, `provideLibraryWords(FEEDBACK_LIBRARY_WORDS)` in
+  `provideAnotokiFeedback()` (the multi provider `ANOTOKI_LIBRARY_WORDS` of
+  `@anotoki/lib/ui/config`);
+- `@anotoki/lib/words` (`angular/projects/lib/words/`): `LIBRARY_WORDS`, every
+  namespace's, for a site's specs and the showcase - no module imports it.
+
+A spec (`library-words.spec.ts`), CI (`bun run words --check`, which also finds a
+namespace's folder the JSON no longer has) and the PHP half's `LibraryWordsTest`
+fail when a file is stale; prettier leaves them alone (`bun run format` would
+rewrite what `--check` holds byte for byte). So a page has the library's words
+while the database cannot be reached, and never shows a key of the kit's or of a
+module it uses as a key - and a first load carries the words its page says: the
+kit's (a button, the bar, the translations module), the status page's beside
+them (the gate), the sign-in page's with the auth module, the feedback form's
+with its configuration. A module that brings
+words brings a namespace, an entry point of its own and its registration:
+`scripts/check-package.mjs` derives the entry point's boundaries, holds every
+first load to the namespaces its page says, and refuses a module that imports
+its words without registering them, and the translations module importing any.
 
 ### The Angular half: `@anotoki/lib/translations`
 
@@ -888,8 +1022,11 @@ this.i18n.noteAddress(url);
   bundle, a key it lacks is shown as the key, warned once: the owner wants to see
   it. A library key (`anotoki.*`) is never a key: the database's string (an
   owner's rewording), then the site's `libraryWords`, then the library's
-  built-in words of the language, then their English. `<html lang>` follows
-  `effectiveLanguage`.
+  built-in words of the language, then their English. The built-in words are the
+  kit's, and those each module the site uses registers from its `provide*()`
+  function (`provideLibraryWords`): a module's come with the module alone, and a
+  key of a module the site does not use, with no string, reads as the key
+  (warned once). `<html lang>` follows `effectiveLanguage`.
 - The start: the cache (`<prefix>:language-cache`, in force only until the
   server answers) - a second's wait with one, three without and one more try
   after half a second; two requests at most otherwise (the first wish, then what
@@ -910,7 +1047,8 @@ this.i18n.noteAddress(url);
   database (`overrides` win: a site's own page around the library's).
 - `<anotoki-translations-page>` (English; for `admin.allows.strings`) - each
   language's coverage (only the plural forms its numbers take count), tags,
-  export (the server's file and name) and import (at most 1 MiB, a byte-order
+  export (the server's file and name) and import (for `admin.allows.importStrings`,
+  as `strings` unless the site says otherwise; at most 1 MiB, a byte-order
   mark taken off, a flat map, a question with the count of the strings in it);
   a search over keys, descriptions and text (stored and typed; diacritics and
   case aside; rows decided as the search changes, never while typing);
@@ -926,15 +1064,23 @@ this.i18n.noteAddress(url);
   names and place with its own Save and Undo; the offered switch saving at once
   (back when refused; English's off); "Fallback" and "Released with the site"
   tags; the site's own fields in words (`admin.languageNotes.row`: the IAM's
-  accounts); delete only for a language not released - offering an export of
+  accounts); delete only for a language not released, and only for
+  `admin.allows.deleteLanguages` - offering an export of
   its strings first, then a question naming them (and `beforeDelete`'s words),
   then what went (`afterDelete`: Japanese Academy's copy); a new language hidden
-  unless asked otherwise. Both pages read again after every change
+  unless asked otherwise, added only for `admin.allows.addLanguages`. Both
+  `*Languages` follow `languages` unless the site says otherwise - the survey lets
+  its EDITORs name, order and offer the languages, and its ADMIN alone delete one
+  (`deleteLanguages: () => auth.isAdmin()`): what the site does not allow is not
+  drawn. Both pages read again after every change
   (`reload()`), ask their questions in their own dialog (nothing in the site's
   root), say what happened in the page, and work at 390 px.
 - `LocalizationDrafts` - what is typed and not saved, in sessionStorage
   (`<prefix>:localization-drafts`) with whose it is: kept through a reload and a
-  sign-out, dropped when somebody else signs in; one `beforeunload` question.
+  sign-out, dropped when somebody else signs in; one `beforeunload` question -
+  never once nobody is signed in (the page is on its way to the sign-in, and the
+  drafts wait in the tab). The Translations page's note promises nothing of a
+  sign-out: a site's own bar may ask before it (the survey's does).
   `anotokiUnsavedChangesGuard` asks the page (`HoldsUnsavedChanges.canLeave()`),
   never once nobody is signed in.
 - `@anotoki/lib/translations/testing` - `provideTestTranslations(values, { language, languages, english })`
@@ -998,6 +1144,931 @@ upload. Per site:
   pipe name stays (the library's pipe has it); the library's pages replace
   `sites/admin/localization`.
 
+## Auth (0.4.0)
+
+Every anotoki site signs in through the anotoki IAM, the same way: the browser
+goes to the IAM (authorization code with PKCE), brings tokens back, and sends
+the access token to the site's own server, which checks it without asking the
+IAM. The IAM's docs/integrating-an-app.md is the contract. This module is that
+contract once, for every site: the IAM's SDKs (`sdk/js/anotoki-auth.mjs` 1.2.0,
+`sdk/php/anotoki_iam.php` 1.1.0) moved into the library - the IAM keeps its
+`sdk/` frozen, for everybody outside the family - with the sites' own wrappers
+around them made one, and the **sign-in hint** (the owner's decision of
+2026-10-07): a person signed in at the IAM is signed in, without a click, on a
+site that lets visitors in.
+
+### The server: `Anotoki\Lib\Auth`
+
+```php
+use Anotoki\Lib\Auth\AccessTokens;
+use Anotoki\Lib\Auth\Http\AuthRoutes;
+use Anotoki\Lib\Auth\Http\Identify;
+use Anotoki\Lib\Auth\Http\RequireCaller;
+use Anotoki\Lib\Auth\Http\RequirePerson;
+use Anotoki\Lib\Auth\Http\RequireRole;
+use Anotoki\Lib\Auth\IamClient;
+use Anotoki\Lib\Auth\SignInRule;
+
+$iam = IamClient::fromArray(['cache_dir' => storageDir() . '/cache'] + iamSettings());  // the SDK's keys: the settings file stays
+$rule = new SignInRule($iam);                                    // requiredWhen: fn (): bool => … - the site's own reason
+
+AuthRoutes::config($app, $rule, $iam, extra: fn (): array => ['visitor_days' => VISITOR_KEEP_DAYS]);   // GET /api/auth/config
+$app->group('/api/admin', $adminRoutes)->add(RequireRole::any('ADMIN', 'EDITOR'));
+MigrationsRoutes::admin($app, '/api/admin/migrations', $migrator)->add(RequireRole::admin());
+$app->get('/api/surveys/{id}', $survey)->add(new RequireCaller('empty'));   // a person's, a visitor's, or nobody's
+
+// Who a request is, once, for every route - inside the SiteGate (Slim runs the last added first):
+$app->add(new Identify(new AccessTokens($iam), $rule, $app->getResponseFactory(),
+    visitor: fn (string $key): ?SiteVisitor => visitorFind($key),  // the site's visitor, null for a key it does not know
+));
+$app->add(new SiteGate($state, $app->getResponseFactory(), [AuthRoutes::openPath(), /* … */]));
+```
+
+- `IamClient` - the IAM and the application: `fromArray()` takes the SDK's keys
+  (`issuer`, `client_id`, `cache_dir`, `jwks_file`, `application_file`, … and
+  `anonymized_file`), so every `config/iam.local.php` stays as it is. Give it a
+  **private `cache_dir`** (the site's `storage/cache`): the key set and the
+  answer about signing in are kept there, in the SDK's own files - a site that
+  moves keeps them; without one nothing is kept, and the IAM is asked on every
+  request. The `issuer` (and a `jwks_url`) is **https** - http only on this
+  computer (`localhost`, `127.0.0.1`, `[::1]`), as in development; anything else
+  throws: the keys tokens are checked with come from there. What the library
+  asks the IAM (`Support\HttpGet`) goes over http or https alone - never a
+  file, a PHP stream or another protocol, by curl's rule
+  (`CURLOPT_PROTOCOLS_STR`) and its own.
+- `AccessTokens::verify($token): ?Person` - the SDK's rules: RS256 and `typ`
+  `at+jwt` pinned (never read from the token), a `kid` of the IAM's key set
+  (`Jwks`: an hour on disk, one fetch per unknown `kid` at most every five
+  minutes, and five minutes' rest after a failed fetch - a stamp later than
+  now counting as none), no `crit`, `iss` exact, `aud` (and `client_id`, when
+  there is one) this application, the times with 60 s of leeway, `sub` an IAM
+  id. Why a token failed is `lastReason()`, for the log only: the library's
+  words, with at most 64 characters of the token's own (its `typ`, its `kid`)
+  in `[A-Za-z0-9._+-]`, anything else a `?`; `lastReasonKind()` is the same
+  without them.
+- `Person` - `sub`, `name` (preferred_username), `email`, `locale`,
+  `preferences`, `roles` (upper case), `sid`, `authTime`, `scope`, `claims`;
+  `has()`, `isAdmin()`, `isStaff()`, `signedInWithin($seconds)`.
+- `SignInRule` - whether the site requires signing in: the IAM's switch (its
+  public answer about the application), **failing closed** - a 404 is "required",
+  no answer keeps the last one or "required"; a minute on disk, one request
+  asking at a time, two seconds' wait, one answer per request (Identify resets
+  it). `known()` is false once the IAM answered 404 (a site it does not know or
+  has switched off): the boot configuration's `sign_in_available`.
+- `Http\Identify` - in this order: a `Bearer` header is a person's - a verified
+  token or 401 `invalid_token`, never the visitor; while signing in is required,
+  nobody (the visitor key is not read); an `X-Visitor-Key` is the site's
+  visitor, or 401 `visitor_unknown`; else nobody. It sets `anotoki.person`,
+  `anotoki.visitor`, `anotoki.caller`; it reads no table but the site's
+  visitor closure. **No cookie is ever read as somebody** - the IAM's sign-in
+  hint least of all. A refused token is said to the library's `Log` at most
+  once a minute for each kind of refusal (a stamp per kind in the `cache_dir`,
+  `anotoki-auth-refused-*.stamp`), an expired one never - tokens made up by the
+  thousand are a line a minute; a site's own `log:` hears every reason.
+- `Http\RequirePerson` (401 `sign_in_required`), `Http\RequireRole` (from the
+  token, never the database - the Migrations routes keep working while `users`
+  waits; 403 `forbidden`, or `->refusing('admin_only', '…')`),
+  `Http\RequireCaller('refuse'|'empty'|'make')` (the "owner" check:
+  `anotoki.nobody` or `anotoki.makeVisitor` for the route), `Http\SignInGate`
+  (genshin's one gate: while signing in is required, every path but the open
+  ones needs a person).
+- Answers are `{code, message}` with `Cache-Control: no-store` and, on a 401,
+  `WWW-Authenticate: Bearer realm="<client id>"` (`error="invalid_token"` for a
+  token that was sent); `responder:` keeps a site's own shape while it adopts.
+- `Http\AuthRoutes::config()` - `GET /api/auth/config` → `{issuer, client_id,
+  login_required, sign_in_available, …extra}`; `configBody()` for a site that
+  puts it in its own boot answer (genshin's `/api/settings/public`, the build
+  analyzer's `/api/meta`); `openPath()` for the SiteGate.
+- Testing (`Anotoki\Lib\Auth\Testing`, shipped): `TestIam::create($dir)` - a key
+  pair, `token($sub, $roles, $claims)`, `sign()` for the tokens that must be
+  refused, `client()` (an IamClient on its files), `signInRule(false)`,
+  `anonymized([...])`; `StandInIam::start($dir)` - **the family's one stand-in
+  IAM** (`php/testing/stand-in-iam.php`) on a free port: discovery, keys,
+  authorize with PKCE (and `prompt=none`'s `login_required` /
+  `interaction_required`), token with rotation, revoke, logout, preferences,
+  the public application answer, the paged deleted accounts, and the sign-in
+  hint set and cleared as the IAM does; its state is `POST /_test/state`. For a
+  browser check: `STAND_IN_DIR=<dir> STAND_IN_ISSUER=http://localhost:8597 php -S
+  localhost:8597 vendor/anotoki/lib/php/testing/stand-in-iam.php`. It answers
+  nothing but under PHP's built-in server.
+
+### The browser: `@anotoki/lib/auth`
+
+```ts
+// app.config.ts - beside the gate, the shell and the translations module, each from its own entry point
+provideHttpClient(withInterceptors([siteStatusInterceptor, anotokiAuthInterceptor /* , the site's own */])),
+provideAnotokiAuth(() => {
+  const i18n = inject(TranslationService);              // the factory runs in an injection context; so do its functions
+  return {
+    config: '/api/auth/config',                         // or () => inject(SiteSettings).auth(): the site's own boot answer
+    visitors: () => inject(VisitorKey),                 // current(), remember(), forget(); none: no visitors
+    language: () => i18n.language(),                    // ui_locales, and the sign-in page's language
+    translate: (key) => i18n.libraryWord(key),          // an owner's rewording of anotoki.signIn.*, as the kit's lookup
+    beforeSignIn: () => inject(SignInChecks).ready(),   // settle the writes, ask about unsaved work; false stops it
+    beforeSignOut: () => inject(SignInChecks).ready(),
+    // preferences: () => inject(SitePreferences),      // apply(preferences, locale) - below
+    // api: { prefixes: ['/api/'], skip: [...], visitorPrefixes: ['/api/surveys'] }, headers: () => ({ 'X-Time-Zone': … }),
+    // hint: { cookieName: 'anotoki_signed_in' } | false, makesVisitor, forbiddenRoute, failureRoute: '/sign-in-failed', words
+  };
+}),
+provideAnotokiShell(() => {
+  const auth = inject(AnotokiAuth);
+  return {
+    theme: { storageKey: 'anotoki-survey:theme', account: () => auth.preferences()?.theme ?? null, save: (theme) => auth.savePreferences({ theme }) },
+    languages: inject(TranslationService).forShell(),
+  };
+}),
+provideAnotokiTranslations(() => {
+  const auth = inject(AnotokiAuth);
+  return {
+    storagePrefix: 'anotoki-survey',
+    account: { language: () => auth.locale(), decides: () => auth.preferences() !== null, save: (code) => auth.savePreferences({ language: code }), userKey: () => auth.sub() },
+    // ...
+  };
+}),
+provideAppInitializer(() => {
+  const status = inject(SiteStatus), auth = inject(AnotokiAuth), i18n = inject(TranslationService);   // inject before the first await
+  return status.check().then(() => auth.init()).then(() => i18n.init());   // the words after the sign-in put the address back
+}),
+
+// app.routes.ts
+{ path: 'auth/callback', component: AuthCallbackComponent },
+{ path: 'sign-in-failed', component: SignInFailureComponent },                 // optional: the module's failureRoute, in the site's frame
+{ path: '', canActivateChild: [personOrVisitorGuard], children: [/* … */] },   // personGuard where only a person may
+{ path: 'admin', canActivate: [staffGuard], children: [/* … */] },             // adminGuard for ADMIN alone
+```
+
+The shell's theme and the translations module's language follow the account
+through `AnotokiAuth` (`preferences()`, `locale()`, `savePreferences()`: one save
+at a time, rejected with the IAM's `code`); `AccountPreferences` is for the rest -
+the dates and the clock, and a site that keeps its own theme or language
+controls (genshin's header) - and, with `preferences`, hands the site what to
+show.
+
+- **The same storage as the SDK**: the tokens in localStorage under
+  `anotoki-auth:{clientId}`, the sign-in in progress in sessionStorage under
+  `anotoki-auth:{clientId}:login:{state}`, discovery under
+  `anotoki-auth:discovery:{issuer}`, refreshes under the Web Lock
+  `anotoki-auth-refresh:{storageKey}` - nobody is signed out by the switch, and a
+  sign-in in flight while the site is uploaded still lands. The client
+  (`createAuthClient`) is the SDK's code, ported: PKCE, state and nonce, the ID
+  token's checks, `safeReturnTo`, RFC 9207, rotation, `savePreferences`' own-token
+  rule.
+- `AnotokiAuth` - `init()` reads the boot configuration (snake_case, or the
+  camelCase the sites answer today), finishes a callback, restores the session,
+  follows the IAM, and - for a visitor - may make the hint's hop. Signals:
+  `state` (`starting | signed-in | visitor | signed-out | unavailable`), `user`,
+  `signedIn`, `sub`, `roles`, `isAdmin`, `isStaff`, `displayName`,
+  `loginRequired` (failing closed), `visitorsWelcome`, `signInAvailable`,
+  `signInFailure` (`{code, returnTo}`, never the IAM's sentence),
+  `preferences`, `locale`. Methods: `signIn({returnTo, prompt, maxAge})`,
+  `register()`, `signOut({local})`, `token()` (none for another person than the
+  page's), `refresh()`, `caller()`, `fetch(url, init, as)`,
+  `savePreferences()`, `accountUrl()`, `noteSignInRequired()`. Another person
+  signing in in another tab - or anybody, on a page shown to a visitor - loads
+  the page afresh.
+- `anotokiAuthInterceptor` - who a request of the site's API is, decided when
+  it is issued (`issuedAs('person' | 'visitor' | 'nobody' | 'caller')`,
+  `CARRIES_VISITOR_KEY` for the move): a person's with the token or never sent
+  (a 401 `sign_in_required` of its own), one retry after a 401 for the same
+  person, a 502 when an answer to a person's request made a visitor; a
+  visitor's with the key (the first save going alone), a key brought kept, a
+  `visitor_unknown` key forgotten and tried once more, `sign_in_required` noted;
+  writes counted in `SavesInFlight`, which a sign-in waits for.
+- `personGuard`, `personOrVisitorGuard`, `staffGuard`, `adminGuard` - a sign-in
+  started for the page asked for; every page while `SiteStatus.blocked()`; the
+  failure's screen when a sign-in came back without one, could not start or
+  cannot be set up (sent to the IAM again, the browser would go round) - on the
+  module's `failureRoute`, else the callback route.
+- `AccountPreferences.save(name, value)` → `saved | refused(code) | superseded |
+  device` (genshin's), one save at a time; with the site's `preferences`, its
+  `apply(preferences, locale)` is given what to show - a choice on its way as
+  made, a refused one taken back, a language the IAM does not offer kept for the
+  visit.
+- `<anotoki-auth-callback>` - "Signing you in…" on the callback route
+  (`anotoki-auth-callback__panel`, `__message`), or in its place the failure's
+  screen; `noindex` while it shows.
+- `<anotoki-sign-in-failure>` (`SignInFailureComponent`, 0.4.0) - the screen of a
+  sign-in that came back without one, could not start, or cannot be set up: "Signing
+  in did not work", why - from the failure's code alone, never the IAM's
+  sentence - and Try again (the sign-in once more, back to where it started; a
+  sign-in that cannot be set up loads the page afresh) and Back (to that page
+  without signing in; never the callback or the screen itself). The status page's
+  frame, drawn with the kit whatever the site's own styles say (classes
+  `anotoki-sign-in-failure__panel`, `__title`, `__message` with role="alert",
+  `__actions`; the buttons `[data-retry]`, `[data-back]`); `noindex` while it
+  shows; with nothing to say - opened by hand - on to the home page. The callback
+  page shows it, and so can a route of the site's own, in its frame under its bar:
+  name it the module's `failureRoute` and the guards send the browser there; a
+  site that lets visitors in may send a visitor there itself when
+  `signInFailure()` says a sign-in of theirs failed.
+- The words of both are the library's
+  `anotoki.signIn.*` (`php/resources/library-words.json`, every site's database
+  through `anotoki_translations/003`, built in from `@anotoki/lib/words/sign-in`):
+  an owner's rewording through `translate`, then the site's `words`, then the
+  built-in English and informal Slovak - in the visitor's language (`language`).
+- `@anotoki/lib/auth/testing` - `provideTestAnotokiAuth({user, roles,
+  loginRequired, visitors, cookie})` and `FakeAuthClient` for a site's specs
+  (then `await TestBed.inject(AnotokiAuth).init()`).
+
+### The sign-in hint
+
+The IAM sets `anotoki_signed_in` wherever it opens a session - a random value
+per session, readable by script, for every host under its parent domain on a
+real host (host-only `localhost` in development: open the sites as `localhost`,
+never `127.0.0.1`) - and clears it when its session ends. It says somebody
+signed in at the IAM in this browser, never who. A site never writes it.
+
+- **The hop**: at boot, on a site that lets visitors in, for a visitor (no
+  tokens of the site's own), on a top-level page that is not prerendering and
+  not the callback route, while the site is not blocked, when the cookie is
+  there in its shape and the IAM knows the site - one `prompt=none` sign-in,
+  after the IAM has answered its discovery document (1.5 s). Its error, whatever
+  it is, is never shown.
+- **Loop protection**: a marker in localStorage, `anotoki-auth:{clientId}:hint` =
+  `{value, at, failed?}`, written and read back before the hop (no storage, no
+  hop): each value once, at most one hop a minute whatever the value, ten
+  minutes after the IAM did not answer. Signing out (everywhere or here) and a
+  refresh refused under the value the session was made with mark it tried.
+- **Following the IAM**: when the hint is gone or another one since the session
+  was made, `init()` refreshes once (waiting at most five seconds) - signed out
+  at the IAM is signed out here at the next page load.
+- A site that requires signing in sends people to the IAM as ever
+  (`personGuard`), and its sessions follow the IAM the same way.
+- **Search engines** never get the cookie, so are never sent anywhere. A site
+  keeps them off the callback: its `robots.txt` says `Disallow: /auth/`, and
+  `<anotoki-auth-callback>` and `<anotoki-sign-in-failure>` set `noindex`.
+
+## People (0.4.0)
+
+Each site keeps its own record of the accounts that use it - its `users`
+table, keyed by the IAM's `sub` (every foreign key, every visitor and two
+sites' per-person locks live there) - and blanks its copies of a person's name
+when the IAM deletes their account, thirty days after they asked: the data
+stays, nobody's now. No site keeps a copy of anybody's email (the owner's
+decision of 2026-10-07). The administrators' People page is the Angular half,
+on the UI kit ("The People page" below).
+
+### The schema
+
+- The site's own migration adds `users.anonymized_at TIMESTAMPTZ` (and nothing
+  else) before the library's set runs.
+- The library's set `anotoki_people` (`People\Schema::migrationSet()`, after the
+  site's own sets) makes `anotoki_people_sync` (one row: `since`, `checked_at`,
+  `ok_at`, `error`, `scrubbed`) and `anotoki_people_anonymized` (every id the
+  IAM listed: `sub`, `anonymized_at`, `scrubbed_at`, `had_row`). It names no
+  table of a site's; applied on databases built from each site's own
+  migrations, it changes no site table.
+
+### The PHP half: `Anotoki\Lib\People`
+
+```php
+use Anotoki\Lib\People\Http\PeopleRoutes;
+use Anotoki\Lib\People\Http\PeopleUpkeep;
+use Anotoki\Lib\People\Http\RecordPerson;
+use Anotoki\Lib\People\People;
+use Anotoki\Lib\People\PeopleColumn;
+use Anotoki\Lib\People\PeopleTable;
+
+$people = new People(
+    new PeopleTable(name: 'preferred_username', firstSeen: 'created_at', lastSeen: 'last_seen_at'),
+    fn (): PDO => db(),
+    $iam,
+    hooks: [fn (PDO $pdo, int $sub, ?array $former) => /* the site's copies of the name elsewhere */ null],
+);
+
+$app->group('/api', $siteRoutes)->add(new RecordPerson($people));            // never on the Migrations routes
+PeopleRoutes::admin($app, '/api/admin/people', $people,                       // guards itself: the site's ADMIN
+    columns: [new PeopleColumn('notes', 'Notes', 'count', fn (PDO $pdo, array $subs): array => …)],
+    visitors: fn (PDO $pdo): array => ['count' => …],
+    delete: fn (PDO $pdo, int $sub, $request): ?array => ['deleted' => ['Progress' => …]],   // null: nobody with that id
+    audit: $auditLog,                                                            // person.data_deleted, people.synced
+)->add(RequireRole::admin()->refusing('admin_only'));                            // a site's own words, where it has them
+$app->add(new PeopleUpkeep($people, fn (): bool => $state->state() === SiteState::READY));   // inside the SiteGate
+// and after $app->run(): \Anotoki\Lib\Support\AfterResponse::shared()->run();   (a site's own runner: PeopleUpkeep's defer)
+```
+
+- `PeopleTable` - the site's table and columns: `name` (genshin `username`, the
+  build analyzer `name`), `firstSeen`, `lastSeen` (null where people have none),
+  `updatedAt`, `nameFallback` (a NOT NULL name and a token without one), read
+  from the catalog: a name clipped to the column, a TIMESTAMP written as UTC.
+- `PeopleRecorder::seen($pdo, $person, $extra)` - one statement: the row made on
+  a first request, the name kept to the token's (a token without one keeps the
+  stored name), last-seen at most every five minutes, the site's own columns
+  (`$extra`; a NULL keeps them); never an anonymized row, never a row for an id
+  the IAM listed. `Http\RecordPerson` calls it for the routes a site names; a
+  site that needs the row inside its own transaction or lock calls it there.
+- `Scrubber::run()` - asks the IAM's `GET /api/public/anonymized-accounts` from
+  `since` (inclusive), following `next` within the run (at most 8 s); each
+  account in a transaction of its own: listed in `anotoki_people_anonymized`, its
+  row held `FOR UPDATE`, the name `deleted-{sub}` and `anonymized_at` the IAM's
+  time - only UPDATEs, never a visitor's row; where a UNIQUE name column has
+  `deleted-{sub}` taken already (somebody chose it), the IAM's free form
+  `deleted-{sub}-{eight hex digits}`, so a chosen name never stops the scrub -
+  then the site's hooks with the row
+  as it was (`['name', 'anonymized_at']`, null when the site never knew the
+  person). A hook that throws rolls its account back and stops the run (the
+  error is kept for the People page); an IAM that does not answer keeps `since`;
+  one run at a time; idle until the column and the tables are there. Hooks must
+  be idempotent - an id comes again.
+- `Http\PeopleUpkeep` - the scrub after the answer (`Support\AfterResponse`, or
+  the site's own runner as `defer`), at most hourly (the stamp
+  `{cache_dir}/anotoki-people.stamp`; one later than now counts as none), while
+  the site is ready; no cron.
+- `Http\PeopleRoutes::admin()` - `GET $base?q=&page=` (50 a page, newest seen
+  first; `{people: [{sub, name, first_seen_at, last_seen_at, anonymized_at,
+  iam_url, …columns}], columns, total, page, page_size, visitors, sync, ready,
+  problems}`; `q` finds a name or an id - 422 `invalid_query` for one that is
+  not UTF-8 or holds a NUL, or is longer than any name), `DELETE $base/{sub}`
+  (the site's hook; 404 `not_found`), `POST $base/sync` (the scrub now).
+  `iam_url` is the account in the IAM's admin panel, for its administrators.
+  **The group guards itself**: the site's ADMIN, from the token
+  (`RequireRole::admin()` inside it, behind the site's `Identify`) - a site that
+  forgets its own check, or mounts the group inside one that lets EDITORs in,
+  opens nothing; a site's own check on the returned group still answers first,
+  in its words. With `audit:` (the site's `AuditLog`) a delete is recorded
+  `person.data_deleted` (target `user` {sub}, the counts by label) and an
+  asked-for scrub `people.synced` (its state, handled, scrubbed), by the
+  token's sub - or `context:`'s `actorId()`. A delete asks for no proof of a
+  recent sign-in, unlike a backup's restore: the page's question is all it asks
+  (the owner's decision of 2026-10-11).
+
+### The People page: `@anotoki/lib/people` and `@anotoki/lib/people/page`
+
+```ts
+// app.config.ts (or the page's route's providers) - a token and a function: @anotoki/lib/people
+provideAnotokiPeople(() => {
+  const auth = inject(AnotokiAuth);
+  return {
+    me: () => auth.sub(),                              // "you" on the reader's own row
+    lead: 'Everybody who signed in and whom Piano Academy keeps anything of, the most recently seen first.',
+    delete: {                                          // only where the site's PeopleRoutes has its delete hook
+      label: 'Delete their progress',
+      // question: (person, columns) => ({ title, message, confirm }),   the family's names the counts
+      // allowed: (person) => person['accounts'] !== 0 || person['imports'] !== 0,
+      done: (person) => person.sub === auth.sub() && inject(ProgressStore).reload(),
+    },
+    visitorsLine: (visitors) => `${visitors.count} visitors, practising without signing in.`,
+    migrationsRoute: '/admin/migrations',
+    // apiBase: '/api/admin/people', isAdmin: () => auth.isAdmin(), formatDate: (iso) => …
+  };
+}),
+
+// the admin routes: the page's own entry point, never in the first load
+{ path: 'people', canActivate: [adminGuard], loadComponent: () => import('@anotoki/lib/people/page').then((m) => m.PeoplePageComponent) }
+```
+
+`<anotoki-people-page>` - English, for the site's ADMIN (`isAdmin`; nothing is
+asked of the server for anybody else), over the routes above - the union of what
+Piano Academy's, Japanese Academy's and the build analyzer's pages showed and did:
+
+- a search by name (any case, anywhere in it) or IAM id, as the typing rests or
+  at Enter (only the latest answer counts), and paging, 50 a page, the newest
+  seen first;
+- each person: the name - "you" on the reader's own row, "No name" where the
+  site never learned one - and under it what can be done, never off the screen
+  however many columns the site has: "Open at the IAM" (`iam_url`, a new tab; a
+  note says it is for the IAM's administrators) and, with `delete`, Delete in
+  `danger-text`; the IAM id; first and last seen (a time no person on the page
+  has is not drawn: the build analyzer has no last-seen); the site's
+  `PeopleColumn`s - a count right-aligned (none: 0), text, a time; none: a dash,
+  "none" to a screen reader;
+- an account the IAM deleted: muted, under the IAM's placeholder name, "Deleted
+  at the IAM on {day}";
+- where the scrub stands (`sync`): when the IAM's deleted accounts were last
+  checked and how many were scrubbed here, or why the last check stopped (in
+  `danger-text`), with Check now (`POST sync`: what it did - scrubbed, none, part
+  of the list, the IAM not answering, another check running - then the list again);
+- Delete behind a question in the page's own dialog (the focus on Cancel; the
+  site's `question`, or the family's, which names the counts and "This is you."),
+  what went said with the site's labels and its `note`, the site's `done` after
+  it, then the list again (a 404: "not here any more"); `allowed` disables it
+  where there is nothing to delete;
+- the visitors line (`visitorsLine`, or the family's), the database's
+  `problems` with the way to `migrationsRoute`, a 503 (no table yet) with Look
+  again, any other failure with Try again.
+
+A table that answers to the width it is given (a container query): in a page
+narrower than 640 px each person is a card - the name and what can be done, then
+each value under its label. The page's classes are its own,
+`anotoki-people-page__*`; its markers `[data-people]`, `[data-person="<sub>"]`,
+`[data-iam]`, `[data-delete]`, `[data-confirm]` (`[data-confirm-cancel]`,
+`[data-confirm-delete]`), `[data-sync]`, `[data-sync-now]`, `[data-outcome]`,
+`[data-found]`, `[data-visitors]`. It replaces Piano Academy's
+`pages/admin/people/*`, Japanese Academy's `admin/people/*` and the build
+analyzer's `pages/admin/people/*` with their API glue; the survey and genshin may
+take it with one route.
+
+### Adopting auth and people, site by site
+
+In one release per site: `anotoki/lib ^0.4.1` and the 0.4.1 tarball; the site's
+migration adding `users.anonymized_at`, then `People\Schema::migrationSet()` in
+its sets (after `Translations\Schema::migrationSet()` where it has it); the
+vendored SDKs deleted; the wiring above; its sign-in words' keys
+(`anotoki.signIn.*`) taken over where it rewords them. Existing sign-ins
+survive: the storage keys are the same.
+
+| Site | Mapping | Scrub hooks | Deleted | Notes |
+| --- | --- | --- | --- | --- |
+| survey | `preferred_username`, `first_seen_at`, `last_seen_at` | - | `api/anotoki_iam.php`, `core/auth/anotoki-auth.*`, `tests/tools/fake-iam.php`; `requestUser`/`usersSeen`/`requireUser`/`requireRole`/`requireTokenRole`/`requireTaker` | its migration also drops `users.email` once the results, the response page and the CSV stop showing it (the CHECK `users_visitor_check` rewritten without it); `api: { skip: [..., '/api/images/'], visitorPrefixes: ['/api/surveys'] }` |
+| piano | `preferred_username`, `created_at`, `last_seen_at` | - | `api/anotoki_iam.php`, `core/auth/anotoki-auth.*`, its fake IAM; `requestUser`/`usersSeen`/`requireOwner` | the Migrations routes take `RequireRole::admin()` - `users` is no longer written there; `peopleDelete()` is the delete hook (under `storeLockGeneration()`), its counts the columns |
+| japanese | `preferred_username`, `created_at`, `last_seen_at`; `extra: time_zone` | `exam_attempts.candidate` → `''`, `meta - 'candidate'`, the report's header → "Unnamed candidate" | `src/anotoki_iam.php`, `core/auth/sdk/*`, `tests/tools/stand-in-iam.php`, the SDK version-pin test | `SignInRule(requiredWhen: fn () => !visitors_ready())`; `RequireRole` with `admin_only` / `staff_only`; `api: { prefixes: ['/api/', '/report/'] }`, `headers: X-Time-Zone`; its 008 is a draft - the people set waits behind it |
+| build analyzer | `name`, `created_at`, no last-seen (or `last_seen_at`: its CHECK allows it), `updatedAt: 'updated_at'`, `nameFallback: "user $sub"` | `sync_runs.log`: "by {former}" → "by a deleted person" | `src/Support/Iam/*`, `SignInPolicy`, `IamSignInPolicy`, `UserProvisioner`, `core/iam/*`, its fake IAM | `/api/meta` carries `AuthRoutes::configBody()`; a bad token now answers `invalid_token`; the hint acts here; `robots.txt` `Disallow: /auth/` |
+| genshin | `username`, `created_at`, no last-seen, `nameFallback: "user$sub"` | `feedback`: `username` → `deleted-{sub}`, `email`, `ip`, `user_agent` → NULL (the words stay) | `api/anotoki_iam.php`, `shared/local-lib/iam/*` | its migration is `users/050_people.sql`; `users.email` and `feedback.email` go once nothing reads them; `SignInGate` with its open prefixes; the library's routes in `SKIP_PREFIXES`; the hint acts here; `robots.txt` `Disallow: /auth/` |
+
+## Admin tools (0.4.0)
+
+Five tools every site's admin panel shares, for the site's **ADMIN alone**
+(EDITORs see none of them - the owner's decision of 2026-10-07). The library
+decides nobody's permissions, and mounts no admin route unguarded: every
+`*Routes::admin()` group asks the site's own ADMIN check, given once in its
+`AdminContext` (`isAdmin`), before anything else - `401 sign_in_required` for
+nobody, `403 forbidden` for anybody else - and a context without one mounts
+none (a `LogicException` while the site builds its app). The site still adds
+its own middleware to the group it gets back, which runs first (the IAM:
+`requireSession()` + `requireAdmin()`, and its CSRF header on every write, as
+on every first-party write). The groups may sit inside the site's own groups,
+under its base path: every link the server hands out names where its route is.
+Each tool has its page in the Angular half, an entry point of its own on a lazy
+admin route, in English as every admin page ("The pages" below); the visitors'
+side of feedback is a form in their language ("The visitors' feedback form").
+
+Two routes are **deliberately outside** every admin check, a navigation and an
+`<img>` sending no Bearer header: the backups' download (`BackupsRoutes::file()`
+- its single-use ticket is the check) and the file explorer's previews
+(`FilesRoutes::raw()` - its signed five-minute link is the check). A site whose
+sign-in rides on a cookie (the IAM) may mount `file()` inside its own session
+check and pass `samePerson: true`: the ticket then opens the file for the person
+it was issued to alone (the ticket's `by`).
+
+| tool | namespace | kept in | sites |
+| --- | --- | --- | --- |
+| error log | `Anotoki\Lib\ErrorLog` | files, `storage/logs/errors-*.jsonl` | every site |
+| audit log | `Anotoki\Lib\Audit` | table `anotoki_audit_log` | every site |
+| feedback | `Anotoki\Lib\Feedback` | table `anotoki_feedback` | genshin, piano, Japanese, build analyzer |
+| backups | `Anotoki\Lib\Backups` | files, `storage/backups/*.anotoki-backup` | every site (the IAM's encrypted) |
+| file explorer | `Anotoki\Lib\Files` | the site's folders; `storage/trash/` | genshin |
+
+The error log and the backups need no table: they work while the database is
+down or an update waits. Every folder the tools write under storage gets a
+deny-all `.htaccess` and an empty `index.html` where it has none
+(`Support\GuardedDirectory`). Every time they write is UTC, ISO 8601 with `Z`
+on the wire, TIMESTAMPTZ in the tables.
+
+### What a site gives once: `AdminContext`
+
+```php
+use Anotoki\Lib\Admin\AdminContext;
+
+$context = new AdminContext(
+    actorId: fn ($request) => $request->getAttribute('user')['id'] ?? null,   // from the session or the token, never a body
+    isAdmin: fn ($request): bool => Identify::person($request)?->isAdmin() ?? false,  // the site's ADMIN; the IAM: its own entry's ADMIN
+    proof: AdminContext::recentSignIn(fn ($request) => $request->getAttribute('claims')['auth_time'] ?? null),  // the sites: 10 minutes
+    // the IAM: proof: fn ($request, array $body) => accountProof($pdo, $request, $user, $session, $body['password'] ?? null, 'backup'),
+    //          proofKind: 'password' (or a closure: 'recent_sign_in' where the account has no password)
+    clientKey: fn ($request) => clientAddressCounted($request),               // the trusted proxy's address, its IPv6 /64
+    error: fn ($response, Refusal $refusal) => ...,                            // optional: the site's error body
+);
+```
+
+The proof guards every backup made, deleted, downloaded and restored: the IAM's
+`accountProof()` (its password, or a sign-in of the last 15 minutes; its
+`array` answers are taken as they are), the sites' token `auth_time`
+(`403 reauth_required`; the page offers "Sign in again" with `prompt: 'login'`).
+A context without a proof refuses those (`proof_unavailable`). The client key
+defaults to `REMOTE_ADDR` - behind Cloudflare a bucket shared by strangers:
+stricter, never looser; `X-Forwarded-For` is never read.
+
+### The schema: the library's set `anotoki_admin`, FIRST
+
+```php
+use Anotoki\Lib\Admin\Schema;
+
+$migrator = new Migrator($pdo, [Schema::migrationSet(), ...$siteSets, \Anotoki\Lib\Translations\Schema::migrationSet(), \Anotoki\Lib\People\Schema::migrationSet()], $options);
+```
+
+- `001_audit_log.sql` makes `anotoki_audit_log` (the IAM's columns plus
+  `actor_session`, `scope_type`, `scope_id`), `002_feedback.sql` makes
+  `anotoki_feedback`. Each proves the shape of a table of that name that is
+  there already, ends with `-- end of NNN` (Japanese Academy's draft rule takes
+  it), and names no site table. Released files are never edited.
+- It runs **first** - in the site, its installer and its command line alike:
+  the sites' own files move their old rows into its tables (the IAM's
+  `audit_log`, genshin's `audit_logs` and `feedback`), and nothing else makes an
+  `anotoki_*` table. It is recorded as `anotoki_admin/<file>` in a bookkeeping
+  table without `folder`, as `folder = anotoki_admin` in genshin's.
+- While a file of it waits, the modules ask `Schema::has()` (a `to_regclass`,
+  never memoised) and do without: the audit log keeps entries in a pending file,
+  feedback answers `503 feature_unavailable` (`Retry-After: 60`).
+- A site's hooks see its files: genshin's `migrationsOrderRefusal()` must let a
+  set before `users` through; the build analyzer's `beforeFile` and Japanese
+  Academy's `upkeep_before_apply()` must not mind them.
+
+### Error log
+
+```php
+use Anotoki\Lib\ErrorLog\ErrorLog;
+use Anotoki\Lib\ErrorLog\ErrorLogMiddleware;
+use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
+
+$errorLog = new ErrorLog(storageDir() . '/logs', [
+    'root' => dirname(__DIR__),        // file paths are written relative to it
+    'context' => $context,             // the user id, and an HMAC of the address bucket
+    'app' => $app,                     // the route's pattern in each line
+    // 'key' => Keys::derive(appSecret(), 'error-log'),   default: the installation's key (storage/anotoki-lib.key)
+    // 'responses' => fn (int $status) => $status >= 400, default: every 5xx and 404, 405, 413, 415, 429
+    // 'ignoreExceptions' => [ApiRefusal::class],         a site's decided answers: logged as their answer
+]);
+$errorLog->installPhpHandlers();                                        // fatals (shutdown) and warnings (chained)
+$errors = $app->addErrorMiddleware(false, true, true);
+$errors->setDefaultErrorHandler($errorLog->wrapHandler($siteHandler));  // or ErrorLogMiddleware::inner() inside a site's own
+$app->add(ErrorLogMiddleware::outer($errorLog));                        // added last: outside the error middleware
+ErrorLogRoutes::admin($app, '/api/admin/errors', $errorLog, $context, $audit); // guarded by the context; ->add() the site's own
+ErrorLogRoutes::client($app, '/api/client-errors', $errorLog, $context); // the pages' own errors (optional)
+```
+
+- One JSON line (`v: 1`) per event: `at` (UTC, ms), `source` (server, php,
+  client), `level`, `status`, `type`, `code`, `message` (redacted, 500 at
+  most), `file` (relative), `line`, `method`, `route`, `path` (redacted),
+  `user_id`, `client` (12 hex of an HMAC - never an address), `trace` (12
+  frames, never a call's arguments), `fingerprint`. Never a query string, a
+  header, a cookie, a body (an answer gives only its `code` and its sentence),
+  a token or the session.
+- `Support\Redactor`: PostgreSQL's DETAIL/HINT/CONTEXT/QUERY lines go whole,
+  echoed values, e-mail and IP addresses, JWTs, Bearer credentials,
+  `password=`-like secrets (their names quoted or not: `{"password":"…"}`,
+  `'pass' => '…'`), query strings and token-like runs become marks; at most
+  4,096 characters are read, and a rule that cannot run gives nothing of the
+  message.
+- A day's file goes into parts past 4 MB, days past 30 are deleted, and past
+  64 MB in all the oldest days go first - today is never kept out by the days
+  before it; only what today alone does not fit is counted instead of written
+  (`dropped` in the report). One line per fingerprint per request, and at most
+  `perFingerprintDay` (100) of one kind a day, the rest counted: a scanner's
+  404s fill a hundred lines, not the budget. genshin's own lines are read as
+  they were (their `at` in the server's zone, their `ip` shown).
+- `GET $base` (`days`, `level`, `status`, `search`) answers genshin's report -
+  `{total, errors, warnings, notices, distinct, truncated, days, daily,
+  statuses, groups, dropped}`, the newest 2,000 lines grouped by fingerprint;
+  `GET $base/{fingerprint}` every occurrence; `DELETE $base` clears it, and
+  `DELETE $base?before=YYYY-MM-DD` the UTC days before that one (`{deleted}`,
+  the files gone; audited `errors.cleared`). The log's own routes are never
+  logged - known by their route as they run, and by the path they are mounted
+  at (group, base path and all) for what fails before a route runs.
+- The client route: `POST {type?, message, page?, stack?, status?}` -> 204,
+  8 KB at most, 20 an hour from one address bucket and 500 a day in all
+  (`429 too_many`), each redacted, `source: client`.
+
+### Audit log
+
+```php
+use Anotoki\Lib\Audit\AuditContextMiddleware;
+use Anotoki\Lib\Audit\AuditLog;
+use Anotoki\Lib\Audit\Http\AuditRoutes;
+
+$audit = new AuditLog(fn (): PDO => db(), [
+    'pendingFile' => storageDir() . '/logs/audit-pending.jsonl',
+    // 'recordAddress' => true, 'address' => fn ($request) => requestIp($request),   the IAM keeps the address
+    // 'ready' => fn (PDO $pdo) => auditMovedToLibrary($pdo),                         the IAM: once its own move ran
+    // 'actorIds' => fn (string $name): array => ...,                                 the page's actor filter by name
+]);
+$audit->record($request, $actorId, 'user.roles_set', 'user', $id, ['roles' => $roles]);
+MigrationsRoutes::admin($app, '/api/admin/migrations', $migrator, function ($request, array $result) use ($audit): void {
+    $audit->flushPending();
+    $audit->record($request, $actorOf($request), 'migrations.applied', null, null, ['files' => $result['applied']]);
+});
+AuditRoutes::admin($app, '/api/admin/audit', $audit, $context, fn (array $ids): array => namesOf($ids));
+```
+
+- `record()` never throws; inside the caller's transaction it writes behind a
+  savepoint, so a failed entry never undoes the change it records; details are
+  cut at 64 KB. While the table is missing (or `ready` says not yet) entries
+  wait in the pending file and go in, with their own times, at
+  `flushPending()` - after every Apply - or with the next entry written outside
+  a transaction.
+- `AuditContextMiddleware::fromRequest($audit, fn ($request) => ['actor' => ..., 'session' => ...])`
+  (inside the site's sign-in check) or `begin()`/`end()` hold who acts, so deep
+  code records with `recordHere()`; `withScope('characters', 42, fn () => ...)`
+  files every entry meanwhile under what it belongs to (genshin's
+  `withAuditScope()`).
+- `page()` (the IAM's filters - `actor` by id or name, `action` by its
+  beginning, `target_type` - plus `target_id`, `scope_type`, `scope_id`,
+  `from`, `to`), `facets()`, `countSince()`, `latest()`; `scrubPeople($ids)` -
+  the IAM's rules: no address on a person's own entries or on the entries about
+  them nobody else did, their names gone from the details about them.
+- `GET $base` answers the IAM's `{total, page, pageSize: 50, items}` (its
+  `AuditEntry` plus `actor_session`, `scope_type`, `scope_id`); `GET $base/facets`.
+- The modules record their own actions through it (or any `AuditRecorder`):
+  `errors.cleared`, `backup.created|deleted|downloaded|restored|restore_failed`,
+  `feedback.status_changed|deleted`, `file.uploaded|moved|renamed|deleted|restored|trash_emptied`,
+  `folder.created`.
+- An entry that cannot be written is said to `onError` in a fixed sentence and
+  a code (the SQLSTATE, or the failure's class) - never the entry, its details
+  or its address, nor the database's words, which quote values.
+
+### Feedback
+
+```php
+use Anotoki\Lib\Feedback\Feedback;
+use Anotoki\Lib\Feedback\Http\FeedbackRoutes;
+
+$feedback = new Feedback(fn (): PDO => db(), [
+    'storage' => storageDir(),                       // required: the limits' count, the installation's key, the prune's stamp
+    'sections' => ['Characters', 'Weapons'],         // the site's places, optional
+    'fields' => ['steps' => 5000, 'expected' => 2000], // the site's extra fields, into details
+    'defer' => afterResponse(...),                   // the prune after the answer
+    // 'kinds' => ['bug', 'idea', 'other'], 'limits' => ['perHour' => 5, 'perDay' => 20, 'allPerDay' => 300],
+    // 'keep' => ['spam' => 30, 'resolved' => 365], 'honeypot' => 'website', 'notify' => fn (array $message) => ...
+]);
+FeedbackRoutes::public($app, '/api/feedback', $feedback, $context, fn ($request): ?array => optionalSender($request));
+FeedbackRoutes::admin($app, '/api/admin/feedback', $feedback, $context, $audit, fn (array $ids): array => namesOf($ids));
+```
+
+- The form: identity from the token only (`anonymous` drops the id and the
+  address); the page as a path; an address with none of `? & = % #`, a space
+  or a control character (a mail link would read them as more than an address:
+  `?bcc=`); a filled honeypot gets a kept message's answer word for word and
+  keeps nothing; 64 KB a body; `201 {ok: true}` - no id. No mail: the panel's
+  badge reads `GET $base/unread`.
+- Nothing of where a message came from is kept with it - no address, no hash of
+  one (the owner's decision). The limits count apart, in
+  `storage/cache/anotoki-feedback-limits.json` under its lock: an HMAC of each
+  address bucket that sent a message in the last day, and when - never in the
+  database, so never in a backup, each time gone a day later.
+- The admin side: `GET $base` (`kind`, `status`, `section`, `search`, `page`),
+  `/facets`, `/unread`, `GET $base/{id}` (opening a new one makes it read),
+  `PUT $base/{id}/status`, `DELETE $base/{id}` (both audited).
+  `forgetPeople($ids)` for an anonymized account; `prune()` daily.
+
+### Backups
+
+```php
+use Anotoki\Lib\Backups\Backups;
+use Anotoki\Lib\Backups\Copy;
+use Anotoki\Lib\Backups\Http\BackupsRoutes;
+
+$backups = new Backups(fn (): PDO => Copy::connect($dsn, $user, $password), storageDir() . '/backups', [
+    'site' => 'survey',
+    'migrator' => fn (PDO $pdo): Migrator => siteMigrator($pdo),   // the site's sets (the library's first), table and hooks
+    'lock' => SITE_MIGRATION_LOCK,                                 // its Migrator's advisory lock, when it names its own
+    'audit' => $audit,
+    'defer' => afterResponse(...),
+    'onError' => fn (Throwable $e) => $errorLog->record($e),
+    // the IAM: 'encryption' => Keys::derive(iamMasterKey(), 'iam-backup'), 'restore' => false
+    // 'afterRestore' => fn (array $manifest, PDO $pdo) => sweepAnonymizedAccountsSince($manifest['created_at']),
+]);
+$backups->dailyIfDue();                                                        // on requests: once a UTC day, after the answer
+$migratorOptions['beforeApply'] = $backups->beforeApplyHook($siteOwnHook);    // a backup before every update
+BackupsRoutes::admin($app, '/api/admin/backups', $backups, $context);
+BackupsRoutes::file($app, '/api/admin/backups', $backups, $context);          // DELIBERATELY outside the admin check: the ticket
+// the IAM may: BackupsRoutes::file($sessionGroup, ..., samePerson: true)    // inside its session check, for the ticket's person alone
+```
+
+- No pg_dump: COPY through PDO (`Pdo\Pgsql::copyToFile()` on PHP 8.4+ -
+  open the connection with `Copy::connect()`; `PDO::pgsqlCopyToFile()` before,
+  deprecated by 8.5), every table in one `REPEATABLE READ, READ ONLY`
+  transaction, parents first (a circle of keys that cannot be deferred is
+  refused by name), with the list and the SQL of the applied migrations. One
+  backup or Apply at a time (a lock file and the migrations' advisory lock).
+- COPY writes each table into a spool of its own in the run's working folder
+  (`.tmp-<id>/`, `0700`, files `0600`) through the library's stream wrapper -
+  pdo_pgsql opens COPY's file with PHP's streams - and a restore reads them
+  back the same way. Where the site's backups are encrypted (the IAM's), a
+  spool seals the rows in AES-256-GCM chunks as COPY hands them over, under a
+  key that lives only in memory: the rows are never in the clear on the disk,
+  not even a table at a time, and memory stays at a chunk. A working folder a
+  timeout or a kill left behind goes once nothing in it changed for an hour
+  (with the next backup or restore, and the daily run); the file explorer does
+  the same with an upload left on its way in.
+- The two files of known names - `.before-migration.json` (a hash of the
+  pending files, and when their backup was made) and
+  `cache/anotoki-backup-daily.json` - name no backup: a host that ignores
+  `.htaccess` would hand both out. A site that encrypts reads no backup in the
+  clear (one put there is refused), and `BackupsCommand` runs on the command
+  line alone.
+- `<id>.anotoki-backup` (`YYYYMMDD-HHMMSSZ-<kind>-<32 hex>`): `ANOTOKI-BACKUP 1`,
+  a JSON header, then a gzip'd ustar of `manifest.json`, `schema/<set>/<file>.sql`
+  and `data/NNN-<table>.copy` (COPY's text format) - opened anywhere by
+  `tail -n +3 x.anotoki-backup | tar -xz` - or, with `encryption`, that body in
+  1 MB AES-256-GCM chunks bound to the header, their index and the last one's
+  flag (another key, a changed byte, swapped chunks, a cut tail: refused). A
+  sidecar `<id>.anotoki-backup.json` feeds the list; a file without one is
+  listed from its header.
+- Kinds and keeping: `daily` (14), `before-migration` (5, once per list of
+  pending files; a backup that fails stops the Apply), `before-restore` (5),
+  `manual` (until deleted; `stale` after 90 days). Only files of these names
+  are ever deleted: whatever else is in the folder stays.
+- Restore in place, all or nothing, only where the live database's applied
+  migrations and columns equal the backup's (`409 schema_differs`): a
+  `before-restore` backup first, then one transaction (locks within 5 s, user
+  triggers off, one TRUNCATE, COPY back, sequences set, deferred keys checked,
+  triggers on, rows counted). Never restored: the bookkeeping table, the audit
+  log and `keep`. `restore: false` refuses it (the IAM, until an
+  `afterRestore` that ends every session and token and deletes again the
+  accounts deleted since has been reviewed).
+- Downloads: `POST $base/{id}/ticket` (the proof, audited) answers `{url,
+  expires_in}` - the url where the request came through, group and base path
+  and all; `ticketSeconds`, 60 - the page navigates to it; the ticket is 32
+  random bytes, kept as its hash with who it was issued to (`by`), good once,
+  for one backup, for its seconds; the file comes as an attachment,
+  `no-store`, `nosniff`, `no-referrer`.
+- `GET $base` `{backups, status}` (space, last daily, encryption, whether a
+  restore can run here), `GET $base/proof` `{kind}`, `POST $base`,
+  `GET|DELETE $base/{id}`, `GET $base/{id}/preview` (the rows a restore would
+  take away), `POST $base/{id}/restore` `{confirm: the id's last 6, password?}`.
+- The command line - `Backups\Cli\BackupsCommand` in a site's `backup.php`
+  (never uploaded): `--list`, `--create`, `--inspect=<id>`,
+  `--extract=<id> <folder>` (decrypted and checked, with the order to load it
+  into another database: the schema files, then `psql \copy`), `--restore=<id>
+  --confirm=<last 6>`.
+
+### File explorer
+
+```php
+use Anotoki\Lib\Files\FileExplorer;
+use Anotoki\Lib\Files\FileRoot;
+use Anotoki\Lib\Files\Http\FilesRoutes;
+
+$explorer = new FileExplorer([
+    new FileRoot('assets', _assetsRoot(), label: 'Assets', write: true, extensions: UPLOAD_ALLOWED_EXTENSIONS, maxBytes: 50 * 1048576, snapshot: true),
+], [
+    'storage' => storageDir(),
+    'afterWrite' => fn (string $root, string $op, string $path, ?string $from) => keepTheCatalogueInStep($op, $path, $from),
+]);
+FilesRoutes::admin($app, '/api/admin/files', $explorer, $context, $audit);
+FilesRoutes::raw($app, '/api/admin/files/raw', $explorer, $context);          // DELIBERATELY outside the admin check: signed links
+```
+
+- Roots: the site's data, never its code or its secrets - a root that holds the
+  site's `*.local.php`, a `vendor/` or `anotoki-lib.key` (in itself or a folder
+  of it), or that is, holds or is inside the storage folder, is refused when the
+  site builds it.
+- Paths (`PathGuard`): relative, `/`-separated, NFC; no NUL or control
+  characters, `\`, `:`, leading `/`, `.`/`..`, dot-names, trailing dots or
+  spaces, Windows' device names whatever their extension (`CON`, `nul.png`,
+  `COM1.txt`, `LPT9`, ...); every existing part must be no link and resolve to
+  itself inside the root's real path plus a separator (symbolic links, Windows
+  junctions, short names and a sibling `assets-old/` all fail).
+- Names and bytes (`UploadPolicy`, genshin's rules): one extension per name,
+  from the root's list, every other dot a dash; a name with any script,
+  server-configuration or browser-markup part refused (`shell.php.png`,
+  `.htaccess`, `.user.ini`, `x.svg.png`); the bytes must be what the extension
+  says (an MP4, M4A or AVIF's first box a real `ftyp` box's size); no file
+  begins with markup after a byte order mark and white space, no text carries
+  `<` before a letter, `!` or `?` in its first kilobyte, no picture or sound a
+  page's tags there (its XMP metadata stays); a renamed file's new extension is
+  checked the same way.
+- The guard: a written root gets an `.htaccess` before its first write -
+  `RemoveHandler` and `RemoveType` for the script extensions, `AddType` for
+  every extension the explorer takes (text as `text/plain`), and nosniff inside
+  `<IfModule mod_headers.c>`; never `php_flag`, `Options` or `Require` (each can
+  answer 500 for every file of the folder where AllowOverride does not allow
+  it) - never over the site's own.
+- `GET $base/roots`; `GET $base/{root}` (`path`, `search`, `page`, `mode=new`);
+  `POST $base/{root}/rescan`, `/upload` (multipart: `path`, `replace`, the
+  files), `/folder`, `/move`; `DELETE $base/{root}?path=` (to
+  `storage/trash/<root>/`); `GET|DELETE $base/{root}/trash`,
+  `POST $base/{root}/trash/restore`. Previews: links signed for five minutes;
+  inline only raster pictures, sound, video and text up to 64 KB, everything
+  else (SVG among it) a download; CSP `sandbox`, `nosniff`, same-origin,
+  `no-store`, byte ranges.
+
+### The pages (Angular)
+
+```ts
+// app.config.ts
+provideAnotokiAdmin(() => {
+  const auth = inject(AnotokiAuth);                         // the factory runs in an injection context
+  return {
+    isAdmin: () => auth.isAdmin(),                          // anybody else is told whose the page is, and nothing is asked
+    signInAgain: () => auth.signIn({ prompt: 'login' }),    // the sites' proof before a backup is made, downloaded, deleted or restored
+    personLink: (id) => ['/admin/people', id],              // a person the logs name, as a link (optional)
+    migrationsRoute: '/admin/migrations',                   // offered while a tool's table waits for an update
+    // apiBase: '/api/admin', paths: { files: '/api/admin/explorer' }, resolveUrl: (path) => apiOrigin + path,
+    // siteName: 'the IAM', failureText: (failure) => adminErrorText(failure), formatDate: (iso) => ...,
+    // feedbackFields: { steps: 'Steps to reproduce' }, restoreOffText: '...',
+  };
+}),
+
+// the admin panel's routes, under its ADMIN guard
+{ path: 'errors', loadComponent: () => import('@anotoki/lib/admin/errors').then((m) => m.ErrorLogPageComponent) },
+{ path: 'audit', loadComponent: () => import('@anotoki/lib/admin/audit').then((m) => m.AuditLogPageComponent) },
+{ path: 'feedback', loadComponent: () => import('@anotoki/lib/admin/feedback').then((m) => m.FeedbackPageComponent) },
+{ path: 'backups', loadComponent: () => import('@anotoki/lib/admin/backups').then((m) => m.BackupsPageComponent) },
+{ path: 'files', loadComponent: () => import('@anotoki/lib/admin/files').then((m) => m.FilesPageComponent) },
+
+// the admin navigation: the new feedback beside "Feedback"
+protected readonly unread = inject(FeedbackUnread);       // void this.unread.refresh() once; the Feedback page keeps it in step
+{ id: 'feedback', label: 'Feedback', path: '/admin/feedback', badge: this.unread.count() || null }
+```
+
+- Each page is drawn with the kit's pieces, in whatever frame the site gives it:
+  it answers to its own width, not the window's (a side navigation beside it is
+  fine), and at 390 px a table becomes a card a row, each cell saying its
+  column. English, as every admin page (the translations module keeps `/admin`
+  English). The site's ADMIN alone: for anybody else a page says whose it is and
+  asks the server nothing. The requests go through the site's `HttpClient`, so
+  its interceptors apply (the auth module's Bearer, the IAM's CSRF header); a
+  refusal is read whatever the site's error body is (the library's `{code,
+  message}`, the IAM's `{error, code}`) and said in the page's words, or the
+  site's (`failureText`).
+- **Error log**: the range (today, 7, 14 or 30 days), the level, the status and
+  a search; the counts and a chart by day (its numbers in words for screen
+  readers); the failures grouped by fingerprint, 20 a page, a row opening its
+  details - the facts, its path and route each a search, the trace (copied in
+  one press), every occurrence. "Clear" asks what goes: everything before today,
+  everything older than a week, or everything.
+- **Audit log**: who, the action (or a family of them, `backup.*`), what it is
+  about and its id, a date range - kept in the address, so a link to a filtered
+  log works; the choices the server's facets give; 50 a page; an entry opened
+  shows each field before and after (genshin's `{field: {old, new}}`, `{before,
+  after}` and `{from, to}` read alike), the session, the address where the site
+  keeps it, the details whole. While the table waits for an update: "Apply the
+  pending database update first", and the Migrations page.
+- **Feedback**: by status (new, read, resolved, spam, each counted), kind,
+  section and a search; a message opens in a dialog (the server marks it read):
+  the visitor's words as text, never markup, the site's extra fields
+  (`feedbackFields` names them), who sent it (`personLink`), where to answer,
+  the page, the language, the browser; "Mark as" saves at once; Delete asks
+  first. `FeedbackUnread` follows every change.
+- **Backups**: how many and how much, the last daily, encryption, and why a
+  backup or a restore cannot run here (the folder not writable, the server's PHP
+  without COPY, restoring switched off - `restoreOffText` adds the site's
+  reason); the list with each backup's kind, size, tables and maker. Back up
+  now, Download (a single-use link, opened by the page) and Delete are each
+  behind the site's proof: the IAM's password, asked in a dialog that says a
+  wrong one and too many; the sites' recent sign-in, whose refusal offers "Sign
+  in again" (`signInAgain`). Restore says what it would take away (the rows now
+  and after), wants the backup's last six characters typed and the proof, and
+  waits 30 seconds before it can be pressed; a restore whose answer was lost (a
+  proxy's 502, 504 or 524, the network) is said to be maybe still running, and
+  the list is read again.
+- **File explorer**: the roots as tabs, the folder as a path of links, a search,
+  a grid or a list; uploading by the button or by dropping files, with a
+  progress bar - what the root does not take (its extensions, its size) refused
+  before it is sent, the server's refusals said file by file; a new folder;
+  rename and move; delete into the trash after a question, with an Undo, and
+  the trash (put back, empty); a preview from the signed link - a picture, sound
+  or video in its own element, text as text, everything else a download.
+
+### The visitors' feedback form (Angular)
+
+```ts
+// app.config.ts - beside the translations module; it registers the form's words (anotoki.feedback.*)
+provideAnotokiFeedback(() => {
+  const i18n = inject(TranslationService), auth = inject(AnotokiAuth);
+  return {
+    language: () => i18n.language(),                       // the form's words, and the message kept with it ('en' and 'sk' built in)
+    translate: (key) => i18n.libraryWord(key),             // an owner's rewording in the site's database
+    sections: () => [{ value: 'Characters', label: i18n.t('nav.characters') }],
+    fields: () => [{ name: 'steps', label: i18n.t('feedback.steps'), kinds: ['bug'], max: 5000 }],
+    signedIn: () => auth.signedIn(),                       // "send it without my name" is offered
+    email: () => auth.user()?.email ?? null,               // written in until they type their own
+    // endpoint: '/api/feedback', kinds: () => [...], subjectRequiredFor: ['bug'], words: { de: {...} }, honeypot: 'website',
+  };
+}),
+
+// where it is opened - loaded then, so no first load carries the kit's fields
+const { FeedbackFormComponent } = await import('@anotoki/lib/feedback/form');
+// <anotoki-feedback-form [heading]="null" closable (sent)="..." (closed)="close()" />
+```
+
+- The kinds, a section, a subject, the message, the site's extra fields for the
+  kind; checked as the server checks them before it is sent (a message, the
+  lengths, an address) and every refusal said kindly, in the visitor's language:
+  too many (within the hour, or today, from `retry_after`), not taking messages
+  now (`503`), too long (the field and its most), the network. The robots' field
+  (`honeypot`) is off the screen, out of the tab order and hidden from screen
+  readers. Sent, the thanks take the focus, with "Send another".
+- Its words: the site's database's (`translate`), then the site's own (`words`),
+  then the built-in English and informal Slovak (`feedbackWords()`); a language
+  with none of them reads English, and the form says `lang="en"`.
+
+### What else a site adds
+
+- **Its gate's open paths** (a site that blocks while an update waits - every
+  site but the IAM): the error log and the backups need no table, and a backup
+  just before Apply is the point - restore stays closed:
+  `[...ErrorLogRoutes::openPaths(), ...BackupsRoutes::openPaths(), '~^/api/admin/migrations(/file|/apply)?$~D']`
+  (`'~^/api/admin/errors(/[0-9a-f]{12})?$~D'`,
+  `'~^/api/admin/backups(/proof|/[A-Za-z0-9-]{20,80}(/(ticket|file|preview))?)?$~D'`).
+  Their ADMIN check must judge by the token alone, as the migrations routes'.
+- **The runner after the answer**: a site with one passes it as `defer`; the IAM,
+  which has none, takes `Support\AfterResponse` - `AfterResponse::shared()->defer(...)`
+  while answering, `->run()` after `$app->run()` (PHP-FPM and LiteSpeed close the
+  connection first; each piece on its own, a failure said in the log or to the
+  site's `$onError`; work a piece queues runs too). The same runner carries the
+  people's scrub (`PeopleUpkeep`); one that is never run goes at the end of the
+  request all the same.
+- `Support\Keys`: `derive($secret, $purpose)` (HKDF-SHA256, `anotoki-lib/<purpose>/v1`);
+  `installation($storage)` - 32 random bytes in `storage/anotoki-lib.key` for a
+  site without a secret, its folder guarded.
+- **genshin** moves its `audit_logs` and `feedback` rows into the library's
+  tables in its own migrations (gated, the old tables dropped by a later one) and
+  drops `ip` and `submitter_hash` in the move; **the IAM** moves `audit_log`
+  (017, keeping ids) with `AuditLog`'s `ready` holding entries back until 017
+  ran.
+
 ## Working on the library
 
 ```
@@ -1005,19 +2076,31 @@ upload. Per site:
 php composer.phar install
 ANOTOKI_LIB_TEST_DB_CONFIG=../anotoki-iam/backend/config/database.local.php vendor/bin/phpunit
 #   or ANOTOKI_LIB_TEST_PGHOST / _PGPORT / _PGUSER / _PGPASSWORD; the user needs CREATEDB:
-#   each test case makes a database anotoki_lib_test_<random> and drops it
+#   each test case makes a database anotoki_lib_test_<random> and drops it; the auth tests
+#   start the stand-in IAM under PHP's built-in server on a free local port (needs openssl, curl)
+#   with the same PHP binary: give a PHP whose extensions come from its own php.ini through
+#   PHPRC=<its folder>, never -c (a child process does not get -c, and its server would have none).
+#   CI runs the tests on PHP 8.2 too: write no newer syntax, and run them on 8.2 before a release.
 
 # Angular (from angular/)
 bun install
 bun run build           # ng build lib -> angular/dist/lib, then scripts/check-package.mjs: each entry point's
                         # size (gzipped code; limits for the eager ones) and import boundaries; what a site's
-                        # build keeps of an entry point nothing is used of (nothing); and four first loads - the
-                        # gate, the bar, the words, a button - beside lazy pages that use the rest (no file of
-                        # theirs, under a limit), each file through Angular's own linker and the CLI's esbuild
+                        # build keeps of an entry point nothing is used of (nothing); no bundle naming innerHTML,
+                        # outerHTML, insertAdjacentHTML or bypassSecurityTrust, comments too (the IAM's deploy
+                        # check refuses such a release); and seven first loads - the gate, the bar, the words, a
+                        # button, the sign-in, the badge, the words + feedback - beside lazy pages that use the
+                        # rest (no file of theirs, under a limit), each file through Angular's own linker and the
+                        # CLI's esbuild
 bun run test            # ng test lib --watch=false (Vitest, jsdom)
 bun run showcase        # projects/showcase on http://localhost:4320: every piece and the bar, from the source
                         # (?theme=dark, ?lang=sk, ?account=1 for a refused theme, ?frame=88rem for the frame's
-                        # maxWidth; /migrations, /translations, /languages against an imagined server; never published)
+                        # maxWidth; /migrations, /translations, /languages (?editor=1: no delete or import),
+                        # /people (?people=unready, ?people=down), the admin tools' /admin/errors, /audit,
+                        # /feedback, /backups, /files and the visitors' /feedback against an imagined server -
+                        # ?visitor=1 for anybody but the ADMIN, ?iam=1 for the IAM's backups, ?proof=password for
+                        # a password as the proof ("secret"), ?signedin=1 for the form; /sign-in, the sign-in
+                        # failure's screen (?code=state_mismatch, ..., unavailable); never published)
 bun run build:showcase  # the same, built into angular/dist/showcase
 bun run words           # the Angular half's library words from php/resources/library-words.json (--check: stale?)
 ```

@@ -764,6 +764,13 @@ const ATTEMPT_METHOD_ACCOUNT_DELETION = 'account_deletion';
  */
 const ATTEMPT_METHOD_ACCOUNT_PASSWORD = 'account_password';
 
+/**
+ * The `method` of the password an administrator gives to make, download or
+ * delete a backup of the database (api/admin_tools.php: the same proof,
+ * accountProof(), counted by the same limiter).
+ */
+const ATTEMPT_METHOD_BACKUP = 'admin_backup';
+
 function recordLoginAttempt(PDO $pdo, Request $request, string $email, ?int $userId, string $method, string $outcome): void
 {
     $pdo->prepare('INSERT INTO login_attempts (email, user_id, ip, method, outcome) VALUES (?, ?, ?, ?, ?)')

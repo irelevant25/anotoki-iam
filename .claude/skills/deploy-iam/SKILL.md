@@ -72,7 +72,19 @@ Meanwhile the IAM keeps working (it does not block while an update waits - the
 other sites sign in through it); its administrators see "A database update is
 waiting" above the admin panel's pages. The Migrations page is the anotoki
 family's (anotoki/lib, `vendor/anotoki/lib` - uploaded with `vendor/`); one
-apply at a time.
+apply at a time. Apply backs the database up first (encrypted, on the Backups
+page) and applies nothing when it cannot; an upload never overwrites
+`storage/` (its logs and backups) or `config/*.local.php`.
+
+The move onto anotoki-lib 0.4.1's admin tools brings the library's admin set
+(`anotoki_admin/001`, `/002`), migration 018 (the audit log moved into the
+library's table, every entry with its id; the old table kept as
+`audit_log_before_018`) and the translations set's `003` and `004`: apply
+right after the upload - the Audit log page waits for it, and the entries made
+meanwhile wait in `storage/logs/audit-pending.jsonl` until then. Once 018 is
+applied, no build from before it goes on the host again. Download a backup
+afterwards (Backups → Download, the password asked) and keep it with the copy
+of `config/secret.local.php`: it opens with that key alone.
 
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 with no address - never a `localhost` one there. Admin panel →
@@ -151,3 +163,6 @@ key for a way of signing in it does not know.
   switcher, Admin panel → Migrations has nothing pending (the library's two
   files listed as `anotoki_translations/...`), and Admin panel → Translations
   shows the strings.
+- Admin panel → Backups lists the backup Apply made (`before-migration`,
+  encrypted) and says restoring is off; Audit log lists the old entries with
+  their ids; Error log opens (empty is fine).

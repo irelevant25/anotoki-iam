@@ -167,7 +167,7 @@ function mailsTo(string $email): array
 /** The details of the newest audit entry of an action about an account. */
 function lastAuditAbout(string $action, int $userId): ?array
 {
-    $statement = iamDb()->prepare("SELECT actor_id, details, ip FROM audit_log WHERE action = ? AND target_type = 'user' AND target_id = ? ORDER BY id DESC LIMIT 1");
+    $statement = iamDb()->prepare("SELECT actor_id, details, ip FROM anotoki_audit_log WHERE action = ? AND target_type = 'user' AND target_id = ? ORDER BY id DESC LIMIT 1");
     $statement->execute([$action, (string) $userId]);
     $row = $statement->fetch();
 
@@ -692,7 +692,7 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     makeDue($goneId);
     $requested = userRow($goneId)['deletion_requested_at'];
 
-    $about = static fn(int $id): int => (int) iamDb()->query("SELECT count(*) FROM audit_log WHERE actor_id = $id OR (target_type = 'user' AND target_id = '$id')")->fetchColumn();
+    $about = static fn(int $id): int => (int) iamDb()->query("SELECT count(*) FROM anotoki_audit_log WHERE actor_id = $id OR (target_type = 'user' AND target_id = '$id')")->fetchColumn();
     $eventsBefore = $about($goneId);
     $stayBefore = [];
     foreach (['sessions', 'refresh_tokens', 'auth_codes', 'user_trusted_devices', 'user_sign_in_devices', 'user_tokens', 'user_recovery_codes', 'user_identities', 'user_roles', 'login_attempts', 'email_log', 'announcement_recipients'] as $table) {
@@ -735,10 +735,10 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
 
     // Scrubbed, the events kept.
     same($eventsBefore + 1, $about($goneId), 'every audit entry by or about the account kept, and account.anonymized added');
-    same(0, (int) $pdo->query("SELECT count(*) FROM audit_log WHERE ip IS NOT NULL AND (actor_id = $goneId OR (actor_id IS NULL AND target_type = 'user' AND target_id = '$goneId'))")->fetchColumn(), 'no IP of the person\'s');
+    same(0, (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE ip IS NOT NULL AND (actor_id = $goneId OR (actor_id IS NULL AND target_type = 'user' AND target_id = '$goneId'))")->fetchColumn(), 'no IP of the person\'s');
     same('10.16.0.1', lastAuditAbout('user.updated', $goneId)['ip'], 'an administrator\'s IP on an administrator\'s change stays');
     same([], lastAuditAbout('account.username_changed', $goneId)['details'], 'the names in the change of name are gone');
-    same(['days' => 30], json_decode((string) $pdo->query("SELECT details FROM audit_log WHERE action = 'account.token_created' AND actor_id = $goneId")->fetchColumn(), true), 'and the personal token\'s name');
+    same(['days' => 30], json_decode((string) $pdo->query("SELECT details FROM anotoki_audit_log WHERE action = 'account.token_created' AND actor_id = $goneId")->fetchColumn(), true), 'and the personal token\'s name');
     same(['actor_id' => null, 'details' => ['requested_at' => isoTime((string) $requested)], 'ip' => null], lastAuditAbout('account.anonymized', $goneId), 'account.anonymized, by nobody, from nowhere');
     same(["deleted-$goneId@deleted.invalid", 'sent'], array_values($pdo->query("SELECT email, status FROM announcement_recipients WHERE user_id = $goneId")->fetch(PDO::FETCH_NUM)), 'the announcement went - nobody knows where');
 
@@ -874,7 +874,7 @@ test('an anonymized row stays one: the database refuses a way in written back on
         $answer = (new Browser('10.16.18.2'))->post($path, ['token' => $token, 'password' => 'back from the dead']);
         same([400, 'invalid_token'], [$answer->status, $answer->code()], "$path: " . $answer->body);
     }
-    same([null, false, true, 0], [userRow($id)['password'], userRow($id)['email_confirmed'], userRow($id)['disabled'], (int) $pdo->query("SELECT count(*) FROM audit_log WHERE action = 'account.address_claimed' AND target_id = '$id'")->fetchColumn()],
+    same([null, false, true, 0], [userRow($id)['password'], userRow($id)['email_confirmed'], userRow($id)['disabled'], (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE action = 'account.address_claimed' AND target_id = '$id'")->fetchColumn()],
         'the placeholder as it was, nobody claimed it');
 });
 

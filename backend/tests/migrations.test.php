@@ -29,8 +29,8 @@ const SURVEY_CALLBACK = 'http://localhost:4700/auth/callback';
 $files = migrationFiles();
 /**
  * The newest migration: pending on the window's database, which has every file before it. Every set's
- * files count - the IAM's, then the library's translations set (anotoki_translations) - so it is the
- * library's last, by the IAM's name for it: `anotoki_translations/002_....sql`.
+ * files count - the library's admin set, the IAM's, then the library's translations set - so it is the
+ * translations set's last, by the IAM's name for it: `anotoki_translations/00N_....sql`.
  */
 define('NEWEST', end($files));
 define('BEFORE_NEWEST', $files[count($files) - 2]);
@@ -86,7 +86,7 @@ function intoSurvey(Browser $browser): TestResponse
 /** How many times the audit log says migrations were applied. */
 function appliesAudited(): int
 {
-    return (int) iamDb()->query("SELECT count(*) FROM audit_log WHERE action = 'migrations.applied'")->fetchColumn();
+    return (int) iamDb()->query("SELECT count(*) FROM anotoki_audit_log WHERE action = 'migrations.applied'")->fetchColumn();
 }
 
 /** The command line, run as a person runs it, against the configuration in $configDir: [exit status, output without colours]. */
@@ -180,7 +180,7 @@ test('an update waiting closes nothing: every way in, the account page, a site\'
         same(['MEMBER'], verifyLikeAnApp(new Browser(), (string) ($tokens->json()['access_token'] ?? ''), 'survey')['roles'] ?? null, 'with a token the site accepts');
 
         $admin = signedIn('admin@example.test', '10.18.2.3');
-        foreach (['/api/admin/users', '/api/admin/stats', '/api/admin/settings', '/api/admin/migrations'] as $path) {
+        foreach (['/api/admin/users', '/api/admin/stats', '/api/admin/settings', '/api/admin/migrations', '/api/admin/audit', '/api/admin/errors', '/api/admin/backups'] as $path) {
             same(200, $admin->get($path)->status, "the admin panel: GET {$path}");
         }
         same([NEWEST], pendingMigrations(iamDb()), 'and the update still waits: nothing applied it by the way');
@@ -213,9 +213,9 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
         $list = $admin->get('/api/admin/migrations');
         same([200, 'no-store'], [$list->status, $list->header('Cache-Control')], 'the list');
         $status = $list->json();
-        same(['iam', 'anotoki_translations'], $status['sets'] ?? null, 'two sets: the IAM\'s, then the library\'s translations set');
+        same(['anotoki_admin', 'iam', 'anotoki_translations'], $status['sets'] ?? null, 'three sets: the library\'s admin set, the IAM\'s, then the library\'s translations set');
         same(array_slice(migrationFiles(), 0, -1), migrationNames($status['applied'] ?? []), 'every file before the newest applied, in the order they ran');
-        same(['iam', 'anotoki_translations'], array_values(array_unique(array_column($status['applied'], 'set'))), 'each of its set, the IAM\'s first');
+        same(['anotoki_admin', 'iam', 'anotoki_translations'], array_values(array_unique(array_column($status['applied'], 'set'))), 'each of its set, the library\'s admin set first');
         foreach ($status['applied'] as $file) {
             check(preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', (string) $file['applied_at']) === 1, "{$file['name']} applied at a time in UTC: " . $file['applied_at']);
         }
@@ -248,11 +248,18 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
         $other->query('SELECT pg_advisory_unlock(' . Migrator::DEFAULT_LOCK . ')');
         $other = null;
 
+        $backupsBefore = array_column(iamBackups()->list(), 'id');
         $applied = $admin->post('/api/admin/migrations/apply');
         same([200, 'no-store'], [$applied->status, $applied->header('Cache-Control')], 'Apply: ' . $applied->body);
-        same(['applied' => [['set' => NEWEST_FILE[0], 'name' => NEWEST_FILE[1]]], 'failed' => null, 'error' => null, 'note' => null], $applied->json(), 'the newest applied');
+        $note = (string) ($applied->json()['note'] ?? '');
+        same(['applied' => [['set' => NEWEST_FILE[0], 'name' => NEWEST_FILE[1]]], 'failed' => null, 'error' => null], array_diff_key($applied->json(), ['note' => 0]), 'the newest applied');
+        // The database as it was, backed up before anything ran - and named in the answer.
+        check(preg_match('/^A backup of the database as it was is (\d{8}-\d{6}Z-before-migration-[0-9a-f]{32})\.$/', $note, $made) === 1, 'Apply backed the database up first, and says which: ' . $note);
+        $backup = iamBackups()->get($made[1]);
+        same([false, 'before-migration', true], [in_array($made[1], $backupsBefore, true), $backup['kind'] ?? null, $backup['encrypted'] ?? null], 'a new backup, of its kind, encrypted');
+        same(['backup.created', null], array_values(iamDb()->query("SELECT action, actor_id FROM anotoki_audit_log WHERE target_type = 'backup' AND target_id = " . iamDb()->quote($made[1]))->fetch(PDO::FETCH_NUM) ?: []), 'recorded, by nobody: the Apply made it');
         same([], pendingMigrations(iamDb()), 'nothing pending');
-        $entry = iamDb()->query("SELECT actor_id, details FROM audit_log WHERE action = 'migrations.applied' ORDER BY id DESC LIMIT 1")->fetch();
+        $entry = iamDb()->query("SELECT actor_id, details FROM anotoki_audit_log WHERE action = 'migrations.applied' ORDER BY id DESC LIMIT 1")->fetch();
         same([$audited + 1, (int) iamDb()->query("SELECT id FROM users WHERE email = 'admin@example.test'")->fetchColumn()], [appliesAudited(), (int) $entry['actor_id']], 'audited, by the administrator');
         $details = (array) json_decode((string) $entry['details'], true);
         ksort($details);
@@ -318,6 +325,7 @@ test('the command line builds a database from nothing, says what it has, dry-run
 
     [$status, $out] = runCli($config);
     check($status === 0 && str_contains($out, '  ' . NEWEST . ' ... done'), 'its turn: the newest applied - ' . $out);
+    check(preg_match('/^  A backup of the database as it was is \d{8}-\d{6}Z-before-migration-[0-9a-f]{32}\.$/m', $out) === 1, 'after a backup of the database as it was, which it names: ' . $out);
     same([], pendingMigrations($pdo), 'nothing pending');
 });
 

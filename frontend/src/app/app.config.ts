@@ -1,11 +1,13 @@
 import { provideHttpClient, withFetch, withInterceptors } from "@angular/common/http";
 import { ApplicationConfig, DOCUMENT, inject, provideAppInitializer, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from "@angular/core";
 import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from "@angular/router";
+import { provideAnotokiAdmin } from "@anotoki/lib/admin";
 import { provideAnotokiMigrations, siteStatusInterceptor } from "@anotoki/lib/migrations";
 import { ThemeService, provideAnotokiShell } from "@anotoki/lib/shell";
 import { provideAnotokiTranslations } from "@anotoki/lib/translations";
 import { provideAnotokiUi } from "@anotoki/lib/ui/config";
 import { routes } from "./app.routes";
+import { iamAdminToolsConfig } from "./core/admin/admin-tools.config";
 import { SessionService } from "./core/auth/session.service";
 import { iamInterceptor } from "./core/http/iam.interceptor";
 import { IamTitleStrategy } from "./core/i18n/title.strategy";
@@ -38,6 +40,10 @@ export const appConfig: ApplicationConfig = {
     // its banner, the not-set-up page. No gate and no check at boot - the IAM
     // keeps working while an update waits (core/migrations/migrations.config.ts).
     provideAnotokiMigrations(iamMigrationsConfig),
+    // The family's admin tools: the admin panel's Error log, Audit log and
+    // Backups pages, English, for the IAM's ADMIN alone; what only the panel
+    // says and does is handed over by its routes (core/admin/admin-tools.config.ts).
+    provideAnotokiAdmin(iamAdminToolsConfig),
     { provide: TitleStrategy, useClass: IamTitleStrategy },
     // The theme applies itself on construction; asking for it here makes that
     // happen before the first page renders, not on first use. The words are

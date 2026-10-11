@@ -1,9 +1,11 @@
 import { inject, provideEnvironmentInitializer } from '@angular/core';
 import { Routes } from '@angular/router';
 import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
+import { useAdminToolsPanel } from '../../core/admin/admin-tools.config';
 import { SessionService } from '../../core/auth/session.service';
 import { useAdminPages } from '../../core/i18n/translations.config';
 import { AdminLayoutComponent } from './admin-layout.component';
+import { adminToolsPanel } from './admin-tools';
 import { localizationPages } from './localization';
 
 /** /admin - behind the session guard; the layout itself shuts out anybody who is not an IAM admin. */
@@ -12,8 +14,9 @@ export const ADMIN_ROUTES: Routes = [
     path: '',
     component: AdminLayoutComponent,
     // The Translations and Languages pages as the IAM words them, handed to the family's translations as the
-    // panel loads - before either page can be made - and kept out of the first load (core/i18n/translations.config.ts).
-    providers: [provideEnvironmentInitializer(() => useAdminPages(localizationPages(inject(SessionService))))],
+    // panel loads - before either page can be made - and kept out of the first load (core/i18n/translations.config.ts);
+    // the same for the family's admin tools - the Error log, Audit log and Backups pages (core/admin/admin-tools.config.ts).
+    providers: [provideEnvironmentInitializer(() => useAdminPages(localizationPages(inject(SessionService)))), provideEnvironmentInitializer(() => useAdminToolsPanel(adminToolsPanel()))],
     children: [
       { path: '', title: 'Dashboard', loadComponent: () => import('./dashboard/dashboard.component').then((m) => m.DashboardComponent) },
       { path: 'users', title: 'Users', loadComponent: () => import('./users/users-list.component').then((m) => m.UsersListComponent) },
@@ -54,7 +57,10 @@ export const ADMIN_ROUTES: Routes = [
         loadComponent: () => import('./announcements/announcement-detail.component').then((m) => m.AnnouncementDetailComponent),
       },
       { path: 'emails', title: 'Email log', loadComponent: () => import('./emails/emails.component').then((m) => m.EmailsComponent) },
-      { path: 'audit', title: 'Audit log', loadComponent: () => import('./audit/audit.component').then((m) => m.AuditComponent) },
+      // The anotoki family's admin tools (@anotoki/lib/admin/*), each a page of its own (core/admin/admin-tools.config.ts).
+      // Their filters are the address's query parameters: /admin/audit?target_type=user&target_id=42 is everything about one account.
+      { path: 'audit', title: 'Audit log', loadComponent: () => import('@anotoki/lib/admin/audit').then((m) => m.AuditLogPageComponent) },
+      { path: 'errors', title: 'Error log', loadComponent: () => import('@anotoki/lib/admin/errors').then((m) => m.ErrorLogPageComponent) },
       { path: 'settings', title: 'Settings', loadComponent: () => import('./settings/settings.component').then((m) => m.SettingsComponent) },
       // The anotoki family's Translations and Languages pages (@anotoki/lib, as the IAM words them:
       // ./localization.ts). They hold what is typed until it is saved: leaving one with something unsaved asks first.
@@ -71,6 +77,8 @@ export const ADMIN_ROUTES: Routes = [
         loadComponent: () => import('@anotoki/lib/translations/admin').then((m) => m.LanguagesPageComponent),
       },
       { path: 'keys', title: 'Signing keys', loadComponent: () => import('./keys/keys.component').then((m) => m.KeysComponent) },
+      // Encrypted with a key from the master key, restoring off; the proof is the IAM's own (docs/decisions.md, 2026-10-11).
+      { path: 'backups', title: 'Backups', loadComponent: () => import('@anotoki/lib/admin/backups').then((m) => m.BackupsPageComponent) },
       // The anotoki family's Migrations page (@anotoki/lib), as every anotoki site has it.
       { path: 'migrations', title: 'Migrations', loadComponent: () => import('@anotoki/lib/migrations/page').then((m) => m.MigrationsPageComponent) },
     ],

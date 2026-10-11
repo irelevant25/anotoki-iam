@@ -2,21 +2,22 @@
     "packages": [
         {
             "name": "anotoki/lib",
-            "version": "v0.3.0",
-            "version_normalized": "0.3.0.0",
+            "version": "v0.4.1",
+            "version_normalized": "0.4.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/irelevant25/anotoki-lib.git",
-                "reference": "f9378a9926f2040bfd4108238869a738ae8bc8bf"
+                "reference": "b94b0685e568d4db5eeeb283066e5ef745beeecf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/f9378a9926f2040bfd4108238869a738ae8bc8bf",
-                "reference": "f9378a9926f2040bfd4108238869a738ae8bc8bf",
+                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/b94b0685e568d4db5eeeb283066e5ef745beeecf",
+                "reference": "b94b0685e568d4db5eeeb283066e5ef745beeecf",
                 "shasum": ""
             },
             "require": {
                 "ext-json": "*",
+                "ext-openssl": "*",
                 "ext-pdo": "*",
                 "php": ">=8.2",
                 "psr/http-factory": "^1",
@@ -28,7 +29,10 @@
                 "phpunit/phpunit": "^11",
                 "slim/psr7": "^1.6"
             },
-            "time": "2026-10-10T23:12:57+00:00",
+            "suggest": {
+                "ext-curl": "asks the IAM with curl (PHP's own streams otherwise)"
+            },
+            "time": "2026-10-11T10:53:59+00:00",
             "type": "library",
             "installation-source": "dist",
             "autoload": {
@@ -49,10 +53,10 @@
             "license": [
                 "proprietary"
             ],
-            "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes) and the translations (the schema, the words' routes and the command line). The Angular half is @anotoki/lib.",
+            "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes), the translations (the schema, the words' routes and the command line), signing in (the IAM's tokens, who a request is, the boot configuration, a stand-in IAM for tests) and people (the site's record of them and the GDPR scrub). The Angular half is @anotoki/lib.",
             "homepage": "https://github.com/irelevant25/anotoki-lib",
             "support": {
-                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.3.0",
+                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.4.1",
                 "issues": "https://github.com/irelevant25/anotoki-lib/issues"
             },
             "install-path": "../anotoki/lib"

@@ -115,7 +115,7 @@ function waitingIn(Browser $admin): array
 /** The details of the newest audit entry of an action; null for none, or for one with no details. */
 function lastAuditOf(string $action): ?array
 {
-    $statement = iamDb()->prepare('SELECT details FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT 1');
+    $statement = iamDb()->prepare('SELECT details FROM anotoki_audit_log WHERE action = ? ORDER BY id DESC LIMIT 1');
     $statement->execute([$action]);
     $details = $statement->fetchColumn();
 
@@ -124,7 +124,7 @@ function lastAuditOf(string $action): ?array
 
 function auditCount(string $action, int $targetId): int
 {
-    $statement = iamDb()->prepare('SELECT count(*) FROM audit_log WHERE action = ? AND target_id = ?');
+    $statement = iamDb()->prepare('SELECT count(*) FROM anotoki_audit_log WHERE action = ? AND target_id = ?');
     $statement->execute([$action, (string) $targetId]);
 
     return (int) $statement->fetchColumn();

@@ -36,7 +36,28 @@ bootTests();
 
 const LIBRARY_MIGRATION = '017_strings_through_the_library.sql';
 const BEFORE_LIBRARY = '016_account_deletion_and_new_sign_in_mail.sql';
-const LIBRARY_FILES = ['anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'];
+
+/**
+ * The library's translations set, in the order its files run - after every
+ * file of the IAM's: 001 proves the tables, 002 the kit's and status page's
+ * words, and the files of later releases more of its words.
+ */
+function libraryFiles(): array
+{
+    return array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_translations/')));
+}
+
+/**
+ * What a database built through 016 has waiting: 017 and every file of the
+ * IAM's after it, then the library's translations set (its admin set runs
+ * before the IAM's files, and was applied with them).
+ */
+function pendingAfter016(): array
+{
+    $iam = migrationFiles('iam');
+
+    return [...array_slice($iam, (int) array_search(LIBRARY_MIGRATION, $iam, true)), ...libraryFiles()];
+}
 
 /** The four keys 017 moves: the name they had => the name they have. */
 const MOVED_KEYS = [
@@ -110,7 +131,7 @@ function snapshotLeft(PDO $pdo): bool
     return asBool($pdo->query("SELECT to_regclass('iam_017_moved_words') IS NOT NULL")->fetchColumn());
 }
 
-/** The library's keys 017 did not move there: the ones its 002 writes. */
+/** The library's keys 017 did not move there: the ones its own files write (002 and later). */
 function libraryKeysOf002(): array
 {
     return array_values(array_diff(LibraryWords::keys(), array_values(MOVED_KEYS)));
@@ -128,7 +149,7 @@ function bundle(string $code): array
 /**
  * Holds a bundle after 017 and the library's set to the one before: the same
  * language and languages; the same strings, but for the four keys under their
- * new names; and the library's 52 other keys added, in the library's words.
+ * new names; and the library's other keys added (002's and its later files'), in the library's words.
  */
 function sameButRenamedAndLibrary(array $before, array $after, string $code): void
 {
@@ -181,9 +202,11 @@ function signInToTheSite(Browser $browser, string $email): TestResponse
 
 test('a fresh IAM has run 017 and then the library\'s set: the four keys under their new names, the library\'s words beside the IAM\'s', function () {
     $pdo = iamDb();
-    same(['iam', 'anotoki_translations'], array_map(static fn($set): string => $set->name, iamMigrationSets()), 'the library\'s set after the IAM\'s - the API, the installer and the command line all apply through iamMigrator()');
-    same([LIBRARY_MIGRATION, ...LIBRARY_FILES], array_slice(appliedMigrations($pdo), -3), '017, then the library\'s two files, the last applied');
-    same(LIBRARY_FILES, $pdo->query("SELECT filename FROM migrations WHERE filename LIKE 'anotoki%' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN), 'recorded in the IAM\'s own table as set/name, which needs no folder column');
+    same(['anotoki_admin', 'iam', 'anotoki_translations'], array_map(static fn($set): string => $set->name, iamMigrationSets()), 'the library\'s translations set after the IAM\'s (its admin set before them) - the API, the installer and the command line all apply through iamMigrator()');
+    $applied = appliedMigrations($pdo);
+    same(libraryFiles(), array_slice($applied, -count(libraryFiles())), 'the library\'s translations set, the last applied');
+    check(array_search(LIBRARY_MIGRATION, $applied, true) < array_search(libraryFiles()[0], $applied, true), '017 before it');
+    same(libraryFiles(), $pdo->query("SELECT filename FROM migrations WHERE filename LIKE 'anotoki_translations/%' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN), 'recorded in the IAM\'s own table as set/name, which needs no folder column');
     same(false, snapshotLeft($pdo), '017\'s snapshot of the moved strings is gone with the file');
 
     $strings = stringsOf($pdo);
@@ -213,7 +236,7 @@ test('a fresh IAM has run 017 and then the library\'s set: the four keys under t
 test('an IAM built through 016, as its owner left it: 017 moves every string exactly - word, writer, time, blank - and the bundles change by nothing else', function () {
     $main = testEnvironment()['db'];
     $pdo = buildIamThrough('_installed', BEFORE_LIBRARY);
-    same([LIBRARY_MIGRATION, ...LIBRARY_FILES], pendingMigrations($pdo), 'built through 016: 017 and the library\'s set wait');
+    same(pendingAfter016(), pendingMigrations($pdo), 'built through 016: 017, the IAM\'s files after it and the library\'s translations set wait');
 
     // What the owner did on the Translations page, each saved by an administrator at a time of its own.
     $owner = (int) $pdo->query("INSERT INTO users (username, email, email_confirmed) VALUES ('owner', 'owner@example.test', TRUE) RETURNING id")->fetchColumn();
@@ -232,10 +255,10 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
         same(['Jazyk stránky: {name} ({code})', 'Language'], [$bundles['sk']['values']['lang.button'] ?? null, $bundles['sk']['values']['lang.label'] ?? null], 'before: the owner\'s words, and English where Slovak was blanked');
 
         $result = applyPendingMigrations($pdo);
-        same([[LIBRARY_MIGRATION, ...LIBRARY_FILES], null], [$result['applied'], $result['failed']], '017 and the library\'s set applied, every gate passed (' . ($result['error'] ?? '') . ')');
+        same([pendingAfter016(), null], [$result['applied'], $result['failed']], '017 and the library\'s set applied, every gate passed (' . ($result['error'] ?? '') . ')');
         same(false, snapshotLeft($pdo), 'and 017\'s snapshot of the moved strings is not left behind');
 
-        // The strings: every one as it was - the four keys' under their new names - and the library's 52 others added, written by nobody.
+        // The strings: every one as it was - the four keys' under their new names - and the library's others added, written by nobody.
         $after = stringsOf($pdo);
         $expected = underNewNames($strings);
         same($expected, array_intersect_key($after, $expected), 'every string as it was: word, writer, time');
@@ -264,7 +287,7 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
         foreach (LibraryWords::keys() as $name) {
             same(LibraryWords::all()[$name]['description'], $keysAfter[$name][0] ?? null, "$name: the library's description");
         }
-        same(count($keys) - 2 + count(LibraryWords::keys()), count($keysAfter), 'two keys gone, the library\'s 54 there');
+        same(count($keys) - 2 + count(LibraryWords::keys()), count($keysAfter), 'two keys gone, every key of the library\'s there');
 
         // The bundles the pages read: before and after differ by the four names and the library's words, nothing else.
         foreach (['en', 'sk'] as $code) {
@@ -293,12 +316,12 @@ test('a 017 whose gate fails leaves nothing behind - no snapshot, every key and 
     check(str_contains((string) $result['error'], 'strings that did not arrive under their new keys as they were'), 'its gate says why: ' . $result['error']);
     same(false, snapshotLeft($pdo), 'the snapshot went back with the rest of the file');
     same([$strings, $keys], [stringsOf($pdo), keysOf($pdo)], 'every key and string as it was - the four old keys among them');
-    same([LIBRARY_MIGRATION, ...LIBRARY_FILES], pendingMigrations($pdo), 'and 017 still waits, with the library\'s set behind it');
+    same(pendingAfter016(), pendingMigrations($pdo), 'and 017 still waits, with the library\'s set behind it');
 
     $pdo->exec('DROP TRIGGER test_017_spoil ON translations');
     $pdo->exec('DROP FUNCTION test_017_spoil()');
     $result = applyPendingMigrations($pdo);
-    same([[LIBRARY_MIGRATION, ...LIBRARY_FILES], null], [$result['applied'], $result['failed']], 'the cause gone, the next Apply runs it (' . ($result['error'] ?? '') . ')');
+    same([pendingAfter016(), null], [$result['applied'], $result['failed']], 'the cause gone, the next Apply runs it (' . ($result['error'] ?? '') . ')');
     same(false, snapshotLeft($pdo), 'and leaves no snapshot');
 });
 
@@ -357,12 +380,12 @@ test('the window: built through 016, the new code, nothing applied - the sign-in
         same(['lang.label', 'sessions.method.other'], array_values(array_intersect(['lang.label', 'sessions.method.other'], array_column($admin->get('/api/admin/translations')->json()['keys'] ?? [], 'name'))), 'the grid has the keys as they are');
 
         $pending = $admin->get('/api/admin/migrations')->json()['pending'] ?? [];
-        same([LIBRARY_MIGRATION, ...LIBRARY_FILES], migrationNames($pending), 'what Apply will bring: 017, then the library\'s set');
+        same(pendingAfter016(), migrationNames($pending), 'what Apply will bring: 017, then the library\'s set');
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [LIBRARY_MIGRATION, ...LIBRARY_FILES], null], [$applied->status, migrationNames($applied->json()['applied'] ?? []), $applied->json()['failed'] ?? null], 'Apply: ' . $applied->body);
-        $entry = json_decode((string) $pdo->query("SELECT details FROM audit_log WHERE action = 'migrations.applied' ORDER BY id DESC LIMIT 1")->fetchColumn(), true);
-        same([LIBRARY_MIGRATION, ...LIBRARY_FILES], $entry['applied'] ?? null, 'audited, each file by the name the table records');
+        same([200, pendingAfter016(), null], [$applied->status, migrationNames($applied->json()['applied'] ?? []), $applied->json()['failed'] ?? null], 'Apply: ' . $applied->body);
+        $entry = json_decode((string) $pdo->query("SELECT details FROM anotoki_audit_log WHERE action = 'migrations.applied' ORDER BY id DESC LIMIT 1")->fetchColumn(), true);
+        same(pendingAfter016(), $entry['applied'] ?? null, 'audited, each file by the name the table records');
 
         // From the next request on: the four keys under their new names, the library's words beside them, the owner's save kept.
         $slovak = bundle('sk');

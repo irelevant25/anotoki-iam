@@ -26,13 +26,25 @@
  * The engine is the anotoki family's (anotoki/lib's Migrator, iamMigrator() in
  * api/migration_runner.php), shared with the admin panel's Migrations page and
  * with setup.php, so a database built any of the three ways is the same
- * database - and only one of them applies at a time. It applies the IAM's
- * files, then the library's translations set after them: those are named
- * here as the table records them, `anotoki_translations/001_....sql`.
+ * database - and only one of them applies at a time. It applies the library's
+ * admin set first, then the IAM's files, then the library's translations set:
+ * the library's are named here as the table records them,
+ * `anotoki_admin/001_....sql`, `anotoki_translations/001_....sql`.
+ *
+ * As the admin panel's Apply does, it backs the database up first when
+ * something was applied before (iamMigratorWithBackup(), storage/backups,
+ * encrypted - `php backup.php --list` shows them), and applies nothing when
+ * that backup cannot be made; and the audit entries that waited for migration
+ * 018 go in after it.
  */
 
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/config/iam.php';
+require_once __DIR__ . '/config/secret.php';
 require_once __DIR__ . '/api/migration_runner.php';
+require_once __DIR__ . '/api/audit.php';
+require_once __DIR__ . '/api/admin_tools.php';
+require_once __DIR__ . '/api/account_deletion.php';
 
 use Anotoki\Lib\Migrations\MigrationSet;
 
@@ -80,7 +92,7 @@ try {
     }
 
     $pdo = iamDb();
-    $migrator = iamMigrator($pdo, [
+    $migrator = iamMigratorWithBackup([
         'beforeFile' => static function (PDO $pdo, MigrationSet $set, string $file) use (&$current): void {
             if ($current !== null) {
                 say('green', 'done');
@@ -142,6 +154,12 @@ if ($pending) {
         exit(1);
     }
 
+    // The backup before the update could not be made: nothing ran (the engine's beforeApply).
+    if ($result['failed'] === null && $result['error'] !== null) {
+        say('red', '  ' . $result['error']);
+        exit(1);
+    }
+
     if ($result['failed'] !== null) {
         // Failed before its first line was written: the file before it committed.
         if ($current !== $label($result['failed'])) {
@@ -153,12 +171,23 @@ if ($pending) {
         say('red', 'FAILED');
         say('red', '    ' . $result['error']);
         say('yellow', '    Nothing from this file was applied. The migrations before it stand.');
+        if ($result['note'] !== null) {
+            say('grey', '  ' . $result['note']);
+        }
         exit(1);
     }
 
     if ($current !== null) {
         say('green', 'done');
     }
+    // The backup made before anything ran, by its name.
+    if ($result['note'] !== null) {
+        say('grey', '  ' . $result['note']);
+    }
+
+    // The audit entries that waited for 018, with their own times - and an
+    // anonymized account's person out of them at once.
+    flushWaitingAuditEntries($pdo);
 }
 
 if ((int) $pdo->query('SELECT count(*) FROM users')->fetchColumn() === 0) {

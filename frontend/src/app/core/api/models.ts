@@ -644,26 +644,6 @@ export interface AnnouncementRecipientQuery {
   page?: number;
 }
 
-export interface AuditEntry {
-  id: number;
-  actor_id: number | null;
-  actor_username: string | null;
-  action: string;
-  target_type: string | null;
-  target_id: string | number | null;
-  /** JSON the backend stored with the entry - an object, or already a string. */
-  details: unknown;
-  ip: string | null;
-  created_at: string;
-}
-
-export interface AuditQuery {
-  actor?: string;
-  action?: string;
-  target_type?: string;
-  page?: number;
-}
-
 export interface AdminStats {
   users: number;
   disabled: number;

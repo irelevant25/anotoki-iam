@@ -26,8 +26,6 @@ import {
   ApplicationMembersResponse,
   ApprovalDecision,
   ApprovalQueue,
-  AuditEntry,
-  AuditQuery,
   CreateUserBody,
   CreatedApplication,
   EmailFilters,
@@ -121,7 +119,10 @@ export class AdminApi {
     return this._http.post<ApprovalDecision>(`/api/admin/users/${userId}/decline`, {});
   }
 
-  // ── Sessions, emails, audit ────────────────────────────────────────────────
+  // ── Sessions, emails ───────────────────────────────────────────────────────
+  // (The audit log, the error log and the backups are the anotoki family's
+  // admin tools - @anotoki/lib/admin/* - whose pages call /api/admin/audit,
+  // /api/admin/errors and /api/admin/backups themselves: core/admin/.)
 
   sessions(query: AdminSessionQuery = {}): Observable<AdminSessionsResponse> {
     return this._http.get<AdminSessionsResponse>('/api/admin/sessions', { params: toParams(query) });
@@ -137,10 +138,6 @@ export class AdminApi {
 
   emailFilters(): Observable<EmailFilters> {
     return this._http.get<EmailFilters>('/api/admin/emails/filters');
-  }
-
-  audit(query: AuditQuery = {}): Observable<Paged<AuditEntry>> {
-    return this._http.get<Paged<AuditEntry>>('/api/admin/audit', { params: toParams(query) });
   }
 
   stats(): Observable<AdminStats> {

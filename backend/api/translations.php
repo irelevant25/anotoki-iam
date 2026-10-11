@@ -36,8 +36,9 @@ use Psr\Http\Message\ResponseInterface as Response;
  *   - The mails' words (`mail.*`, api/mail.php) are the server's: never in a
  *     bundle, and held to more than a page's - they go out to a mailbox under
  *     the IAM's name (IamMailRules). Which placeholders a mail key has is
- *     MAIL_KEYS, the code, not the stored English. A save's audit summary
- *     keeps every changed mail string's old and new text whole.
+ *     MAIL_KEYS, the code, not the stored English. A save keeps every
+ *     changed mail string's old and new text whole in the audit log, each in
+ *     an entry of its own (auditTranslations()).
  *   - The two sentences the sign-in and registration pages cut around {app}
  *     keep it in every language (TRANSLATION_REQUIRED_PLACEHOLDERS).
  *   - English and Slovak are the languages the IAM is released in: the
@@ -304,6 +305,43 @@ function translationsReady(PDO $pdo): bool
 function translationRefusalAnswer(Response $response, Refusal $refusal): Response
 {
     return respondError($response, $refusal->status, $refusal->code, $refusal->message, $refusal->extra);
+}
+
+/**
+ * A change of the strings into the audit log - the admin panel's save and
+ * import, and the command line's import - as the library's routes and command
+ * hand it over: the summary (the languages, how many strings changed, the first
+ * hundred keys) in the entry of the change itself, and every changed mail
+ * string's old and new text whole in an entry of its own,
+ * `translations.mail_changed` (its key the target; the language, the old and
+ * the new text, and the change it was part of in its details).
+ *
+ * One entry keeps at most 64 KB of details, and the library's AuditLog keeps
+ * nothing but the top-level names of details that do not fit. A save of every
+ * mail string, long, in two languages is more than that: kept as one entry it
+ * would say nothing of any of them - and padding a save so would hide the one
+ * rewording that matters. A mail string is at most 400 characters (the
+ * library clips one that came past the panel), so each entry of its own fits.
+ */
+function auditTranslations(?\Psr\Http\Message\ServerRequestInterface $request, ?int $actorId, string $action, ?string $type, ?string $id, array $details): void
+{
+    $mails = $details[TRANSLATION_SERVER_NAMESPACE] ?? null;
+    if (!is_array($mails) || $mails === []) {
+        audit($request, $actorId, $action, $type, $id, $details);
+
+        return;
+    }
+
+    unset($details[TRANSLATION_SERVER_NAMESPACE]);
+    audit($request, $actorId, $action, $type, $id, $details + ['mail_changed' => count($mails)]);
+    foreach ($mails as $cell) {
+        audit($request, $actorId, 'translations.mail_changed', 'translation', is_string($cell['key'] ?? null) ? $cell['key'] : null, [
+            'language' => $cell['language'] ?? null,
+            'old' => $cell['old'] ?? null,
+            'new' => $cell['new'] ?? null,
+            'part_of' => $action,
+        ] + (isset($details['via']) ? ['via' => $details['via']] : []));
+    }
 }
 
 // ── For the command line and the tests - never the running IAM ──────────────

@@ -50,10 +50,14 @@ require_once __DIR__ . '/sign_in_devices.php';
 require_once __DIR__ . '/oidc.php';
 require_once __DIR__ . '/housekeeping.php';
 require_once __DIR__ . '/migration_runner.php';
+require_once __DIR__ . '/admin_tools.php';
 require_once __DIR__ . '/meddleware/security.php';
 require_once __DIR__ . '/meddleware/auth.php';
 
+use Anotoki\Lib\ErrorLog\ErrorLogMiddleware;
 use Anotoki\Lib\Migrations\Http\SiteGate;
+use Anotoki\Lib\Support\AfterResponse;
+use Anotoki\Lib\Support\Redactor;
 use Slim\Factory\AppFactory;
 
 /**
@@ -72,34 +76,52 @@ function buildIamApp(): \Slim\App
     $app = AppFactory::create();
     $app->addBodyParsingMiddleware();
 
+    // The error log (the family's library, api/admin_tools.php): what went
+    // wrong, written down where the admin panel's Error log page reads it -
+    // PHP's warnings and fatal errors too, by handlers chained to whatever was
+    // there, the IAM's own names of secrets out of each message first. Made
+    // first, so the routes' own (routes/admin.php) know it.
+    $errorLog = iamErrorLog($app);
+    iamInstallPhpHandlers($errorLog);
+
     require __DIR__ . '/routes/oidc.php';
     require __DIR__ . '/routes/login.php';
     require __DIR__ . '/routes/account.php';
     require __DIR__ . '/routes/admin.php';
 
-    // Added in this order, so they run the other way round: security headers
-    // first, then the not-set-up answer (the family's gate - before anything
-    // could read a configuration that is not there), CORS, the error handler,
-    // CSRF, and the body parser innermost around the routes.
+    // Added in this order, so they run the other way round: the error log's
+    // outer half first (every answer worth seeing - a 404, a 503, a 500 - as
+    // it leaves), the IAM's names of secrets out of an exception nothing
+    // answered, then security headers, the not-set-up answer (the family's
+    // gate - before anything could read a configuration that is not there),
+    // CORS, the error handler, CSRF, and the body parser innermost around the
+    // routes.
     $app->add(csrfMiddleware());
 
     $errorMiddleware = $app->addErrorMiddleware(false, true, true);
-    $errorMiddleware->setDefaultErrorHandler(function (\Psr\Http\Message\ServerRequestInterface $request, \Throwable $exception) use ($app) {
+    // The IAM's own answer to a failure, written into the error log with the
+    // status and code it answered (the library's wrapHandler()).
+    $errorMiddleware->setDefaultErrorHandler($errorLog->wrapHandler(function (\Psr\Http\Message\ServerRequestInterface $request, \Throwable $exception) use ($app) {
         [$status, $code, $message] = match (true) {
             $exception instanceof \Slim\Exception\HttpNotFoundException => [404, 'not_found', 'Not found'],
             $exception instanceof \Slim\Exception\HttpMethodNotAllowedException => [405, 'method_not_allowed', 'Method not allowed'],
             default => [500, 'server_error', 'Something went wrong on our side'],
         };
 
+        // The IAM's own names of secrets out of its message, for both logs
+        // (iamRedactSecrets()); the library's redactor does the rest - in the
+        // error log's line, and in PHP's own below.
+        iamRedactException($exception);
+
         if ($status === 500) {
-            error_log('[iam] ' . get_class($exception) . ': ' . $exception->getMessage() . ' in ' . $exception->getFile() . ':' . $exception->getLine());
+            error_log('[iam] ' . get_class($exception) . ': ' . Redactor::text($exception->getMessage()) . ' in ' . $exception->getFile() . ':' . $exception->getLine());
         }
 
         $response = $app->getResponseFactory()->createResponse($status);
         $response->getBody()->write((string) json_encode(['error' => $message, 'code' => $code]));
 
         return $response->withHeader('Content-Type', 'application/json');
-    });
+    }));
 
     $app->add(corsMiddleware());
     // The anotoki family's gate (anotoki/lib): /api/site-status always passes;
@@ -118,6 +140,15 @@ function buildIamApp(): \Slim\App
     $app->add(static fn(\Psr\Http\Message\ServerRequestInterface $request, \Psr\Http\Server\RequestHandlerInterface $handler): \Psr\Http\Message\ResponseInterface
         => iamSetUpProblems() === [] ? $handler->handle($request) : $gate->process($request, $handler));
     $app->add(securityHeadersMiddleware());
+    // An exception none of those answered - thrown outside the error handler -
+    // with the IAM's own names of secrets out of its message, before the error
+    // log's outer half writes it (iamRedactingMiddleware()).
+    $app->add(iamRedactingMiddleware());
+    // Outside everything, the error middleware included: the answers worth
+    // seeing as they leave - a 404, or a 503 a route answered itself - and the
+    // request a PHP warning belongs to. Of an answer it keeps its code and its
+    // sentence, never a body, a header or a cookie.
+    $app->add(ErrorLogMiddleware::outer($errorLog));
 
     return $built = $app;
 }
@@ -126,4 +157,10 @@ function buildIamApp(): \Slim\App
 // while they load this file.
 if (!defined('IAM_NO_RUN')) {
     buildIamApp()->run();
+    // What belongs to a request but not to its answer - the day's backup - once
+    // the answer is out (PHP-FPM and LiteSpeed close the connection first; the
+    // host has no cron).
+    AfterResponse::shared()->run(static function (\Throwable $e): void {
+        iamRecordError($e);
+    });
 }

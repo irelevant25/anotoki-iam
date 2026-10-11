@@ -18,7 +18,8 @@ computer is [`../DEV.md`](../DEV.md).
 | `router.php` | PHP's built-in server made to behave like the hosting's Apache: `/setup.php` is the installer, everything else goes to `api/index.php` (`composer start`) |
 | `api/index.php` | the front controller: builds the Slim app (`buildIamApp()`) and fixes the middleware order |
 | `setup.php` | the installer - writes `config/*.local.php`, creates the database when the user may, applies the migrations, makes the first accounts. On this computer a nonce and re-runnable; on a host a token, then a lock and its own removal |
-| `migration.php` | `php migration.php [--status\|--dry-run]` - the migrations for the configured database |
+| `migration.php` | `php migration.php [--status\|--dry-run]` - the migrations for the configured database (a backup of it first, as the admin panel's Apply makes) |
+| `backup.php` | `php backup.php --list\|--create ["description"]\|--inspect=<id>\|--extract=<id> <folder>` - the database's backups in `storage/backups` (encrypted under the master key; never restored in place); `--from=<folder> --key=<secret.local.php>` reads another IAM's - a download from the live one - with its master key |
 | `translations.php` | `--status` (the pages' keys against the database's, each language's coverage, the mails' keys against `MAIL_KEYS`), `--export sk [file]`, `--import sk file` - the anotoki library's command (`TranslationsCommand`) on the IAM's configuration |
 | `clients.php` | `php clients.php [--dev]` - lists the applications (whether each requires signing in and which roles may; before 010, its `access`; a client 011 will make public); `--dev` gives the anotoki sites their development addresses back |
 | `create-admin.php` | `php create-admin.php you@example.com [password]` - the first administrator of an IAM with no accounts, ADMIN in every application that has one |
@@ -29,12 +30,17 @@ computer is [`../DEV.md`](../DEV.md).
 Every command-line tool reads the configuration `setup.php` wrote and stops
 with a sentence when there is none (`requireSetUpOnCli()`). None of them is
 uploaded: `build-dist.php` leaves them, the tests and `setup.php` out.
+`php backup.php --extract` writes a backup decrypted into a new folder of the
+owner's, and `--inspect` into one under the system's temp folder that it
+removes when done - or leaves, when a run is stopped half-way: the database in
+the clear either way. Only on a computer you trust; delete what is left.
 
 ## Layout
 
 ```
 api/
-  index.php               the Slim app: security headers -> not set up (the family's gate) -> CORS -> errors -> CSRF -> body -> routes
+  index.php               the Slim app: the error log -> security headers -> not set up (the family's gate) -> CORS -> errors -> CSRF -> body -> routes;
+                          then the library's after-the-answer runner (the day's backup)
   meddleware/             auth.php (requireSession, requireAdmin), security.php (headers, CSRF, CORS)
   routes/                 by audience: oidc.php (the sites), login.php (sign-in pages),
                           account.php (requireSession), admin.php (+ requireAdmin: ADMIN of `iam`)
@@ -46,18 +52,25 @@ api/
   translations.php        the IAM's words through the anotoki family's library (anotoki/lib's Translations):
                           iamTranslations() - its configuration -, the mails' rules (IamMailRules), the accounts
                           per language, refusals in the IAM's body; iamKeyScanner() for the CLI and the tests
-  migration_runner.php    the anotoki family's library wired in: iamMigrator() - its migration engine, the IAM's
-                          set and then the library's translations set, for the CLI, the installer and the admin
-                          panel - and iamSiteState() - where the IAM stands, for the gate and /api/site-status;
-                          ensureDatabase(), createFirstAdmin()
+  migration_runner.php    the anotoki family's library wired in: iamMigrator() - its migration engine, the library's
+                          admin set, the IAM's set and then the library's translations set, for the CLI, the installer
+                          and the admin panel - and iamSiteState() - where the IAM stands, for the gate and
+                          /api/site-status; ensureDatabase(), createFirstAdmin()
+  admin_tools.php         the library's admin tools on the IAM: iamAdminContext() (who acts, the IAM's ADMIN, the
+                          proof - accountProof() -, the address, the error body), iamErrorLog() and the IAM's own
+                          names of secrets (iamRedactSecrets()), iamBackups() (encrypted, never restored),
+                          iamMigratorWithBackup(); audit.php is audit() over the library's AuditLog
   legacy_import.php       bringing the genshin site's accounts over
 config/
   config.php, db.php, iam.php, mail.php, secret.php, google.php
                           the loaders and the tunables that are the same everywhere (committed)
   *.local.php             what one installation is - written by setup.php, gitignored, required
 migrations/iam/           NNN_name.sql - the schema and the seeded data; never edit an applied one (the library's
-                          own set, anotoki_translations, is in vendor/anotoki/lib/php/migrations and runs after it)
-storage/                  cache/, mail in development (storage/mail/*.eml), the setup nonce, the install lock
+                          own sets are in vendor/anotoki/lib/php/migrations: anotoki_admin runs before it,
+                          anotoki_translations after it)
+storage/                  cache/, mail in development (storage/mail/*.eml), the setup nonce, the install lock;
+                          logs/ (the error log, and audit entries waiting for 018), backups/ (the database's,
+                          encrypted) - each folder the library writes guarded by an .htaccess of its own
 tests/                    run.php, lib.php, setup_lib.php and one *.test.php per area
 vendor/                   Slim, the anotoki family's library (anotoki/lib, from GitHub - never edited here; its
                           migration files and words come with it) and their dependencies, committed
@@ -71,6 +84,7 @@ php tests/run.php                         # every test file, each in a process o
 php migration.php --status                # what the configured database has applied and what is pending
 composer update anotoki/lib --prefer-dist # the family's library: with the frontend's @anotoki/lib (../docs/operations.md)
 php translations.php --status             # the keys the pages use against the database's strings
+php backup.php --list                     # the database's backups (--create, --inspect=<id>, --extract=<id> <folder>)
 php build-dist.php                        # -> dist/ for the hosting
 ```
 
@@ -91,7 +105,9 @@ folder. Only the PostgreSQL server is borrowed, from this machine's
 | `oidc.test.php` | the sign-in flow the sites depend on, and the attacks each protocol rule stops |
 | `setup.test.php` | the IAM before it is set up (`503 not_set_up`, naming the installer; the status), and the installer on this computer: the nonce, "Test connection", saving - the database built from nothing -, running again |
 | `setup-remote.test.php` | the installer on a real host: the token, https, production addresses, lock and removal; an installed IAM that loses a configuration file, never naming the installer again |
-| `migrations.test.php` | the anotoki family's migrations module in the IAM: `/api/site-status` (ready, unavailable, an update waiting), an update waiting closing nothing - every way in, a site's sign-in, the account page, the admin panel -, the admin Migrations routes (the two sets, the IAM's and the library's translations set; the list, a file's SQL of either and no path past it, Apply and its audit, a library file as `set/name`; who may; the CSRF header; one apply at a time), the command line building a database from nothing, `--status`, `--dry-run`, waiting its turn, and a pooled connection letting go of the lock a dead request left |
+| `migrations.test.php` | the anotoki family's migrations module in the IAM: `/api/site-status` (ready, unavailable, an update waiting), an update waiting closing nothing - every way in, a site's sign-in, the account page, the admin panel and its tools -, the admin Migrations routes (the three sets, the library's admin set, the IAM's and the library's translations set; the list, a file's SQL and no path past it, Apply - a backup of the database first, named in its note - and its audit, a library file as `set/name`; who may; the CSRF header; one apply at a time), the command line building a database from nothing, `--status`, `--dry-run`, waiting its turn, backing up first, and a pooled connection letting go of the lock a dead request left |
+| `admin-tools.test.php` | the admin panel's tools from the anotoki library (the error log, the audit log, backups): who may - nobody, an account, a site's ADMIN and EDITOR, an administrator on the way out, the CSRF header, the library's own guard -; the audit log keeping what it kept, its answer and filters, never undoing the change it records, the IAM's rules scrubbing a deleted person out of it and out of the table 018 keeps; the error log writing a failure, a warning, a 404 - and no secret, cookie, header, query string or address, the IAM's own names of secrets included -, its own routes never written, Clear audited; backups made, downloaded and deleted only with the proof (the password and its limiter, or a recent sign-in), encrypted - nothing in the clear on the disk, opened with the master key alone -, the single-use ticket for one backup, one administrator and a minute, restore refused, the day's backup after the answer |
+| `audit-log-into-the-library.test.php` | migration 018 and the library's admin set before the IAM's files: on a fresh IAM; on one shaped like an installed one, with a history of every shape - every entry moved exactly with its id, the next numbered after them, the old table kept -; a gate that fails, a library table not empty, an action the library does not take - nothing moved, nothing kept -; the window while they wait - every way in, audit() failing no request, its entries waiting in a file, the Audit page waiting, a backup and a deletion meanwhile - and Apply, with a backup first, bringing them in with their own times |
 | `import.test.php` | the genshin site's accounts brought over |
 | `survey-application.test.php` | migration 005 on IAMs installed before it, and the survey site signing in |
 | `every-site.test.php` | migration 007 on a fresh IAM and on one shaped like an installed one; the first administrator's ADMIN in every application |
