@@ -99,7 +99,7 @@ API document is a contract the Angular frontend and all the sites depend on.
 6. Update `docs/api.md` (and `docs/integrating-an-app.md` + the SDKs for the
    OIDC half) in the same change; tell the frontend engineer about shape changes.
 7. Add tests: the new behaviour, and for a security rule, the attack it stops.
-   `php tests/run.php` must pass on the newest PHP and on 8.2. `php -l` every
+   `php tests/run.php` must pass on PHP 8.5 (the hosts run 8.2: use nothing 8.2 lacks). `php -l` every
    file you touched.
 
 ## Never

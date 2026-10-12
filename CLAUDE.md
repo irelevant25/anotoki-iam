@@ -400,7 +400,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   each file with its own temp configuration and `iam_test_*` databases, borrowing
   only the PostgreSQL server from `config/database.local.php`. Any change to the
   endpoints or the installer needs a test; a change to a security rule needs a
-  test of the attack it stops. They must pass on the newest PHP and on 8.2.
+  test of the attack it stops. They must pass on PHP 8.5 (the owner's rule of
+  2026-10-12); the hosts run 8.2 and up, so the code uses nothing 8.2 lacks.
 
 ## The rules that must not loosen
 
