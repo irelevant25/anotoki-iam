@@ -17,6 +17,10 @@
 // ---------------------------------------------------------------------------
 
 require_once __DIR__ . '/config.php';
+// The trusted proxies' default is the anotoki library's list of Cloudflare's ranges.
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Anotoki\Lib\Support\ClientAddress;
 
 function iamConfig(): array
 {
@@ -69,15 +73,23 @@ function iamConfig(): array
         // Personal tokens for scripts: the longest anybody may ask for.
         'personal_token_max_days' => 365,
 
-        // A proxy in front of the IAM - Cloudflare - connects on every visitor's
-        // behalf, so without this every limit counts the proxy's few addresses
-        // instead of the visitors'. List the proxy's ranges (CIDR, v4 and v6;
-        // Cloudflare publishes its own at https://www.cloudflare.com/ips/) and
-        // the header it puts the visitor's address in. The header is believed
-        // only from those addresses; from anywhere else it is whatever the
-        // sender wrote.
-        'trusted_proxies' => [],
-        'client_ip_header' => 'CF-Connecting-IP',
+        // The proxy in front of the IAM - Cloudflare, in front of every anotoki
+        // site (the owner's decision of 2026-10-11, docs/decisions.md) -
+        // connects on every visitor's behalf: without this every limit would
+        // count its few edges instead of the visitors, and the audit log and
+        // the sessions would name them. Its ranges are the ones it publishes
+        // (https://www.cloudflare.com/ips/, v4 and v6), as the anotoki library
+        // keeps them for every site (ClientAddress::CLOUDFLARE). The visitor's
+        // address is the one Cloudflare writes into CF-Connecting-IP, believed
+        // only on a connection from one of these ranges (api/helpers.php,
+        // requestIp()). That header is pinned in the code, never a setting:
+        // Cloudflare passes X-Real-IP, True-Client-IP and their kin through as
+        // the visitor wrote them. An installation behind other proxies names
+        // them in iam.local.php (CIDR ranges or single addresses), one behind
+        // none sets [] - the connection's address alone. A range wider than an
+        // IPv4 /8 or an IPv6 /16 (0.0.0.0/0, ::/0) is refused, never believed
+        // (iamTrustedProxies()).
+        'trusted_proxies' => ClientAddress::CLOUDFLARE,
     ];
 
     $local = localConfig('iam');

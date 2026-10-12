@@ -177,6 +177,25 @@ four reads the session cookie, and none may ever: the header is what stands
 between the cookie and a page on a sibling subdomain, which a browser counts
 as the same site.
 
+### Where a request comes from
+
+What the audit log keeps (`ip`), a session shows and the limiter counts is the
+requester's address by the anotoki family's one rule (the owner's decision of
+2026-10-11, [decisions.md](decisions.md); `requestIp()`) - the limiter by its
+bucket, an IPv4 address whole and an IPv6 address by its /64, which is also
+what a sign-in attempt keeps as its `ip` (`2001:db8:aa:bb::/64`): the
+connection's own - or, on a connection from one of Cloudflare's published ranges (the
+trusted proxies, `config/iam.php`), the visitor's address Cloudflare names in
+`CF-Connecting-IP`. From anywhere else that header is never believed, nor a
+header that is no single address. It is the one header read, pinned in the
+code: `X-Real-IP`, `True-Client-IP`, `X-Forwarded-For` and their kin - which
+Cloudflare passes on as the visitor wrote them - never are, whoever sends
+them. A configured range wider than an IPv4 `/8` or an IPv6 `/16` (`0.0.0.0/0`,
+`::/0`) is refused, never believed. An IPv4 address written as IPv6
+(`::ffff:203.0.113.9`) is the IPv4 one. The error log keeps none of it: a keyed
+hash of the address's bucket (an IPv6 address its /64) - a pseudonym while its
+key lasts -, as the pages' own errors are counted (`POST /api/client-errors`).
+
 ---
 
 ## OpenID Connect
@@ -708,6 +727,40 @@ tag of its list, or `*`, with or without `W/` in front, and with or without
 `-gzip`, `-br` or `-zstd` just inside the closing quote - what a compressing
 Apache (mod_deflate, mod_brotli) or proxy does to the tag on the way out.
 Without that, behind such a server no browser would ever get the 304.
+
+### `POST /api/client-errors`
+
+An error a page met, for the error log (the owner's decision of 2026-10-11:
+every anotoki site's error log holds its pages' errors too). The anotoki
+family's route (anotoki-lib 0.5.0's `ErrorLogRoutes::client()`); the pages
+send it through `@anotoki/lib/error-report` - after the error is handled,
+scrubbed, each error once, five a page load at most.
+
+```json
+{ "type": "TypeError", "message": "Cannot read properties of undefined", "page": "/account/security", "stack": ["at render (https://iam.example/chunk-AB12.js:3:4)"] }
+```
+
+`204`, written into the error log as `source: "client"` (below, "Error
+log"): `type` (an identifier, else `Error`), `message`, `page` (a path, its
+segments that could be a secret or a person's replaced), up to 12 frames of
+`stack` (a list or one text) and `status` (a number, optional) - every text
+redacted as every line is: the library's rules, the IAM's names of secrets,
+and its own prefixes and cookies (`iam_rt_`, `iam_pat_`, its cookies' names)
+taken out before the library reads them. Who sent it: the person signed in,
+when this browser's session cookie names one (read only - nothing is
+touched, set or cleared), as their id; never more of them, and of a visitor
+nothing but a keyed hash of their address's bucket.
+
+A first-party write: the CSRF header and the IAM's own `Origin` (`403 csrf`),
+in neither CORS list; no session needed - a sign-in page fails too.
+`415 unsupported_media_type` for anything but JSON, `413 too_large` past
+8 KB, `400 invalid_json`, `422 message_required` for no message (or a body
+that is no object). At most 20 an hour from one sender - a signed-in person
+by their account, a visitor by their address (an IPv6 one by its /64) - and
+500 a day from the visitors together, as many from the people signed in:
+past it, `429 { code: "too_many", retry_after }` with `Retry-After`, and the
+page stops reporting until it is loaded again. Requests to it are never
+written into the log as failures of their own.
 
 ### `GET /api/login/request/{id}`
 
@@ -1296,7 +1349,7 @@ interface AdminUserDetail {
   account: AdminUser;
   identities: { id: number; provider: string; email: string | null; created_at: string }[];
   sessions: (SessionEntry & { current: false })[];
-  login_attempts: { id: number; email: string; ip: string | null; method: string; outcome: string; created_at: string }[];
+  login_attempts: { id: number; email: string; ip: string | null; method: string; outcome: string; created_at: string }[];  // ip: the limiter's source - an IPv4 address, or an IPv6 address's /64
   tokens: PersonalToken[];
   active_sessions: number;
   trusted_devices: number;
@@ -1699,8 +1752,8 @@ interface ApplyResult {
 
 ### The admin tools: audit log, error log, backups
 
-The anotoki family's (anotoki-lib 0.4; `docs/decisions.md`, 2026-10-11): the
-same routes and answers on every anotoki site, the admin panel's Audit log,
+The anotoki family's (anotoki-lib 0.4, and 0.5.0 since; `docs/decisions.md`,
+2026-10-11): the same routes and answers on every anotoki site, the admin panel's Audit log,
 Error log and Backups pages drawing them (`@anotoki/lib/admin/*`). Here they
 sit inside the admin group - the session, the IAM's `ADMIN` (not while one's
 own deletion is pending), the CSRF header on every write - and each group asks
@@ -1733,7 +1786,7 @@ interface AuditEntry {
   target_type: string | null;
   target_id: string | null;
   details: unknown;              // what changed, as the action records it
-  ip: string | null;             // the requester's address (requestIp(): the trusted proxy's header from a trusted proxy)
+  ip: string | null;             // the requester's address ("Where a request comes from": the visitor's through Cloudflare's ranges)
   actor_session: string | null;  // the library's three: always null here
   scope_type: string | null;
   scope_id: string | null;
@@ -1762,23 +1815,28 @@ administrator's entry stays.
 
 What fails is written down in `storage/logs/errors-YYYY-MM-DD.jsonl` (UTC
 days, 30 kept, 64 MB at most, a hundred lines of one kind a day), one JSON line
-an event: an exception the IAM answered (with its status and code), an answer
-worth seeing (every 5xx, 404, 405, 413, 415, 429), PHP's warnings and fatal
-errors. Never a query string, a header, a cookie, a body, a token or the
-session; a message only redacted - the library's rules (`password=` and its
-kin, Bearer credentials, JWTs, runs of a token's alphabet, e-mail and IP
-addresses, PostgreSQL's DETAIL), and before them the IAM's own names
-(`iamRedactSecrets()`: its session and device cookies, `iam_rt_` and `iam_pat_`
-tokens, a current or new password, a remembered device's token, a code, a
-recovery code, a two-factor secret, Google's credential); a trace without a
-call's arguments; the address as a keyed hash of it (12 hex), never itself.
-Requests to these routes are never written into it. The IAM mounts no route
-for the pages' own errors.
+an event: an exception the IAM answered (with its status and code - and, for
+one thrown for another, each cause's `Caused by Type (file:line): message` in
+its trace), an answer worth seeing (every 5xx, 404, 405, 413, 415, 429), PHP's
+warnings and fatal errors, and the pages' own errors (`source: "client"`,
+`POST /api/client-errors` above). An answer that says a state, not a failure
+(`update_pending`, `feature_unavailable`, `not_set_up`), is not written. Never a
+query string, a header, a cookie, a body, a token or the session; every
+message - each cause's too - only redacted: the library's rules (`password=`
+and its kin, Bearer credentials, JWTs, runs of a token's alphabet, e-mail and
+IP addresses, PostgreSQL's DETAIL), with the IAM's names of secrets among them
+(a current or new password, a remembered device's token, a code, a recovery
+code, a two-factor secret, Google's credential - `Redactor::addSecretNames()`),
+and before them the IAM's own prefixes and cookies (`iamRedactSecrets()`: its
+session and device cookies, `iam_rt_` and `iam_pat_` tokens); a trace without a
+call's arguments; the address as a keyed hash of its bucket (12 hex - an IPv6
+address its /64), never itself. Requests to these routes are never written
+into it.
 
 ```ts
 interface ErrorLogEntry {
   v: number; at: string;                           // ISO 8601 UTC, to the millisecond
-  source: 'server' | 'php'; level: 'error' | 'warning' | 'notice';
+  source: 'server' | 'php' | 'client'; level: 'error' | 'warning' | 'notice';
   status: number; type: string; code: string | null; message: string;
   file: string | null; line: number | null;        // relative to backend/
   method: string | null; route: string | null; path: string | null;
@@ -1847,6 +1905,8 @@ interface BackupInfo {
   encrypted: true; status: string; file: string;
   size: number;                  // bytes on disk
   created_by: number | null;     // the administrator; null for the daily and the before-migration ones
+  created_by_name: string | null;  // their username as it is now (an anonymized account's placeholder); null for nobody
+  sealed: boolean;               // made here: true for every one of the IAM's, whose cipher is its seal (anotoki-lib 0.5.0)
   description: string | null;
   table_count: number; rows: number; sequences: number; duration_ms: number;
   stale: boolean;                // a manual one kept for more than 90 days

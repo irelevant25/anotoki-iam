@@ -246,13 +246,30 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   applied, no build from before it goes on the host again (it would show
   those four as keys). Both route groups stay behind `requireAdmin()`; the
   CSRF header and `audit()` as before.
+- **The visitors' own addresses, through Cloudflare's ranges** (the owner's
+  decision of 2026-10-11; `docs/decisions.md`): `config/iam.php`'s committed
+  `trusted_proxies` are Cloudflare's published ranges (the library's
+  `ClientAddress::CLOUDFLARE`; an installation's `iam.local.php` may name its
+  own, or `[]`), and `requestIp()` is the family's one rule (the library's
+  `ClientAddress`): `CF-Connecting-IP` believed only on a connection from
+  them - never a header from anywhere else -, an IPv4 address written as IPv6
+  the IPv4 one. That header is pinned in the code, never a setting
+  (Cloudflare passes `X-Real-IP`, `True-Client-IP`, `X-Forwarded-For` on as
+  the visitor wrote them), and a configured range wider than an IPv4 /8 or an
+  IPv6 /16 (`0.0.0.0/0`, `::/0`) is refused (`iamTrustedProxies()`). The
+  limiter counts the visitor, the audit log keeps their address, a session
+  shows it; the error log keeps only a keyed hash of the address's bucket (an
+  IPv6 address its /64: the IAM's `clientKey`) - a pseudonym while its key
+  lasts, never "an address nobody can read back". `tests/addresses.test.php`
+  holds the attacks it stops (a forged header from outside the ranges, the
+  other headers from inside them, a catch-all range).
 - **The admin panel's tools are the family's library's** (anotoki-lib 0.4.1,
-  the owner's decisions of 2026-10-11; `docs/decisions.md`): the error log,
-  the audit log and backups - one page each, the library's routes inside the
-  admin group (the session, the IAM's ADMIN, the CSRF header; each group asks
-  the library's own ADMIN check besides, `iamAdminContext()`); not feedback,
-  not the file explorer. The IAM's configuration is `api/admin_tools.php` and
-  `api/audit.php`. **The audit log** is the library's `anotoki_audit_log`:
+  then 0.5.0 - the owner's decisions of 2026-10-11; `docs/decisions.md`): the
+  error log, the audit log and backups - one page each, the library's routes
+  inside the admin group (the session, the IAM's ADMIN, the CSRF header; each
+  group asks the library's own ADMIN check besides, `iamAdminContext()`); not
+  feedback, not the file explorer. The IAM's configuration is
+  `api/admin_tools.php` and `api/audit.php`. **The audit log** is the library's `anotoki_audit_log`:
   `audit()` stays every route's one way in and keeps what it kept (who, what,
   to what, the details, `requestIp()`, the time), behind a savepoint, never
   throwing; migration 018 moved every entry of `audit_log` there with its id
@@ -261,18 +278,30 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   entry waits in `storage/logs/audit-pending.jsonl` (`auditMovedToLibrary()`),
   flushed after the Apply, by `php migration.php` and by housekeeping (before
   its deletions) through `flushWaitingAuditEntries()`, which scrubs the
-  anonymized accounts' people out of them at once - once 018 is applied, no
+  anonymized accounts' people out of them at once - whenever a flush found
+  entries waiting, not only when it put some in (one killed after its commit
+  puts nothing in twice next time) - once 018 is applied, no
   build from before it goes on the host again. An account's deletion scrubs it
   by the IAM's rules (the library's `scrubPeople()` plus the personal-token
   rule). A change of the strings keeps each changed mail string's old and new
   text whole in an entry of its own, `translations.mail_changed`
   (`auditTranslations()`): one entry holds at most 64 KB. **The error log**
   is files in `storage/logs`, with no secret, token, cookie, header, body,
-  query string or address - the IAM takes its own names of secrets out first
-  (`iamRedactSecrets()`) on every way in: its error handler, a middleware just
+  query string or address: the IAM's names of secrets are the library's
+  redactor's to take out (`IAM_SECRET_NAMES`, `Redactor::addSecretNames()`,
+  0.5.0), and what no name says - its `iam_rt_` / `iam_pat_` prefixes and its
+  cookies - the IAM takes out first (`iamRedactSecrets()`) on every way in:
+  its error handler and `iamRecordError()` for every failure it writes itself,
+  each down the exception's whole chain (`iamRedactException()` walks
+  `getPrevious()`: a line keeps every cause's message); a middleware just
   inside the log's outer half (an exception nothing answered), its own PHP
-  handlers (`iamInstallPhpHandlers()`) and `iamRecordError()` for every
-  failure it writes itself; its client hashes keyed by the master key. **Backups**
+  handlers (`iamInstallPhpHandlers()`), and the pages' own errors
+  (`POST /api/client-errors`, the library's `ErrorLogRoutes::client()` in
+  `routes/login.php`: `iamClientErrorRedaction()`, and `optionalSession()`,
+  which only reads who is signed in - public and first-party, under the CSRF
+  header, in neither CORS list; 20 an hour a sender, 500 a day from the
+  visitors and as many from the people signed in; `@anotoki/lib/error-report`
+  in the pages). Its client hashes are keyed by the master key. **Backups**
   (`storage/backups`) are ENCRYPTED under a key derived from the master key,
   made / downloaded (a single-use ticket: one backup, one administrator, a
   minute) / deleted only with `accountProof()` (the password, or a sign-in of
@@ -282,9 +311,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   age - the owner's decision of 2026-10-11: a deleted person's data stays in
   the backups made before, encrypted, until then) - and NEVER restored here (`restore: false`)
   until an `afterRestore` that ends every session and token and deletes again
-  the accounts deleted since has been reviewed. `php backup.php` reads one
-  offline with the master key. Backups are built only once the IAM is set up
-  (their key is the master key's).
+  the accounts deleted since has been reviewed. The Backups page names who made
+  each (the context's `names`). `php backup.php` reads one offline with the
+  master key (`--inspect` the manifest alone, in memory). Backups are built
+  only once the IAM is set up (their key is the master key's).
 
 ## Backend layout & conventions
 
@@ -314,12 +344,14 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   library's admin set, the IAM's set, then the library's translations set -,
   `iamMigrationLabel()`, `iamSiteState()`; beside them `ensureDatabase()`,
   `createFirstAdmin()`), and `admin_tools.php` (the library's admin tools on
-  the IAM: `iamAdminContext()`, `iamErrorLog()` and `iamRedactSecrets()`,
+  the IAM: `iamAdminContext()`, `iamErrorLog()` with `IAM_SECRET_NAMES`,
+  `iamRedactSecrets()` / `iamRedactException()` and `iamClientErrorRedaction()`,
   `iamBackups()`, `iamMigratorWithBackup()`; `audit.php` is `audit()` over the
   library's `AuditLog`, `iamAuditLog()`).
-  `helpers.php` holds `languageCodes()` / `languageOrDefault()` (read through
-  the library's `offeredCodes()`, `en`/`sk` before the tables exist) and the
-  text and refusal helpers the announcements use.
+  `helpers.php` holds `requestIp()` (the library's `ClientAddress` over
+  `config/iam.php`'s trusted proxies), `languageCodes()` / `languageOrDefault()`
+  (read through the library's `offeredCodes()`, `en`/`sk` before the tables
+  exist) and the text and refusal helpers the announcements use.
 - Files under `storage/` go through `iamStorageDir()`, config through
   `localConfig()` - the tests point both at temp folders (`IAM_CONFIG_DIR`,
   `IAM_STORAGE_DIR`, constants only code can define). No environment variables.
@@ -351,16 +383,18 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
   halves, updated together where both change (`docs/operations.md`): both on
-  0.4.1 (the migrations module, the translations module, the UI kit, the
-  admin tools; never 0.4.0, which fails on PHP 8.2). Never
+  0.5.0 (the migrations module, the translations module, the UI kit, the
+  admin tools, the pages' error reporter; never 0.4.0, which fails on PHP
+  8.2). Never
   edit the vendored copy: a change goes to the library and comes back as a
   release. Its routes here: `GET /api/site-status` (first-party, public, no
   CORS), `/api/admin/migrations[/file|/apply]` inside the admin group, the
   bundle `GET /api/translations/{code}` (public, no cookie, no CORS), the
-  eight `/api/admin/languages|translations` routes, and the admin tools'
-  `/api/admin/audit[/facets]`, `/api/admin/errors[/{fingerprint}]` and
-  `/api/admin/backups/**` (the download `/{id}/file?ticket=` among them) - all
-  inside the admin group.
+  pages' own errors `POST /api/client-errors` (first-party, public, the CSRF
+  header, no CORS), the eight `/api/admin/languages|translations` routes, and
+  the admin tools' `/api/admin/audit[/facets]`,
+  `/api/admin/errors[/{fingerprint}]` and `/api/admin/backups/**` (the
+  download `/{id}/file?ticket=` among them) - all inside the admin group.
 - **Tests** (`backend/tests/*.test.php`, `lib.php`, `setup_lib.php`) drive the
   real app and the installer in-process with a `Browser` that keeps cookies,
   each file with its own temp configuration and `iam_test_*` databases, borrowing
@@ -377,7 +411,9 @@ pinned RS256 and `typ` checks wherever a token is read; rotating refresh tokens
 with family revocation on reuse; hashes only for secrets that open things,
 master-key ciphertext for TOTP secrets and signing keys; identical answers for
 known and unknown addresses; the limiter on every mail-sending and sign-in
-endpoint; the same switches on every way in; no self-lockout, no removing the
+endpoint, counting the visitor - `CF-Connecting-IP` alone, pinned in the
+code, believed only on a connection from the trusted proxies (Cloudflare's
+ranges; none wider than an IPv4 /8 or an IPv6 /16); the same switches on every way in; no self-lockout, no removing the
 last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; the sign-in hint opens nothing and no account no site lets in has one;
 the session cookie never gets a Domain, and is __Host- on https, where the bare name is never read; no loopback address
 left on a real host's install, nor seeded into a live IAM by a later migration;
@@ -402,7 +438,14 @@ a decision for `docs/decisions.md`, not a refactor.
   migrations module's own requests their HttpErrorResponse back - the
   library's `siteStatusInterceptor` runs inside it; leaves the bundle's own
   request, `ANOTOKI_TRANSLATION_BUNDLE`, alone: its failure means "read the
-  compiled English", never a page to send anybody to), the family's
+  compiled English", never a page to send anybody to; gives a report of the
+  pages' own errors, `ANOTOKI_ERROR_REPORT` (`provideAnotokiErrorReport()`
+  in `app.config.ts`, beside `provideBrowserGlobalErrorListeners()`), the CSRF
+  header like every write - never an exemption - and nothing else: no page
+  moved, no session cleared, its HttpErrorResponse back as it came, a 429
+  stopping the reporter), the tab's title in the family's form
+  (`i18n/title.strategy.ts`: "Security · anotoki account", "Users · Admin
+  panel · anotoki account"), the family's
   migrations module (`migrations/migrations.config.ts`:
   `provideAnotokiMigrations`, no gate and no boot check; the status page's
   words `siteStatusWords()` under the IAM's own `notSetUp.*`), the family's
@@ -426,7 +469,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.4.1), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.5.0), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they

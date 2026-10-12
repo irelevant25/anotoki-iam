@@ -2,6 +2,7 @@ import { provideHttpClient, withFetch, withInterceptors } from "@angular/common/
 import { ApplicationConfig, DOCUMENT, inject, provideAppInitializer, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from "@angular/core";
 import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from "@angular/router";
 import { provideAnotokiAdmin } from "@anotoki/lib/admin";
+import { provideAnotokiErrorReport } from "@anotoki/lib/error-report";
 import { provideAnotokiMigrations, siteStatusInterceptor } from "@anotoki/lib/migrations";
 import { ThemeService, provideAnotokiShell } from "@anotoki/lib/shell";
 import { provideAnotokiTranslations } from "@anotoki/lib/translations";
@@ -18,7 +19,16 @@ import { iamMigrationsConfig } from "./core/migrations/migrations.config";
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    // The pages' own errors (the owner's decision of 2026-10-11: every
+    // anotoki site's error log holds its pages' errors too). Each still goes
+    // to the console as ever, and is reported - scrubbed, once, five a page
+    // load at most - to `POST /api/client-errors` (the library's route,
+    // routes/login.php) through the app's HttpClient: the IAM's interceptor
+    // gives it the CSRF header every write carries, and moves no page for its
+    // failure (core/http/iam.interceptor.ts). With the browser's global
+    // listeners, the errors outside Angular's own code arrive too.
     provideBrowserGlobalErrorListeners(),
+    provideAnotokiErrorReport(),
     provideZonelessChangeDetection(),
     // Query parameters (`?request=`, `?next=`, `?token=`) and route parameters
     // arrive as component inputs, so pages read them as signals.

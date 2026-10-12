@@ -22,6 +22,13 @@ final class RequestRecord
     /** A request to the log's own routes: nothing of it is written. */
     public bool $own = false;
 
+    /**
+     * The request as a route of the library's admin tools saw it (AdminGuard) - later in the chain than the
+     * one the outer middleware holds, with what the site's middleware set on it (Identify's person): the
+     * line's "who" is read from it too.
+     */
+    public ?ServerRequestInterface $latest = null;
+
     /** @var array<string, true> */
     public array $seen = [];
 

@@ -1,5 +1,6 @@
 <?php
 
+use Anotoki\Lib\Support\ClientAddress;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -771,21 +772,39 @@ const ATTEMPT_METHOD_ACCOUNT_PASSWORD = 'account_password';
  */
 const ATTEMPT_METHOD_BACKUP = 'admin_backup';
 
+/**
+ * The source the limiter counts, and keeps as an attempt's `ip`: the
+ * requester's address (requestIp(): the visitor's, through Cloudflare's
+ * ranges) in the anotoki family's bucket - an IPv4 address whole, an IPv6
+ * address its /64 ("2001:db8:aa:bb::/64"). An IPv6 subscriber holds a whole
+ * /64, 2^64 addresses: counted address by address, every one of them would be
+ * a fresh source with a fresh allowance, and the limits no ceiling at all - on
+ * guessing a password, or on mailing somebody's address. Null when the
+ * connection has no address.
+ */
+function limiterSource(Request $request): ?string
+{
+    $ip = requestIp($request);
+
+    return $ip === null ? null : substr(ClientAddress::bucket($ip), 0, 45);
+}
+
 function recordLoginAttempt(PDO $pdo, Request $request, string $email, ?int $userId, string $method, string $outcome): void
 {
     $pdo->prepare('INSERT INTO login_attempts (email, user_id, ip, method, outcome) VALUES (?, ?, ?, ?, ?)')
-        ->execute([substr(strtolower($email), 0, 255), $userId, requestIp($request), $method, $outcome]);
+        ->execute([substr(strtolower($email), 0, 255), $userId, limiterSource($request), $method, $outcome]);
 }
 
 /**
- * Whether this caller has failed too often to try again yet.
+ * Whether this caller has failed too often to try again yet - "this caller"
+ * being its source as limiterSource() counts it (an IPv6 address by its /64).
  *
  * Counted rather than locked: nothing is stored against the account, so the
  * refusal lifts on its own as the window rolls past.
  */
 function loginAttemptsExceeded(PDO $pdo, Request $request, string $email): bool
 {
-    $ip = requestIp($request);
+    $ip = limiterSource($request);
 
     if ($ip === null) {
         return false;

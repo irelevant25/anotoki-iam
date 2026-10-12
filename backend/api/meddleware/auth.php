@@ -40,6 +40,29 @@ function currentSignIn(Request $request): ?array
     return ['user' => $user, 'session' => $session];
 }
 
+/**
+ * For a public route that tells a signed-in person apart - the pages' own
+ * errors (routes/login.php), which the library counts by account for a
+ * signed-in person and by address for a visitor, and names the person in the
+ * line: the account and its session on the request, as requireSession() puts
+ * them there, when this browser's cookie names one (currentSignIn()) - and
+ * the request as it came when it names none, or the database cannot be
+ * asked. Never a refusal, and nothing changed: no housekeeping, no sliding
+ * expiry, no cookie set or cleared.
+ */
+function optionalSession(): callable
+{
+    return function (Request $request, RequestHandler $handler): Response {
+        try {
+            $signIn = currentSignIn($request);
+        } catch (\Throwable) {
+            $signIn = null;
+        }
+
+        return $handler->handle($signIn === null ? $request : $request->withAttribute('user', $signIn['user'])->withAttribute('session', $signIn['session']));
+    };
+}
+
 function requireSession(): callable
 {
     return function (Request $request, RequestHandler $handler): Response {

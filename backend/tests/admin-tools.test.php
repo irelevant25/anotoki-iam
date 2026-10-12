@@ -48,12 +48,21 @@ $GLOBALS['planted'] = [
     'cookie' => lettersOnly(), 'refresh' => lettersOnly(), 'password' => lettersOnly(16), 'device' => lettersOnly(),
     'totp' => 'JBSWYDPEHPKPXPJBSWYDPEHPKPXPABCD', 'code' => lettersOnly(), 'master' => bin2hex(random_bytes(32)),
     'jwt' => 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIn0.' . lettersOnly(20), 'warned' => lettersOnly(),
+    'recovery' => lettersOnly(), 'personal' => lettersOnly(), 'digits' => '904761',
 ];
 buildIamApp()->get('/api/test/fails', function (): never {
     $p = $GLOBALS['planted'];
     throw new RuntimeException("Cookie: a=b; anotoki_iam={$p['cookie']}; presented iam_rt_{$p['refresh']} again; current_password={$p['password']}; "
         . "device_token: \"{$p['device']}\"; totp_secret={$p['totp']}; code={$p['code']}; key {$p['master']}; Authorization: Bearer {$p['jwt']}; "
         . 'for person@example.test from 203.0.113.9');
+});
+// And one that fails for another failure, as the library's own wrappers (a backup's, a restore's) throw: each
+// cause a secret of its own, which since anotoki-lib 0.5.0 the error log's line writes too.
+buildIamApp()->get('/api/test/fails-chained', function (): never {
+    $p = $GLOBALS['planted'];
+    $root = new PDOException("the root: new_password={$p['password']} recovery_code={$p['recovery']} code={$p['digits']} presented iam_rt_{$p['refresh']} again");
+    $between = new RuntimeException("in between: iam_pat_{$p['personal']} and the session __Host-anotoki_iam={$p['cookie']}", 0, $root);
+    throw new RuntimeException('A backup could not be made.', 0, $between);
 });
 buildIamApp()->get('/api/test/warns', function ($request, $response) {
     $display = ini_set('display_errors', '0');
@@ -382,6 +391,36 @@ test('the IAM\'s names of secrets out of every way into the error log: an except
     }
 });
 
+test('an exception thrown for another: every cause\'s message written - each without the IAM\'s names of secrets, its prefixes and its cookies, the whole chain walked', function () {
+    $planted = $GLOBALS['planted'];
+    $failed = (new Browser('10.42.12.1'))->get('/api/test/fails-chained');
+    same([500, 'server_error'], [$failed->status, $failed->code()], 'the IAM\'s own answer');
+
+    $line = array_values(array_filter(errorLines(), static fn(array $line): bool => ($line['route'] ?? null) === '/api/test/fails-chained'))[0] ?? null;
+    check($line !== null, 'written');
+    same(['RuntimeException', 'A backup could not be made.'], [$line['type'], $line['message']], 'the wrapper\'s own sentence');
+    $causes = array_values(array_filter($line['trace'] ?? [], static fn(string $frame): bool => str_starts_with($frame, 'Caused by ')));
+    same(2, count($causes), 'and its causes in its trace: ' . json_encode($line['trace'] ?? null));
+    check(str_starts_with($causes[0], 'Caused by RuntimeException (tests/admin-tools.test.php:') && str_contains($causes[0], 'iam_pat_{…}') && str_contains($causes[0], '__Host-anotoki_iam={…}'),
+        'the cause between: its personal token and its cookie out - ' . $causes[0]);
+    check(str_starts_with($causes[1], 'Caused by PDOException (tests/admin-tools.test.php:')
+        && str_contains($causes[1], 'new_password={…}') && str_contains($causes[1], 'recovery_code={…}') && str_contains($causes[1], 'code={…}') && str_contains($causes[1], 'iam_rt_{…}'),
+        'the root: a new password, a recovery code, a code of digits and a refresh token, each out - ' . $causes[1]);
+    $text = (string) json_encode($line, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    foreach (['new password' => $planted['password'], 'recovery code' => $planted['recovery'], 'code of digits' => $planted['digits'], 'refresh token' => $planted['refresh'],
+              'personal token' => $planted['personal'], 'session cookie' => $planted['cookie']] as $what => $secret) {
+        check(!str_contains($text, $secret), "no {$what} in the line");
+    }
+
+    // What the IAM writes itself - a daily backup's failure, the library's wrapper around COPY's - the same way.
+    $written = lettersOnly();
+    iamRecordError(new RuntimeException('The daily backup failed.', 0, new RuntimeException("COPY failed: iam_rt_{$written}; anotoki_iam_device={$written}; device_token={$written}")));
+    $line = array_values(array_filter(errorLines(), static fn(array $line): bool => ($line['message'] ?? null) === 'The daily backup failed.'))[0] ?? null;
+    $cause = array_values(array_filter($line['trace'] ?? [], static fn(string $frame): bool => str_starts_with($frame, 'Caused by ')))[0] ?? '';
+    check(str_contains($cause, 'iam_rt_{…}') && str_contains($cause, 'anotoki_iam_device={…}') && str_contains($cause, 'device_token={…}'), 'its cause written, its secrets out: ' . $cause);
+    check(!str_contains(errorLogText(), $written), 'nowhere in the error log');
+});
+
 test('the error log\'s own routes: never written into it; the report, a failure\'s every occurrence, and Clear - audited', function () {
     global $adminId;
     $admin = signedIn('admin@example.test', '10.42.4.1');
@@ -426,6 +465,12 @@ test('a backup: made only with the proof - the password, counted by the limiter 
     check($backup['table_count'] > 20 && $backup['rows'] > 1000, 'every table: ' . $backup['table_count'] . ' tables, ' . $backup['rows'] . ' rows');
     $entry = lastEntry('backup.created');
     same([$adminId, 'backup', $backup['id'], 'manual', true, '10.42.5.1'], [$entry[0], $entry[1], $entry[2], $entry[3]['kind'] ?? null, $entry[3]['encrypted'] ?? null, $entry[4]], 'audited');
+    $listed = [];
+    foreach ($admin->get('/api/admin/backups')->json()['backups'] ?? [] as $each) {
+        $listed[$each['id']] = [$each['created_by'] ?? null, $each['created_by_name'] ?? null];
+    }
+    same([$adminId, 'admin'], $listed[$backup['id']] ?? null, 'listed with its maker\'s name - the page\'s "By" - from the IAM\'s accounts');
+    same([null, null], $listed[$GLOBALS['fixtureId']] ?? null, 'one the command line made: by nobody, and named nobody');
 
     // On the disk: the header in the clear, nothing else.
     $file = backupsDir() . '/' . $backup['id'] . '.anotoki-backup';
@@ -554,7 +599,7 @@ test('the command line: this IAM\'s backups listed and read; a downloaded one re
     [$status, $out] = runBackupCli('--list');
     check($status === 0 && str_contains($out, $id) && str_contains($out, 'encrypted'), '--list: ' . $out);
     [$status, $out] = runBackupCli('--inspect=' . $id);
-    check($status === 0 && preg_match('/^\s+users\s+\d+ rows/m', $out) === 1, '--inspect reads it whole, decrypted: ' . $out);
+    check($status === 0 && preg_match('/^\s+users\s+\d+ rows/m', $out) === 1, '--inspect reads its manifest, decrypted, in memory: ' . $out);
 
     // A download, in a folder of its own, with a copy of the master key's file.
     $folder = testEnvironment()['base'] . DIRECTORY_SEPARATOR . 'downloaded';

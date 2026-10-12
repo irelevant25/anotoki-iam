@@ -4,32 +4,40 @@ use Anotoki\Lib\Admin\AdminContext;
 use Anotoki\Lib\Backups\Backups;
 use Anotoki\Lib\Backups\Copy;
 use Anotoki\Lib\ErrorLog\ErrorLog;
+use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Support\AfterResponse;
+use Anotoki\Lib\Support\ClientAddress;
 use Anotoki\Lib\Support\Keys;
+use Anotoki\Lib\Support\Redactor;
 use Anotoki\Lib\Support\Refusal;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use Slim\App;
+use Slim\Psr7\Factory\StreamFactory;
 
 /**
- * The admin panel's tools from the anotoki family's library (anotoki-lib 0.4,
- * the owner's decision of 2026-10-11): the error log, the audit log (its
+ * The admin panel's tools from the anotoki family's library (anotoki-lib 0.5,
+ * the owner's decisions of 2026-10-11): the error log, the audit log (its
  * writer is api/audit.php) and backups - one implementation, and one page
  * each, for every anotoki site. Here is what is the IAM's about them:
  *
  *   - iamAdminContext(): who acts (the session's account), who the ADMIN is
  *     (the IAM's own entry's ADMIN, as requireAdmin() says), the proof a
  *     backup asks for (accountProof(): the password, or a sign-in of the last
- *     15 minutes - never a session alone), the address a request counts as
- *     (requestIp()), and the IAM's error body;
- *   - iamErrorLog(): storage/logs, every line redacted by the library;
+ *     15 minutes - never a session alone), where a request comes from (the
+ *     family's rule over Cloudflare's ranges, requestIp()), the people's names
+ *     (the Backups page's "By"), and the IAM's error body;
+ *   - iamErrorLog(): storage/logs, every line redacted by the library - with
+ *     the IAM's own names of secrets (IAM_SECRET_NAMES) and, on every way in,
+ *     its own prefixes and cookies (iamRedactSecrets()) - the pages' own
+ *     errors too (iamClientErrorRedaction(), routes/login.php);
  *   - iamBackups(): storage/backups, ENCRYPTED under a key derived from the
  *     master key, and never restored here (below).
  *
- * The routes are mounted in routes/admin.php, inside the admin group: the
- * session, the IAM's ADMIN, the CSRF header on every write - and the
+ * The admin routes are mounted in routes/admin.php, inside the admin group:
+ * the session, the IAM's ADMIN, the CSRF header on every write - and the
  * library's own ADMIN check inside each group besides.
  */
 
@@ -40,6 +48,24 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/secret.php';
 require_once __DIR__ . '/audit.php';
 require_once __DIR__ . '/migration_runner.php';
+
+/**
+ * The IAM's own names a secret is written under: the bodies' fields that
+ * carry a credential - a current or a new password, a remembered device's
+ * token, a code (the sign-in's, the mailed one, an authenticator's), a
+ * recovery code, Google's credential - and a two-factor secret. Given to the
+ * library's redactor once, as the process starts (Redactor::addSecretNames(),
+ * anotoki-lib 0.5.0): from then on every message the library writes down - an
+ * exception's and each of its causes', a PHP warning's, a page's own error,
+ * PHP's error log line for a 500 - loses `name=value` and `name: value` of
+ * them, quoted or not, whatever the value looks like (one with no digit in it
+ * is no token-like run to the library). `password`, `token`, `secret`,
+ * `cookie` and their kin are the family's names already. What a name cannot
+ * say - a refresh or personal token by its prefix, the IAM's cookies by their
+ * configured names - is iamRedactSecrets()'s.
+ */
+const IAM_SECRET_NAMES = ['current_password', 'new_password', 'device_token', 'totp_secret', 'totp', 'recovery_code', 'recovery_codes', 'code', 'credential'];
+Redactor::addSecretNames(...IAM_SECRET_NAMES);
 
 /**
  * What the library's admin tools need to know of the IAM, given once. Every
@@ -83,9 +109,27 @@ function iamAdminContext(): AdminContext
 
             return is_array($user) && passwordLoginAvailable($user) ? AdminContext::PROOF_PASSWORD : AdminContext::PROOF_RECENT_SIGN_IN;
         },
-        // The address the IAM's limiter counts: the trusted proxy's header from
-        // a trusted proxy, the connection's otherwise.
-        clientKey: static fn(Request $request): string => requestIp($request) ?? '',
+        // Where a request comes from, as the library's limits count it (the
+        // pages' own errors) and its error log hashes it: the IAM's one
+        // reading of the address (requestIp() - the visitor's from
+        // Cloudflare's ranges, the connection's otherwise), in the family's
+        // bucket - an IPv4 address whole, an IPv6 address its /64, one
+        // subscriber's whole network, so a sender cannot walk past a limit
+        // through the addresses of its own network. The proxies themselves -
+        // the ranges iamTrustedProxies() believes, the header the library's
+        // own, CF-Connecting-IP, never another - for whatever of the library
+        // reads them from here.
+        clientKey: static function (Request $request): string {
+            $ip = requestIp($request);
+
+            return $ip === null ? '' : ClientAddress::bucket($ip);
+        },
+        trustedProxies: iamTrustedProxies(),
+        // The people's names by id, for the pages that show who did what - the
+        // Backups page's "By": each account's username as it is now (an
+        // anonymized account's placeholder, never the name it had), as the
+        // Audit page names them (auditActorNames()).
+        names: static fn(array $ids): array => auditActorNames(array_values(array_filter($ids, static fn(mixed $id): bool => is_int($id) && $id > 0 && $id <= 2147483647))),
         // The IAM's error body, {error, code} - the frontend's one shape.
         error: static fn(Response $response, Refusal $refusal): Response => respondError($response, $refusal->status, $refusal->code, $refusal->message, $refusal->extra),
     );
@@ -116,19 +160,17 @@ function iamErrorLog(?App $app = null): ErrorLog
 }
 
 /**
- * The IAM's own names of what opens something, taken out of a message before
- * the library's error log reads it - whose redactor then does the family's
- * part: `password=` and `secret=` and their kin, Bearer credentials, JWTs,
- * runs of a token's alphabet, e-mail and IP addresses, PostgreSQL's DETAIL.
- * Its names are the family's; these are the IAM's: its cookies (the session's
- * under its __Host- name and the bare one, and the device cookie, as
- * config/iam.php names them), its refresh and personal tokens by their
- * prefixes, the bodies' fields that carry a credential (a current or new
- * password, a remembered device's token, a code - the sign-in's, the mailed
- * one, an authenticator's -, a recovery code, Google's credential) and a
- * two-factor secret. Their value goes whatever it looks like: one with no
- * digit in it is no token-like run to the library. Nothing the IAM throws
- * names one; this is for what might.
+ * What of the IAM's opens something and no name can say, taken out of a text
+ * before the library's error log reads it - whose redactor then does the
+ * rest: the family's names of a secret (`password=`, `secret=`, `cookie=` and
+ * their kin) and the IAM's own (IAM_SECRET_NAMES, given to it above), Bearer
+ * credentials, JWTs, runs of a token's alphabet, e-mail and IP addresses,
+ * PostgreSQL's DETAIL. These are the IAM's: its cookies (the session's under
+ * its __Host- name and the bare one, and the device cookie, as config/iam.php
+ * names them) and its refresh and personal tokens by their prefixes - whose
+ * value goes whatever it looks like: one with no digit in it is no
+ * token-like run to the library. Nothing the IAM throws names one; this is
+ * for what might.
  */
 function iamRedactSecrets(string $text): string
 {
@@ -136,7 +178,6 @@ function iamRedactSecrets(string $text): string
     $rules = [
         '/((?:__Host-)?' . $cookie . '(?:_device)?)=[^;,\s"\']*/' => '$1={…}',
         '/\biam_(rt|pat)_[A-Za-z0-9_-]*/' => 'iam_$1_{…}',
-        '/\b(current_password|new_password|device_token|totp_secret|totp|recovery_codes?|code|credential)\b(["\']?\s*(?:=>|[=:])\s*)("(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|[^\s&,;"\']+)/i' => '$1$2{…}',
     ];
     foreach ($rules as $pattern => $replacement) {
         $text = preg_replace($pattern, $replacement, $text);
@@ -149,22 +190,31 @@ function iamRedactSecrets(string $text): string
 }
 
 /**
- * An exception's message with the IAM's names taken out (iamRedactSecrets()),
- * in place - the error log reads it next, with its type, place and trace as
- * they were (an exception cannot be copied). For the IAM's own error handler,
- * before the library writes the line.
+ * An exception's message, and each of its causes' - the whole chain
+ * getPrevious() walks -, with the IAM's own prefixes and cookies taken out
+ * (iamRedactSecrets()), in place: the error log reads them next, with their
+ * types, places and traces as they were (an exception cannot be copied). Since
+ * anotoki-lib 0.5.0 a line keeps every cause's message too ("Caused by ...":
+ * a wrapper's sentence comes with its real failure - the library's own
+ * backups and restores throw theirs with the failure as the cause), and the
+ * library's names reach none of these. For the IAM's own error handler and
+ * every failure it writes itself, before the library writes the line.
  */
 function iamRedactException(\Throwable $exception): void
 {
-    $message = $exception->getMessage();
-    $redacted = iamRedactSecrets($message);
-    if ($redacted === $message) {
-        return;
-    }
-    try {
-        (new \ReflectionProperty($exception instanceof \Exception ? \Exception::class : \Error::class, 'message'))->setValue($exception, $redacted);
-    } catch (\Throwable) {
-        // As it was: the library's redactor reads it all the same.
+    $seen = [];
+    for ($each = $exception; $each !== null && !isset($seen[spl_object_id($each)]); $each = $each->getPrevious()) {
+        $seen[spl_object_id($each)] = true;
+        $message = $each->getMessage();
+        $redacted = iamRedactSecrets($message);
+        if ($redacted === $message) {
+            continue;
+        }
+        try {
+            (new \ReflectionProperty($each instanceof \Exception ? \Exception::class : \Error::class, 'message'))->setValue($each, $redacted);
+        } catch (\Throwable) {
+            // As it was: the library's redactor reads it all the same.
+        }
     }
 }
 
@@ -198,6 +248,68 @@ function iamRedactingMiddleware(): \Closure
     };
 }
 
+/**
+ * On the pages' own errors (`POST /api/client-errors`, the library's
+ * ErrorLogRoutes::client(), routes/login.php): the IAM's own prefixes and
+ * cookies out of a report's words (iamRedactSecrets()) before the library
+ * reads them, as on every other way into the error log. The browser scrubs a
+ * report before it leaves (@anotoki/lib/error-report) and the library
+ * redacts it again by the family's names and the IAM's - but neither knows
+ * that `iam_pat_` begins a personal token whatever follows it.
+ *
+ * The library reads the body itself, from the stream, 8 KB at most - so it is
+ * read here as the library reads it, and handed on as a body of its own: the
+ * report's texts (its type, message, page and stack) redacted, as JSON again.
+ * What the route refuses whatever it holds - not JSON, more than it takes by
+ * its Content-Length - goes on untouched, and what is not a JSON object, or
+ * more than the route takes, goes on as it came, for the route to refuse in
+ * its own words.
+ */
+function iamClientErrorRedaction(): \Closure
+{
+    return static function (Request $request, RequestHandler $handler): Response {
+        $limit = ErrorLogRoutes::CLIENT_BODY_LIMIT;
+        $type = strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0]));
+        $declared = trim($request->getHeaderLine('Content-Length'));
+        if ($type !== 'application/json' || ($declared !== '' && (!ctype_digit($declared) || strlen($declared) > 15 || (int) $declared > $limit))) {
+            return $handler->handle($request);
+        }
+
+        $stream = $request->getBody();
+        if ($stream->isSeekable()) {
+            $stream->rewind();
+        }
+        $raw = '';
+        while (!$stream->eof() && strlen($raw) <= $limit) {
+            $chunk = $stream->read($limit + 1 - strlen($raw));
+            if ($chunk === '') {
+                break;
+            }
+            $raw .= $chunk;
+        }
+
+        $body = $raw;
+        // PHP's own depth, never stricter than the library's reading (JsonBody, 32 today): a body only this
+        // middleware could not read would reach the library as it came, unredacted.
+        $report = strlen($raw) <= $limit ? json_decode($raw, false, 512) : null;
+        if ($report instanceof \stdClass) {
+            $redact = static fn(mixed $value): mixed => is_string($value) ? iamRedactSecrets($value) : $value;
+            foreach (['type', 'message', 'page'] as $field) {
+                if (property_exists($report, $field)) {
+                    $report->{$field} = $redact($report->{$field});
+                }
+            }
+            if (property_exists($report, 'stack')) {
+                $report->stack = is_array($report->stack) ? array_map($redact, $report->stack) : $redact($report->stack);
+            }
+            // Never the words unredacted: a report that cannot be written again is an empty one, which the route refuses.
+            $body = json_encode($report, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}';
+        }
+
+        return $handler->handle($request->withBody((new StreamFactory())->createStream($body))->withHeader('Content-Length', (string) strlen($body)));
+    };
+}
+
 /** PHP's fatal errors: what a shutdown function finds when the script was stopped by one. */
 const IAM_FATAL_ERRORS = E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR | E_RECOVERABLE_ERROR;
 
@@ -206,10 +318,11 @@ const IAM_FATAL_ERRORS = E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_
  * writes them - a shutdown function for the fatal ones (a timeout, memory run
  * out, an exception nobody caught; 64 KB kept in reserve and freed first), and
  * an error handler for warnings and notices, chained to whatever was there -
- * with the IAM's own names of secrets out of the message first
- * (iamRedactSecrets()), which the library's handlers cannot be told. What `@`
- * silences is not written, and PHP's own handling after them is as it was.
- * Once a process.
+ * with the IAM's own prefixes and cookies out of the message first
+ * (iamRedactSecrets()), which the library's handlers cannot be told: its
+ * redactor takes the IAM's names of secrets (IAM_SECRET_NAMES), never a rule
+ * of a site's own. What `@` silences is not written, and PHP's own handling
+ * after them is as it was. Once a process.
  */
 function iamInstallPhpHandlers(ErrorLog $log): void
 {
@@ -243,10 +356,13 @@ function iamInstallPhpHandlers(ErrorLog $log): void
 /**
  * The key of the error log's client hashes. Derived from the master key, for
  * this purpose alone (Keys::derive(): HKDF, its info naming the purpose), so
- * the log can tell one address from another and nobody can work an address
- * back out of it - and no other key file is kept. Before the IAM is set up
- * there is no master key: a key for this process alone then, as a line written
- * before anybody could sign in needs to say nothing of who sent it.
+ * the log can tell one address from another without writing any down - and no
+ * other key file is kept. A keyed hash is a pseudonym, stable for as long as
+ * its key lasts: whoever holds the key - the master key's holder - could hash
+ * every IPv4 address and find which one it was; without the key, nobody can.
+ * Before the IAM is set up there is no master key: a key for this process
+ * alone then, as a line written before anybody could sign in needs to say
+ * nothing of who sent it.
  */
 function iamErrorLogKey(): string
 {

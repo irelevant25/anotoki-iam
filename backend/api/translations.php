@@ -316,12 +316,13 @@ function translationRefusalAnswer(Response $response, Refusal $refusal): Respons
  * `translations.mail_changed` (its key the target; the language, the old and
  * the new text, and the change it was part of in its details).
  *
- * One entry keeps at most 64 KB of details, and the library's AuditLog keeps
- * nothing but the top-level names of details that do not fit. A save of every
- * mail string, long, in two languages is more than that: kept as one entry it
- * would say nothing of any of them - and padding a save so would hide the one
- * rewording that matters. A mail string is at most 400 characters (the
- * library clips one that came past the panel), so each entry of its own fits.
+ * One entry keeps at most 64 KB of details, and the library's AuditLog cuts
+ * details that do not fit - its texts shorter, its lists to their first
+ * items, then its keys alone. A save of every mail string, long, in two
+ * languages is more than that: kept as one entry it would keep none of them
+ * whole - and padding a save so would cut the one rewording that matters. A
+ * mail string is at most 400 characters (the library clips one that came past
+ * the panel), so each entry of its own fits.
  */
 function auditTranslations(?\Psr\Http\Message\ServerRequestInterface $request, ?int $actorId, string $action, ?string $type, ?string $id, array $details): void
 {

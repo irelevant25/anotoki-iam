@@ -31,9 +31,9 @@ Every command-line tool reads the configuration `setup.php` wrote and stops
 with a sentence when there is none (`requireSetUpOnCli()`). None of them is
 uploaded: `build-dist.php` leaves them, the tests and `setup.php` out.
 `php backup.php --extract` writes a backup decrypted into a new folder of the
-owner's, and `--inspect` into one under the system's temp folder that it
-removes when done - or leaves, when a run is stopped half-way: the database in
-the clear either way. Only on a computer you trust; delete what is left.
+owner's - the database in the clear: only on a computer you trust, and delete
+it when done. `--inspect` reads the manifest alone, in memory, and writes
+nothing (anotoki-lib 0.5.0).
 
 ## Layout
 
@@ -57,9 +57,11 @@ api/
                           and the admin panel - and iamSiteState() - where the IAM stands, for the gate and
                           /api/site-status; ensureDatabase(), createFirstAdmin()
   admin_tools.php         the library's admin tools on the IAM: iamAdminContext() (who acts, the IAM's ADMIN, the
-                          proof - accountProof() -, the address, the error body), iamErrorLog() and the IAM's own
-                          names of secrets (iamRedactSecrets()), iamBackups() (encrypted, never restored),
-                          iamMigratorWithBackup(); audit.php is audit() over the library's AuditLog
+                          proof - accountProof() -, the address's bucket, the people's names, the error body),
+                          iamErrorLog() with the IAM's names of secrets (IAM_SECRET_NAMES, the library's redactor's)
+                          and its own prefixes and cookies (iamRedactSecrets(), down an exception's chain;
+                          iamClientErrorRedaction() on the pages' own errors), iamBackups() (encrypted, never
+                          restored), iamMigratorWithBackup(); audit.php is audit() over the library's AuditLog
   legacy_import.php       bringing the genshin site's accounts over
 config/
   config.php, db.php, iam.php, mail.php, secret.php, google.php
@@ -103,11 +105,13 @@ folder. Only the PostgreSQL server is borrowed, from this machine's
 | File | Covers |
 | --- | --- |
 | `oidc.test.php` | the sign-in flow the sites depend on, and the attacks each protocol rule stops |
+| `addresses.test.php` | where a request comes from (the owner's decision of 2026-10-11): Cloudflare's published ranges as the committed trusted proxies, an installation's own or none; `requestIp()` - the visitor from an edge (v4, v6, an IPv4 address written as IPv6), the connection from anywhere else, never a header that is no single address or `X-Forwarded-For`; the header pinned - `X-Real-IP`, `True-Client-IP`, `X-Forwarded-For` from an edge never believed, nor a setting naming one, a guesser rotating them one visitor to the limiter -; a catch-all range (`0.0.0.0/0`, `::/0`, wider than an IPv4 /8 or an IPv6 /16) or no range refused and said in PHP's log; the attack - a forged `CF-Connecting-IP` from outside the ranges counted under its connection, the limiter holding -; through Cloudflare each visitor counted apart, and the visitor's address in the session and the audit log |
+| `client-errors.test.php` | the pages' own errors (`POST /api/client-errors`, anotoki-lib 0.5.0): written as `source: client`, scrubbed by the library's rules, the IAM's names of secrets and its own prefixes and cookies; the IAM's pages alone (the CSRF header, its Origin, no CORS answer) and the route's refusals in the IAM's body; 20 an hour a sender - a visitor by address, a signed-in person by account, named in the line -, an IPv6 visitor one sender by its /64 through Cloudflare's edge, the visitors' 500 a day and the signed-in people's apart |
 | `setup.test.php` | the IAM before it is set up (`503 not_set_up`, naming the installer; the status), and the installer on this computer: the nonce, "Test connection", saving - the database built from nothing -, running again |
 | `setup-remote.test.php` | the installer on a real host: the token, https, production addresses, lock and removal; an installed IAM that loses a configuration file, never naming the installer again |
 | `migrations.test.php` | the anotoki family's migrations module in the IAM: `/api/site-status` (ready, unavailable, an update waiting), an update waiting closing nothing - every way in, a site's sign-in, the account page, the admin panel and its tools -, the admin Migrations routes (the three sets, the library's admin set, the IAM's and the library's translations set; the list, a file's SQL and no path past it, Apply - a backup of the database first, named in its note - and its audit, a library file as `set/name`; who may; the CSRF header; one apply at a time), the command line building a database from nothing, `--status`, `--dry-run`, waiting its turn, backing up first, and a pooled connection letting go of the lock a dead request left |
-| `admin-tools.test.php` | the admin panel's tools from the anotoki library (the error log, the audit log, backups): who may - nobody, an account, a site's ADMIN and EDITOR, an administrator on the way out, the CSRF header, the library's own guard -; the audit log keeping what it kept, its answer and filters, never undoing the change it records, the IAM's rules scrubbing a deleted person out of it and out of the table 018 keeps; the error log writing a failure, a warning, a 404 - and no secret, cookie, header, query string or address, the IAM's own names of secrets included -, its own routes never written, Clear audited; backups made, downloaded and deleted only with the proof (the password and its limiter, or a recent sign-in), encrypted - nothing in the clear on the disk, opened with the master key alone -, the single-use ticket for one backup, one administrator and a minute, restore refused, the day's backup after the answer |
-| `audit-log-into-the-library.test.php` | migration 018 and the library's admin set before the IAM's files: on a fresh IAM; on one shaped like an installed one, with a history of every shape - every entry moved exactly with its id, the next numbered after them, the old table kept -; a gate that fails, a library table not empty, an action the library does not take - nothing moved, nothing kept -; the window while they wait - every way in, audit() failing no request, its entries waiting in a file, the Audit page waiting, a backup and a deletion meanwhile - and Apply, with a backup first, bringing them in with their own times |
+| `admin-tools.test.php` | the admin panel's tools from the anotoki library (the error log, the audit log, backups): who may - nobody, an account, a site's ADMIN and EDITOR, an administrator on the way out, the CSRF header, the library's own guard -; the audit log keeping what it kept, its answer and filters, never undoing the change it records, the IAM's rules scrubbing a deleted person out of it and out of the table 018 keeps; the error log writing a failure, a warning, a 404 - and no secret, cookie, header, query string or address, the IAM's own names of secrets included -, an exception thrown for another with every cause's message written and each scrubbed (the whole chain walked), its own routes never written, Clear audited; backups made, downloaded and deleted only with the proof (the password and its limiter, or a recent sign-in), encrypted - nothing in the clear on the disk, opened with the master key alone -, listed with their maker's name, the single-use ticket for one backup, one administrator and a minute, restore refused, the day's backup after the answer |
+| `audit-log-into-the-library.test.php` | migration 018 and the library's admin set before the IAM's files: on a fresh IAM; on one shaped like an installed one, with a history of every shape - every entry moved exactly with its id, the next numbered after them, the old table kept -; a gate that fails, a library table not empty, an action the library does not take - nothing moved, nothing kept -; the window while they wait - every way in, audit() failing no request, its entries waiting in a file, the Audit page waiting, a backup and a deletion meanwhile - and Apply, with a backup first, bringing them in with their own times; a flush killed after its commit, the next one putting nothing in twice and still scrubbing the people deleted meanwhile |
 | `import.test.php` | the genshin site's accounts brought over |
 | `survey-application.test.php` | migration 005 on IAMs installed before it, and the survey site signing in |
 | `every-site.test.php` | migration 007 on a fresh IAM and on one shaped like an installed one; the first administrator's ADMIN in every application |

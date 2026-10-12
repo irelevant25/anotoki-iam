@@ -38,7 +38,7 @@ final class Tickets
         $this->sweep();
         $ticket = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $record = json_encode(['backup' => $id, 'expires' => time() + $this->seconds, 'by' => $actorId]);
-        if (!AtomicFile::write($this->file($ticket), (string) $record, exclusive: true)) {
+        if (!AtomicFile::write($this->file($ticket), (string) $record, exclusive: true, mode: 0600)) {
             throw new RuntimeException('The ticket could not be written.');
         }
 
@@ -64,7 +64,29 @@ final class Tickets
         if (!is_string($record) || !@unlink($file)) {
             return false;
         }
-        $data = json_decode($record, true);
+
+        return self::goodFor(json_decode($record, true), $id, $by);
+    }
+
+    /**
+     * Whether the ticket is good for the backup $id now, as redeem() judges -
+     * without using it up: what a HEAD asks.
+     *
+     * @param ?array{0: int|string|null} $by
+     */
+    public function good(string $ticket, string $id, ?array $by = null): bool
+    {
+        if (preg_match('/^[A-Za-z0-9_-]{43}$/D', $ticket) !== 1) {
+            return false;
+        }
+        $record = @file_get_contents($this->file($ticket));
+
+        return is_string($record) && self::goodFor(json_decode($record, true), $id, $by);
+    }
+
+    /** @param ?array{0: int|string|null} $by */
+    private static function goodFor(mixed $data, string $id, ?array $by): bool
+    {
         if ($by !== null) {
             $asking = $by[0] ?? null;
             $issuedTo = is_array($data) ? ($data['by'] ?? null) : null;

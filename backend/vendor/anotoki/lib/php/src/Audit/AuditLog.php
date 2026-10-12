@@ -6,6 +6,7 @@ namespace Anotoki\Lib\Audit;
 
 use Anotoki\Lib\Admin\Schema;
 use Anotoki\Lib\Support\AtomicFile;
+use Anotoki\Lib\Support\ClientAddress;
 use Anotoki\Lib\Support\GuardedDirectory;
 use Anotoki\Lib\Support\Log;
 use Anotoki\Lib\Support\Utf8;
@@ -14,8 +15,10 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use InvalidArgumentException;
+use LogicException;
 use PDO;
 use Psr\Http\Message\ServerRequestInterface;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -33,6 +36,11 @@ use Throwable;
  * the table comes: flushPending(), which the site calls after every Apply, and
  * which the next entry recorded outside a transaction calls too.
  *
+ * recordInside() is the other way round, for a change that must not be made
+ * without its entry (the People page's delete, which a restore does again by
+ * it): inside the change's own transaction, thrown when it cannot be written,
+ * never left to wait in the file.
+ *
  * The request's actor, session and address can be held for the request
  * (AuditContextMiddleware, begin()), so deep code records with recordHere();
  * withScope() files every entry meanwhile under what it belongs to (genshin's
@@ -45,10 +53,13 @@ final class AuditLog implements AuditRecorder
 
     public const ACTION_PATTERN = '/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/D';
 
-    private const OPTIONS = ['recordAddress', 'address', 'pendingFile', 'ready', 'personTargetType', 'actorIds', 'onError'];
+    private const OPTIONS = ['recordAddress', 'address', 'pendingFile', 'ready', 'personTargetType', 'actorIds', 'onError', 'trustedProxies', 'clientHeader'];
 
     private readonly bool $recordAddress;
     private readonly ?Closure $address;
+    /** @var list<string> */
+    private readonly array $trustedProxies;
+    private readonly string $clientHeader;
     private readonly ?string $pendingFile;
     private readonly ?Closure $ready;
     private readonly string $personTargetType;
@@ -72,9 +83,12 @@ final class AuditLog implements AuditRecorder
      *   personTargetType?: string,
      *   actorIds?: Closure(string): list<int|string>,
      *   onError?: Closure(string): void,
+     *   trustedProxies?: list<string>,
+     *   clientHeader?: string,
      * } $options
      *   - recordAddress: keep the requester's address (the IAM does; the sites do not), from `address` -
-     *     the site's trusted-proxy address - or the connection's REMOTE_ADDR
+     *     the site's own reading - or by ClientAddress's rule: the connection's REMOTE_ADDR, or the
+     *     `clientHeader` (CF-Connecting-IP) of a connection from one of `trustedProxies`
      *   - pendingFile: where entries wait while the table is missing (storage/logs/audit-pending.jsonl);
      *     without one they go to `onError`
      *   - ready: whether entries may go into the table now (default: it exists). The IAM: only once its
@@ -94,6 +108,8 @@ final class AuditLog implements AuditRecorder
         }
         $this->recordAddress = (bool) ($options['recordAddress'] ?? false);
         $this->address = $options['address'] ?? null;
+        $this->trustedProxies = array_values(array_filter($options['trustedProxies'] ?? [], 'is_string'));
+        $this->clientHeader = (string) ($options['clientHeader'] ?? ClientAddress::CLOUDFLARE_HEADER);
         $pending = $options['pendingFile'] ?? null;
         $this->pendingFile = is_string($pending) && $pending !== '' ? $pending : null;
         $this->ready = $options['ready'] ?? null;
@@ -129,20 +145,7 @@ final class AuditLog implements AuditRecorder
 
                 return;
             }
-            $context = $this->contextOf($request);
-            $scope ??= $this->currentScope();
-            $entry = [
-                'created_at' => null,
-                'actor_id' => self::actor($actorId),
-                'actor_session' => self::short($session ?? $context?->session, 64),
-                'action' => $action,
-                'target_type' => self::short($targetType, 64),
-                'target_id' => self::short($targetId === null ? null : (string) $targetId, 100),
-                'scope_type' => self::short(isset($scope[0]) ? (string) $scope[0] : null, 64),
-                'scope_id' => self::short(isset($scope[1]) ? (string) $scope[1] : null, 100),
-                'details' => $details === [] ? null : self::detailsJson($details),
-                'ip' => $this->recordAddress && $request !== null ? $this->addressOf($request) : null,
-            ];
+            $entry = $this->entry($request, $actorId, $action, $targetType, $targetId, $details, $scope, $session);
 
             $pdo = ($this->pdo)();
             if (!$this->tableReady($pdo)) {
@@ -157,6 +160,47 @@ final class AuditLog implements AuditRecorder
         } catch (Throwable $e) {
             ($this->onError)('[audit] an entry could not be written (' . self::failureCode($e) . ').');
         }
+    }
+
+    /**
+     * One entry that must be there: written on $pdo inside the transaction it is in - so it commits, or rolls
+     * back, with the change it records - and THROWN when it cannot be written, never kept in the pending file: a
+     * change that must not be made without its entry fails with it (the People page's delete, which a restore
+     * does again by its entry - People::delete()). Its details name its transaction (`_txid`: txid_current()),
+     * whatever their cut: its created_at is when that transaction began, not when it committed, and a backup
+     * holds the change exactly when its snapshot sees that transaction.
+     *
+     * @param array<string, mixed> $details
+     * @throws LogicException when $pdo is in no transaction
+     * @throws InvalidArgumentException for an action that is no action name
+     * @throws RuntimeException while the table is not there (or `ready` says not yet); the insert's failure as it is
+     */
+    public function recordInside(
+        PDO $pdo,
+        ?ServerRequestInterface $request,
+        int|string|null $actorId,
+        string $action,
+        ?string $targetType = null,
+        int|string|null $targetId = null,
+        array $details = [],
+    ): void {
+        if (!$pdo->inTransaction()) {
+            throw new LogicException('AuditLog::recordInside() writes inside the transaction of the change it records: the connection is in none.');
+        }
+        if (preg_match(self::ACTION_PATTERN, $action) !== 1 || strlen($action) > 64) {
+            throw new InvalidArgumentException("AuditLog: \"$action\" is no action name (area.verb, small letters).");
+        }
+        if (!$this->tableReady($pdo)) {
+            throw new RuntimeException('The audit log is not there yet (a database update waits): what must be recorded in it is not done without it.');
+        }
+        $entry = $this->entry($request, $actorId, $action, $targetType, $targetId, $details, null, null);
+        $pdo->prepare(
+            'INSERT INTO ' . Schema::AUDIT_TABLE . ' (created_at, actor_id, actor_session, action, target_type, target_id, scope_type, scope_id, details, ip)
+             VALUES (now(), ?, ?, ?, ?, ?, ?, ?, COALESCE(CAST(? AS jsonb), CAST(\'{}\' AS jsonb)) || jsonb_build_object(\'_txid\', CAST(txid_current() AS text)), ?)'
+        )->execute([
+            $entry['actor_id'], $entry['actor_session'], $entry['action'], $entry['target_type'], $entry['target_id'],
+            $entry['scope_type'], $entry['scope_id'], $entry['details'], $entry['ip'],
+        ]);
     }
 
     /**
@@ -222,14 +266,27 @@ final class AuditLog implements AuditRecorder
 
     /**
      * The entries that waited in the pending file, put into the table with the
-     * times they were recorded, in one transaction; the file is emptied once they
-     * are in. Answers how many went in (0 while the table is still missing, or
-     * when there were none). Never throws. Call it after every Apply
-     * (MigrationsRoutes' afterApply) and from the site's command line.
+     * times they were recorded, in one transaction. Answers how many went in (0
+     * while the table is still missing, or when there were none). Never throws.
+     * Call it after every Apply (MigrationsRoutes' afterApply) and from the site's
+     * command line.
+     *
+     * The file is read, its entries put in and the file emptied under its own
+     * lock, which keepPending() takes too: an entry written meanwhile waits for
+     * the lock and lands in the same file after it was emptied - never in a file
+     * set aside and gone (a rename would let a writer that opened the file first
+     * append to that one). Each entry goes in only where no entry of its time,
+     * action, actor and target is there yet, so a process killed after the
+     * commit and before the file was emptied leaves entries the next flush puts
+     * in without a second copy of any. The file stays, empty.
      */
     public function flushPending(): int
     {
-        if ($this->pendingFile === null || !is_file($this->pendingFile)) {
+        if ($this->pendingFile === null) {
+            return 0;
+        }
+        clearstatcache(true, $this->pendingFile);
+        if (!is_file($this->pendingFile) || @filesize($this->pendingFile) === 0) {
             return 0;
         }
         try {
@@ -242,33 +299,14 @@ final class AuditLog implements AuditRecorder
                 return 0;
             }
             try {
-                flock($handle, LOCK_EX);
-                $lines = preg_split('/\R/', (string) stream_get_contents($handle)) ?: [];
-                $entries = [];
-                foreach ($lines as $line) {
-                    $entry = json_decode($line, true);
-                    if (is_array($entry) && is_string($entry['action'] ?? null)) {
-                        $entries[] = $entry;
-                    }
+                if (!flock($handle, LOCK_EX)) {
+                    return 0;
                 }
-                if ($entries !== []) {
-                    $pdo->beginTransaction();
-                    try {
-                        foreach ($entries as $entry) {
-                            $this->insert($pdo, $entry, false);
-                        }
-                        $pdo->commit();
-                    } catch (Throwable $e) {
-                        if ($pdo->inTransaction()) {
-                            $pdo->rollBack();
-                        }
-                        throw $e;
-                    }
-                }
+                $flushed = $this->insertWaiting($pdo, (string) stream_get_contents($handle));
                 ftruncate($handle, 0);
                 fflush($handle);
 
-                return count($entries);
+                return $flushed;
             } finally {
                 flock($handle, LOCK_UN);
                 fclose($handle);
@@ -278,6 +316,51 @@ final class AuditLog implements AuditRecorder
 
             return 0;
         }
+    }
+
+    /**
+     * The entries of $text (JSON lines), each put in where none of its time, action, actor and target is there
+     * yet - in one transaction. Answers how many went in.
+     */
+    private function insertWaiting(PDO $pdo, string $text): int
+    {
+        $entries = [];
+        foreach (preg_split('/\R/', $text) ?: [] as $line) {
+            $entry = json_decode($line, true);
+            if (is_array($entry) && is_string($entry['action'] ?? null) && is_string($entry['created_at'] ?? null)) {
+                $entries[] = $entry;
+            }
+        }
+        if ($entries === []) {
+            return 0;
+        }
+        $inserted = 0;
+        $pdo->beginTransaction();
+        try {
+            foreach ($entries as $entry) {
+                $known = $pdo->prepare(
+                    'SELECT 1 FROM ' . Schema::AUDIT_TABLE . ' WHERE created_at = CAST(? AS timestamptz) AND action = ?
+                        AND actor_id IS NOT DISTINCT FROM CAST(? AS bigint) AND target_type IS NOT DISTINCT FROM CAST(? AS varchar)
+                        AND target_id IS NOT DISTINCT FROM CAST(? AS varchar) LIMIT 1'
+                );
+                $known->execute([
+                    $entry['created_at'], $entry['action'], isset($entry['actor_id']) ? (int) $entry['actor_id'] : null,
+                    $entry['target_type'] ?? null, $entry['target_id'] ?? null,
+                ]);
+                if ($known->fetchColumn() === false) {
+                    $this->insert($pdo, $entry, false);
+                    $inserted++;
+                }
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        return $inserted;
     }
 
     // ─── Reading ─────────────────────────────────────────────────────────────
@@ -414,6 +497,33 @@ final class AuditLog implements AuditRecorder
 
     // ─── Inside ──────────────────────────────────────────────────────────────
 
+    /**
+     * An entry's row, its time to come (the table's now(), or the time it waited with): who - the request's held
+     * session unless $session says - did $action to what, filed under $scope or the current withScope().
+     *
+     * @param array<string, mixed> $details
+     * @param ?array{0: string, 1: int|string} $scope
+     * @return array<string, mixed>
+     */
+    private function entry(?ServerRequestInterface $request, int|string|null $actorId, string $action, ?string $targetType, int|string|null $targetId, array $details, ?array $scope, ?string $session): array
+    {
+        $context = $this->contextOf($request);
+        $scope ??= $this->currentScope();
+
+        return [
+            'created_at' => null,
+            'actor_id' => self::actor($actorId),
+            'actor_session' => self::short($session ?? $context?->session, 64),
+            'action' => $action,
+            'target_type' => self::short($targetType, 64),
+            'target_id' => self::short($targetId === null ? null : (string) $targetId, 100),
+            'scope_type' => self::short(isset($scope[0]) ? (string) $scope[0] : null, 64),
+            'scope_id' => self::short(isset($scope[1]) ? (string) $scope[1] : null, 100),
+            'details' => $details === [] ? null : self::detailsJson($details),
+            'ip' => $this->recordAddress && $request !== null ? $this->addressOf($request) : null,
+        ];
+    }
+
     /** @param array<string, mixed> $entry */
     private function insert(PDO $pdo, array $entry, bool $savepoint = true): void
     {
@@ -510,7 +620,7 @@ final class AuditLog implements AuditRecorder
     private function addressOf(ServerRequestInterface $request): ?string
     {
         try {
-            $address = $this->address !== null ? ($this->address)($request) : ($request->getServerParams()['REMOTE_ADDR'] ?? null);
+            $address = $this->address !== null ? ($this->address)($request) : ClientAddress::of($request, $this->trustedProxies, $this->clientHeader);
         } catch (Throwable) {
             $address = null;
         }
@@ -615,7 +725,14 @@ final class AuditLog implements AuditRecorder
         return 'to_char(' . $column . " AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')";
     }
 
-    /** @param array<string, mixed> $details */
+    /**
+     * The details as JSON, at most DETAILS_LIMIT bytes. What is too much is cut so that what it held still
+     * shows: its texts shorter and its lists to their first items, every key kept, each cut said where it was
+     * ("…[cut]", "…[N more]"); still too much, its keys alone - the shape of every map, four levels deep -
+     * and last its first keys, as many as fit. A cut entry says `_cut: true`.
+     *
+     * @param array<string, mixed> $details
+     */
     private static function detailsJson(array $details): string
     {
         $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR;
@@ -623,26 +740,64 @@ final class AuditLog implements AuditRecorder
         if (strlen($json) <= self::DETAILS_LIMIT) {
             return $json;
         }
-        foreach ([4096, 1024, 256] as $limit) {
-            $json = (string) json_encode(self::cutStrings($details, $limit), $flags);
+        foreach ([[4096, 200], [1024, 50], [256, 10], [64, 3]] as [$text, $items]) {
+            $json = (string) json_encode(['_cut' => true] + self::shrink($details, $text, $items), $flags);
             if (strlen($json) <= self::DETAILS_LIMIT) {
                 return $json;
             }
         }
+        $json = (string) json_encode(['_cut' => true, 'keys' => self::keysOf($details, 4)], $flags);
+        if (strlen($json) <= self::DETAILS_LIMIT) {
+            return $json;
+        }
+        $keys = [];
+        $size = 64;
+        foreach (array_keys($details) as $key) {
+            $size += strlen((string) json_encode((string) $key, $flags)) + 1;
+            if ($size > self::DETAILS_LIMIT) {
+                break;
+            }
+            $keys[] = (string) $key;
+        }
 
-        return (string) json_encode(['_cut' => true, 'keys' => array_slice(array_map('strval', array_keys($details)), 0, 50)], $flags);
+        return (string) json_encode(['_cut' => true, 'keys' => $keys], $flags);
     }
 
-    private static function cutStrings(mixed $value, int $limit): mixed
+    /** A value with its texts cut to $text characters and its lists to $items items - every map's keys kept. */
+    private static function shrink(mixed $value, int $text, int $items): mixed
     {
         if (is_string($value)) {
-            return Utf8::length($value) > $limit ? Utf8::prefix($value, $limit) . '…[cut]' : $value;
+            return Utf8::length($value) > $text ? Utf8::prefix($value, $text) . '…[cut]' : $value;
         }
-        if (is_array($value)) {
-            return array_map(static fn (mixed $inner): mixed => self::cutStrings($inner, $limit), $value);
+        if (!is_array($value)) {
+            return $value;
+        }
+        if (array_is_list($value)) {
+            $kept = array_map(static fn (mixed $inner): mixed => self::shrink($inner, $text, $items), array_slice($value, 0, $items));
+            if (count($value) > $items) {
+                $kept[] = '…[' . (count($value) - $items) . ' more]';
+            }
+
+            return $kept;
         }
 
-        return $value;
+        return array_map(static fn (mixed $inner): mixed => self::shrink($inner, $text, $items), $value);
+    }
+
+    /** What a value held, as its keys: a map's keys with theirs, a list's length, no value. */
+    private static function keysOf(mixed $value, int $depth): mixed
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+        if (array_is_list($value)) {
+            return '[' . count($value) . ' items]';
+        }
+        if ($depth <= 1) {
+            return array_map(static fn (): mixed => null, $value);
+        }
+
+        return array_map(static fn (mixed $inner): mixed => self::keysOf($inner, $depth - 1), $value);
     }
 
     private static function actor(int|string|null $actorId): ?int

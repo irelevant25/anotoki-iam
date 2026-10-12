@@ -1432,3 +1432,128 @@ and not the file explorer (it serves no files). Its configuration of them is
   folders and the sites' own copies are none of the IAM's business, and no
   file of the IAM's is deleted by this change.
 
+## 2026-10-11 - The owner's decision: the visitors' own addresses, through Cloudflare's ranges
+
+Every anotoki site is behind Cloudflare, which connects to the site on each
+visitor's behalf and names the visitor in `CF-Connecting-IP`. The IAM could
+believe that header from proxies listed in `iam.local.php` - and listed none,
+so behind Cloudflare every visitor was one of its edges. The owner's decision
+of 2026-10-11, for every anotoki site: **the visitors' real addresses, through
+Cloudflare's published ranges.** A change of a security rule (architecture.md,
+"The rules that carry the weight", 7), made here as the owner's:
+
+- **Who is believed.** The trusted proxies are Cloudflare's published ranges
+  (https://www.cloudflare.com/ips/, fifteen IPv4 and seven IPv6 ranges as of
+  2026-10-11), in the IAM's committed configuration (`config/iam.php`: the
+  anotoki library's `ClientAddress::CLOUDFLARE`, one list for every site, and
+  its header `CF-Connecting-IP`). On a connection from one of them the visitor
+  is the address the header names (Cloudflare writes it itself, over whatever
+  a visitor sent); on any other connection the header is its sender's own
+  words, and never believed. **The header is pinned in the code** - no
+  setting names another: Cloudflare passes `X-Real-IP`, `True-Client-IP`,
+  `X-Forwarded-For` and their kin on as the visitor wrote them, so a setting
+  pointing at one would believe whatever a visitor writes (the IAM's
+  `client_ip_header` setting is gone, and one left in `iam.local.php` is not
+  read). Nor is a header that is no single address. An IPv4 address written
+  as IPv6 is the IPv4 one. An installation behind other proxies names them in
+  `iam.local.php`, one behind none `[]`: the connection's address alone, as
+  before. **A catch-all range is refused**: one wider than an IPv4 `/8` or an
+  IPv6 `/16` (`0.0.0.0/0`, `::/0`), or anything that is no range, is never
+  believed - `iamTrustedProxies()` leaves it out and PHP's error log says so
+  once a day.
+- **The family's one rule**: `requestIp()` reads through the library's
+  `ClientAddress`, as the library's error log does - the IAM's own matcher of
+  ranges (`ipInRanges()`) is gone.
+- **What it changes.** The sign-in limiter counts each visitor - a guesser on
+  one of Cloudflare's edges no longer locks out everybody else behind it, nor
+  spends their per-source allowance -, an IPv6 one by its /64 (below); the
+  audit log keeps the visitor's address, the account page's Sessions list and
+  the admin panel show it.
+- **What it stops** (`tests/addresses.test.php`): a guesser writing a new
+  address into every request from outside Cloudflare's ranges is counted
+  under its connection, every guess, and refused at the limit like anybody
+  else - the right password too. From a Cloudflare address, `X-Real-IP`,
+  `True-Client-IP` and `X-Forwarded-For` are never believed: a guesser writing
+  a new one into every try is still the one visitor Cloudflare named. A
+  catch-all range configured is believed for nobody.
+- **What it costs**: those columns hold the people's own addresses, not
+  Cloudflare's - personal data, kept as long as before (the sessions and the
+  audit log as history, a sign-in attempt a year) and taken out as before when
+  an account is deleted. The error log keeps none: a keyed hash of
+  the address's bucket (an IPv4 address whole, an IPv6 address its /64), as
+  the library's own limits count it - the pages' own errors (below). That hash
+  is a pseudonym, stable while its key (derived from the master key) lasts:
+  whoever holds the key could hash every IPv4 address and find the one it was.
+  The IAM's sign-in limiter counts the same bucket (`limiterSource()`), and
+  keeps it as an attempt's address: an IPv4 address whole, an IPv6 address
+  its /64 ("2001:db8:aa:bb::/64").
+- **Tightened on 2026-10-12** (the security review): the limiter first
+  counted an IPv6 address whole - and with the visitor's own address now its
+  source, anybody holding a /64 (one subscriber's network, 2^64 addresses)
+  could guess a password, or have `/api/register` mail an address, without a
+  ceiling, each try from a fresh address. It counts the /64 since: one /64
+  walked address by address is refused at 10 tries against an account and
+  at 50 in all, and the next /64 is somebody else (`tests/addresses.test.php`).
+  No migration: rows counted the old way leave the fifteen-minute window.
+- **What it trusts, and the choice left to the owner.** Cloudflare's ranges
+  are every Cloudflare customer's, not the owner's zone alone: a Worker's raw
+  socket leaves from Cloudflare's addresses and can write a `CF-Connecting-IP`
+  of its own, which the IAM then believes - a guesser who pays for a Worker
+  picks the source the limiter counts. Two ways to pin the trust to the
+  owner's zone, neither done here: a secret header that a Transform Rule of
+  the zone adds to every request, checked with `hash_equals()` before
+  `CF-Connecting-IP` is believed; or Authenticated Origin Pulls (the origin
+  accepts only Cloudflare's client certificate for the zone). Which one, if
+  either, is the owner's decision.
+
+## 2026-10-11 - anotoki-lib 0.5.0: the pages' own errors, the library's names of secrets, the tab's title
+
+Both halves of the IAM take anotoki-lib 0.5.0 (`composer.json` `^0.5.0`, the
+0.5.0 tarball). Beside the addresses (above), what was decided:
+
+- **The pages' own errors are in the error log** (the owner's decision of
+  2026-10-11, for every anotoki site - it replaces the 0.4 entry's "No route
+  for the pages' own errors"): `POST /api/client-errors`, the library's
+  `ErrorLogRoutes::client()`, and in the pages `@anotoki/lib/error-report`, the
+  app's `ErrorHandler`. A report is a first-party write like any other: the
+  CSRF header and the IAM's own Origin - the reporter goes through the app's
+  HttpClient, so the IAM's interceptor gives it the header; never an
+  exemption - and in neither CORS list. Public, as a sign-in page fails too.
+  The library's limits: 20 an hour from one sender - a signed-in person by
+  account, told apart by the session, which the route only reads
+  (`optionalSession()`); a visitor by the bucket of their address - and 500 a
+  day from the visitors together, as many from the people signed in. Scrubbed
+  in the browser before it leaves, and again on the server by every rule a
+  line goes through - the IAM's own prefixes and cookies included
+  (`iamClientErrorRedaction()`). The interceptor moves no page and clears no
+  session for a report's failure, and hands it back as it came (a 429 stops
+  the reporter for the page load).
+- **The IAM's names of secrets are the library's to take out**
+  (`Redactor::addSecretNames()`, `IAM_SECRET_NAMES` in `api/admin_tools.php`):
+  a current or new password, a remembered device's token, a code, a recovery
+  code, Google's credential, a two-factor secret - in place of the rule the
+  IAM ran over every message itself. What no name can say stays the IAM's
+  (`iamRedactSecrets()`): its refresh and personal tokens by their prefixes,
+  its cookies by their configured names - on every way into the log, now the
+  pages' own errors too, and **down an exception's whole chain**: since 0.5.0 a
+  line keeps each cause's message ("Caused by ..."), and the library's own
+  backups and restores throw their sentence with the failure as its cause, so
+  `iamRedactException()` walks `getPrevious()`.
+- **The Backups page names who made a backup** (the context's `names`: the
+  account's username as it is now, an anonymized one's placeholder).
+- **The audit entries that waited for 018 are scrubbed whenever a flush found
+  them**, not only when it put some in: a flush killed after its commit,
+  before it emptied the file, left them in the log unscrubbed, and the next
+  one puts none in twice - so its count of nought had skipped the scrub
+  (`flushWaitingAuditEntries()`; housekeeping's sweep would have caught them
+  within the hour).
+- **Backups**: the IAM's are encrypted - their cipher is their seal - and
+  restoring stays off, so the library's seal of plain backups changes nothing
+  here. Their files are the PHP user's alone from their creation (`0600`,
+  folders `0700`); `--inspect` reads a backup's manifest alone, in memory, so
+  an interrupted one leaves nothing of the database behind.
+- **The tab's title in the family's form**: "Users · Admin panel · anotoki
+  account" in the admin panel (it was "Users · anotoki admin panel"), as every
+  anotoki site's admin area says it; "Security · anotoki account" elsewhere,
+  as before.
+

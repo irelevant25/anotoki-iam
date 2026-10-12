@@ -15,8 +15,8 @@ use Throwable;
  *
  *   php backup.php --list
  *   php backup.php --create ["description"]
- *   php backup.php --inspect=<id>               the header, the tables and their rows (an IAM backup decrypted
- *                                               with the site's key)
+ *   php backup.php --inspect=<id>               the tables and their rows, from the manifest alone, in memory (an
+ *                                               IAM backup's first chunks decrypted with the site's key, no more)
  *   php backup.php --extract=<id> <folder>      everything into a new folder, decrypted and checked:
  *                                               manifest.json, schema/<set>/<file>.sql, data/NNN-<table>.copy -
  *                                               and how to load it into another database (psql \copy)
@@ -115,12 +115,8 @@ final class BackupsCommand
 
     private function inspect(string $id): int
     {
-        $folder = sys_get_temp_dir() . '/anotoki-backup-inspect-' . bin2hex(random_bytes(6));
-        try {
-            $manifest = $this->backups->extractTo($id, $folder);
-        } finally {
-            self::remove($folder);
-        }
+        // The manifest alone, in memory: not a row of the database is decrypted, nothing is written anywhere.
+        $manifest = $this->backups->manifest($id);
         fwrite($this->out, sprintf("%s  %s, made %s by %s%s\n", $manifest['id'], $manifest['kind'], $manifest['created_at'], $manifest['created_by'] ?? 'nobody', $manifest['description'] !== null ? ' - ' . $manifest['description'] : ''));
         fwrite($this->out, 'Migrations applied: ' . count($manifest['schema']['migrations']) . "\n");
         foreach ($manifest['tables'] as $table) {
@@ -202,19 +198,5 @@ final class BackupsCommand
             $bytes >= 1024 => round($bytes / 1024, 1) . ' KB',
             default => $bytes . ' B',
         };
-    }
-
-    private static function remove(string $path): void
-    {
-        if (is_dir($path) && !is_link($path)) {
-            foreach (@scandir($path) ?: [] as $entry) {
-                if ($entry !== '.' && $entry !== '..') {
-                    self::remove($path . '/' . $entry);
-                }
-            }
-            @rmdir($path);
-        } elseif (file_exists($path) || is_link($path)) {
-            @unlink($path);
-        }
     }
 }

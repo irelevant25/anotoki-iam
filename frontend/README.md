@@ -27,7 +27,7 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.4.1) - which every anotoki site
+its GitHub release, named in `package.json` (0.5.0) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
 tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,
@@ -41,8 +41,9 @@ not-set-up page, the admin panel's "A database update is waiting" line;
 `@anotoki/lib/migrations/page` is the Migrations page) and
 `@anotoki/lib/admin` (the admin tools' configuration; `@anotoki/lib/admin/errors`,
 `/audit` and `/backups` are the admin panel's Error log, Audit log and Backups
-pages). The IAM takes nothing of its auth, people or feedback modules: it is
-the IAM. Its PHP half is the
+pages) and `@anotoki/lib/error-report` (the pages' own errors, reported to the
+backend's error log: `provideAnotokiErrorReport()` in `app.config.ts`). The
+IAM takes nothing of its auth, people or feedback modules: it is the IAM. Its PHP half is the
 backend's `anotoki/lib`. A new version: its release's URL in `package.json`,
 then `bun install` and `npm install --package-lock-only`, so that
 `package-lock.json` agrees - with the backend's half, where the version
@@ -65,7 +66,15 @@ admin pages' words handed over only as the admin panel loads), the theme as
 the IAM wires it into the family's shell (`core/kit/kit.config.spec.ts`:
 saved to the account one save at a time, nothing sent while signed out, a
 refusal puts the account's back, and an answer that comes after Sign out
-signs nobody back in), the rule every save that answers with the account
+signs nobody back in), the pages' own errors through the IAM's interceptor
+(`core/http/iam.interceptor.spec.ts`: the family's reporter's request carries
+the CSRF header and is marked as the reporter's; a refusal of it moves no page
+and clears no session; a 429 reaches the reporter as it came, which stops it;
+a request of the person's own still sends an ended session to the sign-in
+page), the tab's title in the family's form (`core/i18n/title.strategy.spec.ts`:
+"Zabezpečenie · anotoki účet" on an account page in Slovak, "Users · Admin
+panel · anotoki account" in the admin panel, renamed with the language), the
+rule every save that answers with the account
 keeps (`core/auth/session.service.spec.ts`: the account pages', the theme's
 and the language's all go through `SessionService.setFrom()` or `refresh()`,
 so an answer after Sign out signs nobody back in; only a sign-in's answer and
@@ -116,7 +125,9 @@ src/
                            { status, code, message } (but the migrations module's
                            own, which it reads as they come); the words' own
                            request (ANOTOKI_TRANSLATION_BUNDLE) is never a reason
-                           to move the page
+                           to move the page, nor is a report of the pages' own
+                           errors (ANOTOKI_ERROR_REPORT), which keeps its CSRF
+                           header and gets its failure back as it came
       migrations/          the family's migrations module (@anotoki/lib/migrations)
                            wired in: who is ADMIN, the sign-in, the words, the dates.
                            No gate, no check at boot: the IAM keeps working while
@@ -138,7 +149,9 @@ src/
                            en.ts (the keys, the last-resort English), the typed `t`
                            pipe and `appDate` (the account's date order and clock:
                            date-patterns.ts), error texts, the page-title strategy
-                           (which tells the translations where the page is)
+                           (the family's form - "Users · Admin panel · anotoki
+                           account" -, which tells the translations where the
+                           page is)
       kit/                 the family's UI kit and shell wired in (kit.config.ts):
                            the kit's words from the database - the IAM's own keys
                            where it has them (kit-words.ts), the library's

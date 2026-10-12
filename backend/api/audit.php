@@ -30,10 +30,11 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * row with its id. Until it has run - a build is uploaded before Apply, and
  * the IAM keeps answering meanwhile (it never blocks) - an entry waits in
  * storage/logs/audit-pending.jsonl and goes into the table with its own time
- * after the Apply (flushPending(), from the Migrations page's Apply, the
- * command line and housekeeping) or with the next entry written outside a
- * transaction: the old table is never written again, so 018's gate proves a
- * move nothing raced.
+ * after the Apply (flushWaitingAuditEntries(), from the Migrations page's
+ * Apply, the command line and housekeeping) or with the next entry written
+ * outside a transaction (audit() flushes through it first, with its scrub):
+ * the old table is never written again, so 018's gate proves a move nothing
+ * raced.
  */
 
 // The library's AuditLog comes with Composer's autoloader, and the command-line
@@ -44,6 +45,22 @@ require_once __DIR__ . '/helpers.php';
 
 function audit(?Request $request, ?int $actorId, string $action, ?string $targetType = null, int|string|null $targetId = null, array $details = []): void
 {
+    // Entries that waited for 018, taken in by the IAM's own flush first -
+    // which scrubs the anonymized accounts' people out of them as they go in:
+    // left to it, the library's record() would take them in itself, outside a
+    // transaction, without that scrub (housekeeping's sweep would find them
+    // within the hour). Never inside the caller's transaction, as the library
+    // never flushes there either; and a flush that fails, or a command-line
+    // tool that has not loaded it (api/account_deletion.php), costs the entry
+    // nothing.
+    try {
+        if (auditEntriesWaiting() && function_exists('flushWaitingAuditEntries') && !iamDb()->inTransaction()) {
+            flushWaitingAuditEntries(iamDb());
+        }
+    } catch (\Throwable $e) {
+        error_log('[audit] the entries waiting for 018 could not be taken in (' . get_class($e) . ').');
+    }
+
     try {
         iamAuditLog()->record($request, $actorId, $action, $targetType, $targetId, $details);
     } catch (\Throwable $e) {
@@ -71,12 +88,27 @@ function iamAuditLog(?PDO $pdo = null): AuditLog
     $made = new AuditLog($pdo !== null ? static fn(): PDO => $pdo : static fn(): PDO => iamDb(), [
         'recordAddress' => true,
         'address' => static fn(Request $request): ?string => requestIp($request),
-        'pendingFile' => iamStorageDir() . '/logs/audit-pending.jsonl',
+        'pendingFile' => iamAuditPendingFile(),
         'ready' => static fn(PDO $pdo): bool => auditMovedToLibrary($pdo),
         'actorIds' => static fn(string $name): array => auditActorIds($pdo ?? iamDb(), $name),
     ]);
 
     return $pdo === null ? $log = $made : $made;
+}
+
+/** Where an audit entry waits while the library's table is not there yet (018 pending). */
+function iamAuditPendingFile(): string
+{
+    return iamStorageDir() . '/logs/audit-pending.jsonl';
+}
+
+/** Whether any audit entry waits in that file. */
+function auditEntriesWaiting(): bool
+{
+    $file = iamAuditPendingFile();
+    clearstatcache(true, $file);
+
+    return is_file($file) && (int) @filesize($file) > 0;
 }
 
 /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Anotoki\Lib\People\Http;
 
 use Anotoki\Lib\Admin\AdminContext;
+use Anotoki\Lib\Audit\AuditLog;
 use Anotoki\Lib\Audit\AuditRecorder;
 use Anotoki\Lib\Auth\Http\Identify;
 use Anotoki\Lib\Auth\Http\RequireRole;
@@ -43,7 +44,9 @@ use Slim\Interfaces\RouteInterface;
  *                           q finds a name (any case, anywhere in it) or an id (all of its digits); a q that is
  *                           no text (not UTF-8, or holding a NUL) or longer than any name: 422 invalid_query.
  *   DELETE $base/{sub}      the site's delete hook: 200 {deleted: {label: n}, note?} | 404 not_found
- *                           - audited person.data_deleted (target user {sub}, details {deleted: counts})
+ *                           - audited person.data_deleted (target user {sub}, details {deleted: counts}); by the
+ *                           library's AuditLog inside the delete's transaction, which a restore does the delete
+ *                           again by - no delete without it: 503 feature_unavailable while its table waits
  *   POST   $base/sync       the scrub, now: {run, sync} - audited people.synced (details: the run's state,
  *                           handled, scrubbed)
  *
@@ -52,13 +55,20 @@ use Slim\Interfaces\RouteInterface;
  *   panel, for the IAM's administrators.
  * - $columns: the site's own (PeopleColumn), filled for one page at a time.
  * - $visitors: fn(PDO): ?array - the visitors line ({count, ...}), or null.
- * - $delete: fn(PDO $pdo, int $sub, ServerRequestInterface $request): ?array - deletes what the site keeps of
+ * - $delete: fn(PDO $pdo, int $sub, ?ServerRequestInterface $request): ?array - deletes what the site keeps of
  *   the person (Piano Academy's progress, a backup copy first at Japanese Academy, the build analyzer's
  *   game accounts) and answers what went, by label, or null when there is nobody with that id. Without
- *   it, no DELETE route. It asks for no proof of a recent sign-in, unlike a backup's restore: the page's
- *   question is all it asks (the owner's decision of 2026-10-11).
+ *   it, no DELETE route. It runs through People::delete(): inside a transaction of the library's on $pdo,
+ *   with the person's feedback forgotten in it (it begins, commits or rolls back none of its own) - and does
+ *   ALL its work on that $pdo, never on the site's own connection (db()), which waits on a restore's locks
+ *   while the restore waits on the hook; its request is null when a restore does it again (People::replay(),
+ *   inside the restore's transaction) - then it does the database's part alone (no backup copy first). It
+ *   asks for no proof of a recent sign-in, unlike a backup's restore: the page's question is all it asks (the
+ *   owner's decision of 2026-10-11).
  * - $error: fn(ResponseInterface, Refusal): ResponseInterface - the site's error body; by default {code, message}.
- * - $audit: where a delete and an asked-for scrub are recorded - the site's AuditLog; without one, nowhere.
+ * - $audit: where a delete and an asked-for scrub are recorded - the site's AuditLog (another AuditRecorder
+ *   records a delete after it, as it can); without one, nowhere - and a restore does no delete again: it
+ *   reads them from the audit log.
  * - $context: who acts in those entries (AdminContext::actorId()); without one, the token's sub.
  *
  * Every handler is called as ($request, $response) whatever the app's invocation strategy, and every
@@ -74,7 +84,7 @@ final class PeopleRoutes
     /**
      * @param list<PeopleColumn> $columns
      * @param ?Closure(PDO): ?array<string, mixed> $visitors
-     * @param ?Closure(PDO, int, ServerRequestInterface): ?array<string, mixed> $delete
+     * @param ?Closure(PDO, int, ?ServerRequestInterface): ?array<string, mixed> $delete
      * @param ?Closure(ResponseInterface, Refusal): ResponseInterface $error
      */
     public static function admin(
@@ -99,11 +109,12 @@ final class PeopleRoutes
             $keys[$column->key] = true;
         }
 
-        $record = static function (ServerRequestInterface $request, string $action, ?string $targetType, ?string $targetId, array $details) use ($audit, $context): void {
-            $audit?->record($request, $context !== null ? $context->actorId($request) : Identify::person($request)?->sub, $action, $targetType, $targetId, $details);
+        $actor = static fn (ServerRequestInterface $request): int|string|null => $context !== null ? $context->actorId($request) : Identify::person($request)?->sub;
+        $record = static function (ServerRequestInterface $request, string $action, ?string $targetType, ?string $targetId, array $details) use ($audit, $actor): void {
+            $audit?->record($request, $actor($request), $action, $targetType, $targetId, $details);
         };
 
-        $group = $app->group($base, function (RouteCollectorProxyInterface $group) use ($people, $columns, $visitors, $delete, $error, $record): void {
+        $group = $app->group($base, function (RouteCollectorProxyInterface $group) use ($people, $columns, $visitors, $delete, $error, $record, $audit, $actor): void {
             self::plain($group->get('', function (ServerRequestInterface $request, ResponseInterface $response) use ($people, $columns, $visitors, $error): ResponseInterface {
                 $query = $request->getQueryParams();
                 $search = is_string($query['q'] ?? null) ? trim($query['q']) : '';
@@ -125,14 +136,34 @@ final class PeopleRoutes
             }));
 
             if ($delete !== null) {
-                self::plain($group->delete('/{sub}', function (ServerRequestInterface $request, ResponseInterface $response) use ($people, $delete, $error, $record): ResponseInterface {
+                self::plain($group->delete('/{sub}', function (ServerRequestInterface $request, ResponseInterface $response) use ($people, $delete, $error, $record, $audit, $actor): ResponseInterface {
                     $sub = (string) $request->getAttribute('sub');
-                    $deleted = preg_match('/^[1-9][0-9]{0,17}$/D', $sub) === 1 ? $delete($people->pdo(), (int) $sub, $request) : null;
+                    if (preg_match('/^[1-9][0-9]{0,17}$/D', $sub) !== 1) {
+                        return self::refuse($response, new Refusal(404, 'not_found', 'There is nobody with that id here.'), $error);
+                    }
+                    // The library's audit log writes the entry inside the delete's transaction, which a restore does
+                    // the delete again by (People::replay()): no delete without its entry - none while the table waits.
+                    $entry = null;
+                    if ($audit instanceof AuditLog) {
+                        if (!$audit->ready()) {
+                            return self::refuse($response, new Refusal(503, 'feature_unavailable', 'The audit log is not there yet: a database update waits, and nothing is deleted without its entry. Try again once the update is applied.'), $error)
+                                ->withHeader('Retry-After', '60');
+                        }
+                        $by = $actor($request);
+                        $entry = static function (PDO $pdo, array $deleted) use ($audit, $request, $by, $sub): void {
+                            $audit->recordInside($pdo, $request, $by, 'person.data_deleted', 'user', $sub, ['deleted' => self::answer($deleted)['deleted']]);
+                        };
+                    }
+                    // People::delete(): the hook, the person's feedback forgotten and the entry, in one transaction.
+                    $deleted = $people->delete($people->pdo(), (int) $sub, $delete, $request, $entry);
                     if ($deleted === null) {
                         return self::refuse($response, new Refusal(404, 'not_found', 'There is nobody with that id here.'), $error);
                     }
-                    $answer = array_key_exists('deleted', $deleted) ? $deleted : ['deleted' => $deleted];
-                    $record($request, 'person.data_deleted', 'user', $sub, ['deleted' => $answer['deleted']]);
+                    $answer = self::answer($deleted);
+                    if ($entry === null) {
+                        // Another recorder (AuditRecorder) writes after the delete, as it can.
+                        $record($request, 'person.data_deleted', 'user', $sub, ['deleted' => $answer['deleted']]);
+                    }
 
                     return JsonResponse::write($response, 200, $answer);
                 }));
@@ -228,6 +259,17 @@ final class PeopleRoutes
             'ready' => $t->ready($pdo),
             'problems' => $t->problems($pdo),
         ];
+    }
+
+    /**
+     * What the delete hook answered, as the route answers it: {deleted: {label: n}, note?}.
+     *
+     * @param array<string, mixed> $deleted
+     * @return array<string, mixed>
+     */
+    private static function answer(array $deleted): array
+    {
+        return array_key_exists('deleted', $deleted) ? $deleted : ['deleted' => $deleted];
     }
 
     private static function plain(RouteInterface $route): void

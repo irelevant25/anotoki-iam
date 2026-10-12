@@ -7,6 +7,7 @@
     "require": {
         "php": ">=8.2",
         "ext-json": "*",
+        "ext-mbstring": "*",
         "ext-openssl": "*",
         "ext-pdo": "*",
         "psr/http-factory": "^1",
@@ -19,7 +20,8 @@
         "slim/psr7": "^1.6"
     },
     "suggest": {
-        "ext-curl": "asks the IAM with curl (PHP's own streams otherwise)"
+        "ext-curl": "asks the IAM with curl (PHP's own streams otherwise)",
+        "ext-zlib": "the backups compress with it (Backups needs it)"
     },
     "autoload": {
         "psr-4": {

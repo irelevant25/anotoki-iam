@@ -8,10 +8,11 @@ the same page in both places.
 ## Production: the hosting
 
 The host is FTP/SFTP only - no shell, no cron, no long-running processes - with
-PHP 8.2+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl` or `allow_url_fopen`) and
-PostgreSQL. The IAM lives on a subdomain of its own, its own web root. HTTPS is
-not optional: the session cookie is `Secure`, tokens travel in the open
-otherwise, and the installer refuses a plain-http address on a real host.
+PHP 8.2+ (`pdo_pgsql`, `openssl`, `mbstring`, `zlib` - the backups compress
+with it -, `curl` or `allow_url_fopen`) and PostgreSQL. The IAM lives on a
+subdomain of its own, its own web root. HTTPS is not optional: the session
+cookie is `Secure`, tokens travel in the open otherwise, and the installer
+refuses a plain-http address on a real host.
 
 ### The builds
 
@@ -96,23 +97,47 @@ public address - `http://localhost:4300` for development, and the hosted https
 address. No redirect URI is needed: Google Identity Services hands the browser
 an id token.
 
-### Behind Cloudflare (or any proxy)
+### Behind Cloudflare (or another proxy)
 
-Every sign-in limit counts failures per address. Behind a proxy the address PHP
-sees is the proxy's, so all visitors on one of its edges share one count - an
-attacker's failures lock out everybody else there, and the admin panel shows
-the proxy's addresses. Tell the IAM which proxies to believe, in
+Every sign-in limit counts failures per address, the audit log keeps the
+address of whoever acted, and the Sessions lists show one. Behind a proxy the
+address PHP sees is the proxy's - all visitors on one of its edges would share
+one count, an attacker's failures locking out everybody else there. So the IAM
+believes the visitor's address Cloudflare names in `CF-Connecting-IP`, on a
+connection from Cloudflare's published ranges (https://www.cloudflare.com/ips/,
+v4 and v6) - and from nowhere else: those ranges are the trusted proxies of
+`config/iam.php`, committed (the owner's decision of 2026-10-11,
+`docs/decisions.md`): the anotoki library's list, `ClientAddress::CLOUDFLARE`,
+which a release of the library refreshes when Cloudflare changes theirs. A
+visitor who reaches the host without Cloudflare is counted by their own
+connection, and what they write into the header is never read. The header is
+`CF-Connecting-IP` and no other, pinned in the code: Cloudflare writes that one
+itself and passes `X-Real-IP`, `True-Client-IP`, `X-Forwarded-For` and their
+kin on as the visitor wrote them, so no setting names another (a
+`client_ip_header` left in `iam.local.php` is not read).
+
+An installation behind other proxies, or none, says so in
 `config/iam.local.php` (by hand, over SFTP - the installer keeps what it finds
 there):
 
 ```php
-'trusted_proxies' => ['173.245.48.0/20', '103.21.244.0/22', /* ... */ '2400:cb00::/32' /* ... */],
-'client_ip_header' => 'CF-Connecting-IP',
+'trusted_proxies' => ['192.0.2.10', '198.51.100.0/24'],   // its own proxies: single addresses or CIDR ranges, v4 and v6
+// behind no proxy at all: 'trusted_proxies' => [],
 ```
 
-The ranges are Cloudflare's own list (https://www.cloudflare.com/ips/, v4 and
-v6); refresh it when they change theirs. The header is believed only on
-connections from those ranges.
+A range wider than an IPv4 `/8` or an IPv6 `/16` - `0.0.0.0/0` and `::/0`
+above all, which would believe a header anybody can write - is refused, and so
+is anything that is no range: it is never believed, and PHP's error log says
+so once a day (`[trusted proxies] ... is not believed`).
+
+In the Cloudflare zone, keep Network -> Pseudo IPv4 off "Overwrite headers":
+that setting writes a stand-in IPv4 into `CF-Connecting-IP` for an IPv6
+visitor, and the IAM would count every such visitor by the stand-in instead of
+their own network (an IPv6 visitor is counted by their /64,
+`docs/decisions.md`). And Cloudflare's ranges are every Cloudflare customer's,
+not this zone's alone - pinning the trust to the owner's zone (a secret header
+from a Transform Rule, or Authenticated Origin Pulls) is an open decision of
+the owner's, written down in `docs/decisions.md`.
 
 ### The sign-in hint's domain
 
@@ -410,6 +435,15 @@ update first. **Once 018 is applied, a build from before it never goes on the
 host again** - it would lose every audit entry and stop the deletion of
 accounts; fix forward.
 
+**anotoki-lib 0.5.0** (both halves; `docs/decisions.md`, 2026-10-11) brings no
+migration: nothing waits for Apply. From the upload on, the IAM counts and
+keeps the visitors' own addresses through Cloudflare (above, "Behind
+Cloudflare"), the Error log holds the pages' own errors too, and the Backups
+page names who made each backup. The host needs `zlib` beside `mbstring`.
+The backups' files are made the PHP user's alone (`0600`, folders `0700`):
+where PHP runs as another user than the FTP account, take a backup off the
+server with the Backups page's Download ("Backups" below).
+
 Deleted accounts are made nobody's by housekeeping, which runs on ordinary
 traffic (the sites' sign-ins and refreshes, the IAM's own pages, the sites
 reading the list), at most an hour after one is due - no cron. **A database
@@ -439,10 +473,11 @@ the IAM's), the checks of a string, the bundle and the admin routes, the
 command line's tools; the service, the switcher and the Translations and
 Languages pages -, the admin tools the IAM takes, both halves - the error log,
 the audit log and backups (a migration set of its own, `anotoki_admin`,
-applied before the IAM's), their routes and their pages - and, in the Angular
-half, the family's UI kit: its styles and palette, its components, the top bar
-and the frame. Both halves of the IAM are on 0.4.1 (`composer.json`'s
-`^0.4.1`; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+applied before the IAM's), their routes and their pages, and the reporter of
+the pages' own errors - and, in the Angular half, the family's UI kit: its
+styles and palette, its components, the top bar and the frame. Both halves of
+the IAM are on 0.5.0 (`composer.json`'s `^0.5.0`, the 0.5.0 tarball; never
+0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/php/migrations`, `/php/resources`),
 which `build-dist.php` uploads with the rest of `vendor/` and which are denied
@@ -454,7 +489,7 @@ development machine:
 
 ```bash
 cd backend
-composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.4.1"); change it first for 0.5
+composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.5.0"); change it first for 0.6
 # frontend/package.json: "@anotoki/lib": the new release's .tgz URL, then
 cd ../frontend
 bun install                         # bun.lock
@@ -532,11 +567,20 @@ Each is **encrypted** under a key derived from the master key
 hash, the two-factor secrets and signing keys (encrypted under the master key
 besides), every hash of a session and a token, the audit log. Making one,
 downloading one and deleting one ask for the administrator's password (or,
-without one, a sign-in of the last 15 minutes) and are in the audit log. A
-download is a link good once, for a minute. **Keep the master key with the
-downloaded backups** (off the server, as ever): without it they open to
-nothing, and a backup made before the master key was ever replaced opens only
-with the old one - keep that one too.
+without one, a sign-in of the last 15 minutes) and are in the audit log; the
+page names who made each. A download is a link good once, for a minute.
+**Keep the master key with the downloaded backups** (off the server, as ever):
+without it they open to nothing, and a backup made before the master key was
+ever replaced opens only with the old one - keep that one too.
+
+Since anotoki-lib 0.5.0 the library seals a plain backup under the
+installation's key, and only a sealed or an encrypted one counts as made here.
+The IAM's are all encrypted - the cipher is their seal - so nothing changes for
+them; there are no plain ones to be restored offline only. Every file of the
+backups is the PHP user's alone from the moment it is made (`0600`, the
+folders `0700`): on a host where PHP runs as its own user, not the FTP
+account's, the FTP account cannot read `storage/backups` either - **download a
+backup from the Backups page** to take it off the server.
 
 **The IAM never restores a backup in place** (restore is off, the page says
 why): it would bring back revoked tokens and sessions, old passwords, removed
@@ -553,14 +597,12 @@ php backup.php --from=<...> --key=<...> --extract=<id> <a new folder>
 SQL of every migration the database had applied, each table's rows as
 PostgreSQL's COPY text - and says how to load it into an empty database (the
 schema files in order, then `psql \copy`, parents first). That folder is the
-database in the clear: delete it when done. **`--inspect` decrypts the whole
-database too**, into a folder of its own under the system's temp folder
-(`anotoki-backup-inspect-...`), and removes it when it is done - but a run
-stopped half-way (Ctrl-C, a kill, a crash) leaves it there, every table in the
-clear. Run either only on a computer of your own you trust, and after an
-interrupted run delete what is left in the temp folder - until the library's
-`--inspect` reads the manifest alone. A backup is never restored to
-bring an account back (above, "A database backup is never restored...").
+database in the clear: delete it when done, and run it only on a computer of
+your own you trust. `--inspect` reads the manifest alone - the tables and
+their rows, who made it - decrypting no further than its first chunks, in
+memory: nothing of the database is written anywhere (anotoki-lib 0.5.0). A
+backup is never restored to bring an account back (above, "A database backup
+is never restored...").
 
 **Backups are kept until you delete them - nothing deletes one for its age**
 (the owner's decision of 2026-10-11, `docs/decisions.md`): the daily and
@@ -580,17 +622,20 @@ itself, by their names, are ever deleted; anything else put in
 ### The error log
 
 The admin panel's **Error log** page reads `storage/logs/errors-YYYY-MM-DD.jsonl`
-(UTC days): every failure the IAM answered (500), the answers worth seeing
-(every 5xx, 404, 405, 413, 415, 429), PHP's warnings and fatal errors -
-grouped by kind, a chart by day, each with its trace and every occurrence. It
-keeps 30 days and 64 MB, a hundred lines of one kind a day (the rest counted).
-No address, cookie, header, body, query string, token or password is in it -
-the IAM's own names of secrets (its cookies, its tokens, a password field, a
-code, a two-factor secret) taken out on every way in, before the library's
-redactor -; a person is an account id at most. **Clear** empties it
-(everything, or the days before today or before the last week) and is
-audited. PHP's own error log still gets a line for every 500, its message
-redacted the same way.
+(UTC days): every failure the IAM answered (500, with the failures it was
+thrown for), the answers worth seeing (every 5xx, 404, 405, 413, 415, 429),
+PHP's warnings and fatal errors, and the pages' own errors (`source: client`:
+what broke in a visitor's or an administrator's browser, scrubbed there and
+again on the server - at most 20 an hour from one sender, 500 a day from the
+visitors and as many from the people signed in) - grouped by kind, a chart by
+day, each with its trace and every occurrence. It keeps 30 days and 64 MB, a
+hundred lines of one kind a day (the rest counted). No address, cookie, header,
+body, query string, token or password is in it - the IAM's own names of
+secrets (a password field, a code, a two-factor secret, ...) taken out by the
+library's redactor, its cookies and tokens before it, on every way in -; a
+person is an account id at most. **Clear** empties it (everything, or the days
+before today or before the last week) and is audited. PHP's own error log still
+gets a line for every 500, its message redacted the same way.
 
 ## Day to day
 

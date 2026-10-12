@@ -1,5 +1,6 @@
 <?php
 
+use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Anotoki\Lib\Translations\Translations;
@@ -218,6 +219,26 @@ MigrationsRoutes::status($app, iamSiteState());
 // 503 translations_unavailable, and the pages keep the English compiled into
 // them.
 TranslationsRoutes::bundle($app, static fn(): Translations => iamTranslations(), translationRefusalAnswer(...));
+
+// The pages' own errors - the anotoki family's route (anotoki/lib's
+// ErrorLogRoutes::client(), anotoki-lib 0.5.0; the owner's decision of
+// 2026-10-11: every site's error log holds its pages' errors too), whose
+// browser half is @anotoki/lib/error-report: POST {type?, message, page?,
+// stack?, status?} -> 204, written into the error log (api/admin_tools.php)
+// as `source: client`, every text redacted as a line is. JSON only (415), 8 KB
+// at most (413), a message (422). At most 20 an hour from one sender - a
+// signed-in person by their account, a visitor by their address's bucket (an
+// IPv6 address's /64) - and 500 a day from the visitors together, as many from
+// the people signed in (429 too_many, Retry-After). Public - a sign-in page
+// fails too - and first-party: the CSRF header and the IAM's own Origin like
+// every write here, never an exemption, and in neither CORS list. Before the
+// library reads a report, the IAM's own prefixes and cookies are taken out of
+// its words (iamClientErrorRedaction()) and a signed-in person is told apart
+// by the session (optionalSession(): read, nothing changed). Its requests are
+// never written into the log as failures of their own.
+ErrorLogRoutes::client($app, '/api/client-errors', iamErrorLog(), iamAdminContext())
+    ->add(iamClientErrorRedaction())
+    ->add(optionalSession());
 
 // ── The pending authorization request ────────────────────────────────────────
 

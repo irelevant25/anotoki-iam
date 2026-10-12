@@ -517,13 +517,19 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 ## The admin panel's tools: the error log, the audit log, backups
 
 Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11): the same pages, routes and answers on every
-anotoki site. What is the IAM's is their configuration - `api/admin_tools.php`
-and `api/audit.php` - and where they are mounted: inside the admin group
-(`routes/admin.php`), behind the session, the IAM's ADMIN and the CSRF header,
-each group asking the library's own ADMIN check besides
+owner's decision of 2026-10-11; 0.5.0 since): the same pages, routes and
+answers on every anotoki site. What is the IAM's is their configuration -
+`api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
+the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and
+the CSRF header, each group asking the library's own ADMIN check besides
 (`iamAdminContext()`: the same rule, so a group mounted anywhere else would
-still let nobody in).
+still let nobody in). Where a request comes from is the family's one rule
+(`requestIp()`, the owner's decision of 2026-10-11): the connection's address,
+or - on a connection from Cloudflare's published ranges, the IAM's trusted
+proxies (`config/iam.php`; none wider than an IPv4 /8 or an IPv6 /16 is
+believed) - the visitor's it names in `CF-Connecting-IP`, the one header read,
+pinned in the code; the limiter counts it, the audit log keeps it, a session
+shows it, and a header from anywhere else is never believed.
 
 - **The audit log** (`/admin/audit`) is `anotoki_audit_log`, written by the
   library's `AuditLog` through the IAM's `audit()`: what it always kept, behind
@@ -533,14 +539,23 @@ still let nobody in).
   time. An account's deletion scrubs it by the IAM's rules (the library's
   `scrubPeople()` and the IAM's personal-token rule), the kept old table too.
 - **The error log** (`/admin/errors`) is files, `storage/logs/errors-*.jsonl`:
-  what failed (an exception the IAM answered, every 5xx and 404, 405, 413,
-  415, 429, PHP's warnings and fatal errors) - files, so that it works while
-  the database does not. The library's middleware sits outside every other
-  (`api/index.php`), its handler wraps the IAM's error handler, its PHP
-  handlers are chained to whatever was there. It keeps no query string,
-  header, cookie, body, token or session, a message only redacted - the IAM
-  takes its own names of secrets out first (`iamRedactSecrets()`) - a trace
-  without arguments, an address as a hash keyed by the master key.
+  what failed (an exception the IAM answered - with the failures it was thrown
+  for -, every 5xx and 404, 405, 413, 415, 429, PHP's warnings and fatal
+  errors) - files, so that it works while the database does not - and the
+  pages' own errors (anotoki-lib 0.5.0, the owner's decision of 2026-10-11):
+  `@anotoki/lib/error-report` reports them, through the app's HttpClient and so
+  with the CSRF header, to `POST /api/client-errors` (the library's route,
+  public and first-party, in neither CORS list; 20 an hour from one sender - a
+  signed-in person by account, told apart by the session it only reads -, 500
+  a day from the visitors, as many from the people signed in). The library's
+  middleware sits outside every other (`api/index.php`), its handler wraps the
+  IAM's error handler, its PHP handlers are chained to whatever was there. It
+  keeps no query string, header, cookie, body, token or session, a message
+  only redacted - by the library's rules with the IAM's names of secrets
+  among them (`Redactor::addSecretNames()`), and the IAM's own prefixes and
+  cookies taken out first on every way in, down an exception's whole chain
+  (`iamRedactSecrets()`) - a trace without arguments, an address as a hash of
+  its bucket (an IPv6 address its /64) keyed by the master key.
 - **Backups** (`/admin/backups`) of the whole database, in
   `storage/backups`: COPY through PDO, every table in one snapshot, with the
   migrations it had applied; **encrypted** under a key derived from the master
@@ -548,8 +563,9 @@ still let nobody in).
   of the day's first housekeeping - the library's `AfterResponse` runs after
   `$app->run()`), before every update, and by hand; made, downloaded (a
   single-use ticket for a minute, for the administrator it was issued to) and
-  deleted only with the account page's proof (`accountProof()`); **never
-  restored here**. `php backup.php` reads one offline with the master key.
+  deleted only with the account page's proof (`accountProof()`); the page names
+  who made each; **never restored here**. `php backup.php` reads one offline
+  with the master key.
 
 ## The rules that carry the weight
 
@@ -571,7 +587,13 @@ written down, not a refactor.
    that cannot be hashed (TOTP, signing keys).
 7. **The same answer** whether or not an address has an account, wherever an
    endpoint mails an address; failures are **rate-limited** per address-and-source
-   and per source.
+   and per source. The source is the connection's address, or the visitor's
+   that Cloudflare names in `CF-Connecting-IP` on a connection from its
+   published ranges (the owner's decision of 2026-10-11) - that header alone,
+   pinned in the code, never from anywhere else, and never a configured range
+   wider than an IPv4 /8 or an IPv6 /16 - counted by its bucket: an IPv4
+   address whole, an IPv6 address by its /64, so a network of one's own is no
+   supply of fresh sources (`limiterSource()`).
 8. **Every way in checks the same switches** (login enabled, account disabled,
    an account waiting for approval, a role that may sign in) - a switch on one
    door is a lock on one of five. An account whose deletion is pending is
@@ -634,7 +656,7 @@ written down, not a refactor.
 | `backend/config/` | `config.php` (reading `*.local.php`, whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`. |
 | `backend/api/index.php` | Front controller: requires, middleware order (the error log's outermost, the family's gate where "not set up" is answered), error handler; the library's after-the-answer runner after `$app->run()`. |
 | `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`: the library's admin set, the IAM's set, then the library's translations set; `iamMigrationLabel()` names a library file `set/name`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
-| `backend/api/admin_tools.php` | The IAM's configuration of the library's admin tools: `iamAdminContext()` (who acts, who the ADMIN is, the proof, the address, the error body), `iamErrorLog()` and the IAM's own names of secrets (`iamRedactSecrets()`), `iamBackups()` (encrypted, never restored), `iamMigratorWithBackup()`. |
+| `backend/api/admin_tools.php` | The IAM's configuration of the library's admin tools: `iamAdminContext()` (who acts, who the ADMIN is, the proof, the address and its bucket, the people's names, the error body), `iamErrorLog()` with the IAM's names of secrets (`IAM_SECRET_NAMES`, given to the library's redactor) and its own prefixes and cookies (`iamRedactSecrets()`, down an exception's chain; `iamClientErrorRedaction()` on the pages' own errors), `iamBackups()` (encrypted, never restored), `iamMigratorWithBackup()`. |
 | `backend/api/audit.php` | `audit()`, every route's one way into the audit log - the library's `AuditLog` (`iamAuditLog()`), waiting in a file until 018 has run (`auditMovedToLibrary()`). |
 | `backend/backup.php` | The backups from the command line - the library's command on the IAM's backups: list, make, inspect, extract; another IAM's with its master key. Never uploaded. |
 | `backend/vendor/anotoki/lib` | The anotoki family's library (Composer): the migration engine, the gate, the status and Migrations routes; the translations - the tables' migration set and the library's words, the checks of a string, the bundle and the admin routes, the command line's tools; the admin tools - their tables' set, the error log, the audit log, backups, their routes. Never edited here - updated by Composer (`docs/operations.md`). |

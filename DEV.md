@@ -8,7 +8,7 @@ builds for the hosting. What is where inside each half, and its entry points:
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| PHP | 8.2+ | with `pdo_pgsql`, `openssl`, `mbstring`, and `curl` or `allow_url_fopen`; `php` on the PATH |
+| PHP | 8.2+ | with `pdo_pgsql`, `openssl`, `mbstring`, `zlib` (the backups), and `curl` or `allow_url_fopen`; `php` on the PATH |
 | PostgreSQL | 14+ | a local server, and a login that may create databases (the installer and the tests make theirs) |
 | Node.js | 22.12+ | for the Angular app |
 | Bun | 1.4+ | installs the Angular app's packages (`npm start` runs `bun ci` first) |

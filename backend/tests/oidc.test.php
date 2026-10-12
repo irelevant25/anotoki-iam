@@ -522,17 +522,6 @@ test('an address proved on an account never confirmed: nothing its registrant se
     same(200, (new Browser('10.0.4.3'))->signIn('squatted@example.test', 'the real owners password')->status, 'the owner\'s does');
 });
 
-test('trusted proxy ranges: v4 and v6, prefixes and single addresses', function () {
-    $cloudflare = ['173.245.48.0/20', '2400:cb00::/32'];
-    check(ipInRanges('173.245.48.1', $cloudflare) && ipInRanges('173.245.63.254', $cloudflare), 'inside the v4 range');
-    check(!ipInRanges('173.245.64.1', $cloudflare), 'just past it');
-    check(ipInRanges('2400:cb00:2049::1', $cloudflare) && !ipInRanges('2400:cb01::1', $cloudflare), 'v6 the same way');
-    check(ipInRanges('10.0.0.7', ['10.0.0.7']) && !ipInRanges('10.0.0.8', ['10.0.0.7']), 'a bare address is a range of one');
-    check(ipInRanges('192.168.1.130', ['192.168.1.128/25']) && !ipInRanges('192.168.1.127', ['192.168.1.128/25']), 'a prefix that ends inside a byte');
-    check(!ipInRanges('not an address', $cloudflare) && !ipInRanges('127.0.0.1', ['::1/128']), 'nonsense, and v4 against v6, match nothing');
-    check(!ipInRanges('127.0.0.1', []), 'no proxies, nobody trusted');
-});
-
 test('plain http is only for this computer, in redirect URIs and origins alike', function () {
     check(validRedirectUri('https://piano.anotoki.eu/auth/callback.html'), 'https anywhere');
     check(validRedirectUri('http://localhost:4200/auth/callback') && validRedirectUri('http://127.0.0.1:4400/auth/callback') && validRedirectUri('http://[::1]:8000/cb'), 'http on this computer');

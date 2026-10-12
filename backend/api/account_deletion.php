@@ -356,11 +356,19 @@ function scrubAuditLog(PDO $pdo, array $ids): void
  * entry was in any. After every Apply (the Migrations page, `php
  * migration.php`) and at every housekeeping run, before its deletions. How many
  * went in.
+ *
+ * The scrub runs whenever the flush found entries waiting and the log takes
+ * them - not only when it put some in: a flush killed after its commit, before
+ * it emptied the file, put them in without the scrub after it, and the next
+ * one puts none in (the library never inserts an entry twice) - so a count of
+ * nought says nothing of what is in the log unscrubbed.
  */
 function flushWaitingAuditEntries(PDO $pdo): int
 {
-    $flushed = iamAuditLog()->flushPending();
-    if ($flushed > 0 && accountDeletionReady($pdo)) {
+    $log = iamAuditLog();
+    $waiting = auditEntriesWaiting();
+    $flushed = $log->flushPending();
+    if (($flushed > 0 || $waiting) && $log->ready() && accountDeletionReady($pdo)) {
         scrubAuditLog($pdo, array_map('intval', $pdo->query('SELECT id FROM users WHERE anonymized_at IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN)));
     }
 

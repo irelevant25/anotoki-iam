@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Anotoki\Lib\Admin\Http;
 
 use Anotoki\Lib\Admin\AdminContext;
+use Anotoki\Lib\ErrorLog\ErrorLog;
+use Anotoki\Lib\ErrorLog\RequestRecord;
 use LogicException;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -32,6 +34,12 @@ final class AdminGuard implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        // The error log's record of this request learns the request as the route sees it - with the person the
+        // site's middleware set on it - so a failure here names who asked.
+        $record = $request->getAttribute(ErrorLog::ATTRIBUTE);
+        if ($record instanceof RequestRecord) {
+            $record->latest = $request;
+        }
         $refusal = $this->context->adminRefusal($request);
 
         return $refusal === null ? $handler->handle($request) : $this->context->refuse($this->responses->createResponse(), $refusal);

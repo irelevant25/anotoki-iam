@@ -6,11 +6,13 @@ namespace Anotoki\Lib\Feedback\Http;
 
 use Anotoki\Lib\Admin\AdminContext;
 use Anotoki\Lib\Admin\Http\Routes;
+use Anotoki\Lib\Audit\AuditLog;
 use Anotoki\Lib\Audit\AuditRecorder;
 use Anotoki\Lib\Feedback\Feedback;
 use Anotoki\Lib\Support\JsonResponse;
 use Anotoki\Lib\Support\Refusal;
 use Closure;
+use PDO;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Interfaces\RouteCollectorProxyInterface;
@@ -33,7 +35,10 @@ use Throwable;
  *   GET    $base/unread                                {unread} - the admin panel's badge
  *   GET    $base/{id}                                  {message} - opening a new one makes it read
  *   PUT    $base/{id}/status {status}                  {message} - audited feedback.status_changed
- *   DELETE $base/{id}                                  {deleted: true} - audited feedback.deleted
+ *   DELETE $base/{id}                                  {deleted: true} - audited feedback.deleted (details: kind,
+ *                                                      status, created_at - the message's, for a restore's replay);
+ *                                                      by the library's AuditLog inside the delete's transaction - no
+ *                                                      delete without it: 503 feature_unavailable while its table waits
  * Every item carries user_name and handled_by_name from the site's $names. 503
  * feature_unavailable while the table is not there yet.
  */
@@ -65,7 +70,8 @@ final class FeedbackRoutes
     }
 
     /**
-     * @param null|Closure(list<int>): array<int|string, string> $names  people's names by id, for the page
+     * @param null|Closure(list<int>): array<int|string, string> $names  people's names by id, for the page;
+     *        without one, the context's names
      */
     public static function admin(
         RouteCollectorProxyInterface $app,
@@ -75,6 +81,8 @@ final class FeedbackRoutes
         ?AuditRecorder $audit = null,
         ?Closure $names = null,
     ): RouteGroupInterface {
+        $names ??= static fn (array $ids): array => $context->names($ids);
+
         return Routes::adminGroup($app, $base, $context, function (RouteCollectorProxyInterface $group) use ($feedback, $context, $audit, $names): void {
             Routes::plain($group->get('', function (ServerRequestInterface $request, ResponseInterface $response) use ($feedback, $context, $names): ResponseInterface {
                 if (!$feedback->ready()) {
@@ -154,11 +162,29 @@ final class FeedbackRoutes
                     return $context->refuse($response, Feedback::unavailable());
                 }
                 $id = (int) $request->getAttribute('id');
-                $before = $feedback->get($id);
-                if ($before === null || !$feedback->delete($id)) {
-                    return $context->refuse($response, self::notFound());
+                $actor = $context->actorId($request);
+                // The time it was sent beside its id: a restore deletes it again by both (People::replay()).
+                $details = static fn (array $message): array => ['kind' => $message['kind'], 'status' => $message['status'], 'created_at' => $message['created_at']];
+                if ($audit instanceof AuditLog) {
+                    // The library's audit log writes the entry inside the delete's transaction: no delete without the
+                    // entry a restore does it again by - none while the table waits (as People's delete).
+                    if (!$audit->ready()) {
+                        return $context->refuse($response, new Refusal(503, 'feature_unavailable', 'The audit log is not there yet: a database update waits, and nothing is deleted without its entry. Try again once the update is applied.'));
+                    }
+                    $deleted = $feedback->deleteWithEntry($id, static function (PDO $pdo, array $message) use ($audit, $request, $actor, $id, $details): void {
+                        $audit->recordInside($pdo, $request, $actor, 'feedback.deleted', 'feedback', $id, $details($message));
+                    });
+                    if ($deleted === null) {
+                        return $context->refuse($response, self::notFound());
+                    }
+                } else {
+                    // Another recorder (AuditRecorder) writes after the delete, as it can.
+                    $before = $feedback->get($id);
+                    if ($before === null || !$feedback->delete($id)) {
+                        return $context->refuse($response, self::notFound());
+                    }
+                    $audit?->record($request, $actor, 'feedback.deleted', 'feedback', $id, $details($before));
                 }
-                $audit?->record($request, $context->actorId($request), 'feedback.deleted', 'feedback', $id, ['kind' => $before['kind'], 'status' => $before['status']]);
 
                 return JsonResponse::write($response, 200, ['deleted' => true]);
             }));

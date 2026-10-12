@@ -175,12 +175,24 @@ the files you were given). You do not edit anything.
   `restore: false` - a restore is a decision for `docs/decisions.md`, with a
   reviewed `afterRestore`; `storage/backups` and `storage/logs` never served.
   The error log: no query string, header, cookie, body, token or address - the
-  IAM's own names of secrets out before the library's redactor
-  (`iamRedactSecrets()`) on every way in - the IAM's error handler, the
+  IAM's names of secrets in the library's redactor (`IAM_SECRET_NAMES`,
+  `Redactor::addSecretNames()`), its own prefixes and cookies out before it
+  (`iamRedactSecrets()`) on every way in - the IAM's error handler and
+  `iamRecordError()`, each down the exception's whole chain
+  (`iamRedactException()`: a line keeps every cause's message), the
   middleware just inside the outer half (an exception nothing answered), the
   IAM's own PHP handlers (`iamInstallPhpHandlers()`: warnings and fatal
-  errors) and `iamRecordError()` - and its client hashes keyed by the master
-  key. The audit log: `audit()` keeps what it kept, never throws, writes behind
+  errors), and the pages' own errors (`POST /api/client-errors`:
+  `iamClientErrorRedaction()`; the CSRF header and the IAM's Origin, in no
+  CORS list, the session only read by `optionalSession()`, the library's
+  limits) - and its client hashes keyed by the master key, of an address's
+  bucket (a pseudonym while the key lasts - never claimed to be irreversible).
+  Addresses: `requestIp()` believes `CF-Connecting-IP` - pinned in the code,
+  no setting names another - only on a connection from the trusted proxies
+  (`config/iam.php`: Cloudflare's ranges; `iamTrustedProxies()` refuses one
+  wider than an IPv4 /8 or an IPv6 /16), never `X-Real-IP`,
+  `True-Client-IP` or `X-Forwarded-For` - what the limiter counts, the audit
+  log keeps and a session shows. The audit log: `audit()` keeps what it kept, never throws, writes behind
   a savepoint; a deleted account's person scrubbed by the IAM's rules in
   `anotoki_audit_log` and in `audit_log_before_018`, and out of the entries
   that waited for 018 as they go in (`flushWaitingAuditEntries()`). Backups

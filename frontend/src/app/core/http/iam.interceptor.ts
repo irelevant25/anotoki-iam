@@ -1,6 +1,7 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { ANOTOKI_ERROR_REPORT } from '@anotoki/lib/error-report';
 import { ANOTOKI_TRANSLATION_BUNDLE } from '@anotoki/lib/translations';
 import { catchError, throwError } from 'rxjs';
 import { toApiError } from '../api/api-error';
@@ -61,6 +62,14 @@ function fromMigrationsModule(url: string): boolean {
  * request is made while the site starts, before any page exists to be sent
  * away from - so no `/not-set-up` and no session cleared: a page's own first
  * request says `not_set_up` a moment later, and that one does the sending.
+ *
+ * The report of a page's own error (`POST /api/client-errors`, which the
+ * family's reporter marks ANOTOKI_ERROR_REPORT - `provideAnotokiErrorReport()`
+ * in app.config.ts) gets only the first: the CSRF header, which is what lets
+ * it in, as on every write - never an exemption. Whatever it fails with is
+ * the console's alone: no page moves and no session is cleared for it, and it
+ * goes back as it came, an HttpErrorResponse - the reporter reads a 429 to
+ * stop reporting for the page load.
  */
 export const iamInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionService);
@@ -71,6 +80,10 @@ export const iamInterceptor: HttpInterceptorFn = (request, next) => {
 
   return next(outgoing).pipe(
     catchError((error: unknown) => {
+      if (request.context.get(ANOTOKI_ERROR_REPORT)) {
+        return throwError(() => error);
+      }
+
       const apiError = toApiError(error);
 
       if (request.context.get(ANOTOKI_TRANSLATION_BUNDLE)) {

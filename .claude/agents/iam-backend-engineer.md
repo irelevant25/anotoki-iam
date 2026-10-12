@@ -31,10 +31,14 @@ API document is a contract the Angular frontend and all the sites depend on.
   `iamMigrationLabel()`, `iamSiteState()` for the gate and
   `/api/site-status`), `admin_tools.php` (the library's admin tools on the
   IAM: `iamAdminContext()` - the actor, the IAM's ADMIN, the proof
-  `accountProof()`, `requestIp()`, the IAM's error body -, `iamErrorLog()` and
-  `iamRedactSecrets()`, `iamBackups()` - encrypted under the master key,
-  never restored -, `iamMigratorWithBackup()`; their routes in
-  `routes/admin.php`), `audit.php` (`audit()` over the library's `AuditLog`,
+  `accountProof()`, `requestIp()` in the family's bucket (an IPv6 address its
+  /64), the people's names, the IAM's error body -, `iamErrorLog()` with the
+  IAM's names of secrets given to the library's redactor (`IAM_SECRET_NAMES`)
+  and its own prefixes and cookies out first (`iamRedactSecrets()`, down an
+  exception's chain; `iamClientErrorRedaction()` on the pages' own errors,
+  `POST /api/client-errors` in `routes/login.php`), `iamBackups()` - encrypted
+  under the master key, never restored -, `iamMigratorWithBackup()`; their
+  routes in `routes/admin.php`), `audit.php` (`audit()` over the library's `AuditLog`,
   `iamAuditLog()`: `anotoki_audit_log`, entries waiting in
   `storage/logs/audit-pending.jsonl` until 018 has run), and `translations.php`
   (the IAM's configuration of the library's translations - `iamTranslations()`,

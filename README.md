@@ -23,8 +23,9 @@ runs as its own subdomain.
   announcements (news mailed to everybody, the holders of some roles or some
   people, from a template, in every language), signing keys, migrations (the
   anotoki family's Migrations page), the family's admin tools - an audit log
-  of every change, an error log, and backups of the database, encrypted under
-  the master key and never restored in place - and the words: every sentence of the sign-in
+  of every change, an error log of the server's failures and the pages' own,
+  and backups of the database, encrypted under the master key and never
+  restored in place - and the words: every sentence of the sign-in
   and account pages, of the IAM's own mails and of the announcements' templates is
   a string in the database, reworded there, and a new language is added
   there, with no build. English and Slovak come with it.

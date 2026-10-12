@@ -22,9 +22,11 @@ declare(strict_types=1);
 
 require __DIR__ . '/lib.php';
 
+use Anotoki\Lib\Audit\AuditLog;
 use Anotoki\Lib\Migrations\MigrationSet;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Translations\Schema as TranslationsSchema;
+use Slim\Psr7\Factory\ServerRequestFactory;
 
 // This run's own database is a fresh IAM, built from every migration: the library's admin set, the IAM's 001-018, the library's translations set.
 bootTests();
@@ -331,6 +333,83 @@ test('the window: an installed IAM, the new code, nothing applied - every way in
         same(['state' => 'ready', 'installed' => false], $visitor->get('/api/site-status')->json(), 'up to date');
     } finally {
         useDatabase($main);
+    }
+});
+
+test('a flush killed after its commit, before it emptied the file: the next one puts nothing in twice - and still takes the people deleted meanwhile out of what went in', function () {
+    $pdo = iamDb();
+    $file = iamAuditPendingFile();
+    @unlink($file);
+    $goneId = makeUser('flushed', 'flushed@example.test', PASSWORD);
+    $pdo->prepare("UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '31 days', deletion_due_at = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = ?")->execute([$goneId]);
+    same(1, anonymizeDueAccounts($pdo), 'the person is deleted');
+
+    // An entry of theirs that waited for 018 - written by a request on its way, while the log's table was not there.
+    $waitingLog = new AuditLog(static fn(): PDO => iamDb(), ['recordAddress' => true, 'pendingFile' => $file, 'ready' => static fn(): bool => false]);
+    $request = (new ServerRequestFactory())->createServerRequest('PUT', TEST_ISSUER . '/api/account/profile', ['REMOTE_ADDR' => '192.0.2.77']);
+    $waitingLog->record($request, $goneId, 'account.username_changed', 'user', $goneId, ['from' => 'flushed', 'to' => 'flushed again']);
+    $waiting = (string) file_get_contents($file);
+    check(str_contains($waiting, 'account.username_changed'), 'it waits in the file');
+
+    // The flush that was killed: it put the entry in and committed - and never emptied the file, nor scrubbed after it.
+    same(1, iamAuditLog()->flushPending(), 'the entry goes in');
+    file_put_contents($file, $waiting);
+    $theirs = static function () use ($pdo, $goneId): array {
+        $statement = $pdo->prepare("SELECT ip, details FROM anotoki_audit_log WHERE action = 'account.username_changed' AND actor_id = ?");
+        $statement->execute([$goneId]);
+
+        return array_map(static function (array $row): array {
+            $details = (array) json_decode((string) $row['details'], true);
+            ksort($details);
+
+            return [$row['ip'], $details];
+        }, $statement->fetchAll());
+    };
+    same([['192.0.2.77', ['from' => 'flushed', 'to' => 'flushed again']]], $theirs(), 'in the log with the deleted person\'s address and names - and still in the file');
+
+    same(0, flushWaitingAuditEntries($pdo), 'the next flush puts nothing in twice');
+    same([[null, []]], $theirs(), 'and still takes the deleted person out of what went in: no address, no names');
+    same('', (string) file_get_contents($file), 'the file emptied');
+});
+
+test('an entry written while others still wait: audit() takes them in through the IAM\'s flush first - a deleted person scrubbed out - never inside the caller\'s transaction', function () {
+    $pdo = iamDb();
+    $file = iamAuditPendingFile();
+    @unlink($file);
+    $goneId = makeUser('waited', 'waited@example.test', PASSWORD);
+    $pdo->prepare("UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '31 days', deletion_due_at = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = ?")->execute([$goneId]);
+    same(1, anonymizeDueAccounts($pdo), 'the person is deleted');
+
+    // Entries of theirs that waited for 018, as a request on its way wrote them while the log's table was not there.
+    $waitingLog = new AuditLog(static fn(): PDO => iamDb(), ['recordAddress' => true, 'pendingFile' => $file, 'ready' => static fn(): bool => false]);
+    $wait = static function (string $to) use ($waitingLog, $goneId): void {
+        $request = (new ServerRequestFactory())->createServerRequest('PUT', TEST_ISSUER . '/api/account/profile', ['REMOTE_ADDR' => '192.0.2.88']);
+        $waitingLog->record($request, $goneId, 'account.username_changed', 'user', $goneId, ['from' => 'waited', 'to' => $to]);
+    };
+    $theirs = static function () use ($pdo, $goneId): array {
+        $statement = $pdo->prepare("SELECT ip, details FROM anotoki_audit_log WHERE action = 'account.username_changed' AND actor_id = ? ORDER BY id");
+        $statement->execute([$goneId]);
+
+        return $statement->fetchAll();
+    };
+    $count = static fn(string $action): int => (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE action = " . $pdo->quote($action))->fetchColumn();
+
+    // Inside a transaction of the caller's: the waiting entry stays where it is, the new one is written.
+    $wait('inside');
+    $pdo->beginTransaction();
+    audit(null, null, 'test.inside_transaction');
+    $pdo->commit();
+    same([1, true, []], [$count('test.inside_transaction'), auditEntriesWaiting(), $theirs()], 'inside a transaction: written, and nothing taken in there');
+
+    // Outside one: the waiting entries first, through the IAM's flush and its scrub, then the new one.
+    $wait('outside');
+    audit(null, null, 'test.outside_transaction');
+    same(1, $count('test.outside_transaction'), 'outside a transaction: written');
+    same(false, auditEntriesWaiting(), 'the file emptied');
+    $in = $theirs();
+    same(2, count($in), 'both waiting entries in the log');
+    foreach ($in as $row) {
+        same([null, []], [$row['ip'], (array) json_decode((string) $row['details'], true)], 'each without the deleted person\'s address or names - scrubbed as it went in, not an hour later');
     }
 });
 

@@ -1,5 +1,6 @@
 <?php
 
+use Anotoki\Lib\Support\ClientAddress;
 use Anotoki\Lib\Translations\Translations;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -53,71 +54,120 @@ function field(array $source, string $name): string
 }
 
 /**
- * The caller's address, as far as it can be known.
+ * The caller's address, as far as it can be known - by the anotoki family's
+ * one rule (anotoki/lib's ClientAddress, the owner's of 2026-10-11), the same
+ * the library's error log reads: REMOTE_ADDR, unless the connection is from
+ * one of the proxies config/iam.php trusts (Cloudflare's published ranges,
+ * iamTrustedProxies()) - then the visitor's address Cloudflare names in
+ * CF-Connecting-IP, when it is an address at all. A forwarding header is one
+ * the caller writes, so believing it from anybody else would let them set
+ * their own address and walk past the rate limiter by changing it each time.
+ * The header is pinned here, never a setting: Cloudflare writes
+ * CF-Connecting-IP itself, and passes X-Real-IP, True-Client-IP and
+ * X-Forwarded-For through as the visitor wrote them. An IPv4 address written
+ * as IPv6 (::ffff:203.0.113.9, from a server listening on both) is the IPv4
+ * address it is.
  *
- * REMOTE_ADDR, unless it is one of the proxies config/iam.php is told to trust.
- * A forwarding header is one the caller writes, so believing it from anybody
- * would let them set their own address and walk past the rate limiter by
- * changing it each time. From a trusted proxy (Cloudflare) the connection is
- * the proxy's and the visitor's address is in the header it sets - believed
- * then, and only when it is an address at all.
+ * What every limit counts, the audit log keeps and a session shows. A
+ * connection's own address that is no address at all - a server's oddity -
+ * is still one sender to the limiter, as it came; none, null.
  */
 function requestIp(Request $request): ?string
 {
-    $ip = $request->getServerParams()['REMOTE_ADDR'] ?? null;
+    $ip = ClientAddress::of($request, iamTrustedProxies(), ClientAddress::CLOUDFLARE_HEADER);
 
-    if (!is_string($ip) || $ip === '') {
-        return null;
+    if ($ip === null) {
+        $remote = $request->getServerParams()['REMOTE_ADDR'] ?? null;
+        $ip = is_string($remote) && trim($remote) !== '' ? trim($remote) : null;
     }
 
-    $config = iamConfig();
-    $proxies = (array) ($config['trusted_proxies'] ?? []);
-
-    if ($proxies !== [] && ipInRanges($ip, $proxies)) {
-        $forwarded = trim(explode(',', $request->getHeaderLine((string) ($config['client_ip_header'] ?? 'CF-Connecting-IP')))[0]);
-        if (filter_var($forwarded, FILTER_VALIDATE_IP) !== false) {
-            $ip = $forwarded;
-        }
-    }
-
-    return substr($ip, 0, 45);
+    return $ip === null ? null : substr($ip, 0, 45);
 }
 
-/** Whether an address (v4 or v6) is inside one of the CIDR ranges; a bare address is a range of one. */
-function ipInRanges(string $ip, array $ranges): bool
+/** The widest trusted range believed: a shorter prefix than these trusts a whole region of the internet - or everybody. */
+const TRUSTED_PROXY_MIN_PREFIX_V4 = 8;
+const TRUSTED_PROXY_MIN_PREFIX_V6 = 16;
+
+/**
+ * The proxies whose CF-Connecting-IP is believed: config/iam.php's
+ * `trusted_proxies` (Cloudflare's published ranges, or an installation's own),
+ * each a CIDR range or a single address. One that is no range at all, or wider
+ * than an IPv4 /8 or an IPv6 /16 - 0.0.0.0/0 and ::/0 above all, which would
+ * believe a header anybody can write - is refused, never believed, and said in
+ * PHP's error log at most once a day.
+ *
+ * @return list<string>
+ */
+function iamTrustedProxies(): array
 {
-    $address = @inet_pton($ip);
+    static $kept = [];
 
-    if ($address === false) {
-        return false;
+    $configured = array_values(array_filter((array) (iamConfig()['trusted_proxies'] ?? []), 'is_string'));
+    $key = implode("\n", $configured);
+    if (isset($kept[$key])) {
+        return $kept[$key];
     }
 
-    foreach ($ranges as $range) {
-        [$subnet, $bits] = array_pad(explode('/', (string) $range, 2), 2, null);
-        $network = @inet_pton(trim((string) $subnet));
-
-        if ($network === false || strlen($network) !== strlen($address)) {
-            continue;
-        }
-
-        $bits = $bits === null ? strlen($address) * 8 : max(0, min(strlen($address) * 8, (int) $bits));
-        $whole = intdiv($bits, 8);
-        $rest = $bits % 8;
-
-        if (substr($address, 0, $whole) !== substr($network, 0, $whole)) {
-            continue;
-        }
-        if ($rest === 0) {
-            return true;
-        }
-
-        $mask = (0xFF << (8 - $rest)) & 0xFF;
-        if ((ord($address[$whole]) & $mask) === (ord($network[$whole]) & $mask)) {
-            return true;
+    $believed = [];
+    foreach ($configured as $range) {
+        $refusal = trustedProxyRefusal($range);
+        if ($refusal === null) {
+            $believed[] = trim($range);
+        } else {
+            sayOncePerDay('trusted proxies', "{$refusal}: {$range} is not believed (config/iam.local.php, trusted_proxies)");
         }
     }
 
-    return false;
+    return $kept[$key] = $believed;
+}
+
+/** Why a configured trusted range is refused, or null when it is one to believe. */
+function trustedProxyRefusal(string $range): ?string
+{
+    [$address, $bits] = array_pad(explode('/', trim($range), 2), 2, null);
+    $packed = @inet_pton((string) $address);
+    if ($packed === false) {
+        return 'no address or CIDR range';
+    }
+    if ($bits === null) {
+        return null;
+    }
+    $length = strlen($packed) * 8;
+    if (!ctype_digit($bits) || strlen($bits) > 3 || (int) $bits > $length) {
+        return 'no CIDR range';
+    }
+    $widest = $length === 32 ? TRUSTED_PROXY_MIN_PREFIX_V4 : TRUSTED_PROXY_MIN_PREFIX_V6;
+
+    return (int) $bits < $widest ? "a range wider than a /{$widest}" : null;
+}
+
+/**
+ * A line in PHP's error log about a setting passed over - at most once a day
+ * for each thing it says. A stamp file under storage/cache remembers when it
+ * last did: under PHP-FPM or CGI every request starts afresh, so a flag in
+ * memory would say it at every request. Where no stamp can be kept, once per
+ * process.
+ */
+function sayOncePerDay(string $topic, string $what): void
+{
+    static $saidWithoutStamp = [];
+
+    $stamp = iamStorageDir() . '/cache/said-' . substr(hash('sha256', $topic . "\n" . $what), 0, 16) . '.logged';
+    clearstatcache(true, $stamp);
+    $last = @filemtime($stamp);
+    if ($last !== false && time() - $last < 86400) {
+        return;
+    }
+
+    $directory = dirname($stamp);
+    if (!((is_dir($directory) || @mkdir($directory, 0775, true)) && @touch($stamp))) {
+        if (isset($saidWithoutStamp[$topic . "\n" . $what])) {
+            return;
+        }
+        $saidWithoutStamp[$topic . "\n" . $what] = true;
+    }
+
+    error_log("[{$topic}] {$what}");
 }
 
 function requestUserAgent(Request $request): ?string

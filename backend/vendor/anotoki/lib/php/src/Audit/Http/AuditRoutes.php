@@ -35,7 +35,8 @@ final class AuditRoutes
 
     /**
      * @param null|Closure(list<int>): array<int|string, string> $actorNames  the people's names by id (the IAM:
-     *        users.username; a site: its own copy of the IAM's names) - an id it does not know shows no name
+     *        users.username; a site: its own copy of the IAM's names) - an id it does not know shows no name;
+     *        without one, the context's names
      */
     public static function admin(
         RouteCollectorProxyInterface $app,
@@ -44,6 +45,8 @@ final class AuditRoutes
         AdminContext $context,
         ?Closure $actorNames = null,
     ): RouteGroupInterface {
+        $actorNames ??= static fn (array $ids): array => $context->names($ids);
+
         return Routes::adminGroup($app, $base, $context, function (RouteCollectorProxyInterface $group) use ($audit, $context, $actorNames): void {
             Routes::plain($group->get('', function (ServerRequestInterface $request, ResponseInterface $response) use ($audit, $context, $actorNames): ResponseInterface {
                 if (!$audit->ready()) {

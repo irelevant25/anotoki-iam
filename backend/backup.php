@@ -5,7 +5,7 @@
  *
  *   php backup.php --list                       this IAM's backups (storage/backups), newest first
  *   php backup.php --create ["description"]     one made now - by nobody, in the audit log
- *   php backup.php --inspect=<id>               its header, its tables and their rows
+ *   php backup.php --inspect=<id>               its header, its tables and their rows (the manifest alone, in memory)
  *   php backup.php --extract=<id> <folder>      everything into a new folder, decrypted and checked,
  *                                               and how to load it into an empty database (psql \copy)
  *
@@ -22,11 +22,10 @@
  * here as on the Backups page (docs/decisions.md, 2026-10-11). What is
  * extracted is in the clear: every account's password hash, the two-factor
  * secrets and signing keys (still under the master key), every hash of a
- * session and a token - a folder of the owner's own, removed when done.
- * `--inspect` decrypts the whole database too, into a folder under the system's
- * temp folder that the library removes when it is done - and that a run stopped
- * half-way (Ctrl-C, a kill) leaves behind: only on a computer you trust, and
- * delete what an interrupted run left there (docs/operations.md, "Backups").
+ * session and a token - a folder of the owner's own, removed when done, on a
+ * computer you trust (docs/operations.md, "Backups"). `--inspect` reads the
+ * manifest alone - an encrypted backup decrypted no further than its first
+ * chunks, in memory - and writes nothing anywhere (anotoki-lib 0.5.0).
  *
  * Runs on the command line only, and is never uploaded (build-dist.php leaves
  * it out): a shell is the owner's already, so it asks no password.

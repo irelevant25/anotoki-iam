@@ -31,7 +31,10 @@ namespace Anotoki\Lib\Support;
  *   (/api/admin/users/42 stays as it is). At most 200 characters.
  *
  * Text that is not UTF-8 has its stray bytes replaced first, so no rule is
- * skipped because a regular expression could not read it.
+ * skipped because a regular expression could not read it. A text longer than
+ * text() reads loses, with what it does not read, the run of characters its
+ * cut went through - half a secret is one no rule knows - and a quoted secret
+ * the text ends inside is taken out to the end.
  */
 final class Redactor
 {
@@ -43,6 +46,36 @@ final class Redactor
     /** What a message reads as when a rule could not be run on it: never the text unredacted. */
     public const UNREADABLE = '{a message the redactor could not read}';
 
+    /** The names a secret is written under (name=value, name: value), as a pattern's alternation. */
+    private const SECRET_NAMES = 'pass(?:word|wd)?|pwd|secret|client_secret|token|access_token|refresh_token|id_token|api[_-]?key|access[_-]?key|authorization|cookie|session(?:[_-]?id)?|sid|ticket|code_verifier|signature|sig';
+
+    /** @var list<string> the site's own secret names (addSecretNames()) */
+    private static array $siteNames = [];
+
+    /**
+     * A site's own names a secret is written under - the IAM's `totp_secret`, `recovery_code` - beside the
+     * library's: from now on every message is redacted of `name=value` and `name: value` (quoted or not) of
+     * them too. For the whole process, once, while the site starts: the supported way, never a message
+     * edited by reflection. A name is letters, digits, _, - and . (at most 64), compared without case.
+     */
+    public static function addSecretNames(string ...$names): void
+    {
+        foreach ($names as $name) {
+            if (preg_match('/^[A-Za-z](?:[A-Za-z0-9_.-]{0,62}[A-Za-z0-9_])?$/D', $name) !== 1) {
+                throw new \InvalidArgumentException("A secret's name is letters, digits, _, - and . (at most 64): \"$name\" is not.");
+            }
+            if (!in_array(strtolower($name), self::$siteNames, true)) {
+                self::$siteNames[] = strtolower($name);
+            }
+        }
+    }
+
+    /** @internal the tests: the library's names alone again */
+    public static function forgetSiteSecretNames(): void
+    {
+        self::$siteNames = [];
+    }
+
     /**
      * A message - its first 4,096 characters - with the personal data and the
      * secrets taken out (see the class). Should a rule fail (PCRE's limits), the
@@ -50,7 +83,12 @@ final class Redactor
      */
     public static function text(string $text): string
     {
-        $text = Utf8::prefix($text, self::TEXT_LIMIT);
+        $whole = Utf8::scrub($text);
+        $text = Utf8::prefix($whole, self::TEXT_LIMIT);
+        if (strlen($text) < strlen($whole)) {
+            $text = self::withoutTheCutRun($text);
+        }
+        $names = self::SECRET_NAMES . implode('', array_map(static fn (string $name): string => '|' . preg_quote($name, '/'), self::$siteNames));
 
         $rules = [
             // PostgreSQL's detail lines, from the first to the end: they quote rows and values.
@@ -60,8 +98,9 @@ final class Redactor
             '/(:\s+)"(?:[^"\\\\\n]++|\\\\.|"")*+"(?=[ \t]*(?:$|\R))/mu' => '$1"' . self::MARK . '"',
             '/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]+/iu' => '$1 ' . self::MARK,
             '/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/u' => '{token}',
-            // name=value, name: value, and the same quoted - JSON's "password":"…", PHP's 'pass' => '…'.
-            '/\b(pass(?:word|wd)?|pwd|secret|client_secret|token|access_token|refresh_token|id_token|api[_-]?key|access[_-]?key|authorization|cookie|session(?:[_-]?id)?|sid|ticket|code_verifier|signature|sig)\b(["\']?\s*(?:=>|[=:])\s*)("(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|[^\s&,;"\']+)/iu' => '$1$2' . self::MARK,
+            // name=value, name: value, and the same quoted - JSON's "password":"…", PHP's 'pass' => '…' - a quoted
+            // one the text ends inside (cut) to its end: its words before the cut are the secret's too.
+            '/\b(' . $names . ')\b(["\']?\s*(?:=>|[=:])\s*)("(?:[^"\\\\]|\\\\.)*(?:"|\z)|\'(?:[^\'\\\\]|\\\\.)*(?:\'|\z)|[^\s&,;"\']+)/iu' => '$1$2' . self::MARK,
             '/(\bhttps?:\/\/[^\s?#"\'<>]*)\?[^\s#"\'<>]*/iu' => '$1?' . self::MARK,
             '/\?[A-Za-z0-9_.\[\]-]+=[^\s#"\'<>]*/u' => '?' . self::MARK,
             '/[^\s@<>()\[\]{}"\',;:\/\\\\]+@[^\s@<>()\[\]{}"\',;:\/\\\\]+\.[^\s@<>()\[\]{}"\',;:\/\\\\.]+/u' => '{email}',
@@ -118,6 +157,17 @@ final class Redactor
         }
 
         return Utf8::cut(implode('/', $segments), $limit);
+    }
+
+    /**
+     * A text cut before it was redacted, without the run of non-space characters the cut went through (/\S*$/):
+     * half a token, an address or a JWT is something no rule knows any more, and would stay as it is. Back to the
+     * last white space byte by byte - one is always ASCII, so no character is split - in time that grows with
+     * the run alone.
+     */
+    private static function withoutTheCutRun(string $text): string
+    {
+        return substr($text, 0, strlen($text) - strcspn(strrev($text), " \t\n\v\f\r"));
     }
 
     /** A run of a token's alphabet that mixes letters and digits, or is all hex: random, not a word. */

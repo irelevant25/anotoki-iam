@@ -66,6 +66,8 @@ final class Archive
         if ($handle === false) {
             throw new RuntimeException('The backup file could not be made.');
         }
+        // A database whole: the site's own user's alone, before a byte of it is written.
+        @chmod($target, 0600);
         $hash = hash_init('sha256');
         $size = 0;
         $put = static function (string $bytes) use ($handle, $hash, &$size): void {
@@ -154,12 +156,19 @@ final class Archive
      * Anything wrong anywhere throws: a header that is none, a chunk that does
      * not open, a stream cut short, bytes after the end.
      *
+     * $sha256 is given the SHA-256 of the very bytes read - of a plain archive,
+     * every byte of the file, as the entries were made of them - so a caller
+     * compares the file it read, never one it hashed before (which could have
+     * been swapped in between). Null for an encrypted one: every chunk of it is
+     * authenticated, under a key bound to its header.
+     *
      * @param Closure(string $name, int $size): string $place
      * @return array<string, mixed> the header
      * @throws RuntimeException
      */
-    public static function extract(string $file, ?string $siteKey, Closure $place): array
+    public static function extract(string $file, ?string $siteKey, Closure $place, ?string &$sha256 = null): array
     {
+        $sha256 = null;
         $handle = @fopen($file, 'rb');
         if ($handle === false) {
             throw new RuntimeException('The backup file cannot be opened.');
@@ -209,11 +218,14 @@ final class Archive
                 }
                 ChunkCipher::open($handle, ChunkCipher::backupKey($siteKey, $salt), $preamble, $feed);
             } else {
+                $hash = hash_init('sha256');
+                hash_update($hash, $preamble);
                 while (!feof($handle)) {
                     $piece = fread($handle, 1048576);
                     if ($piece === false) {
                         throw new RuntimeException('The backup file could not be read.');
                     }
+                    hash_update($hash, $piece);
                     $feed($piece);
                 }
             }
@@ -221,6 +233,9 @@ final class Archive
                 throw new RuntimeException('The backup ends before its compressed end: it was cut short.');
             }
             $reader->finish();
+            if (isset($hash)) {
+                $sha256 = hash_final($hash);
+            }
 
             return $header;
         } finally {

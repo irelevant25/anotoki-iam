@@ -9,7 +9,9 @@ use Anotoki\Lib\Audit\AuditRecorder;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Support\AfterResponse;
 use Anotoki\Lib\Support\AtomicFile;
+use Anotoki\Lib\Support\Connection;
 use Anotoki\Lib\Support\GuardedDirectory;
+use Anotoki\Lib\Support\Keys;
 use Anotoki\Lib\Support\Log;
 use Anotoki\Lib\Support\Redactor;
 use Anotoki\Lib\Support\Refusal;
@@ -38,7 +40,10 @@ use Throwable;
  * JSON copies, genshin's pg_dump folders) is never touched.
  *
  * Made in one REPEATABLE READ, READ ONLY transaction - one snapshot of every
- * table - in an order a restore can load (parents first), each table COPYed
+ * table, its time the database's own (the manifest's snapshot_at: the clock
+ * the audit log's entries are written by) and the transactions it sees (its
+ * txid_snapshot), which a restore reads what was done since by - in an order a
+ * restore can load (parents first), each table COPYed
  * into a spool of its own (Spool) in a working folder of this run, then
  * tarred, gzipped, encrypted where the site says so (`encryption`: the IAM's,
  * always), hashed, written aside and renamed. On a site that encrypts, the
@@ -55,18 +60,57 @@ use Throwable;
  * a before-restore backup first, then one transaction - every restored table
  * locked (5 seconds at most), its user triggers off (no updated_at rewritten,
  * no IAM MEMBER rows added), emptied in one TRUNCATE, loaded by COPY in the
- * archive's order, its sequences set, its triggers on, its rows counted. Never
- * restored, always kept: the bookkeeping table(s), anotoki_audit_log (the
- * history stays, the restore's own entry in it) and the site's `keep`. Then
- * the site's afterRestore (its anonymization sweep from the backup's time).
+ * archive's order, its sequences set, its triggers on, its rows counted, then
+ * the site's beforeCommit - what must be done again before anybody sees the
+ * rows (People::replay(): the deletes done since the backup) - and only then
+ * the commit: whatever fails rolls the restore back whole, and nobody reads
+ * the restored rows, nor backs them up, before it ran. A restore that waits
+ * more than a minute between two of its statements is ended by PostgreSQL
+ * (idle_in_transaction_session_timeout) and rolled back with its connection: a
+ * hook that works on another connection - the site's own in place of the $pdo
+ * it is given - waits on the restore's own locks while the restore waits on the
+ * hook, and every request to those tables would wait behind both for ever (no
+ * deadlock is seen: the restore's connection is idle). Never restored, always
+ * kept: the bookkeeping table(s), anotoki_audit_log (the history stays, the
+ * restore's own entry in it) and the site's `keep`. Then the site's
+ * afterRestore - what cannot run inside the transaction: the scrub of the
+ * IAM's deleted accounts, which asks the IAM (People::afterRestore()), the
+ * IAM's own sweep.
  *
  * Downloads go by single-use tickets, good for `ticketSeconds` (60; Tickets).
  * The two files of fixed names the folder holds - the before-migration note
  * and the daily stamp - name no backup: a host that ignores .htaccess would
- * hand out both.
+ * hand out both. Every file and folder the backups write is the site's own
+ * user's alone (0600, 0700).
+ *
+ * A backup that is not encrypted is sealed: its sidecar carries an HMAC of
+ * its id and its SHA-256 under a key of this installation's (Keys) - so a file
+ * dropped into the folder, with a sidecar of its own or none, is listed as not
+ * sealed and never restored here (restored offline, from extractTo(), when its
+ * owner means it). The seal vouches for the id and the SHA-256 alone, so a
+ * restore compares the SHA-256 of the very bytes it reads - whatever else the
+ * sidecar says. What it stops is a file put into storage/backups by somebody
+ * who cannot replace the installation's key: a copy from another installation,
+ * a file changed or damaged since, whatever writes into the backups folder but
+ * never reaches the key (the file explorer reaches neither: it refuses a root
+ * that holds anotoki-lib.key, or is, holds or is inside the storage folder).
+ * Not somebody who can write the whole storage folder: deleting
+ * storage/anotoki-lib.key and making it again are a folder's operations - no
+ * read of the old key needed - and with a key of their own they seal what they
+ * like (as they can put a key set of their own in place of the IAM's, kept in
+ * the same folder, which tokens are checked with: the storage folder is the
+ * site's own, and nothing in it holds against whoever writes it). An encrypted
+ * one is sealed by its own cipher, and carries no seal; without the
+ * installation's key a plain one is made unsealed, never refused.
  */
 final class Backups
 {
+    /** Why a backup without this installation's seal is not restored here. */
+    private const UNSEALED = 'It carries no seal of this site\'s - it was not made here, or it was changed since - so it is not restored here: restore it offline (README).';
+
+    /** Why a restore the database ended left nothing of it (load()); %s: how long it may wait between two statements. */
+    private const ENDED = 'the database ended its connection, and its transaction with it - as it ends a restore that waits more than %s between two of its statements: a hook inside it that works on another connection waits on the restore\'s own locks (a delete hook works on the $pdo it is given, never on the site\'s own connection).';
+
     public const DAILY = 'daily';
     public const MANUAL = 'manual';
     public const BEFORE_MIGRATION = 'before-migration';
@@ -82,10 +126,13 @@ final class Backups
     public const DESCRIPTION_LIMIT = 200;
 
     private const OPTIONS = [
-        'site', 'migrator', 'bookkeeping', 'keep', 'encryption', 'restore', 'afterRestore', 'keepDaily',
+        'site', 'migrator', 'bookkeeping', 'keep', 'encryption', 'restore', 'beforeCommit', 'afterRestore', 'keepDaily',
         'keepBeforeMigration', 'keepBeforeRestore', 'staleManualDays', 'schema', 'defer', 'audit', 'lock', 'ready',
         'storage', 'onError', 'ticketSeconds',
     ];
+
+    /** The savepoint a restore's beforeCommit runs behind: gone after it, its transaction was ended inside. */
+    private const BEFORE_COMMIT_SAVEPOINT = 'anotoki_backups_before_commit';
 
     private readonly string $directory;
     private readonly string $site;
@@ -96,6 +143,7 @@ final class Backups
     private readonly array $keep;
     private readonly ?string $encryption;
     private readonly bool $restoreEnabled;
+    private readonly ?Closure $beforeCommit;
     private readonly ?Closure $afterRestore;
     /** @var array<string, int> */
     private readonly array $retention;
@@ -109,6 +157,17 @@ final class Backups
     private readonly Closure $onError;
     private readonly int $ticketSeconds;
     private readonly Tickets $tickets;
+    private ?string $sealKey = null;
+    private bool $sealKeyMissing = false;
+
+    /**
+     * How long a restore's connection may wait between two statements inside its transaction before PostgreSQL ends
+     * it, in milliseconds: a minute. The restore itself never waits so long - PHP between two statements takes
+     * milliseconds, and COPY reads the spools inside its own statement (it is no wait between two) - so only a hook
+     * that waits on something else does: on another connection, which waits on the restore's own locks. No option:
+     * the tests shorten it.
+     */
+    private int $idleMilliseconds = 60_000;
 
     /**
      * @param Closure(): PDO $connect  a connection (PDO::ERRMODE_EXCEPTION) - opened with Copy::connect() where
@@ -121,6 +180,7 @@ final class Backups
      *   keep?: list<string>,
      *   encryption?: ?string,
      *   restore?: bool,
+     *   beforeCommit?: Closure(array<string, mixed>, PDO): void,
      *   afterRestore?: Closure(array<string, mixed>, PDO): void,
      *   keepDaily?: int, keepBeforeMigration?: int, keepBeforeRestore?: int, staleManualDays?: int,
      *   schema?: string,
@@ -139,7 +199,15 @@ final class Backups
      *   - encryption: the site's backup key, 32 bytes (the IAM: Keys::derive(iamMasterKey(), 'iam-backup')) -
      *     every backup is then encrypted, and none opens without it
      *   - restore: false refuses every restore (the IAM, until its afterRestore exists)
-     *   - afterRestore: after a restore committed (the anonymization sweep again, caches cleared)
+     *   - beforeCommit: inside a restore's transaction - its rows loaded and counted, its locks held - before the
+     *     commit: what must be done again before anybody sees the rows (People::replay(): the deletes done since
+     *     the backup), on the restore's connection, the manifest given (its snapshot_at, its txid_snapshot). What
+     *     it throws rolls the restore back whole; it ends no transaction (a savepoint is fine), and does all its
+     *     work on the PDO it is given: another connection waits on the restore's locks, and the restore is ended
+     *     after a minute of waiting for it
+     *   - afterRestore: after a restore committed, what cannot run inside it (People::afterRestore(): the scrub,
+     *     asking the IAM; the IAM's anonymization sweep again, caches cleared) - what it throws is the answer's
+     *     after_restore_error
      *   - keepDaily 14, keepBeforeMigration 5, keepBeforeRestore 5; manual ones flagged after staleManualDays 90
      *   - defer: the site's after-the-answer runner (the daily backup); default: at once
      *   - audit: backup.created (by nobody for the automatic ones), .deleted, .downloaded, .restored, .restore_failed
@@ -173,6 +241,7 @@ final class Backups
         }
         $this->encryption = $encryption;
         $this->restoreEnabled = (bool) ($options['restore'] ?? true);
+        $this->beforeCommit = $options['beforeCommit'] ?? null;
         $this->afterRestore = $options['afterRestore'] ?? null;
         $this->retention = [
             self::DAILY => max(1, (int) ($options['keepDaily'] ?? 14)),
@@ -424,6 +493,9 @@ final class Backups
         if (!$schema['equal']) {
             $reasons[] = 'The database\'s schema has changed since this backup: it is restored offline (README).';
         }
+        if (!$this->sealedOrEncrypted($info)) {
+            $reasons[] = self::UNSEALED;
+        }
         foreach ($this->restoreProblems($pdo, $live['shape']) as $problem) {
             $reasons[] = $problem;
         }
@@ -512,13 +584,15 @@ final class Backups
      * The file a ticket opens - used up whatever the answer - or null. With
      * $by ([the person asking]), only for the person it was issued to: a site
      * whose download route knows who asks (its session cookie) passes them.
+     * With $spend false (a HEAD, which a link checker or a scanner sends), the
+     * ticket is only looked at: the GET it is for still finds it.
      *
      * @param ?array{0: int|string|null} $by
      * @return ?array{path: string, size: int, filename: string}
      */
-    public function redeem(string $id, string $ticket, ?array $by = null): ?array
+    public function redeem(string $id, string $ticket, ?array $by = null, bool $spend = true): ?array
     {
-        if (!self::validId($id) || !$this->tickets->redeem($ticket, $id, $by)) {
+        if (!self::validId($id) || !($spend ? $this->tickets->redeem($ticket, $id, $by) : $this->tickets->good($ticket, $id, $by))) {
             return null;
         }
         $path = $this->path($id);
@@ -600,7 +674,9 @@ final class Backups
                     $reason = Redactor::text($e->getMessage());
                     $this->audit?->record($request, $actorId, 'backup.restore_failed', 'backup', $id, ['before_restore' => $before['id'], 'error' => Utf8::cut($reason, 500)]);
 
-                    return new Refusal(500, 'restore_failed', 'The restore failed and nothing of it stayed: ' . $reason);
+                    return new Refusal(500, 'restore_failed', ($e instanceof RestoreEnded
+                        ? 'The restore did not finish, and what it had loaded may have stayed (' . $before['id'] . ' holds the data as it was): '
+                        : 'The restore failed and nothing of it stayed: ') . $reason);
                 }
             } finally {
                 $this->unlock($pdo);
@@ -660,6 +736,44 @@ final class Backups
         return $this->unpack($id, $info, $directory, spooled: false)[0];
     }
 
+    /**
+     * A backup's manifest - its tables with their rows, its migrations, who made it - read from the start of
+     * the archive alone (an encrypted one decrypted no further than its first chunks), into memory: no row
+     * of the database is read, and nothing is written anywhere. What the command line's --inspect shows.
+     *
+     * @return array<string, mixed>
+     * @throws RuntimeException when it cannot be read (no such backup, another key, no manifest first)
+     */
+    public function manifest(string $id): array
+    {
+        $this->get($id) ?? throw new RuntimeException('There is no such backup.');
+        $json = '';
+        $read = false;
+        $enough = new RuntimeException('The manifest is read: the rest is not.');
+        try {
+            Archive::extract($this->path($id), $this->encryption, static function (string $name, int $size) use (&$json, &$read, $enough): Closure {
+                if ($read || $name !== 'manifest.json' || $size > 64 * 1048576) {
+                    throw $enough;
+                }
+                $read = true;
+
+                return static function (string $bytes) use (&$json): void {
+                    $json .= $bytes;
+                };
+            });
+        } catch (RuntimeException $e) {
+            if ($e !== $enough) {
+                throw $e;
+            }
+        }
+        $manifest = json_decode($json, true);
+        if (!$read || !is_array($manifest) || ($manifest['format'] ?? null) !== 'anotoki-backup-manifest' || ($manifest['id'] ?? null) !== $id) {
+            throw new RuntimeException('Its manifest is not readable.');
+        }
+
+        return $manifest;
+    }
+
     /** A backup's file. */
     public function path(string $id): string
     {
@@ -707,6 +821,13 @@ final class Backups
             try {
                 // One snapshot of every table, and nothing written meanwhile by this connection.
                 $pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+                // What a restore reads the deletes done since by (People::replay()): the snapshot itself - the
+                // transactions it sees (txid_current_snapshot(): taken by this, the transaction's first statement,
+                // and every COPY reads under it) - and its time by the database's clock, which writes every audit
+                // entry (now(): the transaction's start, before its snapshot).
+                [$snapshotAt, $txidSnapshot] = $pdo->query(
+                    "SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), CAST(txid_current_snapshot() AS text)"
+                )->fetch(PDO::FETCH_NUM);
                 $shape = DatabaseShape::read($pdo, $this->schema);
                 $migrator = ($this->migrator)($pdo);
                 $records = self::records($migrator);
@@ -774,6 +895,8 @@ final class Backups
                 'site' => $this->site,
                 'kind' => $kind,
                 'created_at' => $createdAt,
+                'snapshot_at' => (string) $snapshotAt,
+                'txid_snapshot' => (string) $txidSnapshot,
                 'created_by' => $actorId,
                 'description' => $description,
                 'database_schema' => $this->schema,
@@ -809,7 +932,18 @@ final class Backups
                 'duration_ms' => (int) round((microtime(true) - $started) * 1000),
             ];
             unset($info['cipher']);
-            AtomicFile::write($target . '.json', json_encode($info, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+            // A plain backup's seal: made here, and as it was made (the class). An encrypted one needs none - its
+            // cipher is its seal - and a backup is never kept from being made for want of one: without the
+            // installation's key it is made unsealed (restored offline), and the site is told.
+            if ($this->encryption === null) {
+                $seal = $this->seal($id, $written['sha256']);
+                if ($seal !== null) {
+                    $info['seal'] = $seal;
+                } else {
+                    ($this->onError)(new RuntimeException('The backup ' . $id . ' was made without its seal: the installation\'s key (storage/' . Keys::INSTALLATION_FILE . ') can be neither read nor made, so it is restored offline only.'));
+                }
+            }
+            AtomicFile::write($target . '.json', json_encode($info, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), mode: 0600);
 
             return $this->info($id) ?? $info;
         } finally {
@@ -830,6 +964,7 @@ final class Backups
         if ($handle === false) {
             return;
         }
+        @chmod($stampFile, 0600);
         try {
             // One process makes the day's backup; another finds the lock taken and leaves.
             if (!flock($handle, LOCK_EX | LOCK_NB)) {
@@ -921,7 +1056,7 @@ final class Backups
         } finally {
             $this->release($held);
         }
-        AtomicFile::write($noteFile, (string) json_encode(['pending' => $pending, 'made' => $info['created_at']]));
+        AtomicFile::write($noteFile, (string) json_encode(['pending' => $pending, 'made' => $info['created_at']]), mode: 0600);
         $this->audit?->record(null, null, 'backup.created', 'backup', $info['id'], self::auditDetails($info));
         $this->prune();
 
@@ -966,11 +1101,14 @@ final class Backups
     private function unpack(string $id, array $info, string $work, bool $spooled): array
     {
         $file = $this->path($id);
-        if (isset($info['sha256']) && is_string($info['sha256']) && ($info['status'] ?? null) === 'complete') {
-            if (!hash_equals($info['sha256'], (string) hash_file('sha256', $file))) {
-                throw new RuntimeException('Its checksum is not the one it was written with: it was changed or damaged.');
-            }
+        // A restore here takes only what this installation made: a plain backup with its seal (the class).
+        if ($spooled && ($info['sealed'] ?? false) !== true) {
+            throw new RuntimeException(self::UNSEALED);
         }
+        // The seal vouches for the SHA-256 beside it, and for nothing else of the sidecar (its status least of
+        // all): a plain backup is restored only when the very bytes read below - the file is opened once - are
+        // the ones sealed. An encrypted one's chunks are authenticated as they are read.
+        $sealedSha256 = is_string($info['sha256'] ?? null) ? $info['sha256'] : null;
         if (!is_dir($work)) {
             throw new RuntimeException('Its working folder is not there.');
         }
@@ -988,6 +1126,7 @@ final class Backups
         };
         $seen = [];
         $spools = [];
+        $read = null;
         $sealed = $this->encryption !== null;
         try {
             $header = Archive::extract($file, $this->encryption, function (string $name, int $size) use ($work, $readManifest, &$seen, &$spools, $spooled, $sealed): string {
@@ -1022,8 +1161,13 @@ final class Backups
                     }
                 }
                 throw new RuntimeException("It holds a part its manifest does not name ($name).");
-            });
+            }, $read);
 
+            // A plain archive: the bytes just read must be the ones its sidecar names (and, for a restore, seals) -
+            // whatever else the sidecar says. Checked here, before a row of them is loaded.
+            if ($read !== null && ($spooled || $sealedSha256 !== null) && ($sealedSha256 === null || !hash_equals($sealedSha256, $read))) {
+                throw new RuntimeException('Its checksum is not the one it was written with: it was changed or damaged.');
+            }
             $manifest = $readManifest();
             if (($header['id'] ?? null) !== $id || ($manifest['id'] ?? null) !== $id) {
                 throw new RuntimeException('It is another backup than its name says.');
@@ -1075,8 +1219,13 @@ final class Backups
             throw new RuntimeException('A restore is its own transaction: the connection is in another one.');
         }
         $pdo->beginTransaction();
+        $committing = false;
         try {
             $pdo->exec("SET LOCAL lock_timeout = '5s'");
+            // Ended by PostgreSQL - rolled back, its locks let go - should it wait between two statements longer than
+            // a restore ever does by itself ($idleMilliseconds): a hook that waits on another connection, which waits
+            // on these locks, would otherwise hold the site's tables for ever. SET LOCAL: until the transaction ends.
+            $pdo->exec('SET LOCAL idle_in_transaction_session_timeout = ' . max(1, $this->idleMilliseconds));
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             if ($qualified !== []) {
                 $pdo->exec('LOCK TABLE ' . implode(', ', $qualified) . ' IN ACCESS EXCLUSIVE MODE');
@@ -1103,8 +1252,22 @@ final class Backups
                 if ($sequence['owner'] !== null && isset($owners[$sequence['owner']])) {
                     continue;
                 }
-                $pdo->prepare('SELECT setval(CAST(? AS regclass), CAST(? AS bigint), CAST(? AS boolean))')
-                    ->execute([$shape->qualified((string) $sequence['name']), (string) $sequence['last_value'], $sequence['is_called'] ? 'true' : 'false']);
+                // Never backwards: the next value is the later of the backup's and today's. A value handed out
+                // since the backup was made may be named where a restore never reaches - the audit log kept, a
+                // site's generations of progress - and must never be handed out again. "Later" in the sequence's
+                // own direction, by its own step: higher for one that counts up, lower for one that counts down
+                // (a site's visitors: -1, -2, ...), where a step of +1 would leave its range (setval(0) past
+                // MAXVALUE -1) and fail every restore of a database that ever had a visitor.
+                $sequenceName = $shape->qualified((string) $sequence['name']);
+                $step = $pdo->prepare('SELECT seqincrement FROM pg_sequence WHERE seqrelid = CAST(? AS regclass)');
+                $step->execute([$sequenceName]);
+                $increment = (int) $step->fetchColumn();
+                $later = $increment < 0 ? 'LEAST' : 'GREATEST';
+                $pdo->prepare(
+                    'SELECT setval(CAST(? AS regclass), ' . $later . '(CAST(? AS bigint) + CASE WHEN CAST(? AS boolean) THEN CAST(? AS bigint) ELSE 0 END,
+                                   s.last_value + CASE WHEN s.is_called THEN CAST(? AS bigint) ELSE 0 END), false)
+                       FROM ' . $sequenceName . ' s'
+                )->execute([$sequenceName, (string) $sequence['last_value'], $sequence['is_called'] ? 'true' : 'false', (string) $increment, (string) $increment]);
             }
             // The deferred keys checked now, while their tables are whole: ALTER TABLE refuses a table with checks pending.
             $pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
@@ -1117,15 +1280,87 @@ final class Backups
                     throw new RuntimeException('The table ' . $table['name'] . ' holds ' . $count . ' rows after the load, where the backup has ' . $table['rows'] . '.');
                 }
             }
+            // What must be done again before anybody sees these rows - the deletes done since the backup - is
+            // done here, the locks still held: a request that dies after the commit leaves nothing undone, and no
+            // backup is ever made of the rows without it.
+            if ($this->beforeCommit !== null) {
+                $this->runBeforeCommit($manifest, $pdo);
+            }
+            $committing = true;
             $pdo->commit();
         } catch (Throwable $e) {
+            // The database ended the connection - its transaction went with it, rolled back: nothing of the restore
+            // stayed. Unless it went while the COMMIT was on its way, which may have been done.
+            if (Connection::lost($pdo)) {
+                throw $committing
+                    ? new RestoreEnded('Its connection to the database was lost while it committed: ' . $e->getMessage(), 0, $e)
+                    : new RuntimeException(sprintf(self::ENDED, self::seconds($this->idleMilliseconds)), 0, $e);
+            }
             if ($pdo->inTransaction()) {
-                $pdo->rollBack();
+                try {
+                    $pdo->rollBack();
+                } catch (Throwable) {
+                    // What failed first is what is said.
+                }
             }
             throw $e;
         }
 
         return ['tables' => count($tables), 'rows' => $rows];
+    }
+
+    /** A wait in milliseconds as the restore's words say it: "a minute", "5 seconds". */
+    private static function seconds(int $milliseconds): string
+    {
+        $seconds = max(1, intdiv($milliseconds + 999, 1000));
+
+        return match (true) {
+            $seconds === 60 => 'a minute',
+            $seconds === 1 => 'a second',
+            default => $seconds . ' seconds',
+        };
+    }
+
+    /**
+     * The site's beforeCommit, behind a savepoint of the restore's: a hook that ended the transaction - a commit
+     * or a rollback, a new one begun after it or not - leaves the savepoint gone, and is told apart from a hook
+     * that failed inside it (RestoreEnded: what the restore had loaded may have been committed with it), and from
+     * a connection the database ended meanwhile (load() says so: nothing of the restore stayed).
+     *
+     * @param array<string, mixed> $manifest
+     */
+    private function runBeforeCommit(array $manifest, PDO $pdo): void
+    {
+        $pdo->exec('SAVEPOINT ' . self::BEFORE_COMMIT_SAVEPOINT);
+        try {
+            ($this->beforeCommit)($manifest, $pdo);
+        } catch (Throwable $e) {
+            if (!self::savepointHeld($pdo, 'ROLLBACK TO') && !Connection::lost($pdo)) {
+                throw new RestoreEnded('Its beforeCommit ended the restore\'s transaction, then failed: ' . $e->getMessage(), 0, $e);
+            }
+            throw $e;
+        }
+        if (!self::savepointHeld($pdo, 'RELEASE')) {
+            if (Connection::lost($pdo)) {
+                throw new RuntimeException('The database ended the restore\'s connection while its beforeCommit ran.');
+            }
+            throw new RestoreEnded('Its beforeCommit ended the restore\'s transaction - a hook inside a restore begins, commits or rolls back none of its own (a savepoint is fine).');
+        }
+    }
+
+    /** Whether the restore's savepoint is still there: $how (RELEASE, ROLLBACK TO) it, or fail. */
+    private static function savepointHeld(PDO $pdo, string $how): bool
+    {
+        if (!$pdo->inTransaction()) {
+            return false;
+        }
+        try {
+            $pdo->exec($how . ' SAVEPOINT ' . self::BEFORE_COMMIT_SAVEPOINT);
+
+            return true;
+        } catch (\PDOException) {
+            return false;
+        }
     }
 
     /**
@@ -1228,8 +1463,40 @@ final class Backups
         }
         $info['stale'] = $info['kind'] === self::MANUAL && is_string($info['created_at'] ?? null)
             && strtotime($info['created_at']) < time() - $this->staleManualDays * 86400;
+        // Made here: encrypted under the site's key (its cipher refuses any other), or a plain one whose sidecar
+        // this installation sealed (the class). A site without a key made no encrypted backup; a seal that cannot
+        // be checked (no installation key) is no seal.
+        $seal = $info['seal'] ?? null;
+        unset($info['seal']);
+        $encrypted = ($info['encrypted'] ?? false) === true;
+        $expected = !$encrypted && is_string($seal) && is_string($info['sha256'] ?? null) ? $this->seal($id, $info['sha256']) : null;
+        $info['sealed'] = ($encrypted && $this->encryption !== null) || ($expected !== null && hash_equals($expected, (string) $seal));
 
         return $info;
+    }
+
+    /**
+     * This installation's seal of a backup: an HMAC of its id and its SHA-256, under a key of its own (Keys) -
+     * null when the installation's key can be neither read nor made (asked once: every backup listed would
+     * ask again otherwise).
+     */
+    private function seal(string $id, string $sha256): ?string
+    {
+        if ($this->sealKey === null && !$this->sealKeyMissing) {
+            try {
+                $this->sealKey = Keys::derive(Keys::installation($this->storage), 'backup-seal');
+            } catch (Throwable) {
+                $this->sealKeyMissing = true;
+            }
+        }
+
+        return $this->sealKey === null ? null : hash_hmac('sha256', $id . "\n" . $sha256, $this->sealKey);
+    }
+
+    /** A backup to restore here: encrypted under the site's key, or sealed by this installation. @param array<string, mixed> $info */
+    private function sealedOrEncrypted(array $info): bool
+    {
+        return ($info['sealed'] ?? false) === true;
     }
 
     /** A lock file of the backups folder, so one backup or restore at a time; a refusal when another holds it. */
@@ -1242,6 +1509,7 @@ final class Backups
         if ($handle === false) {
             return new Refusal(500, 'storage_unavailable', 'The backups folder cannot be written.');
         }
+        @chmod($this->directory . '/.lock', 0600);
         if (!flock($handle, LOCK_EX | LOCK_NB)) {
             fclose($handle);
 

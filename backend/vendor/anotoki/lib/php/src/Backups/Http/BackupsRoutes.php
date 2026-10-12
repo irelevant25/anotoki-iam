@@ -55,11 +55,12 @@ final class BackupsRoutes
         $routes = Routes::adminGroup($app, $base, $context, function (RouteCollectorProxyInterface $group) use ($backups, $context, &$mounted): void {
             $id = '/{id:' . Backups::ID_PATTERN . '}';
 
-            Routes::plain($group->get('', function (ServerRequestInterface $request, ResponseInterface $response) use ($backups): ResponseInterface {
+            Routes::plain($group->get('', function (ServerRequestInterface $request, ResponseInterface $response) use ($backups, $context): ResponseInterface {
                 $status = $backups->status();
-                $list = $backups->list();
+                $list = self::named($backups->list(), $context);
                 foreach ($list as $index => $backup) {
                     $list[$index]['restorable'] = $status['restorable'] && is_array($status['schema'])
+                        && ($backup['sealed'] ?? false) === true
                         && ($backup['schema']['migrations_sha256'] ?? null) === $status['schema']['migrations_sha256']
                         && ($backup['schema']['columns_sha256'] ?? null) === $status['schema']['columns_sha256'];
                     unset($list[$index]['schema']);
@@ -87,7 +88,7 @@ final class BackupsRoutes
                     return $context->refuse($response, $backup);
                 }
 
-                return JsonResponse::write($response, 201, ['backup' => self::shown($backup)]);
+                return JsonResponse::write($response, 201, ['backup' => self::shown(self::named([$backup], $context)[0])]);
             }));
 
             Routes::plain($group->get($id, function (ServerRequestInterface $request, ResponseInterface $response) use ($backups, $context): ResponseInterface {
@@ -96,7 +97,7 @@ final class BackupsRoutes
                     return $context->refuse($response, new Refusal(404, 'not_found', 'There is no such backup.'));
                 }
 
-                return JsonResponse::write($response, 200, ['backup' => $backup]);
+                return JsonResponse::write($response, 200, ['backup' => self::named([$backup], $context)[0]]);
             }));
 
             Routes::plain($group->delete($id, function (ServerRequestInterface $request, ResponseInterface $response) use ($backups, $context): ResponseInterface {
@@ -199,17 +200,24 @@ final class BackupsRoutes
         ?StreamFactoryInterface $streams = null,
         bool $samePerson = false,
     ): RouteInterface {
+        // A GET spends the ticket; a HEAD (Slim answers it with the GET route: a link checker, a scanner, a
+        // browser's look ahead) only looks at it, so the download it is for still works.
         return Routes::plain($app->get($base . '/{id:' . Backups::ID_PATTERN . '}/file', function (ServerRequestInterface $request, ResponseInterface $response) use ($backups, $context, $streams, $samePerson): ResponseInterface {
+            $head = strtoupper($request->getMethod()) === 'HEAD';
             $ticket = $request->getQueryParams()['ticket'] ?? null;
             $file = is_string($ticket)
-                ? $backups->redeem((string) $request->getAttribute('id'), $ticket, $samePerson ? [$context->actorId($request)] : null)
+                ? $backups->redeem((string) $request->getAttribute('id'), $ticket, $samePerson ? [$context->actorId($request)] : null, spend: !$head)
                 : null;
             if ($file === null) {
                 return $context->refuse($response, new Refusal(403, 'ticket_invalid', 'This download link was used already, has run out, or is no link of this backup. Ask for the download again.'))
                     ->withHeader('Referrer-Policy', 'no-referrer');
             }
 
-            return FileStreams::send($request, $response, $file['path'], FileStreams::factory($streams))
+            $answer = $head
+                ? $response->withHeader('Content-Length', (string) $file['size'])
+                : FileStreams::send($request, $response, $file['path'], FileStreams::factory($streams));
+
+            return $answer
                 ->withHeader('Content-Type', 'application/octet-stream')
                 ->withHeader('Content-Disposition', 'attachment; filename="' . $file['filename'] . '"')
                 ->withHeader('Cache-Control', 'no-store')
@@ -227,6 +235,24 @@ final class BackupsRoutes
     public static function openPaths(string $base = '/api/admin/backups'): array
     {
         return ['~^' . preg_quote($base, '~') . '(/proof|/[A-Za-z0-9-]{20,80}(/(ticket|file|preview))?)?$~D'];
+    }
+
+    /**
+     * Each backup with its maker's name (created_by_name) from the context's names - null where the site gave
+     * no names, or the id is nobody it knows.
+     *
+     * @param list<array<string, mixed>> $backups
+     * @return list<array<string, mixed>>
+     */
+    private static function named(array $backups, AdminContext $context): array
+    {
+        $names = $context->names(array_values(array_filter(array_column($backups, 'created_by'), static fn (mixed $id): bool => $id !== null)));
+        foreach ($backups as $index => $backup) {
+            $by = $backup['created_by'] ?? null;
+            $backups[$index]['created_by_name'] = ($by !== null && (is_int($by) || is_string($by))) ? ($names[$by] ?? null) : null;
+        }
+
+        return $backups;
     }
 
     /**

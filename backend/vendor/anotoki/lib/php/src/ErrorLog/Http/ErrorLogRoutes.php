@@ -35,9 +35,12 @@ use Slim\Interfaces\RouteInterface;
  * Open while an update waits (they need no table): openPaths($base) in the site's gate.
  *
  * client() - the pages' own errors (the owner's decision of 2026-10-07): public,
- *   POST $path {type?, message, page?, stack?, status?} -> 204, a body of at most
- *   8 KB, at most 20 an hour from one address bucket and 500 a day from everybody
- *   (429 too_many), each redacted like any line.
+ *   POST $path {type?, message, page?, stack?, status?} -> 204, JSON only (415), a
+ *   body of at most 8 KB (413), a message (422); at most 20 an hour from one sender
+ *   - a signed-in person by their account, a visitor by their address bucket - and
+ *   500 a day from the visitors together, as many from the people signed in
+ *   together (429 too_many, retry_after); each redacted like any line. The
+ *   browser's side: @anotoki/lib/error-report.
  */
 final class ErrorLogRoutes
 {

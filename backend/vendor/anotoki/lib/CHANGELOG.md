@@ -5,6 +5,123 @@ and the npm package `@anotoki/lib` (`angular/projects/lib/package.json`). While 
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.5.1 - 2026-10-12
+
+A restore set every sequence one step past the later of the backup's value and today's - by +1, and the
+higher of the two. A sequence that counts down (a site's visitors: `visitor_ids`, INCREMENT BY -1,
+MAXVALUE -1) was set back up instead: with one visitor ever made, to 0 - past its MAXVALUE, so the
+restore failed whole (`500 restore_failed`, nothing restored) on every site that ever had a visitor; with
+more, to an id a visitor had already been given. Each sequence now goes one of its own steps past the
+later value in its own direction (the lower of the two for one that counts down), read from
+`pg_sequence`; a sequence that counts up by more than 1 keeps its step too. Found by Piano Academy's
+restore test. Only the PHP half changed: a site takes it with `composer update anotoki/lib`; its frontend
+may stay on the 0.5.0 tarball (the same code but the version string).
+
+## 0.5.0 - 2026-10-11
+
+A minor version, not 0.4.2: it changes what a site's hooks are given and may do (the People delete, the
+restore's hooks, sealed backups, `AdminContext`'s addresses), and `^0.4.1` would take a patch by itself. README.md,
+"Upgrading from 0.4.x (0.5.0)", says what each site changes.
+
+People, auth and the kit:
+- A restore no longer brings back what was deleted for a person. Inside its transaction, before anybody sees the
+  rows - its locks held, so a request that dies after the commit leaves nothing undone and no backup is made of the
+  rows without it - `People::replay()` (Backups' new `beforeCommit`) does again every `person.data_deleted` and
+  `feedback.deleted` (by the message's id and the time it was sent) the audit log holds from the backup's
+  `snapshot_at` on: the database's clock, now in the manifest. Whatever fails rolls the restore back whole; so does
+  a check of the IAM's list running across it ("restore again in a minute"), and - with something to do again - a
+  backup with no time or a database with no audit log. Once it committed, `People::afterRestore()` runs the scrub
+  of the IAM's deleted accounts, and the site's own work whatever the scrub did: not done is `after_restore_error`
+  (its first failure chained), and the next request scrubs again. `People::restoreHooks()` gives both; the survey's,
+  Piano Academy's and genshin's hand-written versions go. A scrub a restore overtook keeps the restored place in the
+  IAM's list (it reads its place once).
+- A restore that waits more than a minute between two of its statements is ended by PostgreSQL
+  (`idle_in_transaction_session_timeout`, for its transaction alone) and rolled back with its connection: "the
+  database ended its connection", nothing of it stayed. A delete hook that works on the site's own connection in
+  place of the `$pdo` it is given waits on the restore's locks while the restore waits on it - no deadlock is seen
+  (the restore's connection is idle), and every request to those tables would wait behind both for ever.
+- The People page's delete forgets the person's feedback itself (`People::delete()`, `Feedback::forgetPeopleOn()`),
+  in a transaction of the library's around the site's hook - behind a savepoint, so a hook that ends the
+  transaction it was given is found, and inside a restore's a failing hook takes back its own work alone. With the
+  site's `AuditLog`, its `person.data_deleted` is written inside that transaction (`AuditLog::recordInside()`): a
+  delete is never made without the entry a restore does it again by - one that cannot be written undoes it, and
+  while the audit log's table waits the route answers `503 feature_unavailable`. The entry names its transaction
+  (`_txid`), and its time is when that transaction began: a restore does it again, as before, from the snapshot's
+  time on - and, for an entry dated within the hour before it, when its transaction is not in the backup's snapshot
+  (`txid_visible_in_snapshot()`, the manifest's new `txid_snapshot`). Never further back: a cluster's ids are its
+  own, and after a move by `pg_dump` every older entry would seem unseen, its delete done again on what the person
+  kept since. Entries and backups of before go by the time alone.
+- Auth: the client's token requests (`@anotoki/lib/auth/session`) and the two screens (`@anotoki/lib/auth/screens`;
+  the routes of before load them as they open) left the first load, the shared part `@anotoki/lib/auth/core`. The
+  sign-in's first load: 18.9 -> 17.1 kB gzipped, 63.1 -> 54.7 kB raw (auth 34.4 -> 26.1); the gate's unchanged. A
+  callback whose part does not load keeps the hint's silent hop silent, and goes back where it came from.
+- The kit: Edge's own reveal button hidden in the password field; the folded bar's menu button marked when a link in
+  it has a badge, its name saying which; the lazy pages' icons their own, out of the first load of a site that loads
+  `@anotoki/lib/ui/icons` (~0.7 kB).
+
+What a site must do: its People delete hook does ALL its work on the `$pdo` it is given - never the site's own
+connection: Japanese Academy's `people_delete` (`db_tx`/`db_exec` on `db()`), Piano Academy's `peopleDelete`
+(`dbTx`/`dbExec`/`db()`) and the build analyzer's `SitePeople::deleteData` (its `Db`, `Users`, `Feedback`) work on
+their own today, which in a restore waits on the restore's locks: the restore is ended after a minute
+(`500 restore_failed`), and every request to those tables waits until then. It begins, commits or rolls back no
+transaction of its own (genshin's, the build analyzer's begin one) and takes a null request - in a replay, the
+database's part alone (no copy first, as Japanese Academy keeps); then
+`...$people->restoreHooks(delete: ..., defer: ..., then: ...)` among its Backups' options replaces its own. Feedback
+deletes audited before 0.5.0 name no time and are not done again.
+
+**Admin tools** - what the sites and their reviews found after 0.4.1 (README.md, "Admin tools"):
+- Addresses (the owner's rule of 2026-10-11): `Support\ClientAddress` is the one reading wherever the library
+  takes an address - `CF-Connecting-IP` believed only on a connection from `trustedProxies`
+  (`ClientAddress::CLOUDFLARE`), an IPv4 address written as IPv6 (`::ffff:…`) read as the IPv4 one, an IPv6
+  address counted by its /64, only keyed HMACs kept. A site behind
+  Cloudflare passes `trustedProxies: ClientAddress::CLOUDFLARE` to its `AdminContext` (and to `AuditLog` where
+  it keeps the address); without it, nothing but `REMOTE_ADDR` is read, as before.
+- `AdminContext` `names` (optional): people's names by id - the backups' maker (`created_by_name`), the audit
+  log's and feedback's people where their routes get no lookup of their own.
+- Error log: an expected state (`update_pending`, `feature_unavailable`, `not_set_up`) is no longer written
+  (`expected`); an anonymous class's and a closure's file is relative; on an admin tool's route the person is
+  the one the route saw (or `Identify`'s); `Redactor::addSecretNames()` takes a site's own secrets' names (the
+  IAM: in place of editing messages by reflection); the pages' reports count a signed-in person by account,
+  apart from the visitors' day. `Redactor::text()` drops the run of characters its 4,096-character cut went
+  through (half a JWT, an address or a token is one no rule knows) and takes a quoted secret the text ends inside
+  to its end. An exception thrown for another keeps the chain in its line's `trace` - each cause's
+  `Caused by Type (file:line): message`, redacted, and its own frames, within the trace's 12 lines - so a
+  wrapper's sentence (`after_restore_error`) comes with its real failure; the fingerprint is the exception's own.
+- `@anotoki/lib/error-report` (new): `provideAnotokiErrorReport()` sends the browser's errors to
+  `ErrorLogRoutes::client()` through the app's HttpClient (the site's interceptors, its CSRF header) - scrubbed,
+  at most 5 a page load, each once, never recursing, nothing read past what a report keeps, and nothing kept of
+  the run a cut went through (the path: its segment).
+- Backups: a plain backup is sealed under the installation's key, and only a sealed or encrypted one is restored
+  here (a plain one made before 0.5.0: offline, `--extract`) - the seal vouches for the id and the SHA-256 alone,
+  so a restore hashes the very bytes it reads; an encrypted backup carries no seal, and without the installation's
+  key a plain one is made unsealed, never refused. The seal keeps out a file put into `storage/backups` by
+  somebody who cannot replace that key (a copy from another installation, a changed file, whatever writes the
+  backups folder alone) - not somebody who can write the whole storage folder, who can delete the key and make
+  their own, as they can the IAM's key set kept there; the key stays in `storage/` (one in the database would be
+  lost with it, every restore refused in the disaster a backup is for). A restore never moves a sequence back;
+  `--inspect` reads the manifest alone; a HEAD never spends a download ticket; files the site's own user's alone
+  (`0600`) from their creation (`tempnam()`: `Support\AtomicFile`), folders `0700` (every guarded folder too);
+  the installation's key made whole before it is linked into place (`link()`: one key, whoever makes it at the
+  same moment) - without `link()` (a host's `disable_functions`), its name claimed with an empty file only one
+  process can make (`fopen('x')`) and only the claimant's key renamed over it, the others waiting while it is
+  empty.
+- Audit log: a flush empties the pending file under the lock its writers take (an entry written meanwhile waits
+  and lands after) and never inserts an entry twice; the 64 KB cut keeps the details' keys; `recordInside()`
+  writes an entry that must be there inside its change's transaction, or throws. Feedback: a
+  signed-in sender is counted by account, in a day's budget of the people signed in apart from the visitors'
+  (`allPerDay` each); a message "without my name" is counted as a visitor's; a count that cannot be kept
+  answers `503 storage_unavailable`, which the error log writes; the reply address is only what the form sends;
+  with the site's `AuditLog`, a delete's `feedback.deleted` is written inside the delete's transaction
+  (`Feedback::deleteWithEntry()`: no delete without it, `503 feature_unavailable` while the audit log's table
+  waits) and a restore matches it to the backup as it does a person's.
+- `Support\Keys::installation()` is as safe as the storage folder, no safer: it keys the error log's client
+  hashes, the feedback limits' buckets, the file explorer's preview links and the backups' seal, and whoever can
+  write the whole folder can make it their own. A preview link alone reads one file of a root: a site with a
+  secret outside `storage/` gives the file explorer `key:` (README, "File explorer").
+- The pages: "Open Migrations" readable while an update waits; the error log's Range, the filters and each
+  search with its button fit at 1000-1280 px beside a side navigation, and at 390 px.
+- `composer.json` requires `ext-mbstring`, which the library uses.
+
 ## 0.4.1 - 2026-10-11
 
 0.4.0 on PHP 8.2: a search on the admin Feedback page failed with `SQLSTATE[HY093]` - a 500. It said

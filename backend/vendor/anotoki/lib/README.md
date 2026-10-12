@@ -9,7 +9,7 @@ version:
 | PHP 8.2+, Slim 4, PostgreSQL | `anotoki/lib` (Composer) | `composer.json`, `php/src/`, `php/migrations/`, `php/resources/`, `php/testing/` |
 | Angular 21 (standalone, zoneless, signals) | `@anotoki/lib` (npm tarball) | `angular/projects/lib/` |
 
-Version 0.4.1 holds:
+Version 0.5.1 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -27,7 +27,8 @@ Version 0.4.1 holds:
   section "People");
 - **the admin tools** (both halves) - the error log, the audit log, feedback,
   backups and the file explorer, each an admin page, and the visitors' feedback
-  form in their language (the section "Admin tools").
+  form in their language - and the pages' own errors reported to the error log
+  (`@anotoki/lib/error-report`) (the section "Admin tools").
 
 ## The behaviour
 
@@ -202,7 +203,7 @@ uses is in the first load again.
 | `@anotoki/lib/ui/icon`, `/dom` | `<anotoki-icon>`, `AnotokiIcons` and the kit's own icons; `uniqueId`, `keepOnScreen`, `mediaQuery`, `tabbable`, `isShown` | yes (the bar) |
 | `@anotoki/lib/ui/button`, `/spinner` | the button, the spinner | yes (the status page) |
 | `@anotoki/lib/ui/badge`, `/alert`, `/card`, `/empty-state`, `/error-state`, `/page-header`, `/avatar`, `/segmented`, `/autofocus` | one piece each | where a first page uses it |
-| `@anotoki/lib/ui/icons` | the family's other icons, data only (`iconTrash`, `iconUsers`, ...) | what the site registers |
+| `@anotoki/lib/ui/icons` | the family's other icons, data only (`iconTrash`, `iconUsers`, ...) - a site's alone: no entry point imports it (0.5.0: the lazy pages carry their own copies) | what the site registers |
 | `@anotoki/lib/ui/menu` | menu button, menu, menu item, separator; popover | yes (the bar) |
 | `@anotoki/lib/ui/dialog` | dialog, `AnotokiDialog.open()`, `ConfirmService` + `<anotoki-confirm-host>` | where the host is in the root |
 | `@anotoki/lib/ui/toast` | `ToastService` + `<anotoki-toast-host>` | yes |
@@ -214,7 +215,10 @@ uses is in the first load again.
 | `@anotoki/lib/translations` | the translation service, the `translate` and `translatePlural` pipes, the kit's and the shell's wiring, the status page's words, the admin pages' guard | yes (every page) |
 | `@anotoki/lib/translations/admin` | the admin Translations and Languages pages, their drafts | lazy admin routes |
 | `@anotoki/lib/translations/testing` | `provideTestTranslations()`, a stand-in for a site's specs | a site's specs |
-| `@anotoki/lib/auth` (0.4.0) | signing in through the IAM: its browser client, `AnotokiAuth`, the interceptor, the guards, `AccountPreferences`, the callback page and the failure's screen ("Auth" below) | yes (every page of a site that signs in) |
+| `@anotoki/lib/auth` (0.4.0) | signing in through the IAM: its browser client, `AnotokiAuth`, the interceptor, the guards, `AccountPreferences`, the routes of the callback page and the failure's screen ("Auth" below) | yes (every page of a site that signs in) |
+| `@anotoki/lib/auth/core` (0.5.0) | what the auth module's parts share: the client's types and helpers, the configuration and browser tokens, the built-in words, `SignInSession`; the library's own - `@anotoki/lib/auth` names all of it | with the module |
+| `@anotoki/lib/auth/screens` (0.5.0) | the callback page and the failure's screen themselves | as their route opens |
+| `@anotoki/lib/auth/session` (0.5.0) | the client's token requests: a callback's code exchange, a refresh, a preferences save; the library's own | the first time one is made |
 | `@anotoki/lib/auth/testing` (0.4.0) | `provideTestAnotokiAuth()`, `FakeAuthClient`: the module without an IAM, for a site's specs | a site's specs |
 | `@anotoki/lib/people` (0.4.0) | `provideAnotokiPeople()` and the shape of the People API ("People" below) | where the site configures the page (its app.config, or the page's route) |
 | `@anotoki/lib/people/page` (0.4.0) | the admin People page | a lazy admin route |
@@ -223,6 +227,7 @@ uses is in the first load again.
 | `@anotoki/lib/admin/parts` (0.4.0) | what those pages share - their requests, failures, dates, question dialog and styles; the library's own, a site imports nothing of it | with the first of them |
 | `@anotoki/lib/feedback` (0.4.0) | the visitors' feedback form's configuration (`provideAnotokiFeedback`, which registers its words) and its words | yes, beside the translations module |
 | `@anotoki/lib/feedback/form` (0.4.0) | `<anotoki-feedback-form>`, on the kit's fields | loaded when the person opens it |
+| `@anotoki/lib/error-report` (0.5.0) | `provideAnotokiErrorReport()`: the browser's errors in the site's error log ("Admin tools" below) | yes (every page) |
 | `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's) | with its module, which alone imports it and registers it with the translations module |
 | `@anotoki/lib/words` (0.4.0, generated) | `LIBRARY_WORDS`, every module's words (the kit's and each namespace's) | never - a site's specs, the showcase |
 
@@ -402,7 +407,11 @@ unless labelled. The kit's own: `sun`, `moon`, `monitor`, `user`,
 `eyeOff`, `copy`, `refresh`, `arrowLeft`, `externalLink`, `sparkle`, `search`,
 `plus`; the rest from `@anotoki/lib/ui/icons`, registered by name (`icons`
 above, or an `ANOTOKI_ICONS` multi provider on a lazy route). An unknown name
-draws nothing and warns once in development.
+draws nothing and warns once in development. The library's lazy pages (the
+admin tools', the People page, the translations admin) carry their own copies
+of the family's icons they draw (0.5.0) - one file is one chunk, and a site
+that loads `ui/icons` up front for its own would otherwise carry theirs in its
+first load.
 
 **Pieces** (selectors `anotoki-*`; slot attributes as the IAM's):
 
@@ -459,7 +468,8 @@ summary; the text field, textarea, password field, select and code input),
 `readonly`, `maxlength`, `minlength`, `min`, `max`, `pattern`, `spellcheck`,
 `autocapitalize`, `(blurred)`, `[fieldPrefix]` / `[fieldSuffix]`),
 `anotoki-textarea` (`rows`, `readonly`, ...), `anotoki-password-field`
-(`autocomplete` required, `[labelAside]`), `anotoki-select` (`options`,
+(`autocomplete` required, `[labelAside]`; its Show the only one - Edge's own
+reveal and clear buttons hidden, 0.5.0), `anotoki-select` (`options`,
 `placeholder`, `inline`), `anotoki-checkbox` / `anotoki-switch`
 (`[(checked)]`, `hint`, the switch's `busy`), `anotoki-radio-group`,
 `anotoki-code-input` (`length`, `(complete)`).
@@ -523,7 +533,7 @@ is `login_required` - nobody signed in any more - is no refusal; `themeColor`) a
 | `nameMin` | the person's name shows from here (phoneMax + 201) |
 | `shortBrandMax` | the brand short up to here (phoneMax by default) - the survey's admin panel: 960. Given, it alone decides (0.4.0): below phoneMax too, a folded bar keeps the full wordmark above it - a bar that folds wide (Piano Academy's 1320 px) measures where "anotoki Piano Academy" still fits beside the language, the theme and the menu button |
 | `width` | `wide` (84rem) or `narrow` (49rem); `--anotoki-topbar-max-width` overrides; in a frame with a side navigation, 88rem, and in one with a `maxWidth`, that |
-| `phoneMark` | `{ badge?, label? }` (the button's name says the count) or `{ dot, description? }` |
+| `phoneMark` | `{ badge?, label? }` (the button's name says the count) or `{ dot, description? }`. Without one (0.5.0), a link inside with a badge puts a dot there, the button's name saying which: "Menu: Feedback 3" |
 | `menuNote` | `{ title, text? }` heading both menus |
 | `isolateKeys` | no key pressed in the bar reaches `document` (true) |
 
@@ -753,6 +763,68 @@ PHP 8.2 (CHANGELOG.md). Everything below is the same for both.
      reads a whole message adds it. An import or a save whose keys are numbers - a
      JSON list, `{"0": "…"}` - is refused `unknown_key` naming them, as any key the
      site does not have; it was `invalid_value`.
+
+## Upgrading from 0.4.x (0.5.0)
+
+0.5.0 changes what a site's hooks are given and may do, so it is a minor
+version: `^0.4.1` never takes it by itself. Each site moves on purpose, its
+PHP and its Angular half together (`anotoki/lib ^0.5.0`, the 0.5.0 tarball).
+
+1. **The People delete hook** (every site with the People page) runs inside
+   the library's transaction (`People::delete()`), and does ALL its work on
+   the `$pdo` it is given - never on the site's own connection: Japanese
+   Academy's `people_delete` (`db_tx`/`db_exec` on `db()`), Piano Academy's
+   `peopleDelete` (`dbTx`/`dbExec`/`db()`) and the build analyzer's
+   `SitePeople::deleteData` (its `Db`, `Users`, `Feedback`) work on their own
+   today. On the People page that is the same connection; in a restore it is
+   not: the site's own waits on the restore's locks while the restore waits on
+   the hook, and every request to those tables waits behind both - PostgreSQL
+   ends such a restore after a minute (rolled back, `500 restore_failed`: "the
+   database ended its connection"). The hook begins, commits or rolls back no
+   transaction of its own - a savepoint is fine. genshin's and the build
+   analyzer's begin one today: they would be refused with a `LogicException`
+   saying so. It takes `?ServerRequestInterface $request`: null when a restore
+   does the delete again - and then it does the database's part alone, and
+   skips what only a person asking does: Japanese Academy's JSON copy of what
+   is deleted is not made for a replay. The library forgets the person's
+   feedback with it: a hook that calls `Feedback::forgetPeople()` itself drops
+   it. With the site's `AuditLog` as `audit:`, the delete's `person.data_deleted`
+   is written inside the delete's transaction - no delete without it: while the
+   audit log's table waits for its update, `503 feature_unavailable`.
+2. **A restore does the deletes again inside its transaction.** The site's
+   Backups take both hooks from People - `...$people->restoreHooks(delete:
+   $deleteHook, defer: ..., then: ...)` among its options (`beforeCommit`, the
+   deletes done since the backup; `afterRestore`, the scrub of the IAM's deleted
+   accounts) - and the hand-written versions go: the survey's
+   `surveyScrubAfterRestore()`, Piano Academy's `peopleScrubAfterRestore()` (its
+   new generations become `then:`), genshin's `backupRestored()`. A restore is
+   refused - "restore again in a minute" - while a check of the IAM's list is
+   running, and rolled back whole when a delete cannot be done again.
+3. **Only a backup made here is restored here.** A plain backup is sealed under
+   the installation's key; one made before 0.5.0 has no seal and is restored
+   offline (`--extract`) only - make a backup right after the update. The seal
+   keeps out a file put into `storage/backups` by somebody who cannot replace
+   that key - not somebody who can write the whole storage folder ("Backups").
+4. **Addresses** (the admin tools): a site behind Cloudflare passes
+   `trustedProxies: ClientAddress::CLOUDFLARE` to its `AdminContext` (and to its
+   `AuditLog` where it keeps the address); without it, nothing but
+   `REMOTE_ADDR` is read, and its visitors share Cloudflare's bucket. `names:`
+   (people's names by id) is optional. The IAM gives its own secrets' names to
+   `Redactor::addSecretNames()` in place of editing messages.
+5. **The host**: `ext-mbstring` is required, and the backups need `ext-zlib`.
+6. **Angular** - nothing has to change to keep building:
+   - `AuthCallbackComponent` and `SignInFailureComponent` from
+     `@anotoki/lib/auth` are routes now that load their screen as it is shown
+     (`@anotoki/lib/auth/screens`): a site's routes stay as they are. A spec that
+     renders one and reads its markup at once imports it from
+     `@anotoki/lib/auth/screens`, or waits a turn and reads it inside the route
+     (`anotoki-auth-callback-route`, `anotoki-sign-in-failure-route`).
+   - The folded bar's menu button carries a dot when a link inside has a badge
+     and the site gives no `phoneMark`, its name saying which ("Menu: Feedback
+     3"): a spec reading the button's name sees that.
+   - `provideAnotokiErrorReport()` (`@anotoki/lib/error-report`) sends the
+     browser's errors to the site's error log - each site adds it when its
+     backend has `ErrorLogRoutes::client()`.
 
 ## Translations (0.3.0)
 
@@ -1291,7 +1363,7 @@ provideAppInitializer(() => {
   return status.check().then(() => auth.init()).then(() => i18n.init());   // the words after the sign-in put the address back
 }),
 
-// app.routes.ts
+// app.routes.ts - each route loads its screen (@anotoki/lib/auth/screens) as it opens: neither is in the first load
 { path: 'auth/callback', component: AuthCallbackComponent },
 { path: 'sign-in-failed', component: SignInFailureComponent },                 // optional: the module's failureRoute, in the site's frame
 { path: '', canActivateChild: [personOrVisitorGuard], children: [/* … */] },   // personGuard where only a person may
@@ -1313,7 +1385,12 @@ show.
   sign-in in flight while the site is uploaded still lands. The client
   (`createAuthClient`) is the SDK's code, ported: PKCE, state and nonce, the ID
   token's checks, `safeReturnTo`, RFC 9207, rotation, `savePreferences`' own-token
-  rule.
+  rule. What runs only at a moment is loaded then (0.5.0): its token requests - a
+  callback's code exchange, a refresh, a preferences save - are
+  `@anotoki/lib/auth/session`, loaded the first time one is made (one that cannot
+  load is the IAM out of reach: the session stays, a save is refused `network`).
+  The module's shared part is `@anotoki/lib/auth/core`; a site imports from
+  `@anotoki/lib/auth`, which names it all.
 - `AnotokiAuth` - `init()` reads the boot configuration (snake_case, or the
   camelCase the sites answer today), finishes a callback, restores the session,
   follows the IAM, and - for a visitor - may make the hint's hop. Signals:
@@ -1345,6 +1422,15 @@ show.
   `apply(preferences, locale)` is given what to show - a choice on its way as
   made, a refused one taken back, a language the IAM does not offer kept for the
   visit.
+- The two screens are `@anotoki/lib/auth/screens` (0.5.0), out of the first
+  load: `AuthCallbackComponent` and `SignInFailureComponent` from
+  `@anotoki/lib/auth` are what a route names, as before - each a route
+  (`anotoki-auth-callback-route`, `anotoki-sign-in-failure-route`) that loads its
+  screen into itself as it is shown; a route may load a screen directly
+  (`loadComponent: () => import('@anotoki/lib/auth/screens').then((m) =>
+  m.AuthCallbackComponent)`), and a template draws one from there. The screens ask
+  the session through `SignInSession` (`provideAnotokiAuth()` provides
+  `AnotokiAuth` as it), never the service itself.
 - `<anotoki-auth-callback>` - "Signing you in…" on the callback route
   (`anotoki-auth-callback__panel`, `__message`), or in its place the failure's
   screen; `noindex` while it shows.
@@ -1437,15 +1523,28 @@ $people = new People(
     hooks: [fn (PDO $pdo, int $sub, ?array $former) => /* the site's copies of the name elsewhere */ null],
 );
 
+// The page's delete: ALL of it on the $pdo it is given - never db(), which in a restore waits on the restore's locks -
+// inside the library's transaction (it begins, commits or rolls back none); its request is null when a restore does
+// it again - then the database's part alone, no copy kept first. The person's feedback is forgotten with it, by the
+// library (0.5.0).
+$deleteHook = fn (PDO $pdo, int $sub, ?ServerRequestInterface $request): ?array => ['deleted' => ['Progress' => …]];
+
 $app->group('/api', $siteRoutes)->add(new RecordPerson($people));            // never on the Migrations routes
 PeopleRoutes::admin($app, '/api/admin/people', $people,                       // guards itself: the site's ADMIN
     columns: [new PeopleColumn('notes', 'Notes', 'count', fn (PDO $pdo, array $subs): array => …)],
     visitors: fn (PDO $pdo): array => ['count' => …],
-    delete: fn (PDO $pdo, int $sub, $request): ?array => ['deleted' => ['Progress' => …]],   // null: nobody with that id
-    audit: $auditLog,                                                            // person.data_deleted, people.synced
+    delete: $deleteHook,                                                         // null: nobody with that id
+    audit: $auditLog,                                                            // person.data_deleted (in the delete's transaction), people.synced
 )->add(RequireRole::admin()->refusing('admin_only'));                            // a site's own words, where it has them
 $app->add(new PeopleUpkeep($people, fn (): bool => $state->state() === SiteState::READY));   // inside the SiteGate
 // and after $app->run(): \Anotoki\Lib\Support\AfterResponse::shared()->run();   (a site's own runner: PeopleUpkeep's defer)
+
+// The site's Backups ("Backups" below): a restore does again what was deleted since its backup, inside its
+// transaction (beforeCommit), and scrubs once it committed (afterRestore) - 0.5.0.
+$backups = new Backups($connect, $directory, [
+    ...$people->restoreHooks(delete: $deleteHook),                              // defer:, then: - the site's runner, its own work
+    /* … */
+]);
 ```
 
 - `PeopleTable` - the site's table and columns: `name` (genshin `username`, the
@@ -1489,9 +1588,69 @@ $app->add(new PeopleUpkeep($people, fn (): bool => $state->state() === SiteState
   in its words. With `audit:` (the site's `AuditLog`) a delete is recorded
   `person.data_deleted` (target `user` {sub}, the counts by label) and an
   asked-for scrub `people.synced` (its state, handled, scrubbed), by the
-  token's sub - or `context:`'s `actorId()`. A delete asks for no proof of a
-  recent sign-in, unlike a backup's restore: the page's question is all it asks
-  (the owner's decision of 2026-10-11).
+  token's sub - or `context:`'s `actorId()`. The delete's entry is written
+  inside the delete's own transaction (`AuditLog::recordInside()`): a restore
+  does the delete again by it, so no delete is made without it - one that
+  cannot be written undoes the delete, and while the audit log's table waits
+  for its update the route answers `503 feature_unavailable` (and
+  `Retry-After: 60`) and deletes nothing; another `AuditRecorder` records
+  after the delete, as before. A delete asks for no proof of a recent sign-in,
+  unlike a backup's restore: the page's question is all it asks (the owner's
+  decision of 2026-10-11).
+- `People::delete($pdo, $sub, $hook, $request, $entry)` (0.5.0) - the page's
+  delete: the site's hook and, where the site has the admin tools' feedback,
+  that person's messages without the address and browser they were sent with
+  (`Feedback::forgetPeopleOn()`; the words stay), and the route's `$entry`
+  (its audit entry; a replay writes none), in one transaction of the library's
+  - or, inside a caller's (a restore's), behind a savepoint of its own, so a
+  hook that fails takes back its own work and nothing else. The hook does ALL
+  its work on the `$pdo` it is given - never the site's own connection, which
+  in a restore waits on the restore's locks while the restore waits on the
+  hook - and begins, commits or rolls back no transaction of its own (a
+  savepoint is fine): one that begins one is told so, and one that ends the
+  transaction it was given - a commit and a new BEGIN would pass for it still
+  open - is found by the savepoint being gone.
+- `People::restoreHooks(delete:, defer:, then:)` (0.5.0) - both of a restore's
+  hooks for the site's Backups, spread among its options: `replay()` as
+  `beforeCommit`, `afterRestore()` as `afterRestore`.
+- `People::replay(delete:)` - for Backups' `beforeCommit`: a restore puts the
+  data back as it was when the backup was made, and the audit log, never
+  restored, says what was done since - from the backup's `snapshot_at` on (the
+  database's clock, which writes the audit log too; a backup of before 0.5.0
+  has its `created_at` alone, PHP's). Inside the restore's transaction, before
+  anybody sees its rows - so a request that dies after the commit leaves
+  nothing undone, and no backup is made of the rows without it - every
+  `person.data_deleted` is done again (`People::delete()` with the site's hook,
+  its request null) and every `feedback.deleted` where it is the same message:
+  its id and the time it was sent (an entry of before 0.5.0 names no time and is
+  passed over). A `person.data_deleted` or a `feedback.deleted` written inside
+  its delete's transaction names that transaction (`_txid`), and its time is
+  when the transaction began - just before the backup's snapshot, it may have
+  committed after it: such an entry, dated within the hour before the backup's
+  time, is done again when its transaction is not in the backup's snapshot
+  (`txid_visible_in_snapshot()`, the manifest's `txid_snapshot`); every entry
+  from the snapshot's time on is done again, as before. Further back the id is
+  not asked: an id is one PostgreSQL cluster's, and after a move by `pg_dump`
+  every older entry would seem unseen - its delete done again on whatever was
+  kept here since. Entries and
+  backups of before go by the time alone. No check of the IAM's deleted
+  accounts may run across a restore - one begun before it would keep its own
+  place in the IAM's list over the restored one: the restore takes the check's
+  lock until it commits, and is refused while a check holds it ("restore again
+  in a minute"). Whatever fails rolls the restore back whole, as does - with
+  something to do again - a backup that says no time, one whose snapshot cannot
+  be read, or a database without the audit log.
+- `People::afterRestore(defer:, then:)` - for Backups' `afterRestore`, once the
+  restore committed: the scrub of the IAM's deleted accounts at once (the
+  restore brought back the scrub's place of that day). One that does not go
+  through - the IAM out of reach, a failure of any kind - is thrown, with the
+  site's own failure, in one sentence: the restore's `after_restore_error`
+  (the first failure that threw chained: the error log's line shows it as
+  `Caused by …` with its frames); the upkeep's hourly stamp then goes after the
+  answer (`defer`, the site's runner), so the next request scrubs again.
+  `then:` is the site's own work after a restore (Piano Academy's new
+  generations), run whatever the scrub did. The survey's, Piano Academy's and
+  genshin's hand-written versions of all this go.
 
 ### The People page: `@anotoki/lib/people` and `@anotoki/lib/people/page`
 
@@ -1626,7 +1785,9 @@ $context = new AdminContext(
     proof: AdminContext::recentSignIn(fn ($request) => $request->getAttribute('claims')['auth_time'] ?? null),  // the sites: 10 minutes
     // the IAM: proof: fn ($request, array $body) => accountProof($pdo, $request, $user, $session, $body['password'] ?? null, 'backup'),
     //          proofKind: 'password' (or a closure: 'recent_sign_in' where the account has no password)
-    clientKey: fn ($request) => clientAddressCounted($request),               // the trusted proxy's address, its IPv6 /64
+    trustedProxies: ClientAddress::CLOUDFLARE,                                // whose CF-Connecting-IP is believed (0.5.0)
+    names: fn (array $ids): array => usernamesOf($ids),                       // people's names by id, for the pages (0.5.0)
+    // clientHeader: 'CF-Connecting-IP', clientKey: fn ($request) => ...,     a site's own reading of the address instead
     error: fn ($response, Refusal $refusal) => ...,                            // optional: the site's error body
 );
 ```
@@ -1635,9 +1796,22 @@ The proof guards every backup made, deleted, downloaded and restored: the IAM's
 `accountProof()` (its password, or a sign-in of the last 15 minutes; its
 `array` answers are taken as they are), the sites' token `auth_time`
 (`403 reauth_required`; the page offers "Sign in again" with `prompt: 'login'`).
-A context without a proof refuses those (`proof_unavailable`). The client key
-defaults to `REMOTE_ADDR` - behind Cloudflare a bucket shared by strangers:
-stricter, never looser; `X-Forwarded-For` is never read.
+A context without a proof refuses those (`proof_unavailable`).
+
+Where a request comes from is one rule wherever the library reads it
+(`Support\ClientAddress`, the owner's of 2026-10-11): the connection's
+`REMOTE_ADDR`, or - only on a connection from one of `trustedProxies` - the
+address its `clientHeader` names (Cloudflare's `CF-Connecting-IP`;
+`ClientAddress::CLOUDFLARE` holds Cloudflare's published ranges). A header from
+anybody else is never believed, and `X-Forwarded-For` never read. An IPv4
+address written as IPv6 (`::ffff:203.0.113.9`, from a server listening on `[::]`
+for both) is read as the IPv4 address it is. The limits count an IPv4 address
+whole and an IPv6 address by its /64, and what is kept of it is a keyed HMAC
+(the error log's `client`, the feedback's limits), never the address. Without `trustedProxies` the visitors behind Cloudflare share the
+edge's bucket: stricter, never looser. `names` gives the people's names by id -
+a backup's maker (`created_by_name`), the audit log's and the feedback's people
+where their routes get no lookup of their own; an id it does not know has none,
+and a lookup that fails gives none.
 
 ### The schema: the library's set `anotoki_admin`, FIRST
 
@@ -1677,8 +1851,10 @@ $errorLog = new ErrorLog(storageDir() . '/logs', [
     'app' => $app,                     // the route's pattern in each line
     // 'key' => Keys::derive(appSecret(), 'error-log'),   default: the installation's key (storage/anotoki-lib.key)
     // 'responses' => fn (int $status) => $status >= 400, default: every 5xx and 404, 405, 413, 415, 429
+    // 'expected' => [],                                  default: update_pending, feature_unavailable, not_set_up (0.5.0)
     // 'ignoreExceptions' => [ApiRefusal::class],         a site's decided answers: logged as their answer
 ]);
+Redactor::addSecretNames('totp_secret', 'recovery_code');               // a site's own names of a secret, once (0.5.0)
 $errorLog->installPhpHandlers();                                        // fatals (shutdown) and warnings (chained)
 $errors = $app->addErrorMiddleware(false, true, true);
 $errors->setDefaultErrorHandler($errorLog->wrapHandler($siteHandler));  // or ErrorLogMiddleware::inner() inside a site's own
@@ -1690,16 +1866,32 @@ ErrorLogRoutes::client($app, '/api/client-errors', $errorLog, $context); // the 
 - One JSON line (`v: 1`) per event: `at` (UTC, ms), `source` (server, php,
   client), `level`, `status`, `type`, `code`, `message` (redacted, 500 at
   most), `file` (relative), `line`, `method`, `route`, `path` (redacted),
-  `user_id`, `client` (12 hex of an HMAC - never an address), `trace` (12
-  frames, never a call's arguments), `fingerprint`. Never a query string, a
-  header, a cookie, a body (an answer gives only its `code` and its sentence),
-  a token or the session.
+  `user_id`, `client` (12 hex of an HMAC of the address bucket - never an
+  address), `trace` (12 lines at most: frames, never a call's arguments - and
+  for an exception thrown for another, the chain: each cause's own line,
+  `Caused by Type (file:line): message`, redacted and 500 characters at most,
+  with its frames the one it caused does not show; at most 11 causes, each
+  keeping its line, the frames shared out in turn), `fingerprint` (the
+  exception's own, never its causes'). Never
+  a query string, a header, a cookie, a body (an answer gives only its `code`
+  and its sentence), a token or the session. Every file a line names is
+  relative - an anonymous class's and a closure's too, whose names PHP makes of
+  the absolute path. `user_id` is the context's `actorId` - on an admin tool's
+  route, of the request the route saw (the site's own middleware on the group
+  sets who asks inside the outer middleware), else the person `Identify` set.
+- An answer whose code says a state, not a failure - `update_pending` (the gate
+  while an update waits), `feature_unavailable` (a tool whose table waits),
+  `not_set_up` - is not written (`expected`; `[]` writes them).
 - `Support\Redactor`: PostgreSQL's DETAIL/HINT/CONTEXT/QUERY lines go whole,
   echoed values, e-mail and IP addresses, JWTs, Bearer credentials,
   `password=`-like secrets (their names quoted or not: `{"password":"…"}`,
   `'pass' => '…'`), query strings and token-like runs become marks; at most
-  4,096 characters are read, and a rule that cannot run gives nothing of the
-  message.
+  4,096 characters are read - the run of characters the cut went through goes
+  with the rest (half a JWT, an address or a token is one no rule knows), and a
+  quoted secret the text ends inside goes to its end - and a rule that cannot
+  run gives nothing of the message. A site's own names of a secret go the same
+  way once it names them (`Redactor::addSecretNames()`, while it starts) -
+  never a message edited by reflection.
 - A day's file goes into parts past 4 MB, days past 30 are deleted, and past
   64 MB in all the oldest days go first - today is never kept out by the days
   before it; only what today alone does not fit is counted instead of written
@@ -1715,9 +1907,14 @@ ErrorLogRoutes::client($app, '/api/client-errors', $errorLog, $context); // the 
   the files gone; audited `errors.cleared`). The log's own routes are never
   logged - known by their route as they run, and by the path they are mounted
   at (group, base path and all) for what fails before a route runs.
-- The client route: `POST {type?, message, page?, stack?, status?}` -> 204,
-  8 KB at most, 20 an hour from one address bucket and 500 a day in all
-  (`429 too_many`), each redacted, `source: client`.
+- The client route: `POST {type?, message, page?, stack?, status?}` -> 204:
+  JSON only (`415`), 8 KB at most (`413`), a message (`422`); 20 an hour from
+  one sender - a signed-in person by their account, a visitor by their address
+  bucket - and 500 a day from the visitors in all, as many from the signed-in
+  people (`429 too_many`, its wait in `retry_after` and `Retry-After`): each
+  its own budget, so a few IPv6 /64s cannot use up the reports of the people
+  signed in. Each redacted again, `source: client`. The browser's side is
+  `@anotoki/lib/error-report` ("The browser's errors" below).
 
 ### Audit log
 
@@ -1729,6 +1926,7 @@ use Anotoki\Lib\Audit\Http\AuditRoutes;
 $audit = new AuditLog(fn (): PDO => db(), [
     'pendingFile' => storageDir() . '/logs/audit-pending.jsonl',
     // 'recordAddress' => true, 'address' => fn ($request) => requestIp($request),   the IAM keeps the address
+    //    (or 'trustedProxies' => ClientAddress::CLOUDFLARE in place of 'address': ClientAddress's rule)
     // 'ready' => fn (PDO $pdo) => auditMovedToLibrary($pdo),                         the IAM: once its own move ran
     // 'actorIds' => fn (string $name): array => ...,                                 the page's actor filter by name
 ]);
@@ -1741,11 +1939,23 @@ AuditRoutes::admin($app, '/api/admin/audit', $audit, $context, fn (array $ids): 
 ```
 
 - `record()` never throws; inside the caller's transaction it writes behind a
-  savepoint, so a failed entry never undoes the change it records; details are
-  cut at 64 KB. While the table is missing (or `ready` says not yet) entries
-  wait in the pending file and go in, with their own times, at
-  `flushPending()` - after every Apply - or with the next entry written outside
-  a transaction.
+  savepoint, so a failed entry never undoes the change it records. Details are
+  cut to 64 KB: the texts shorter and the lists to their first items, each cut
+  saying so (`_cut`); what is too much even so keeps its keys - the shape of
+  every map. While the table is missing (or `ready` says not yet) entries wait
+  in the pending file and go in, with their own times, at `flushPending()` -
+  after every Apply - or with the next entry written outside a transaction. A
+  flush reads and empties the file under the lock its writers take too (an
+  entry written meanwhile waits, and lands in it after), and never inserts an
+  entry that is in already: one killed after its commit puts nothing in twice.
+- `recordInside($pdo, $request, $actorId, $action, ...)` (0.5.0) is the other
+  way round, for a change that must not be made without its entry (the People
+  page's delete, which a restore does again by it): written on `$pdo` inside
+  the change's own transaction, thrown when it cannot be written - never left
+  in the pending file, while the table waits it throws - and naming that
+  transaction in its details (`_txid`, whatever their cut): its `created_at`
+  is when the transaction began, and a backup holds the change exactly when its
+  snapshot sees that transaction.
 - `AuditContextMiddleware::fromRequest($audit, fn ($request) => ['actor' => ..., 'session' => ...])`
   (inside the site's sign-in check) or `begin()`/`end()` hold who acts, so deep
   code records with `recordHere()`; `withScope('characters', 42, fn () => ...)`
@@ -1785,19 +1995,33 @@ FeedbackRoutes::admin($app, '/api/admin/feedback', $feedback, $context, $audit, 
 ```
 
 - The form: identity from the token only (`anonymous` drops the id and the
-  address); the page as a path; an address with none of `? & = % #`, a space
-  or a control character (a mail link would read them as more than an address:
-  `?bcc=`); a filled honeypot gets a kept message's answer word for word and
-  keeps nothing; 64 KB a body; `201 {ok: true}` - no id. No mail: the panel's
-  badge reads `GET $base/unread`.
+  address); the page as a path; the reply address only as the form sends it
+  (the form writes the account's in, for the person to keep or change; the
+  server never adds it), with none of `? & = % #`, a space or a control
+  character (a mail link would read them as more than an address: `?bcc=`); a
+  filled honeypot gets a kept message's answer word for word and keeps
+  nothing; 64 KB a body; `201 {ok: true}` - no id. No mail: the panel's badge
+  reads `GET $base/unread`.
 - Nothing of where a message came from is kept with it - no address, no hash of
   one (the owner's decision). The limits count apart, in
-  `storage/cache/anotoki-feedback-limits.json` under its lock: an HMAC of each
-  address bucket that sent a message in the last day, and when - never in the
-  database, so never in a backup, each time gone a day later.
+  `storage/cache/anotoki-feedback-limits.json` (`0600`) under its lock: a
+  signed-in sender by their account, a visitor by their address bucket - a
+  keyed HMAC of each, and when - `perHour` and `perDay` for each, and
+  `allPerDay` for the visitors together and, apart, for the people signed in
+  together: a few IPv6 /64s cannot use up the messages of the people signed in,
+  nor many accounts a day's worth each (0.5.0). A message "without my name" is
+  counted as a visitor's, by its address bucket: nothing in the count ties it
+  to the account. Never in the database, so never in a backup, each time gone a
+  day later. A count that cannot be kept answers `503 storage_unavailable` - a
+  failure the error log writes, where `feature_unavailable` (no table yet) is a
+  state it leaves out.
 - The admin side: `GET $base` (`kind`, `status`, `section`, `search`, `page`),
   `/facets`, `/unread`, `GET $base/{id}` (opening a new one makes it read),
-  `PUT $base/{id}/status`, `DELETE $base/{id}` (both audited).
+  `PUT $base/{id}/status`, `DELETE $base/{id}` (both audited; a delete with
+  the message's `created_at` beside its id, 0.5.0: a restore deletes it again
+  by both, `People::replay()` - with the site's `AuditLog`, written inside the
+  delete's own transaction, `Feedback::deleteWithEntry()`: no delete without
+  it, `503 feature_unavailable` while the audit log's table waits).
   `forgetPeople($ids)` for an anonymized account; `prune()` daily.
 
 ### Backups
@@ -1814,8 +2038,9 @@ $backups = new Backups(fn (): PDO => Copy::connect($dsn, $user, $password), stor
     'audit' => $audit,
     'defer' => afterResponse(...),
     'onError' => fn (Throwable $e) => $errorLog->record($e),
+    ...$people->restoreHooks(delete: $deleteHook),                 // beforeCommit, afterRestore: what a restore does again ("People")
     // the IAM: 'encryption' => Keys::derive(iamMasterKey(), 'iam-backup'), 'restore' => false
-    // 'afterRestore' => fn (array $manifest, PDO $pdo) => sweepAnonymizedAccountsSince($manifest['created_at']),
+    // 'afterRestore' => fn (array $manifest, PDO $pdo) => sweepAnonymizedAccountsSince($manifest['snapshot_at'] ?? $manifest['created_at']),
 ]);
 $backups->dailyIfDue();                                                        // on requests: once a UTC day, after the answer
 $migratorOptions['beforeApply'] = $backups->beforeApplyHook($siteOwnHook);    // a backup before every update
@@ -1854,6 +2079,36 @@ BackupsRoutes::file($app, '/api/admin/backups', $backups, $context);          //
   flag (another key, a changed byte, swapped chunks, a cut tail: refused). A
   sidecar `<id>.anotoki-backup.json` feeds the list; a file without one is
   listed from its header.
+- Only a backup made here is restored here (0.5.0): an encrypted one, under the
+  site's key (its cipher is its seal: it carries no other), or a plain one whose
+  sidecar carries this installation's seal - an HMAC of its id and SHA-256 under
+  a key of its own derived from `storage/anotoki-lib.key`. The seal vouches for
+  those two alone, so a restore hashes the very bytes it reads (the file opened
+  once) and refuses any other, whatever else the sidecar says. A file dropped
+  into the folder, or changed since, is refused (`422 archive_invalid`) and
+  restored offline (`--extract`); one without a seal lists `sealed: false`. A
+  plain backup made before 0.5.0 has none: offline too. What the seal stops is
+  a file put into `storage/backups` by somebody who cannot replace the
+  installation's key: a copy from another installation, a file changed or
+  damaged since, whatever writes into the backups folder but never reaches the
+  key (the file explorer reaches neither: it refuses a root that holds
+  `anotoki-lib.key`, or is, holds or is inside the storage folder). Not
+  somebody who can write the whole storage folder: deleting
+  `storage/anotoki-lib.key` and making it again are a folder's operations - no
+  read of the old key needed - and with a key of their own they seal what they
+  like (as they can put a key set of their own in place of the IAM's, kept in
+  the same folder, which tokens are checked with). The key stays there on
+  purpose: one kept in the database would be lost with it - every restore
+  refused in the very disaster a backup is for - and the survey, Piano Academy
+  and Japanese Academy keep no secret outside `storage/`. Without that key (it
+  can be neither read nor made) a plain backup is still made, unsealed, and the
+  site's `onError` is told. Every file of the backups is the site's own user's
+  alone (`0600`) from the moment it is made, every folder `0700`, as every
+  folder the tools guard and the installation's key. Where PHP runs as the web
+  server's own user (not the FTP account's, as under PHP-FPM or suEXEC), those
+  modes keep the FTP account out of `storage/backups` too: to take a backup off
+  the server for a restore offline, download it from the Backups page, or have
+  the host's panel (or `chmod` from PHP's own user) open the folder first.
 - Kinds and keeping: `daily` (14), `before-migration` (5, once per list of
   pending files; a backup that fails stops the Apply), `before-restore` (5),
   `manual` (until deleted; `stale` after 90 days). Only files of these names
@@ -1862,22 +2117,48 @@ BackupsRoutes::file($app, '/api/admin/backups', $backups, $context);          //
   migrations and columns equal the backup's (`409 schema_differs`): a
   `before-restore` backup first, then one transaction (locks within 5 s, user
   triggers off, one TRUNCATE, COPY back, sequences set, deferred keys checked,
-  triggers on, rows counted). Never restored: the bookkeeping table, the audit
-  log and `keep`. `restore: false` refuses it (the IAM, until an
-  `afterRestore` that ends every session and token and deletes again the
-  accounts deleted since has been reviewed).
+  triggers on, rows counted, then the site's `beforeCommit` - what must be done
+  again before anybody sees the rows: `People::replay()`, the deletes done
+  since - and only then the commit). Whatever fails, the hook too, rolls it back
+  whole (`500 restore_failed`, "nothing of it stayed"); a hook that ended the
+  restore's transaction itself is said apart ("may have stayed"), the
+  before-restore backup named. Nobody reads the restored rows, nor backs them
+  up, before the hook ran: the tables stay locked, and the folder's lock holds
+  every other backup off. A restore that waits more than a minute between two
+  of its statements is ended by PostgreSQL
+  (`idle_in_transaction_session_timeout`, set for its transaction alone) and
+  rolled back with its connection - "the database ended its connection",
+  nothing of it stayed: the restore itself never waits so long (COPY reads its
+  spools inside its own statement), only a hook that waits on something else
+  does - on another connection, which waits on the restore's own locks while
+  every request to those tables waits behind both (no deadlock is seen: the
+  restore's connection is idle). A hook does all its work on the PDO it is
+  given. The site's `afterRestore` runs once it committed - what cannot be
+  inside it, the scrub that asks the IAM - and what it throws is the answer's
+  `after_restore_error`. A backup's manifest says when its snapshot was taken
+  by the database's own clock (`snapshot_at`, 0.5.0) - the one the audit log is
+  written by - beside PHP's `created_at`, and the transactions it sees
+  (`txid_snapshot`, for `People::replay()`). A sequence never goes
+  back: it goes on from the later of the backup's value and today's, so an id
+  handed out since - one the kept audit log names - is never handed out again.
+  Never restored: the bookkeeping table, the audit log and `keep`. `restore:
+  false` refuses it (the IAM, until an `afterRestore` that ends every session
+  and token and deletes again the accounts deleted since has been reviewed).
 - Downloads: `POST $base/{id}/ticket` (the proof, audited) answers `{url,
   expires_in}` - the url where the request came through, group and base path
   and all; `ticketSeconds`, 60 - the page navigates to it; the ticket is 32
   random bytes, kept as its hash with who it was issued to (`by`), good once,
   for one backup, for its seconds; the file comes as an attachment,
-  `no-store`, `nosniff`, `no-referrer`.
-- `GET $base` `{backups, status}` (space, last daily, encryption, whether a
-  restore can run here), `GET $base/proof` `{kind}`, `POST $base`,
+  `no-store`, `nosniff`, `no-referrer`. A `HEAD` (a link checker, a mail
+  scanner) looks at the ticket without spending it: only the `GET` does.
+- `GET $base` `{backups, status}` (each backup's maker by name where the
+  context names people, `created_by_name`; space, last daily, encryption,
+  whether a restore can run here), `GET $base/proof` `{kind}`, `POST $base`,
   `GET|DELETE $base/{id}`, `GET $base/{id}/preview` (the rows a restore would
   take away), `POST $base/{id}/restore` `{confirm: the id's last 6, password?}`.
 - The command line - `Backups\Cli\BackupsCommand` in a site's `backup.php`
-  (never uploaded): `--list`, `--create`, `--inspect=<id>`,
+  (never uploaded): `--list`, `--create`, `--inspect=<id>` (its manifest
+  alone, read from the archive's first entry: nothing written to the disk),
   `--extract=<id> <folder>` (decrypted and checked, with the order to load it
   into another database: the schema files, then `psql \copy`), `--restore=<id>
   --confirm=<last 6>`.
@@ -1931,7 +2212,12 @@ FilesRoutes::raw($app, '/api/admin/files/raw', $explorer, $context);          //
   `POST $base/{root}/trash/restore`. Previews: links signed for five minutes;
   inline only raster pictures, sound, video and text up to 64 KB, everything
   else (SVG among it) a download; CSP `sandbox`, `nosniff`, same-origin,
-  `no-store`, byte ranges.
+  `no-store`, byte ranges. A link alone reads one file of a root - no session
+  asked, nothing written - and is signed under the installation's key unless
+  the explorer is given `key:`: whoever can write the storage folder can make
+  that key their own and sign links (as they can sign in as anybody through the
+  IAM's key set kept there). A site with a secret outside `storage/` passes
+  `'key' => Keys::derive($itsSecret, 'file-preview')`.
 
 ### The pages (Angular)
 
@@ -1994,7 +2280,9 @@ protected readonly unread = inject(FeedbackUnread);       // void this.unread.re
 - **Backups**: how many and how much, the last daily, encryption, and why a
   backup or a restore cannot run here (the folder not writable, the server's PHP
   without COPY, restoring switched off - `restoreOffText` adds the site's
-  reason); the list with each backup's kind, size, tables and maker. Back up
+  reason); the list with each backup's kind, size, tables and maker (by name
+  where the context's `names` gives one; a backup not made here says why its
+  Restore is off). Back up
   now, Download (a single-use link, opened by the page) and Delete are each
   behind the site's proof: the IAM's password, asked in a dialog that says a
   wrong one and too many; the sites' recent sign-in, whose refusal offers "Sign
@@ -2044,6 +2332,42 @@ const { FeedbackFormComponent } = await import('@anotoki/lib/feedback/form');
   then the built-in English and informal Slovak (`feedbackWords()`); a language
   with none of them reads English, and the form says `lang="en"`.
 
+### The browser's errors (Angular, 0.5.0)
+
+The owner's decision of 2026-10-11: every site's error log holds its pages'
+errors too.
+
+```ts
+// app.config.ts - every site, beside its HttpClient
+provideHttpClient(withInterceptors([...theSitesOwn])),
+provideBrowserGlobalErrorListeners(),      // Angular's default since 20: window's errors and promises nobody caught too
+provideAnotokiErrorReport(),               // { endpoint: '/api/client-errors', perPage: 5, report: (error) => true }
+```
+
+- `AnotokiErrorReporter`, the app's `ErrorHandler`: every error goes to the
+  console as Angular's own has it, and is reported to `ErrorLogRoutes::client()`
+  through the app's `HttpClient` - the site's interceptors add what its writes
+  carry (the IAM's `X-IAM-Request`), never a way around them. The request
+  carries `ANOTOKI_ERROR_REPORT` in its context: an interceptor skips its error
+  handling for it (no sign-in redirect for a report) - never its headers, which
+  are what let the report in.
+- Scrubbed before it leaves the page (`describeError()`, `scrubText()`): the
+  page's path alone, a segment that looks like an address or a code replaced;
+  never a query or a fragment (a frame keeps its line and column); no value the
+  page keeps in localStorage, sessionStorage or a cookie (`storedValues()`); no
+  token, `password=`-like secret or address. A value thrown that is no Error is
+  named by its kind, never written out. A message, a frame and the path are cut
+  to what a report keeps before they are scrubbed, so a megabyte of them costs
+  no more than a line - and lose the run the cut went through (the path, its
+  segment): half a token, an address or a stored value is one no rule knows,
+  and a quoted secret the text ends inside goes to its end. The server redacts
+  it all again, by the same rules.
+- At most `perPage` reports a page load, each error once; never an HTTP failure
+  (the server writes its own, and a visitor's network is not the site's), never
+  an error raised while a report is made, never the report's own failure; a
+  `429` ends reporting for the page load. Sent after the error is handled: it
+  never blocks the page, and never throws.
+
 ### What else a site adds
 
 - **Its gate's open paths** (a site that blocks while an update waits - every
@@ -2062,7 +2386,18 @@ const { FeedbackFormComponent } = await import('@anotoki/lib/feedback/form');
   request all the same.
 - `Support\Keys`: `derive($secret, $purpose)` (HKDF-SHA256, `anotoki-lib/<purpose>/v1`);
   `installation($storage)` - 32 random bytes in `storage/anotoki-lib.key` for a
-  site without a secret, its folder guarded.
+  site without a secret, its folder guarded; made once, written whole and the
+  site's own user's alone from its creation (`tempnam()`), then linked into
+  place (`link()`: of two processes making it at one moment, one key stays and
+  both read it). Without `link()` (a host's `disable_functions`), the name is
+  claimed with an empty file only one process can make (`fopen('x')`), and only
+  the claimant renames its key over it - the others wait while it is empty, and
+  a claim its maker left goes once it is 10 seconds old. It keys the error
+  log's client hashes, the feedback limits' buckets, the file explorer's
+  preview links and the backups' seal, and is as safe as the storage folder,
+  no safer: whoever can write that folder can delete the key and make one of
+  their own - as they can the IAM's key set kept there, which tokens are
+  checked with. It keeps out whoever cannot.
 - **genshin** moves its `audit_logs` and `feedback` rows into the library's
   tables in its own migrations (gated, the old tables dropped by a later one) and
   drops `ip` and `submitter_hash` in the move; **the IAM** moves `audit_log`

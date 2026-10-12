@@ -86,6 +86,13 @@ applied, no build from before it goes on the host again. Download a backup
 afterwards (Backups → Download, the password asked) and keep it with the copy
 of `config/secret.local.php`: it opens with that key alone.
 
+anotoki-lib 0.5.0 brings no migration. It counts the visitors' own addresses
+through Cloudflare's ranges (the committed `config/iam.php`; a host behind
+other proxies, or none, says so in `iam.local.php` - `docs/operations.md`,
+"Behind Cloudflare"), writes the pages' own errors into the Error log, and
+needs PHP's `zlib` beside `mbstring`. The backups' files are the PHP user's
+alone (`0600`): take one off the server with the Backups page's Download.
+
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 with no address - never a `localhost` one there. Admin panel →
 Applications → the site, `{site}` being its https address: redirect URI

@@ -23,12 +23,17 @@ final class TarReader
 
     /** @var ?resource the file being written */
     private $out = null;
+    /** @var ?Closure(string): void what takes the entry's bytes instead of a file */
+    private ?Closure $sink = null;
     private int $left = 0;
     private int $padding = 0;
     private int $zeroBlocks = 0;
     private bool $ended = false;
 
-    /** @param Closure(string $name, int $size): string $place */
+    /**
+     * @param Closure(string $name, int $size): (string|Closure) $place  where an entry goes: a path (or a spool's
+     *        url) to write it to, or a closure that takes its bytes
+     */
     public function __construct(private readonly Closure $place)
     {
     }
@@ -87,14 +92,15 @@ final class TarReader
         while ($offset < $length) {
             if ($this->left > 0) {
                 $take = min($this->left, $length - $offset);
-                if (fwrite($this->out, substr($this->buffer, $offset, $take)) !== $take) {
+                if ($this->sink !== null) {
+                    ($this->sink)(substr($this->buffer, $offset, $take));
+                } elseif (fwrite($this->out, substr($this->buffer, $offset, $take)) !== $take) {
                     throw new RuntimeException('A part of the backup could not be written out (is the disk full?).');
                 }
                 $offset += $take;
                 $this->left -= $take;
                 if ($this->left === 0) {
-                    fclose($this->out);
-                    $this->out = null;
+                    $this->closeEntry();
                 }
                 continue;
             }
@@ -121,10 +127,7 @@ final class TarReader
     /** The archive's end: whole, with its two empty blocks, and nothing half-read. */
     public function finish(): void
     {
-        if ($this->out !== null) {
-            fclose($this->out);
-            $this->out = null;
-        }
+        $this->closeEntry();
         if (!$this->ended || $this->left > 0 || $this->padding > 0 || $this->buffer !== '') {
             throw new RuntimeException('The backup\'s archive is cut short.');
         }
@@ -172,18 +175,34 @@ final class TarReader
         }
         $size = (int) octdec($sizeText);
 
-        $path = ($this->place)($name, $size);
-        $out = @fopen($path, 'xb');
-        if ($out === false) {
-            throw new RuntimeException('A part of the backup could not be written out.');
+        $target = ($this->place)($name, $size);
+        if ($target instanceof Closure) {
+            $this->sink = $target;
+        } else {
+            $out = @fopen($target, 'xb');
+            if ($out === false) {
+                throw new RuntimeException('A part of the backup could not be written out.');
+            }
+            // The rows of a database: the site's own user's alone (a spool's url has a mode of its own).
+            if (!str_contains($target, '://')) {
+                @chmod($target, 0600);
+            }
+            $this->out = $out;
         }
-        $this->out = $out;
         $this->left = $size;
         $this->padding = (self::BLOCK - $size % self::BLOCK) % self::BLOCK;
         if ($size === 0) {
+            $this->closeEntry();
+        }
+    }
+
+    private function closeEntry(): void
+    {
+        if ($this->out !== null) {
             fclose($this->out);
             $this->out = null;
         }
+        $this->sink = null;
     }
 
     /** A relative name of plain parts: letters, digits, . _ - and /, no part empty or starting with a dot. */

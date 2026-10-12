@@ -40,7 +40,8 @@ Options -Indexes
 TXT;
 
     /**
-     * Makes $directory (with its parents, mode 0775) when it is missing, and its
+     * Makes $directory (with its parents, mode 0700: the site's own user
+     * alone - nothing in it is for anybody else) when it is missing, and its
      * .htaccess and index.html when they are missing. Returns whether the folder
      * exists with an .htaccess in it - false where it could not be made, or
      * where the guard could not be written (a folder the web server may serve
@@ -52,8 +53,12 @@ TXT;
         if ($directory === '') {
             return false;
         }
-        if (!is_dir($directory) && !@mkdir($directory, 0775, true) && !is_dir($directory)) {
-            return false;
+        if (!is_dir($directory)) {
+            if (!@mkdir($directory, 0700, true) && !is_dir($directory)) {
+                return false;
+            }
+            // mkdir()'s mode passes through the umask; the folder is the site's alone whatever the umask says.
+            @chmod($directory, 0700);
         }
 
         $guard = $directory . '/.htaccess';
