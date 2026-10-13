@@ -23,36 +23,78 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * The second factor, for the endpoints that start a session. Null when the
- * sign-in may go ahead, a refusal when it may not. `totp_required` and
- * `totp_invalid` are told apart because the page does different things.
+ * sign-in may go ahead, a refusal when it may not. `totp_required`,
+ * `totp_invalid` and `authenticator_paused` are told apart because the page
+ * does different things.
  *
  * Every refusal is recorded as a failed attempt, whichever way in asked, so
  * the limiter counts guesses at the digits on every path - not only after a
- * password. A code is accepted once (totpCodeAccepted()).
+ * password. A code is accepted once (totpCodeAccepted()). Five wrong ones for
+ * the account pause its codes for fifteen minutes on every way in
+ * (authenticatorCheck(), api/authenticator_pause.php); the answer then says
+ * until when, and whether a code by email may stand in (`email_code`,
+ * pausedEmailCodeAnswer()): on the password's sign-in alone, and only until
+ * five of them were wrong in this pause.
  */
-function totpRefusal(Request $request, Response $response, PDO $pdo, array $user, ?string $code, mixed $deviceToken, string $method): ?Response
+function totpRefusal(Request $request, Response $response, PDO $pdo, array $user, mixed $code, mixed $deviceToken, string $method): ?Response
 {
     if (!asBool($user['totp_enabled'])) {
         return null;
     }
 
     // A browser that answered a code in the last thirty days skips the digits
-    // and nothing else - the password was already right to get here.
+    // and nothing else - the password was already right to get here. A 256-bit
+    // secret, no six digits to guess: it works during a pause too.
     if (trustedDeviceAccepted($pdo, (int) $user['id'], $deviceToken)) {
         return null;
     }
 
-    if (trim((string) $code) === '') {
-        recordLoginAttempt($pdo, $request, (string) $user['email'], (int) $user['id'], $method, 'totp_required');
-        return respondError($response, 403, 'totp_required', 'A code from your authenticator app is needed');
-    }
-
-    if (totpChallengePassed($pdo, $user, $code)) {
+    $result = authenticatorCheck($pdo, $request, $user, $code, $method);
+    if ($result['passed']) {
         return null;
     }
 
-    recordLoginAttempt($pdo, $request, (string) $user['email'], (int) $user['id'], $method, 'bad_totp');
-    return respondError($response, 403, 'totp_invalid', 'That code is not right');
+    $extra = $result['extra'];
+    if ($result['code'] === 'authenticator_paused') {
+        $extra['email_code'] = $method === SESSION_METHOD_PASSWORD && !($result['email_code_spent'] ?? false);
+    }
+
+    return respondError($response, 403, $result['code'], $result['error'], $extra);
+}
+
+/**
+ * The password's sign-in during the authenticator's pause: a code mailed to
+ * the address (POST /api/login/code, the emailed code's own) in the
+ * authenticator's place - `email_code` beside the password, checked after the
+ * password was found right, and only while the account's codes are paused
+ * (pausedEmailCodeCheck(), api/authenticator_pause.php). So the mailbox stands
+ * in for the authenticator, and the password is still asked first: one
+ * holding the mailbox alone gets nowhere (the emailed code's own sign-in asks
+ * for the authenticator, and is paused with it). A guesser holding the
+ * password alone has five wrong codes a pause, counted for the account under
+ * the hold on its row, and then none until the pause ends - codes mailed since
+ * included (`authenticator_paused`, `email_code: false`).
+ *
+ * Null when no pause holds, or no code came: the authenticator step then asks
+ * as ever. True when the mailed code passed (spent); a refusal when it did not.
+ */
+function pausedEmailCodeAnswer(Request $request, Response $response, PDO $pdo, array $user, mixed $emailCode): Response|bool|null
+{
+    $code = is_scalar($emailCode) ? (string) preg_replace('/\D/', '', (string) $emailCode) : '';
+
+    if ($code === '' || !asBool($user['totp_enabled'])) {
+        return null;
+    }
+
+    $result = pausedEmailCodeCheck($pdo, $request, $user, $code);
+    if ($result === null) {
+        return null;
+    }
+    if ($result['passed']) {
+        return true;
+    }
+
+    return respondError($response, $result['status'], $result['code'], $result['error'], $result['extra']);
 }
 
 function signInRefusalResponse(Response $response, ?array $user): ?Response
@@ -93,6 +135,8 @@ function completeSignIn(Request $request, Response $response, array $user, strin
     $remember = !array_key_exists('remember', $body) || !empty($body['remember']);
     $opened = openSession($pdo, $request, $user, $method, asBool($user['totp_enabled']), $remember);
     recordLoginAttempt($pdo, $request, (string) $user['email'], (int) $user['id'], $method, 'ok');
+    // A completed sign-in: the wrong authenticator codes before it count no more (api/authenticator_pause.php).
+    restartAuthenticatorCount($pdo, (int) $user['id']);
 
     // Only worth issuing where there is a code to skip.
     $deviceToken = !empty($body['remember_device']) && asBool($user['totp_enabled'])
@@ -366,8 +410,18 @@ $app->post('/api/login/password', function (Request $request, Response $response
         return respondError($response, 401, 'invalid_credentials', 'That email and password do not match');
     }
 
-    if ($refusal = totpRefusal($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_PASSWORD)) {
+    // The password is right. The authenticator next - or, while its codes are
+    // paused, a code mailed to the address in its place.
+    $byMail = pausedEmailCodeAnswer($request, $response, $pdo, $user, $body['email_code'] ?? null);
+    if ($byMail instanceof Response) {
+        return $byMail;
+    }
+    if ($byMail === null && ($refusal = totpRefusal($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_PASSWORD))) {
         return $refusal;
+    }
+    // A browser is remembered for the authenticator it answered; the mailbox standing in for it during a pause remembers none.
+    if ($byMail === true) {
+        $body['remember_device'] = false;
     }
 
     if (!asBool($user['email_confirmed'])) {
@@ -386,7 +440,8 @@ $app->post('/api/login/password', function (Request $request, Response $response
         $pdo->prepare('UPDATE users SET password = ? WHERE id = ?' . liveAccountSql($pdo))->execute([password_hash($password, PASSWORD_DEFAULT), (int) $user['id']]);
     }
 
-    return completeSignIn($request, $response, $user, SESSION_METHOD_PASSWORD, $body);
+    // The session says the mailbox stood in for the authenticator (its `amr`: pwd, email, mfa).
+    return completeSignIn($request, $response, $user, $byMail === true ? SESSION_METHOD_PASSWORD_EMAIL : SESSION_METHOD_PASSWORD, $body);
 });
 
 // ── Emailed sign-in code ─────────────────────────────────────────────────────

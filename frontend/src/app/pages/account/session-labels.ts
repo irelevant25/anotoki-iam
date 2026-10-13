@@ -6,6 +6,7 @@ const METHODS: Record<string, TranslationKey> = {
   login_code: 'sessions.method.login_code',
   google: 'sessions.method.google',
   email_link: 'sessions.method.email_link',
+  password_email: 'sessions.method.password_email',
 };
 
 const ENDED: Record<string, TranslationKey> = {

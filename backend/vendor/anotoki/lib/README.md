@@ -9,7 +9,7 @@ version:
 | PHP 8.2+, Slim 4, PostgreSQL | `anotoki/lib` (Composer) | `composer.json`, `php/src/`, `php/migrations/`, `php/resources/`, `php/testing/` |
 | Angular 21 (standalone, zoneless, signals) | `@anotoki/lib` (npm tarball) | `angular/projects/lib/` |
 
-Version 0.5.1 holds:
+Version 0.5.2 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -1786,6 +1786,7 @@ $context = new AdminContext(
     // the IAM: proof: fn ($request, array $body) => accountProof($pdo, $request, $user, $session, $body['password'] ?? null, 'backup'),
     //          proofKind: 'password' (or a closure: 'recent_sign_in' where the account has no password)
     trustedProxies: ClientAddress::CLOUDFLARE,                                // whose CF-Connecting-IP is believed (0.5.0)
+    originSecret: $settings['origin_secret'] ?? null,                         // and only with the zone's X-Anotoki-Origin (0.5.2)
     names: fn (array $ids): array => usernamesOf($ids),                       // people's names by id, for the pages (0.5.0)
     // clientHeader: 'CF-Connecting-IP', clientKey: fn ($request) => ...,     a site's own reading of the address instead
     error: fn ($response, Refusal $refusal) => ...,                            // optional: the site's error body
@@ -1803,7 +1804,15 @@ Where a request comes from is one rule wherever the library reads it
 `REMOTE_ADDR`, or - only on a connection from one of `trustedProxies` - the
 address its `clientHeader` names (Cloudflare's `CF-Connecting-IP`;
 `ClientAddress::CLOUDFLARE` holds Cloudflare's published ranges). A header from
-anybody else is never believed, and `X-Forwarded-For` never read. An IPv4
+anybody else is never believed, and `X-Forwarded-For` never read. Cloudflare's
+ranges are every Cloudflare customer's, not the owner's zone alone - anybody's
+Worker can open a raw socket to the host from them and write the header it
+likes: a site given an origin secret (`originSecret`, 0.5.2; the owner's
+decision of 2026-10-13) believes the header only on a request that also
+carries that secret in `X-Anotoki-Origin` (`ClientAddress::ORIGIN_HEADER`),
+which a Transform Rule of the owner's zone adds to every request through it.
+Without it such a request counts as the edge's address: coarser, never looser;
+the secret is compared in constant time and never logged. An IPv4
 address written as IPv6 (`::ffff:203.0.113.9`, from a server listening on `[::]`
 for both) is read as the IPv4 address it is. The limits count an IPv4 address
 whole and an IPv6 address by its /64, and what is kept of it is a keyed HMAC
@@ -1926,7 +1935,8 @@ use Anotoki\Lib\Audit\Http\AuditRoutes;
 $audit = new AuditLog(fn (): PDO => db(), [
     'pendingFile' => storageDir() . '/logs/audit-pending.jsonl',
     // 'recordAddress' => true, 'address' => fn ($request) => requestIp($request),   the IAM keeps the address
-    //    (or 'trustedProxies' => ClientAddress::CLOUDFLARE in place of 'address': ClientAddress's rule)
+    //    (or 'trustedProxies' => ClientAddress::CLOUDFLARE in place of 'address': ClientAddress's rule,
+    //     with 'originSecret' => the zone's secret from 0.5.2)
     // 'ready' => fn (PDO $pdo) => auditMovedToLibrary($pdo),                         the IAM: once its own move ran
     // 'actorIds' => fn (string $name): array => ...,                                 the page's actor filter by name
 ]);

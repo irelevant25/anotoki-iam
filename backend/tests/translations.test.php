@@ -59,9 +59,9 @@ const GENSHIN_ORIGIN = 'http://localhost:4200';
 const ENGLISH = ['code' => 'en', 'name' => 'English', 'native_name' => 'English'];
 const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina'];
 
-/** The IAM's own keys, as the migrations leave them: 483 of the pages and 48 of the mails. */
-const IAM_PAGE_KEYS = 483;
-const IAM_MAIL_KEYS = 48;
+/** The IAM's own keys, as the migrations leave them: 492 of the pages and 52 of the mails (019: the authenticator's pause, 9 and 4). */
+const IAM_PAGE_KEYS = 492;
+const IAM_MAIL_KEYS = 52;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -592,7 +592,7 @@ test('the two languages the IAM is released in, and every key - the IAM\'s and t
     );
     $library = count(LibraryWords::keys());
     same(94, $library, 'the library\'s words: 94 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 - and 004 - the feedback form\'s 31)');
-    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the IAM\'s own: 483 keys of the pages and 48 of the mails');
+    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the IAM\'s own: 492 keys of the pages and 52 of the mails');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'and the library\'s beside them');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('en')), 'each has an English string');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('sk')), 'and a Slovak one');
@@ -698,7 +698,7 @@ test('the frontend\'s compiled English is the database\'s: the same keys without
     $dictionary = EnglishDictionary::read(iamFrontendSources() . '/' . TRANSLATION_DICTIONARY_FILE, 'en');
     $pages = array_filter(seeded('en'), static fn(string $key): bool => !str_starts_with($key, 'mail.') && !LibraryWords::isLibraryKey($key), ARRAY_FILTER_USE_KEY);
 
-    same(IAM_PAGE_KEYS, count($pages), 'the pages have 483 keys of their own');
+    same(IAM_PAGE_KEYS, count($pages), 'the pages have 492 keys of their own');
     foreach (array_keys($dictionary) as $key) {
         check(KeyScanner::shapeOk((string) $key), "$key in en.ts has the shape of a key, so the scan can find it");
     }
@@ -720,7 +720,7 @@ test('every page key the database has is used by the frontend, and nothing in th
     same([], $scan['problems'], 'what the scan does not let through');
     same([], $scan['unused'], 'in the database, used nowhere - a key built at run time cannot be seen and is forbidden; delete a dead key with a migration');
     same([], array_keys($scan['missing']), 'used by the frontend, not in the database - the page would show the key');
-    same(IAM_PAGE_KEYS, count($scan['used']), 'all 483');
+    same(IAM_PAGE_KEYS, count($scan['used']), 'all 492');
     same([], array_values(array_filter(array_keys($scan['used']), static fn(string $key): bool => str_starts_with($key, 'mail.') || LibraryWords::isLibraryKey($key))), 'the mail keys are not the frontend\'s, and the library\'s are the library\'s pages\'');
 
     $files = iamKeyScanner()->sourceFiles();
@@ -1108,7 +1108,7 @@ test('the bundle: a language\'s strings with English underneath, the library\'s 
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 483 strings of the pages, and the library\'s 54');
+    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 492 strings of the pages, and the library\'s 54');
     same('Save', $english->json()['values']['common.save'], 'a string');
     same(['Language', 'Language: {name} ({code})'], [$english->json()['values']['anotoki.language.label'] ?? null, $english->json()['values']['anotoki.language.button'] ?? null], 'the library\'s words, from the database');
     check(str_contains($english->header('Content-Type'), 'application/json'), 'as JSON');
@@ -2315,7 +2315,7 @@ test('the command line: --export and --import on the same strings, by nobody and
     check(preg_match('/the frontend uses\s+' . IAM_PAGE_KEYS . ' of them\n/', $out) === 1, $out);
     check(preg_match("/\n\s+sk\s+Slovak\s+$keys \/ $keys\n/", $out) === 1, 'how much of each language there is: ' . $out);
     check(preg_match("/\n\s+de\s+German \(Germany\)\s+4 \/ $keys\n/", $out) === 1, 'German: ' . $out);
-    check(preg_match('/the code has\s+48 mail keys \(MAIL_KEYS\)\n\s+the database has\s+48 of them\n/', $out) === 1, 'the mails\' keys: ' . $out);
+    check(preg_match('/the code has\s+52 mail keys \(MAIL_KEYS\)\n\s+the database has\s+52 of them\n/', $out) === 1, 'the mails\' keys: ' . $out);
     same([0, 2, 0], [$code, substr_count("$out\n", "  Clean.\n"), substr_count($out, 'Not clean.')], 'clean, both: ' . $out);
 
     // A key with no English string, and a mail string the database has lost: neither is clean.
@@ -2335,7 +2335,7 @@ test('the command line: --export and --import on the same strings, by nobody and
     try {
         [$code, $out] = cli('--status');
         same(1, $code, $out);
-        check(preg_match('/the code has\s+48 mail keys \(MAIL_KEYS\)\n\s+the database has\s+47 of them\n/', $out) === 1, 'counted: ' . $out);
+        check(preg_match('/the code has\s+52 mail keys \(MAIL_KEYS\)\n\s+the database has\s+51 of them\n/', $out) === 1, 'counted: ' . $out);
         check(preg_match('/A mail\'s string the database does not have.*\n\s+mail\.reset\.ignore\n/', $out) === 1, 'named: ' . $out);
         check(preg_match('/used by no mail.*\n\s+mail\.old\.leftOver\n/', $out) === 1, 'and the one the code does not know: ' . $out);
     } finally {

@@ -14,7 +14,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * scope_id). audit() stays the IAM's one function every route calls, and
  * records what it always recorded: who, what, to what, the details, the
  * requester's address (requestIp(): the trusted proxy's header from a trusted
- * proxy, else the connection's) and the time.
+ * proxy - with the owner's zone's origin secret, only on a request that
+ * carries it, config/cloudflare.php - else the connection's) and the time.
  *
  * Never throws. A change that was made must not be undone by the log failing
  * to write; the failure goes to the PHP error log instead, in a fixed sentence
@@ -87,6 +88,9 @@ function iamAuditLog(?PDO $pdo = null): AuditLog
 
     $made = new AuditLog($pdo !== null ? static fn(): PDO => $pdo : static fn(): PDO => iamDb(), [
         'recordAddress' => true,
+        // The IAM's one reading of an address - Cloudflare's ranges, and the
+        // zone's origin secret with them (requestIp()) - in place of the
+        // library's own trustedProxies / originSecret options.
         'address' => static fn(Request $request): ?string => requestIp($request),
         'pendingFile' => iamAuditPendingFile(),
         'ready' => static fn(PDO $pdo): bool => auditMovedToLibrary($pdo),

@@ -23,6 +23,12 @@ const SESSION_METHOD_LOGIN_CODE = 'login_code';
 const SESSION_METHOD_GOOGLE = 'google';
 /** Followed a link we mailed: confirming an address, or resetting a password. */
 const SESSION_METHOD_EMAIL_LINK = 'email_link';
+/**
+ * The password, then - during the authenticator's pause - a code mailed to the
+ * address in the authenticator's place (api/authenticator_pause.php): the
+ * mailbox stood in for the second factor, which the `amr` claim says.
+ */
+const SESSION_METHOD_PASSWORD_EMAIL = 'password_email';
 
 const SESSION_REVOKED_SIGNOUT = 'signed_out';
 const SESSION_REVOKED_ELSEWHERE = 'signed_out_elsewhere';

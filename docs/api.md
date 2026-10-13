@@ -196,6 +196,19 @@ them. A configured range wider than an IPv4 `/8` or an IPv6 `/16` (`0.0.0.0/0`,
 hash of the address's bucket (an IPv6 address its /64) - a pseudonym while its
 key lasts -, as the pages' own errors are counted (`POST /api/client-errors`).
 
+Cloudflare's ranges are every Cloudflare customer's, so an installation with
+the zone's origin secret (`config/cloudflare.local.php`; the owner's decision
+of 2026-10-13, anotoki-lib 0.5.2) believes `CF-Connecting-IP` only on a
+request that also carries that secret in `X-Anotoki-Origin` - which a
+Transform Rule of the owner's zone adds to every request through it, and
+nobody else knows. A request from the ranges without it, or with another
+value, is counted as the Cloudflare edge it came from (coarser, never looser);
+the header's value is compared whole, in constant time. Without the file, the
+ranges alone decide, as above; a file that is there but cannot be read (it
+prints - a byte-order mark, no `<?php` line - or PHP cannot read it) fails
+closed: a secret no request carries, every request from the ranges its edge. Nothing answers differently for it: only which
+address is counted and kept.
+
 ---
 
 ## OpenID Connect
@@ -447,7 +460,12 @@ application's frontend to learn who signed in.
 ```
 
 `amr` is how the sign-in was made: `pwd` (password), `otp` (an authenticator
-code), `email` (an emailed code or link), `google`.
+code), `email` (an emailed code or link), `google`, and `mfa` where two factors
+were asked - the first, then the second: `["pwd", "otp", "mfa"]` for the
+password and an authenticator code, `["email", "otp", "mfa"]` for an emailed code
+and one, and `["pwd", "email", "mfa"]` for the password and, during the
+authenticator's pause, a code mailed in its place (the mailbox stood in; no
+`otp`).
 
 ### `GET|POST /api/oidc/userinfo`
 
@@ -823,6 +841,7 @@ on it beyond `error`.
   "email": "...",
   "password": "...",
   "totp": "123456",          // optional: an authenticator or recovery code
+  "email_code": "123456",    // optional: during the authenticator's pause, the code POST /api/login/code mailed
   "device_token": "...",     // optional: a remembered device, skips the code
   "remember_device": true,   // optional: remember this browser for 30 days
   "remember": true           // "keep me signed in"
@@ -840,6 +859,8 @@ opens a session. Refusals:
 | 403 | `password_login_unavailable` | this account signs in another way |
 | 403 | `totp_required` | ask for the code, send again with `totp` |
 | 403 | `totp_invalid` | the code was wrong |
+| 403 | `authenticator_paused` | five wrong authenticator codes paused the account's codes (below): `{ "paused_until": ISO-8601, "email_code": boolean }` beside `code` and `error` - `email_code` true while a code by email may stand in, false once five of those were wrong in this pause |
+| 400 | `invalid_code` | the `email_code` was wrong or spent (during a pause; the fifth wrong one is `authenticator_paused` with `"email_code": false`) |
 | 403 | `email_not_confirmed` | offer to resend |
 | 403 | `account_disabled` | an admin switched this account off |
 | 403 | `approval_pending` | made by signing up while new accounts need approval, and not approved yet: no session until an administrator approves it, who mails the person then |
@@ -858,11 +879,40 @@ address has a confirmed account. Then
 code is checked first and `totp_required` only follows a right one, so a wrong
 code says nothing about two-factor; the code is spent only once both have
 passed, so the same code finishes a sign-in that stopped to ask for the
-authenticator.
+authenticator. While the account's authenticator codes are paused (below) the
+answer is `403 authenticator_paused` with `"email_code": false`: the mailbox
+alone never stands in for the authenticator - the code by email does so only
+beside the password. The same code serves `POST /api/login/password`'s
+`email_code` then.
 
 Everywhere a second factor is asked for, an authenticator code is accepted once
 (a code from an earlier or the same 30-second step as the last one accepted is
 `totp_invalid`), and every miss counts against the sign-in limiter.
+
+**The authenticator's pause** (migration 019, the owner's decision of
+2026-10-13). Five wrong authenticator codes for an account - counted for the
+account, whatever addresses they come from, within a rolling fifteen minutes,
+from nought again after a right code or a completed sign-in - pause its codes
+for fifteen minutes from the fifth, on every way that takes one: this
+endpoint, the emailed code's sign-in, Google, a password reset, and the
+account page's `POST /api/account/2fa/disable` and `/2fa/recovery`. The fifth
+wrong code is answered `403 authenticator_paused` already, and so is every code
+meanwhile - refused without being checked (a right one is not spent), with
+`paused_until`, when it ends; the answers refused during a pause count towards
+no next one. A recovery code (where the endpoint takes one) and a remembered
+device still work. On `POST /api/login/password` alone the answer carries
+`"email_code": true`: ask `POST /api/login/code { email }` for a code, and send
+the password again with `email_code` in place of `totp` - checked only after the
+password, and only while the pause holds (outside it the field is ignored and
+the authenticator asked for). Its wrong ones are counted for the account as the
+authenticator's are, one check at a time: a wrong one is `400 invalid_code`, the
+fifth in a pause `403 authenticator_paused` with `"email_code": false`, and from
+then until the pause ends every `email_code` is refused so without being checked,
+one mailed since and the right one too, and the step's own answer says
+`"email_code": false`; a recovery code still works. Such a sign-in remembers no
+device (`remember_device` is ignored), and its session's method is
+`password_email`: its tokens' `amr` is `["pwd", "email", "mfa"]`, never `otp`. The
+account's owner is mailed once a pause. Before 019 is applied, no pause.
 
 ### `POST /api/login/google`
 
@@ -927,8 +977,9 @@ for approval gets its new password and `403 approval_pending`, with no session.
 With two-factor on, the link alone is not enough - it proves the mailbox, which
 is what the second factor stands in case of: `403 totp_required` until `totp`
 (an authenticator or recovery code) comes too, `403 totp_invalid` for a wrong
-one, `429` past the limiter. Nothing is spent or changed until it passes, so the
-same form goes again with the code.
+one, `403 authenticator_paused` (with `paused_until`) while the account's codes
+are paused - a recovery code still works -, `429` past the limiter. Nothing is
+spent or changed until it passes, so the same form goes again with the code.
 
 ### `POST /api/logout`
 
@@ -1009,8 +1060,8 @@ interface AccountUser {
 | `DELETE /api/account/google` | | `AccountUser` - `409 would_lock_account` |
 | `POST /api/account/2fa/setup` | | `{ secret, uri }` (otpauth URI for the QR code) - a new secret each time, replacing one still waiting; nothing changes until enable confirms it. `409 totp_already_on` first; then, for an account whose password is not a way in, `403 reauthentication_required` while its sign-in is more than 15 minutes old - before a secret is made, since enable would refuse that sign-in (the proof below). An account whose password is a way in sets up from a sign-in of any age |
 | `POST /api/account/2fa/enable` | `{ code, password? }` | `{ recovery_codes: string[] }` - other sessions end. `409 totp_already_on` / `totp_not_started` first; then the proof below, before the code is read: `password`, the current one, while password sign-in is on, else a sign-in of the last 15 minutes (`429 too_many_attempts`, `422 wrong_password`, `403 reauthentication_required`); then `400 totp_invalid` for a wrong code |
-| `POST /api/account/2fa/disable` | `{ code }` | `AccountUser` |
-| `POST /api/account/2fa/recovery` | `{ code }` | `{ recovery_codes }` |
+| `POST /api/account/2fa/disable` | `{ code }` | `AccountUser` - an authenticator or a recovery code; `400 totp_invalid` for a wrong one, `403 authenticator_paused` (`paused_until`) for an authenticator code while the account's codes are paused (a recovery code still works) |
+| `POST /api/account/2fa/recovery` | `{ code }` | `{ recovery_codes }` - an authenticator code only; `400 totp_invalid`, `403 authenticator_paused` as above |
 | `DELETE /api/account/devices` | | `{ ended }` |
 | `GET /api/account/sessions` | | `{ sessions: SessionEntry[], failed_since_last_login }` |
 | `DELETE /api/account/sessions/{id}` | | `{ message }` - this browser's own session (the page offers Sign out instead) is answered as a sign-out: the session cookie and the sign-in hint cleared |
@@ -1025,7 +1076,7 @@ interface AccountUser {
 ```ts
 interface SessionEntry {
   id: number;
-  method: 'password' | 'login_code' | 'google' | 'email_link';
+  method: 'password' | 'login_code' | 'google' | 'email_link' | 'password_email';  // password_email: the password and, during the authenticator's pause, a code by email
   mfa: boolean;
   ip: string | null;
   user_agent: string | null;
@@ -1349,7 +1400,7 @@ interface AdminUserDetail {
   account: AdminUser;
   identities: { id: number; provider: string; email: string | null; created_at: string }[];
   sessions: (SessionEntry & { current: false })[];
-  login_attempts: { id: number; email: string; ip: string | null; method: string; outcome: string; created_at: string }[];  // ip: the limiter's source - an IPv4 address, or an IPv6 address's /64
+  login_attempts: { id: number; email: string; ip: string | null; method: string; outcome: string; created_at: string }[];  // ip: the limiter's source - an IPv4 address, or an IPv6 address's /64; outcome among ok, sent, bad_password, bad_code, totp_required, bad_totp, totp_paused (an authenticator code refused unchecked during a pause, 019), bad_recovery (a wrong recovery code during a pause), bad_email_code (a wrong code by email beside the password during a pause), email_code_paused (one refused unchecked after five of those)
   tokens: PersonalToken[];
   active_sessions: number;
   trusted_devices: number;

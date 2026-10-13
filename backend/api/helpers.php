@@ -13,8 +13,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 // languageCodes() below reads through the family's library, and the installer
 // and the command-line tools load this file without the API's front
 // controller - so it brings Composer's autoloader itself, as
-// api/migration_runner.php does.
+// api/migration_runner.php does; and requestIp() the origin secret's loader.
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/cloudflare.php';
 
 function respondJson(Response $response, mixed $data, int $status = 200): Response
 {
@@ -68,13 +69,21 @@ function field(array $source, string $name): string
  * as IPv6 (::ffff:203.0.113.9, from a server listening on both) is the IPv4
  * address it is.
  *
+ * Cloudflare's ranges are every Cloudflare customer's, though: anybody's
+ * Worker reaches the host from them and writes the CF-Connecting-IP it likes.
+ * With the origin secret (config/cloudflare.php, the owner's decision of
+ * 2026-10-13) the header is believed only on a request that also carries the
+ * secret in X-Anotoki-Origin, which the owner's zone adds to every request
+ * through it; any other request from those ranges is the edge it came from -
+ * one source to the limiter, however many addresses it writes.
+ *
  * What every limit counts, the audit log keeps and a session shows. A
  * connection's own address that is no address at all - a server's oddity -
  * is still one sender to the limiter, as it came; none, null.
  */
 function requestIp(Request $request): ?string
 {
-    $ip = ClientAddress::of($request, iamTrustedProxies(), ClientAddress::CLOUDFLARE_HEADER);
+    $ip = ClientAddress::of($request, iamTrustedProxies(), ClientAddress::CLOUDFLARE_HEADER, iamOriginSecret());
 
     if ($ip === null) {
         $remote = $request->getServerParams()['REMOTE_ADDR'] ?? null;

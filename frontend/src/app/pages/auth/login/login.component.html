@@ -148,6 +148,54 @@
             </form>
         }
 
+        @case ("paused") {
+            <header class="auth-head">
+                <span class="auth-icon is-warning"><anotoki-icon name="clock" [size]="22" /></span>
+                <h1 tabindex="-1" anotokiAutofocus>{{ "login.paused.title" | t }}</h1>
+                <p>{{ "login.paused.text" | t: { time: pausedTime() } }}</p>
+            </header>
+
+            <div class="form">
+                @if (pausedEmail()) {
+                    @if (!pausedCodeSent()) {
+                        <p class="muted">{{ "login.paused.emailLead" | t }}</p>
+                        @if (codeError()) {
+                            <anotoki-alert tone="danger" [announce]="true">{{ codeError() }}</anotoki-alert>
+                        }
+                        <button anotokiButton variant="primary" size="lg" [block]="true" [loading]="busy()" (click)="sendPausedCode()">
+                            <anotoki-icon name="mail" [size]="16" />
+                            {{ "login.paused.sendCode" | t }}
+                        </button>
+                    } @else {
+                        <form class="form" novalidate (submit)="$event.preventDefault(); submitPausedCode()">
+                            @if (info()) {
+                                <anotoki-alert tone="success" [announce]="true">{{ info() }}</anotoki-alert>
+                            }
+                            <p class="muted">{{ "login.paused.codeSent" | t: { email: email() } }}</p>
+                            <anotoki-code-input [label]="'login.code.label' | t" name="code" [(value)]="code" [error]="codeError()" [autofocus]="true" (complete)="submitPausedCode()" />
+                            <button anotokiButton type="submit" variant="primary" size="lg" [block]="true" [loading]="busy()">{{ "login.code.submit" | t }}</button>
+                            <button anotokiButton variant="link" class="center-link" [disabled]="resendIn() > 0 || busy()" (click)="resendCode()">
+                                @if (resendIn() > 0) {
+                                    {{ "login.code.resendIn" | t: { seconds: resendIn() } }}
+                                } @else {
+                                    {{ "login.code.resend" | t }}
+                                }
+                            </button>
+                        </form>
+                    }
+                } @else if (pausedEmailSpent()) {
+                    <p class="muted">{{ "login.paused.emailSpent" | t }}</p>
+                } @else {
+                    <p class="muted">{{ "login.paused.passwordFirst" | t }}</p>
+                }
+
+                <div class="link-row">
+                    <button anotokiButton variant="link" (click)="usePausedRecovery()">{{ "login.totp.useRecovery" | t }}</button>
+                    <button anotokiButton variant="link" (click)="startOver()">{{ "login.startOver" | t }}</button>
+                </div>
+            </div>
+        }
+
         @case ("unconfirmed") {
             <header class="auth-head">
                 <span class="auth-icon is-warning"><anotoki-icon name="mail" [size]="22" /></span>

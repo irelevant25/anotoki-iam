@@ -124,7 +124,10 @@ export class ResetPasswordComponent implements OnInit {
           this.step.set('pending');
         } else if (error.code === 'totp_required') {
           this.totpNeeded.set(true);
-        } else if (error.code === 'totp_invalid') {
+        } else if (error.code === 'totp_invalid' || error.code === 'authenticator_paused') {
+          // A wrong code, or the account's codes paused after five wrong ones
+          // (fifteen minutes): said under the field, where a recovery code
+          // still works.
           this.totpNeeded.set(true);
           this.totp.set('');
           this.totpError.set(errorText(error, (key) => this._i18n.t(key)));

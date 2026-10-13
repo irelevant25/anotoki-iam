@@ -67,6 +67,21 @@ const MOVED_KEYS = [
     'sessions.ended.other' => 'sessions.ended.unknown',
 ];
 
+/**
+ * The keys the IAM's own files after 017 write - 019's, the authenticator's
+ * pause: applying all that waits after 016 brings them too, and their own
+ * file's test holds them (authenticator-pause.test.php). A later file that
+ * adds keys adds them here - this test holds 017 and the library's set.
+ */
+const LATER_PAGE_KEYS = ['error.authenticatorPaused', 'login.paused.title', 'login.paused.text', 'login.paused.emailLead', 'login.paused.sendCode', 'login.paused.codeSent', 'login.paused.passwordFirst', 'login.paused.emailSpent', 'sessions.method.password_email'];
+const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticatorPaused.greeting', 'mail.authenticatorPaused.intro', 'mail.authenticatorPaused.ignore'];
+
+/** Those keys' strings, as stringsOf() names them: 'key language', in English and Slovak. */
+function laterCells(): array
+{
+    return array_merge(...array_map(static fn(string $key): array => ["$key en", "$key sk"], [...LATER_PAGE_KEYS, ...LATER_MAIL_KEYS]));
+}
+
 const SITE_CALLBACK = 'http://localhost:4200/auth/callback';
 const SITE_ORIGIN = 'http://localhost:4200';
 const PASSWORD = 'correct horse';
@@ -160,8 +175,9 @@ function sameButRenamedAndLibrary(array $before, array $after, string $code): vo
             continue;
         }
         $expected = underNewNames($before[$map]);
-        $added = array_diff_key($after[$map], $expected);
+        $added = array_diff_key($after[$map], $expected, array_flip(LATER_PAGE_KEYS));
         same($expected, array_intersect_key($after[$map], $expected), "$code $map: every string as it was, the four keys under their new names");
+        same(LATER_PAGE_KEYS, array_values(array_intersect(LATER_PAGE_KEYS, array_keys($after[$map]))), "$code $map: the later files' own keys, as their files have them");
         same(sorted(libraryKeysOf002()), sorted(array_keys($added)), "$code $map: and nothing else but the library's other keys");
         $words = $map === 'english' || $code === 'en' ? 'en' : $code;
         same(array_map(static fn(string $key): string => LibraryWords::all()[$key][$words], libraryKeysOf002()), array_map(static fn(string $key): string => $added[$key], libraryKeysOf002()), "$code $map: in the library's words");
@@ -262,7 +278,8 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
         $after = stringsOf($pdo);
         $expected = underNewNames($strings);
         same($expected, array_intersect_key($after, $expected), 'every string as it was: word, writer, time');
-        $added = array_diff_key($after, $expected);
+        $added = array_diff_key($after, $expected, array_flip(laterCells()));
+        same(laterCells(), array_values(array_intersect(laterCells(), array_keys($after))), 'the later files\' own keys, in English and Slovak');
         same(sorted(array_merge(...array_map(static fn(string $key): array => ["$key en", "$key sk"], libraryKeysOf002()))), sorted(array_keys($added)), 'and nothing else but the library\'s other keys, in English and Slovak');
         foreach ($added as $cell => [$value, $by]) {
             [$key, $code] = explode(' ', $cell);
@@ -287,7 +304,7 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
         foreach (LibraryWords::keys() as $name) {
             same(LibraryWords::all()[$name]['description'], $keysAfter[$name][0] ?? null, "$name: the library's description");
         }
-        same(count($keys) - 2 + count(LibraryWords::keys()), count($keysAfter), 'two keys gone, every key of the library\'s there');
+        same(count($keys) - 2 + count(LibraryWords::keys()) + count(LATER_PAGE_KEYS) + count(LATER_MAIL_KEYS), count($keysAfter), 'two keys gone, every key of the library\'s there - and the later files\' own');
 
         // The bundles the pages read: before and after differ by the four names and the library's words, nothing else.
         foreach (['en', 'sk'] as $code) {

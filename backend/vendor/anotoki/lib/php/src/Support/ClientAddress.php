@@ -17,11 +17,23 @@ use Psr\Http\Message\ServerRequestInterface;
  * What the library keeps of an address is a keyed hash of its bucket - an
  * IPv4 address whole, an IPv6 address its /64 (one subscriber's whole
  * network) - never the address.
+ *
+ * Cloudflare's ranges are every Cloudflare customer's, not the owner's zone
+ * alone: a Worker of anybody's can open a raw socket to the host from them and
+ * write a CF-Connecting-IP of its choosing. A site that is given an origin
+ * secret (0.5.2, the owner's decision of 2026-10-13) believes the header only
+ * on a request that also carries ORIGIN_HEADER with that secret - which a
+ * Transform Rule of the owner's zone adds to every request through it, and
+ * nobody else knows. Without it such a request is counted by its connection
+ * (the edge's address): coarser, never looser.
  */
 final class ClientAddress
 {
     /** The header Cloudflare names the visitor's address in. */
     public const CLOUDFLARE_HEADER = 'CF-Connecting-IP';
+
+    /** The header the owner's Cloudflare zone adds with the origin secret (a Transform Rule). */
+    public const ORIGIN_HEADER = 'X-Anotoki-Origin';
 
     /**
      * Cloudflare's published ranges (www.cloudflare.com/ips-v4 and /ips-v6), as of 2026-10-11. They change
@@ -35,17 +47,24 @@ final class ClientAddress
     ];
 
     /**
-     * The request's address: the header's (a valid address) when REMOTE_ADDR is in one of $trustedProxies,
-     * else REMOTE_ADDR; null when neither is an address. An IPv4 address written as IPv6 is read as the IPv4
-     * address it is (plain()), before it is judged.
+     * The request's address: the header's (a valid address) when REMOTE_ADDR is in one of $trustedProxies -
+     * and, when the site has an $originSecret, the request carries it in ORIGIN_HEADER -, else REMOTE_ADDR;
+     * null when neither is an address. An IPv4 address written as IPv6 is read as the IPv4 address it is
+     * (plain()), before it is judged.
      *
      * @param list<string> $trustedProxies  CIDR ranges (or single addresses) of the site's proxies
+     * @param string|null $originSecret  the secret the owner's Cloudflare zone adds in ORIGIN_HEADER; null or
+     *        '' when the site has none (the header is then believed from the trusted proxies alone, as before)
      */
-    public static function of(ServerRequestInterface $request, array $trustedProxies = [], string $header = self::CLOUDFLARE_HEADER): ?string
-    {
+    public static function of(
+        ServerRequestInterface $request,
+        array $trustedProxies = [],
+        string $header = self::CLOUDFLARE_HEADER,
+        #[\SensitiveParameter] ?string $originSecret = null,
+    ): ?string {
         $connection = $request->getServerParams()['REMOTE_ADDR'] ?? null;
         $connection = is_string($connection) && filter_var($connection, FILTER_VALIDATE_IP) !== false ? self::plain($connection) : null;
-        if ($connection !== null && $header !== '' && self::trusted($connection, $trustedProxies)) {
+        if ($connection !== null && $header !== '' && self::trusted($connection, $trustedProxies) && self::throughTheOrigin($request, $originSecret)) {
             $named = trim($request->getHeaderLine($header));
             if (filter_var($named, FILTER_VALIDATE_IP) !== false) {
                 return self::plain($named);
@@ -53,6 +72,20 @@ final class ClientAddress
         }
 
         return $connection;
+    }
+
+    /**
+     * Whether the request came through the owner's zone: true when the site has no origin secret; else when
+     * ORIGIN_HEADER holds exactly that secret (compared in constant time).
+     */
+    private static function throughTheOrigin(ServerRequestInterface $request, #[\SensitiveParameter] ?string $originSecret): bool
+    {
+        if ($originSecret === null || $originSecret === '') {
+            return true;
+        }
+        $sent = $request->getHeaderLine(self::ORIGIN_HEADER);
+
+        return $sent !== '' && hash_equals($originSecret, $sent);
     }
 
     /**

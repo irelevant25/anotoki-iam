@@ -4,9 +4,9 @@
 // config/google.php - Google sign-in, if this installation has it
 // ---------------------------------------------------------------------------
 // config/google.local.php returns ['client_id' => '...apps.googleusercontent.com'],
-// written by setup.php when a client id is entered. It is the one optional
-// file: no file means no Google - the button is not drawn and the endpoints
-// refuse.
+// written by setup.php when a client id is entered. It is optional (as is
+// config/cloudflare.local.php, which setup.php never writes): no file means no
+// Google - the button is not drawn and the endpoints refuse.
 //
 // Google's "Authorised JavaScript origins" for that client must list the IAM's
 // own public address (http://localhost:4300 on a development machine) - the

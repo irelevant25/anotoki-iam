@@ -12,11 +12,12 @@ import { Observable, catchError, forkJoin, of, switchMap, throwError } from 'rxj
 import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
-import { AccountUser, LoginRequest, PublicConfig, SignInOptions, SignInResponse } from '../../../core/api/models';
+import { AccountUser, AuthenticatorPausedDetails, LoginRequest, PublicConfig, SignInOptions, SignInResponse } from '../../../core/api/models';
 import { PublicApi } from '../../../core/api/public.api';
 import { readDeviceToken, storeDeviceToken } from '../../../core/auth/device-token';
 import { safeNext } from '../../../core/auth/next-path';
 import { SessionService } from '../../../core/auth/session.service';
+import { formatAppDate } from '../../../core/i18n/app-date.pipe';
 import { TranslationKey } from '../../../core/i18n/en';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
@@ -31,7 +32,21 @@ import { SignInHandoffService } from '../sign-in-handoff.service';
  * them, so the person always sees what to do next rather than a bare "no".
  */
 type Step =
-  'loading' | 'load-error' | 'expired' | 'form' | 'code' | 'totp' | 'unconfirmed' | 'other-way' | 'change-password' | 'pending' | 'denied' | 'deletion-pending' | 'app-disabled' | 'continuing';
+  | 'loading'
+  | 'load-error'
+  | 'expired'
+  | 'form'
+  | 'code'
+  | 'totp'
+  | 'paused'
+  | 'unconfirmed'
+  | 'other-way'
+  | 'change-password'
+  | 'pending'
+  | 'denied'
+  | 'deletion-pending'
+  | 'app-disabled'
+  | 'continuing';
 
 /** The sign-in being attempted, kept so the two-factor step can send the whole of it again with the code. */
 type PendingSignIn = { kind: 'password'; email: string; password: string } | { kind: 'code'; email: string; code: string } | { kind: 'google'; credential: string; newsMail?: boolean };
@@ -102,6 +117,18 @@ export class LoginComponent implements OnInit {
   protected readonly recoveryMode = signal(false);
   protected readonly rememberDevice = signal(false);
   protected readonly unconfirmedEmail = signal('');
+
+  // ── The authenticator's pause (five wrong codes: fifteen minutes) ──────────
+  /** When the account's authenticator codes may be tried again, ISO-8601. */
+  protected readonly pausedUntil = signal<string | null>(null);
+  /** Whether a code by email may stand in meanwhile - on the password's sign-in only. */
+  protected readonly pausedEmail = signal(false);
+  /** Whether five codes by email were wrong in this pause too, so none stands in until it ends. */
+  protected readonly pausedEmailSpent = signal(false);
+  /** Whether that code has been asked for, so the field it is typed into shows. */
+  protected readonly pausedCodeSent = signal(false);
+  /** The pause's end as a time of day, the reader's own way of writing one. */
+  protected readonly pausedTime = computed(() => formatAppDate(this.pausedUntil(), 'time', this._i18n.locale(), null));
 
   // ── A forced password change ───────────────────────────────────────────────
   protected readonly currentPassword = signal('');
@@ -208,6 +235,7 @@ export class LoginComponent implements OnInit {
     }
 
     this._pending = { kind: 'password', email, password };
+    this.pausedCodeSent.set(false);
     this._signIn();
   }
 
@@ -299,6 +327,54 @@ export class LoginComponent implements OnInit {
     this.recoveryMode.set(!this.recoveryMode());
     this.totp.set('');
     this.totpError.set(null);
+  }
+
+  // ── The authenticator's pause ──────────────────────────────────────────────
+  //
+  // Five wrong authenticator codes for the account pause its codes for fifteen
+  // minutes, on every way in (`authenticator_paused`). A recovery code still
+  // works; on the password's sign-in a code by email stands in meanwhile - the
+  // emailed sign-in's own code, sent back with the password, never without it -
+  // until five of those are wrong in the pause too.
+
+  /** Has the code mailed: the emailed sign-in's own (`POST /api/login/code`). */
+  protected sendPausedCode(): void {
+    this.codeError.set(null);
+    this.info.set(null);
+    this.busy.set(true);
+    this._loginApi.requestCode(this.email().trim()).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.code.set('');
+        this.pausedCodeSent.set(true);
+        this._startCooldown();
+      },
+      error: (error: ApiError) => {
+        this.busy.set(false);
+        this.codeError.set(this._errorText(error));
+      },
+    });
+  }
+
+  /** The password's sign-in again, the mailed code where the authenticator's would be. */
+  protected submitPausedCode(): void {
+    if (this.busy()) {
+      return;
+    }
+    this.codeError.set(null);
+    const code = this.code();
+    if (code.length !== 6) {
+      this.codeError.set(this.t('error.invalidCode'));
+      return;
+    }
+    this._signIn(undefined, code);
+  }
+
+  /** A recovery code works during the pause: the authenticator's step, asking for one. */
+  protected usePausedRecovery(): void {
+    this.recoveryMode.set(true);
+    this.totp.set('');
+    this.goTo('totp');
   }
 
   // ── An unconfirmed address ─────────────────────────────────────────────────
@@ -405,6 +481,7 @@ export class LoginComponent implements OnInit {
     this.code.set('');
     this.totp.set('');
     this.recoveryMode.set(false);
+    this.pausedCodeSent.set(false);
     this.goTo('form');
   }
 
@@ -486,7 +563,8 @@ export class LoginComponent implements OnInit {
     return this._i18n.t(key, params);
   }
 
-  private _signIn(totp?: string): void {
+  /** `emailCode`: during the authenticator's pause, the mailed code in its place - the password's sign-in only. */
+  private _signIn(totp?: string, emailCode?: string): void {
     const pending = this._pending;
     if (!pending) {
       return;
@@ -510,7 +588,7 @@ export class LoginComponent implements OnInit {
     const language = this._i18n.preferred(this.config()?.languages ?? []);
     const call$: Observable<SignInResponse> =
       pending.kind === 'password'
-        ? this._loginApi.password({ email: pending.email, password: pending.password, ...options })
+        ? this._loginApi.password({ email: pending.email, password: pending.password, ...options, ...(emailCode ? { email_code: emailCode } : {}) })
         : pending.kind === 'code'
           ? this._loginApi.verifyCode({ email: pending.email, code: pending.code, ...options })
           : this._loginApi.google({ credential: pending.credential, language, ...(pending.newsMail ? { news_mail: true } : {}), ...options });
@@ -549,6 +627,19 @@ export class LoginComponent implements OnInit {
         }
         this.totpError.set(this.t('error.totpInvalid'));
         return;
+      case 'authenticator_paused': {
+        // Five wrong codes: the account's authenticator codes wait until the
+        // pause ends. A code by email stands in on the password's sign-in.
+        const details = error.details as Partial<AuthenticatorPausedDetails>;
+        this.pausedUntil.set(typeof details.paused_until === 'string' ? details.paused_until : null);
+        this.pausedEmail.set(details.email_code === true && pending?.kind === 'password');
+        // The password's sign-in is offered no code by email once five were wrong in this pause.
+        this.pausedEmailSpent.set(details.email_code !== true && pending?.kind === 'password');
+        this.totp.set('');
+        this.recoveryMode.set(false);
+        this.goTo('paused');
+        return;
+      }
       case 'email_not_confirmed':
         this.unconfirmedEmail.set(pending && pending.kind !== 'google' ? pending.email : this.email().trim());
         this.goTo('unconfirmed');
@@ -579,7 +670,7 @@ export class LoginComponent implements OnInit {
 
     if (this.step() === 'totp') {
       this.totpError.set(text);
-    } else if (this.step() === 'code') {
+    } else if (this.step() === 'code' || this.step() === 'paused') {
       this.codeError.set(text);
     } else {
       if (this.step() !== 'form' && this.step() !== 'other-way') {

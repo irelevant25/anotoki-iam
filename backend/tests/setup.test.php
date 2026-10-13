@@ -349,6 +349,55 @@ test('a fresh database arrives with the sites\' development addresses, as in the
     same(['ADMIN', 'EDITOR', 'MEMBER'], $roles->fetchAll(PDO::FETCH_COLUMN), 'the roles the survey site asks for, and the MEMBER every account holds - each may sign in');
 });
 
+test('a file the installer reads that prints - no <?php line, a byte-order mark - is never shown, and nothing is saved over it until it is corrected; config/cloudflare.local.php it never touches', function () {
+    $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
+    $secretFile = IAM_CONFIG_DIR . '/secret.local.php';
+    $iamFile = IAM_CONFIG_DIR . '/iam.local.php';
+    $cloudflareFile = IAM_CONFIG_DIR . '/cloudflare.local.php';
+    $key = (string) file_get_contents($secretFile);
+    $hex = trim((string) localConfig('secret'));
+    $iam = (string) file_get_contents($iamFile);
+    $withoutPhp = "return ['public_url' => 'http://localhost:4300'];\n";
+
+    // The origin secret, uploaded by hand: no save reads it or writes it.
+    $cloudflare = "<?php\n\nreturn ['origin_secret' => 'uploaded-by-hand-0123456789abcdefghijklmnop'];\n";
+    file_put_contents($cloudflareFile, $cloudflare);
+
+    file_put_contents($secretFile, "\xEF\xBB\xBF" . $key);
+    file_put_contents($iamFile, $withoutPhp);
+    forgetLocalConfig();
+    try {
+        ob_start();
+        $page = setupRequest('GET', LOCAL_SERVER);
+        $printed = (string) ob_get_clean();
+        same('', $printed, 'nothing of either is printed');
+        same(200, $page['status'], 'the form');
+        check(!str_contains($page['body'], $hex), 'the master key is not in the page');
+        check(str_contains($page['body'], 'config/secret.local.php prints 3 bytes of its own') && str_contains($page['body'], 'config/iam.local.php prints ' . strlen($withoutPhp) . ' bytes of its own'),
+            'the page names both files and their fault: ' . strip_tags($page['body']));
+
+        ob_start();
+        $answer = setupRequest('POST', LOCAL_SERVER, localForm(nonceFrom($page), ['db_pass' => '', 'accounts' => 'later']));
+        $printed = (string) ob_get_clean();
+        same('', $printed, 'nothing printed by the save either');
+        same(409, $answer['status'], 'the save is refused while they print');
+        check(!str_contains($answer['body'], $hex), 'nor is the key in its answer');
+        check("\xEF\xBB\xBF" . $key === (string) file_get_contents($secretFile), 'the key\'s file is not written over: no new master key in its place');
+        same($withoutPhp, (string) file_get_contents($iamFile), 'nor is the other');
+    } finally {
+        file_put_contents($secretFile, $key);
+        file_put_contents($iamFile, $iam);
+        forgetLocalConfig();
+    }
+
+    $saved = setupRequest('POST', LOCAL_SERVER, localForm($nonce, ['db_pass' => '', 'accounts' => 'later']));
+    same(200, $saved['status'], 'corrected, it saves: ' . strip_tags($saved['body']));
+    same($cloudflare, (string) file_get_contents($cloudflareFile), 'config/cloudflare.local.php is as it was uploaded');
+    check(trim((string) localConfig('secret')) === $hex, 'and the master key is the one it was');
+    unlink($cloudflareFile);
+    forgetLocalConfig();
+});
+
 test('a copy locked as a real host stays locked on this computer too', function () {
     file_put_contents(IAM_STORAGE_DIR . '/installed.lock', '{}');
     $page = setupRequest('GET', LOCAL_SERVER);

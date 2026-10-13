@@ -82,9 +82,20 @@ hosting:
     `CF-Connecting-IP` for IPv6 visitors.
   - The site believes the visitor's address in `CF-Connecting-IP` only on a connection from Cloudflare's
     published ranges (the anotoki library's list), and counts every limit by it.
+  - Rules -> Transform Rules -> Modify Request Header: **Set static** `X-Anotoki-Origin` to a long random value
+    (32 characters or more), for every request of the zone - and the same value in `config/cloudflare.local.php`
+    (`<?php return ['origin_secret' => '...'];`, uploaded by hand, never committed). With both, `CF-Connecting-IP`
+    is believed only on a request that carries the value, so nobody else's Cloudflare Worker can write itself a new
+    address for every guess; without the file the site believes it from Cloudflare's ranges alone. Set the two
+    together: a file the zone does not match - or one that cannot be read, a byte-order mark before its `<?php` -
+    counts every visitor as their Cloudflare edge (`docs/operations.md`, "Behind Cloudflare").
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
-  address); pending database updates are applied on the admin panel's Migrations page.
+  address); the admin panel's Sessions show visitors' own addresses, not Cloudflare's (else the origin secret's
+  two halves differ); pending database updates are applied on the admin panel's Migrations page.
+- **Keep with the backups**: `config/secret.local.php` (the master key, off the server) and, each time a backup is
+  downloaded, `storage/records/account-deletions.jsonl` over SFTP - the record a restore by hand replays
+  (`docs/operations.md`, "When the database is lost").
 
 ## Current state
 
@@ -103,7 +114,7 @@ hosting:
   the genshin site, and every administrator there when 007 ran - a grant at
   those moments: promoting or removing an administrator later changes no
   site's roles. 007 goes on an installed IAM after the sites are updated.
-- Migrations 001-018, applied by the engine every anotoki site shares - the
+- Migrations 001-019, applied by the engine every anotoki site shares - the
   family's library, anotoki-lib (`anotoki/lib` in `backend/vendor/`,
   `@anotoki/lib` in the frontend); an installed IAM gets the later ones through
   the admin panel's Migrations page (or setup.php / `php migration.php` on
@@ -130,6 +141,15 @@ hosting:
   bar (the survey site's is the reference): the account pages as its links,
   the language, the theme, the person's menu; a menu button on a phone, up to
   1040 px. The admin panel keeps its side navigation under it.
+- Five wrong authenticator codes pause an account's codes for fifteen minutes,
+  whatever addresses they come from (migration 019, the owner's decision of
+  2026-10-13): the sign-in page then offers a code by email after the
+  password (five wrong of those, and none until the pause ends), a recovery
+  code still works, and the account's owner is mailed.
+- Every deletion of an account asked for, cancelled and done is also a line
+  of an add-only record beside the database; after a backup put back by hand,
+  `php account-deletions.php --replay` does them again. The admin panel never
+  restores.
 - The pages and mails in English and Slovak, reworded in the admin panel.
 - "Test connection" on the installer answers in the family's words, the
   survey's setup page's.

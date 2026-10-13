@@ -26,7 +26,13 @@ master key, its public address, mail, Google - from `backend/config/*.local.php`
 Those files are gitignored and required: without them the API answers every
 request with `503 not_set_up`, and the pages show "not set up yet", with the
 way to the installer (on this computer always: only a real host's install
-locks it away for good). The installer writes them.
+locks it away for good). The installer writes them. (One more is optional and
+never the installer's: `cloudflare.local.php`, the secret the Cloudflare zone
+adds to every request - a real host's, uploaded by hand; nothing on this
+computer needs it, `docs/operations.md`, "Behind Cloudflare". A file edited by
+hand must start with `<?php` and carry no byte-order mark: one that prints
+anything of its own is passed over - and `cloudflare.local.php` then fails
+closed, every visitor counted as their Cloudflare edge.)
 
 ### 1. The installer
 

@@ -1,6 +1,10 @@
 <?php
 
+use Anotoki\Lib\Support\GuardedDirectory;
 use Psr\Http\Message\ServerRequestInterface as Request;
+
+// What an anonymization clears that 019 made (authenticatorPauseReady()).
+require_once __DIR__ . '/authenticator_pause.php';
 
 /**
  * Deleting an account, at its owner's request (migration 016, the owner's
@@ -27,6 +31,13 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *   - The sites learn which ids went, and when, from
  *     GET /api/public/anonymized-accounts (anonymizedAccountsPage()) - ids and
  *     times, nothing else - and scrub their own copies of the name and address.
+ *   - Each of the three is also a line of an add-only record beside the
+ *     database (storage/records/account-deletions.jsonl, the owner's decision
+ *     of 2026-10-13; recordAccountDeletionEvent()), written once it committed:
+ *     a database lost and put back by hand from an older backup would bring
+ *     back every person deleted since. `php account-deletions.php --replay`
+ *     does them again after such a restore (replayAccountDeletions()); the
+ *     IAM's restore in the admin panel stays off.
  *
  * Everything here reads the columns only once 016 is there
  * (accountDeletionReady()): a build goes up before its migrations.
@@ -151,20 +162,21 @@ function requestAccountDeletion(PDO $pdo, Request $request, array $user, int $ke
         $asked = $pdo->prepare(
             "UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP, deletion_due_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 day')
               WHERE id = ? AND deletion_due_at IS NULL AND anonymized_at IS NULL AND NOT disabled
-          RETURNING deletion_due_at"
+          RETURNING deletion_due_at, " . recordTimeSql('deletion_requested_at') . ' AS record_at, ' . recordTimeSql('deletion_due_at') . ' AS record_due'
         );
         $asked->execute([ACCOUNT_DELETION_DAYS, $userId]);
-        $due = $asked->fetchColumn();
+        $row = $asked->fetch();
 
-        if ($due === false) {
+        if ($row === false) {
             $pdo->rollBack();
             return ['status' => 409, 'code' => 'deletion_already_requested', 'error' => 'The deletion of this account is asked for already'];
         }
+        $due = (string) $row['deletion_due_at'];
 
         revokeSessionsFor($pdo, $userId, SESSION_REVOKED_DELETION, $keepSessionId);
         $pdo->prepare('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE user_id = ? AND revoked_at IS NULL')
             ->execute([SESSION_REVOKED_DELETION, $userId]);
-        audit($request, $userId, 'account.deletion_requested', 'user', $userId, ['due' => isoTime((string) $due), 'proof' => $proof]);
+        audit($request, $userId, 'account.deletion_requested', 'user', $userId, ['due' => isoTime($due), 'proof' => $proof]);
 
         $pdo->commit();
     } catch (\Throwable $e) {
@@ -174,7 +186,10 @@ function requestAccountDeletion(PDO $pdo, Request $request, array $user, int $ke
         throw $e;
     }
 
-    return ['due' => (string) $due];
+    // Committed: into the record beside the database, with both its times.
+    recordAccountDeletionEvent('requested', $userId, (string) $row['record_at'], ['due' => (string) $row['record_due']]);
+
+    return ['due' => $due];
 }
 
 /**
@@ -194,11 +209,12 @@ function cancelAccountDeletion(PDO $pdo, Request $request, int $userId): bool
         $cancelled = $pdo->prepare(
             'UPDATE users SET deletion_requested_at = NULL, deletion_due_at = NULL
               WHERE id = ? AND deletion_due_at IS NOT NULL AND anonymized_at IS NULL
-          RETURNING id'
+          RETURNING ' . recordTimeSql('CURRENT_TIMESTAMP') . ' AS record_at'
         );
         $cancelled->execute([$userId]);
+        $at = $cancelled->fetchColumn();
 
-        if ($cancelled->fetchColumn() === false) {
+        if ($at === false) {
             $pdo->rollBack();
             return false;
         }
@@ -211,6 +227,8 @@ function cancelAccountDeletion(PDO $pdo, Request $request, int $userId): bool
         }
         throw $e;
     }
+
+    recordAccountDeletionEvent('cancelled', $userId, (string) $at);
 
     return true;
 }
@@ -285,6 +303,12 @@ function anonymizedLeftovers(PDO $pdo): void
         'UPDATE users SET last_login_at = NULL, totp_last_step = NULL
           WHERE anonymized_at IS NOT NULL AND (last_login_at IS NOT NULL OR totp_last_step IS NOT NULL)'
     );
+    if (authenticatorPauseReady($pdo)) {
+        $pdo->exec(
+            'UPDATE users SET totp_paused_until = NULL, totp_count_from = NULL
+              WHERE anonymized_at IS NOT NULL AND (totp_paused_until IS NOT NULL OR totp_count_from IS NOT NULL)'
+        );
+    }
 }
 
 /**
@@ -415,8 +439,16 @@ function flushWaitingAuditEntries(PDO $pdo): int
  * was asked and due; what others did that names the id (roles it granted,
  * strings it reworded, announcements it sent - an administrator's work); the
  * audit log's events themselves.
+ *
+ * Once committed, a line of the record beside the database
+ * (recordAccountDeletionEvent()). With $replay - the record done again after
+ * a restore (replayAccountDeletions()) - the account goes whether or not the
+ * restored row says it is due (the record says it went: its request may be
+ * older than the window replayed, or its line lost), and no last mail goes:
+ * the person was told when it was done the first time - and its line goes into
+ * the record the replay read ($recordFile, null for the IAM's own).
  */
-function anonymizeAccount(PDO $pdo, int $userId): bool
+function anonymizeAccount(PDO $pdo, int $userId, bool $replay = false, ?string $recordFile = null): bool
 {
     $pdo->beginTransaction();
     try {
@@ -424,7 +456,7 @@ function anonymizeAccount(PDO $pdo, int $userId): bool
             $pdo->query('SELECT pg_advisory_xact_lock(' . $lock . ')');
         }
 
-        $row = $pdo->prepare('SELECT * FROM users WHERE id = ? AND deletion_due_at <= CURRENT_TIMESTAMP AND anonymized_at IS NULL FOR UPDATE');
+        $row = $pdo->prepare('SELECT * FROM users WHERE id = ? AND anonymized_at IS NULL' . ($replay ? '' : ' AND deletion_due_at <= CURRENT_TIMESTAMP') . ' FOR UPDATE');
         $row->execute([$userId]);
         $user = $row->fetch();
 
@@ -434,7 +466,7 @@ function anonymizeAccount(PDO $pdo, int $userId): bool
         }
 
         $email = (string) $user['email'];
-        $farewell = asBool($user['email_confirmed']) ? accountDeletedMessage($user) : null;
+        $farewell = asBool($user['email_confirmed']) && !$replay ? accountDeletedMessage($user) : null;
 
         foreach ([
             'DELETE FROM auth_codes WHERE user_id = ?',
@@ -465,15 +497,25 @@ function anonymizeAccount(PDO $pdo, int $userId): bool
         $pdo->prepare('UPDATE announcement_recipients SET email = ? WHERE user_id = ?')->execute([$address, $userId]);
         scrubAuditLog($pdo, [$userId]);
 
-        $pdo->prepare(
+        // A row anonymized holds when it was asked and due (users_deletion_check): one done again
+        // by a replay whose restored row has no request keeps the time it is done at.
+        $done = $pdo->prepare(
             "UPDATE users SET username = ?, email = ?, email_confirmed = FALSE, password = NULL, password_login_enabled = FALSE,
                     totp_secret = NULL, totp_enabled = FALSE, totp_last_step = NULL, force_password_change = FALSE,
                     language = 'en', theme = 'auto', date_format = NULL, time_format = NULL, news_mail = FALSE,
-                    disabled = TRUE, last_login_at = NULL, anonymized_at = date_trunc('second', clock_timestamp())
-              WHERE id = ?"
-        )->execute([$username, $address, $userId]);
+                    disabled = TRUE, last_login_at = NULL, anonymized_at = date_trunc('second', clock_timestamp()),
+                    deletion_requested_at = COALESCE(deletion_requested_at, CURRENT_TIMESTAMP), deletion_due_at = COALESCE(deletion_due_at, CURRENT_TIMESTAMP)
+              WHERE id = ?
+          RETURNING " . recordTimeSql('anonymized_at') . ' AS record_at'
+        );
+        $done->execute([$username, $address, $userId]);
+        $at = (string) $done->fetchColumn();
+        // The authenticator's pause and its count (019, once there): the person's too.
+        if (authenticatorPauseReady($pdo)) {
+            $pdo->prepare('UPDATE users SET totp_paused_until = NULL, totp_count_from = NULL WHERE id = ?')->execute([$userId]);
+        }
 
-        audit(null, null, 'account.anonymized', 'user', $userId, ['requested_at' => isoTime((string) $user['deletion_requested_at'])]);
+        audit(null, null, 'account.anonymized', 'user', $userId, ['requested_at' => isoTime((string) $user['deletion_requested_at'])] + ($replay ? ['replayed' => true] : []));
 
         $pdo->commit();
     } catch (\Throwable $e) {
@@ -482,6 +524,8 @@ function anonymizeAccount(PDO $pdo, int $userId): bool
         }
         throw $e;
     }
+
+    recordAccountDeletionEvent('anonymized', $userId, $at, $replay ? ['replayed' => true] : [], $replay ? $recordFile : null);
 
     // Done, for good: now the person may be told so - at the address it had,
     // logged under the one it has now.
@@ -557,4 +601,524 @@ function anonymizedAccountsPage(PDO $pdo, ?DateTimeImmutable $since, ?int $after
         'accounts' => $accounts,
         'next' => $more && $last !== false ? ['since' => $last['anonymized_at'], 'after' => $last['sub']] : null,
     ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The record beside the database, and its replay (the owner's decision of 2026-10-13)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// A deletion lives in the database: asked for, cancelled, done. Were the
+// database lost and an older backup put back by hand, every request and every
+// anonymization made after it would be gone with it - and an anonymized
+// person's name, address and history would be back. So each of the three is
+// also a line of an add-only record kept beside the database, in storage/:
+//
+//   {"at":"2026-10-13T12:34:56.789012Z","event":"requested","user_id":42,"due":"2026-11-12T12:34:56.789012Z"}
+//   {"at":"...","event":"cancelled","user_id":42}
+//   {"at":"...","event":"anonymized","user_id":42}
+//
+// ids and the database's own times, nothing of the person. Written once the
+// event's transaction committed - never for one rolled back - and a failure to
+// write is the error log's, loudly, and never the person's: the deletion was
+// made. After an offline restore `php account-deletions.php --replay` does
+// again every event the restored database lacks (replayAccountDeletions()),
+// and its own changes are lines of the record too ("replayed": true), so a
+// backup made between the restore and the replay is covered by the next
+// replay as well. The IAM's restore in the admin panel stays off.
+
+/** How far before the backup's time a replay starts: a transaction that began before its snapshot may have committed after it. */
+const ACCOUNT_DELETION_REPLAY_MARGIN = 3600;
+
+/** The events a record holds. */
+const ACCOUNT_DELETION_EVENTS = ['requested', 'cancelled', 'anonymized'];
+
+/** Where the record is kept: beside the database, in storage/ (its folder guarded like the others). */
+function accountDeletionRecordFile(): string
+{
+    return iamStorageDir() . '/records/account-deletions.jsonl';
+}
+
+/**
+ * A time as the record writes one - ISO-8601 in UTC, to the microsecond, as
+ * the database holds it - from an SQL expression: a replay writes back exactly
+ * the time it read.
+ */
+function recordTimeSql(string $expression): string
+{
+    return "to_char(({$expression}) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"')";
+}
+
+/**
+ * One event into the record, after its transaction committed. Never throws:
+ * a line that cannot be written - the folder cannot be made or guarded, the
+ * file cannot be added to - is written into the error log, loudly, naming the
+ * event (its account's id and its time, nothing of the person), and the
+ * request goes on as it was: the deletion was made, and the database holds it.
+ *
+ * The folder storage/records is the IAM's own: made readable by the FTP account
+ * (the owner downloads the file with the backups, docs/operations.md), and
+ * guarded against the web as the library guards its folders (an .htaccess
+ * that denies everything, an empty index.html); the file is added to under an
+ * exclusive lock, one line at a time. $file is a copy of the record a replay
+ * read (`--record=`), which its own lines go into: the owner uploads that one
+ * file back - its folder is the owner's, and left as it is.
+ */
+function recordAccountDeletionEvent(string $event, int $userId, string $at, array $extra = [], ?string $file = null): void
+{
+    try {
+        if ($file === null) {
+            $file = accountDeletionRecordFile();
+            $folder = dirname($file);
+            if (!is_dir($folder) && !@mkdir($folder, 0755, true) && !is_dir($folder)) {
+                throw new RuntimeException('its folder cannot be made');
+            }
+            if (!GuardedDirectory::ensure($folder)) {
+                throw new RuntimeException('its folder\'s guard against the web cannot be written');
+            }
+        }
+        $line = json_encode(['at' => $at, 'event' => $event, 'user_id' => $userId] + $extra, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+        if (@file_put_contents($file, $line, FILE_APPEND | LOCK_EX) !== strlen($line)) {
+            throw new RuntimeException('it cannot be added to');
+        }
+    } catch (\Throwable $e) {
+        $failure = new RuntimeException("The account deletion record (storage/records/account-deletions.jsonl) is missing an event: {$event} of account {$userId} at {$at} is in the database alone - " . $e->getMessage() . '.', 0, $e);
+        try {
+            if (function_exists('iamRecordError')) {
+                iamRecordError($failure);
+            } else {
+                error_log('[account deletion record] ' . $failure->getMessage());
+            }
+        } catch (\Throwable) {
+            error_log('[account deletion record] ' . $failure->getMessage());
+        }
+    }
+}
+
+/**
+ * The record, read: its events in the order they were written - not always the
+ * order they happened, which a replay puts them in (accountDeletionEventTime())
+ * -, and how many lines were no event - not JSON, an event it does not know,
+ * no account, a time that is none - which are passed over, never guessed at.
+ *
+ * @return array{events: list<array{at: string, event: string, user_id: int, due?: string, requested_at?: string, replayed?: bool}>, unreadable: int}
+ */
+function readAccountDeletionRecord(string $file): array
+{
+    $events = [];
+    $unreadable = 0;
+    $handle = @fopen($file, 'rb');
+    if ($handle === false) {
+        return ['events' => [], 'unreadable' => 0];
+    }
+
+    try {
+        while (($line = fgets($handle)) !== false) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            $event = json_decode($line, true);
+            $valid = is_array($event)
+                && in_array($event['event'] ?? null, ACCOUNT_DELETION_EVENTS, true)
+                && is_int($event['user_id'] ?? null) && $event['user_id'] > 0 && $event['user_id'] <= 2147483647
+                && is_string($event['at'] ?? null) && anonymizedSince($event['at']) !== null
+                && ($event['event'] !== 'requested' || (is_string($event['due'] ?? null) && anonymizedSince($event['due']) !== null))
+                && (!isset($event['requested_at']) || (is_string($event['requested_at']) && anonymizedSince($event['requested_at']) !== null));
+            if (!$valid) {
+                $unreadable++;
+                continue;
+            }
+            $events[] = array_intersect_key($event, array_flip(['at', 'event', 'user_id', 'due', 'requested_at', 'replayed']));
+        }
+    } finally {
+        fclose($handle);
+    }
+
+    return ['events' => $events, 'unreadable' => $unreadable];
+}
+
+/** One event as the command line prints it: when, what, which account - ids and times only. */
+function accountDeletionEventLine(array $event): string
+{
+    return sprintf('%s  %-10s  #%d', $event['at'], $event['event'], $event['user_id'])
+        . (isset($event['due']) ? '  due ' . $event['due'] : '')
+        . (!empty($event['replayed']) ? '  (replayed)' : '');
+}
+
+/**
+ * The record done again on a database restored from a backup made at $since:
+ * every event from ACCOUNT_DELETION_REPLAY_MARGIN before it on, in the order
+ * the events happened (accountDeletionEventTime()) - a request with its own
+ * times (the thirty days keep their date), a cancellation, an anonymization
+ * run now (anonymizeAccount(), no last mail). Each event says where its
+ * account stands afterwards, so an account's last one decides, and only where
+ * the database does not say so already: asked and then cancelled, an account
+ * ends not asked - without being asked and cancelled again on the way. Then
+ * the ids the record names are kept from being issued again, and every way
+ * back in the restore brought back is ended (endEverySignIn()). Each change
+ * made is a line of the record it read ($recordFile, a copy given with
+ * `--record=`; null for the IAM's own), and an entry of the audit log. Done
+ * twice, the second changes nothing. With $dryRun, what it would do, and
+ * nothing changed.
+ *
+ * And it says how many live administrators the restored IAM has afterwards
+ * (liveAdministratorsAfterReplay()), with a warning when none: the backup may
+ * be older than every administrator who stays - one made since is not in it,
+ * and the record knows deletions, not roles - and an IAM nobody administers
+ * cannot be mended from its own pages.
+ *
+ * Refused while migrations wait: the record is replayed onto the IAM's schema
+ * as it is now.
+ *
+ * @return array{refused: string}|array{from: string, lines: list<string>, summary: string, counts: array<string, int>, ended: array<string, int>, kept: ?int, administrators: int, warning: ?string}
+ */
+function replayAccountDeletions(PDO $pdo, array $events, DateTimeImmutable $since, bool $dryRun, ?string $recordFile = null): array
+{
+    $pending = iamMigrator($pdo)->status()['pending'];
+    if ($pending !== []) {
+        return ['refused' => count($pending) . ' database update(s) wait (' . implode(', ', array_map(static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']), $pending))
+            . "). Apply them first - php migration.php: the record is replayed onto the IAM's schema as it is now."];
+    }
+
+    $from = $since->setTimezone(new DateTimeZone('UTC'))->modify('-' . ACCOUNT_DELETION_REPLAY_MARGIN . ' seconds');
+    $window = array_values(array_filter($events, static fn(array $event): bool => new DateTimeImmutable($event['at']) >= $from));
+
+    // In the order the events happened, by their own times - not the order their lines were written in:
+    // each line is added once its transaction committed, so two events of an account a moment apart can
+    // stand the other way round in the file, and the last one decides. A tie keeps the record's order.
+    $order = array_keys($window);
+    usort($order, static fn(int $a, int $b): int => [accountDeletionEventTime($window[$a]), $a] <=> [accountDeletionEventTime($window[$b]), $b]);
+    $window = array_map(static fn(int $index): array => $window[$index], $order);
+
+    $last = [];
+    foreach ($window as $index => $event) {
+        $last[$event['user_id']] = $index;
+    }
+
+    $counts = ['requested' => 0, 'cancelled' => 0, 'anonymized' => 0, 'already' => 0, 'missing' => 0];
+    $lines = [];
+    // What the replay made (or, dry, would make) of each account it changed, for the administrators' count.
+    $becomes = [];
+    foreach ($window as $index => $event) {
+        if ($last[$event['user_id']] !== $index) {
+            $lines[] = accountDeletionEventLine($event) . '  a later event of the account decides';
+            continue;
+        }
+        $before = $counts;
+        $lines[] = accountDeletionEventLine($event) . '  ' . replayAccountDeletionEvent($pdo, $event, $dryRun, $counts, $recordFile);
+        foreach (['requested', 'cancelled', 'anonymized'] as $made) {
+            if ($counts[$made] > $before[$made]) {
+                $becomes[$event['user_id']] = $made;
+            }
+        }
+    }
+
+    $kept = keepAccountIdsPast($pdo, max([0, ...array_map(static fn(array $event): int => $event['user_id'], $events)]), $dryRun);
+    $ended = endEverySignIn($pdo, $dryRun);
+    $administrators = liveAdministratorsAfterReplay($pdo, $becomes);
+
+    $would = $dryRun ? 'would be ' : '';
+    $summary = sprintf(
+        'Asked again: %d, cancelled again: %d, deleted again: %d, already so: %d, not in this database: %d. Ended%s: %d session(s), %d refresh and personal token(s), %d remembered browser(s), %d mailed link(s) and code(s).',
+        $counts['requested'], $counts['cancelled'], $counts['anonymized'], $counts['already'], $counts['missing'],
+        $dryRun ? ' (would be)' : '', $ended['sessions'], $ended['tokens'], $ended['devices'], $ended['mailed']
+    ) . ($kept !== null ? " Account ids up to #{$kept} {$would}kept from being issued again." : '')
+        . " Live administrators of the IAM afterwards: {$administrators}.";
+
+    $warning = $administrators > 0 ? null
+        : 'WARNING: ' . ($dryRun ? 'the replay would leave' : 'the replay leaves') . ' the restored IAM with no live administrator - nobody holding the IAM\'s ADMIN who is'
+            . ' switched on, not deleted and not waiting for a deletion (an administrator made after the backup is not in it; the record knows deletions, not roles).'
+            . ' An administrator whose deletion was asked again can sign in and cancel it; otherwise give a live account the IAM\'s ADMIN in the database by hand'
+            . ' (docs/operations.md, "When the database is lost") before the IAM goes live again.';
+
+    // In the audit log when it changed anything: a second run, which changes nothing, leaves nothing.
+    $changed = $counts['requested'] + $counts['cancelled'] + $counts['anonymized'] + array_sum($ended) > 0 || $kept !== null;
+    if (!$dryRun && $changed) {
+        audit(null, null, 'account.deletions_replayed', null, null, ['since' => $since->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z')] + $counts
+            + ['ended' => $ended, 'administrators' => $administrators]);
+    }
+
+    return [
+        'from' => $from->format('Y-m-d\TH:i:s\Z'), 'lines' => $lines, 'summary' => $summary, 'counts' => $counts, 'ended' => $ended, 'kept' => $kept,
+        'administrators' => $administrators, 'warning' => $warning,
+    ];
+}
+
+/**
+ * When an event happened, for putting a replay's events in order - in UTC, to
+ * the microsecond, comparable as text: its own time, which for a request the
+ * replay made again is when it was first asked (`requested_at`), not when the
+ * replay wrote it.
+ */
+function accountDeletionEventTime(array $event): string
+{
+    return (new DateTimeImmutable($event['requested_at'] ?? $event['at']))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.u');
+}
+
+/**
+ * How many live administrators the IAM has once a replay is done - holding the
+ * IAM's ADMIN, switched on, not deleted and not waiting for a deletion
+ * (iamAdminCount()'s rule) -, with $becomes, what the replay made (or would
+ * make, on a dry run) of each account it changed, laid over what the database
+ * says: asked or deleted again, an administrator administers nothing any
+ * more; cancelled again, one does again.
+ *
+ * @param array<int, string> $becomes
+ */
+function liveAdministratorsAfterReplay(PDO $pdo, array $becomes): int
+{
+    $rows = $pdo->prepare(
+        "SELECT DISTINCT u.id, u.deletion_due_at IS NULL AND u.anonymized_at IS NULL AS staying, u.anonymized_at IS NOT NULL AS gone
+           FROM user_roles ur
+           JOIN application_roles r ON r.id = ur.role_id
+           JOIN applications a ON a.id = r.application_id
+           JOIN users u ON u.id = ur.user_id AND u.disabled = FALSE
+          WHERE a.client_id = ? AND r.name = 'ADMIN'"
+    );
+    $rows->execute([IAM_CLIENT_ID]);
+
+    $live = 0;
+    foreach ($rows->fetchAll() as $row) {
+        $live += match ($becomes[(int) $row['id']] ?? null) {
+            'requested', 'anonymized' => 0,
+            'cancelled' => asBool($row['gone']) ? 0 : 1,
+            default => asBool($row['staying']) ? 1 : 0,
+        };
+    }
+
+    return $live;
+}
+
+/** One event done again, where the database does not say so already: what became of it, in a few words. */
+function replayAccountDeletionEvent(PDO $pdo, array $event, bool $dryRun, array &$counts, ?string $recordFile = null): string
+{
+    $userId = $event['user_id'];
+    $row = $pdo->prepare('SELECT deletion_due_at IS NOT NULL AS asked, anonymized_at IS NOT NULL AS gone FROM users WHERE id = ?');
+    $row->execute([$userId]);
+    $state = $row->fetch();
+
+    if ($state === false) {
+        $counts['missing']++;
+
+        return 'not in this database (made after the backup?) - its id is kept from being issued again';
+    }
+    // A deleted account stays deleted: nothing asks for it or cancels it again.
+    if (asBool($state['gone'])) {
+        $counts['already']++;
+
+        return 'deleted already';
+    }
+
+    if ($event['event'] === 'requested') {
+        $requestedAt = $event['requested_at'] ?? $event['at'];
+        $same = $pdo->prepare('SELECT deletion_requested_at = CAST(? AS timestamptz) AND deletion_due_at = CAST(? AS timestamptz) FROM users WHERE id = ?');
+        $same->execute([$requestedAt, $event['due'], $userId]);
+        if (asBool($same->fetchColumn())) {
+            $counts['already']++;
+
+            return 'already so';
+        }
+        if (!$dryRun) {
+            $pdo->prepare('UPDATE users SET deletion_requested_at = CAST(? AS timestamptz), deletion_due_at = CAST(? AS timestamptz) WHERE id = ? AND anonymized_at IS NULL')
+                ->execute([$requestedAt, $event['due'], $userId]);
+            recordAccountDeletionEvent('requested', $userId, recordNow($pdo), ['due' => $event['due'], 'requested_at' => $requestedAt, 'replayed' => true], $recordFile);
+            audit(null, null, 'account.deletion_requested', 'user', $userId, ['due' => isoTime($event['due']), 'replayed' => true]);
+        }
+        $counts['requested']++;
+
+        return $dryRun ? 'would be asked again, with its own times' : 'asked again, with its own times';
+    }
+
+    if ($event['event'] === 'cancelled') {
+        if (!asBool($state['asked'])) {
+            $counts['already']++;
+
+            return 'already so';
+        }
+        if (!$dryRun) {
+            $pdo->prepare('UPDATE users SET deletion_requested_at = NULL, deletion_due_at = NULL WHERE id = ? AND anonymized_at IS NULL')->execute([$userId]);
+            recordAccountDeletionEvent('cancelled', $userId, recordNow($pdo), ['replayed' => true], $recordFile);
+            audit(null, null, 'account.deletion_cancelled', 'user', $userId, ['replayed' => true]);
+        }
+        $counts['cancelled']++;
+
+        return $dryRun ? 'would be cancelled again' : 'cancelled again';
+    }
+
+    if (!$dryRun && !anonymizeAccount($pdo, $userId, replay: true, recordFile: $recordFile)) {
+        // Deleted between the read above and now: by housekeeping, the same end.
+        $counts['already']++;
+
+        return 'deleted already';
+    }
+    $counts['anonymized']++;
+
+    return $dryRun ? 'would be deleted again now' : 'deleted again now';
+}
+
+/** The database's clock now, as the record writes a time. */
+function recordNow(PDO $pdo): string
+{
+    return (string) $pdo->query('SELECT ' . recordTimeSql('clock_timestamp()'))->fetchColumn();
+}
+
+/**
+ * The accounts' id sequence moved past $highest - the highest id the record
+ * names - where it is not already: an account made after the backup is not in
+ * the restored database, and its id - every site's `sub` for it - must never
+ * be anybody else's. The id it would issue next, or null when it is past it.
+ */
+function keepAccountIdsPast(PDO $pdo, int $highest, bool $dryRun): ?int
+{
+    $sequence = $pdo->query("SELECT pg_get_serial_sequence('users', 'id')")->fetchColumn();
+    if (!is_string($sequence) || $sequence === '' || $highest <= 0) {
+        return null;
+    }
+
+    $state = $pdo->query('SELECT last_value, is_called FROM ' . $sequence)->fetch();
+    $next = asBool($state['is_called']) ? (int) $state['last_value'] + 1 : (int) $state['last_value'];
+    if ($highest < $next) {
+        return null;
+    }
+    if (!$dryRun) {
+        $pdo->prepare('SELECT setval(CAST(? AS regclass), ?, true)')->execute([$sequence, $highest]);
+    }
+
+    return $highest;
+}
+
+/**
+ * Every way back in that a restored database brought back, ended: live
+ * sessions and refresh tokens (personal ones too), remembered two-factor
+ * browsers, live mailed links and codes. Revoked after the backup was made,
+ * each would be alive again - so everybody signs in again, asks for a new link,
+ * and confirms a remembered browser with a code once more. In one transaction;
+ * counted, not changed, for a dry run.
+ *
+ * @return array{sessions: int, tokens: int, devices: int, mailed: int}
+ */
+function endEverySignIn(PDO $pdo, bool $dryRun): array
+{
+    $parts = [
+        'sessions' => ['sessions', 'revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND absolute_expires_at > CURRENT_TIMESTAMP', 'revoked_at = CURRENT_TIMESTAMP, revoked_reason = ' . $pdo->quote(SESSION_REVOKED_ADMIN)],
+        'tokens' => ['refresh_tokens', 'revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP', 'revoked_at = CURRENT_TIMESTAMP, revoked_reason = ' . $pdo->quote(SESSION_REVOKED_ADMIN)],
+        'devices' => ['user_trusted_devices', 'revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP', 'revoked_at = CURRENT_TIMESTAMP'],
+        'mailed' => ['user_tokens', 'consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP', 'consumed_at = CURRENT_TIMESTAMP'],
+    ];
+
+    $ended = [];
+    if (!$dryRun) {
+        $pdo->beginTransaction();
+    }
+    try {
+        foreach ($parts as $name => [$table, $live, $end]) {
+            $ended[$name] = $dryRun
+                ? (int) $pdo->query("SELECT count(*) FROM {$table} WHERE {$live}")->fetchColumn()
+                : $pdo->exec("UPDATE {$table} SET {$end} WHERE {$live}");
+        }
+        if (!$dryRun) {
+            $pdo->commit();
+        }
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    return $ended;
+}
+
+/**
+ * php account-deletions.php - the command, as the file runs it and the tests
+ * drive it: its arguments, and where it prints. The exit status: 0 done, 1
+ * refused or failed, 2 asked wrongly.
+ *
+ * @param resource $out
+ * @param resource $err
+ */
+function accountDeletionsCommand(array $arguments, $out, $err): int
+{
+    $option = static function (string $name) use ($arguments): ?string {
+        foreach ($arguments as $argument) {
+            if (is_string($argument) && str_starts_with($argument, "--{$name}=")) {
+                return substr($argument, strlen($name) + 3);
+            }
+        }
+
+        return null;
+    };
+    $flag = static fn(string $name): bool => in_array("--{$name}", $arguments, true);
+    $usage = "Usage:\n"
+        . "  php account-deletions.php --list [--since=<time>] [--record=<file>]\n"
+        . "  php account-deletions.php --replay --since=<the backup's time> [--record=<file>] [--dry-run]\n";
+
+    if ($flag('help')) {
+        fwrite($out, $usage);
+
+        return 0;
+    }
+    if (!$flag('list') && !$flag('replay')) {
+        fwrite($err, $usage);
+
+        return 2;
+    }
+
+    $sinceText = $option('since');
+    $since = $sinceText === null ? null : anonymizedSince($sinceText);
+    if ($sinceText !== null && $since === null) {
+        fwrite($err, "--since= takes an ISO-8601 time or date (2026-10-13T08:00:00Z), not \"{$sinceText}\".\n");
+
+        return 2;
+    }
+    if ($flag('replay') && $since === null) {
+        fwrite($err, "--replay needs --since=<the backup's time>: the events after it are what the restored database lacks.\n");
+
+        return 2;
+    }
+
+    $given = $option('record');
+    $file = $given ?? accountDeletionRecordFile();
+    if (!is_file($file)) {
+        fwrite($err, "There is no record at {$file}." . ($given === null ? ' Nothing was asked, cancelled or deleted since it began - or give a copy with --record=.' : '') . "\n");
+
+        return 1;
+    }
+    $read = readAccountDeletionRecord($file);
+    if ($read['unreadable'] > 0) {
+        fwrite($err, "{$read['unreadable']} line(s) of the record are no event: passed over.\n");
+    }
+
+    if ($flag('list')) {
+        $shown = 0;
+        foreach ($read['events'] as $event) {
+            if ($since === null || new DateTimeImmutable($event['at']) >= $since) {
+                fwrite($out, accountDeletionEventLine($event) . "\n");
+                $shown++;
+            }
+        }
+        fwrite($out, "{$shown} event(s).\n");
+
+        return 0;
+    }
+
+    $dryRun = $flag('dry-run');
+    // What it changes goes into the record it read: a copy given is the one the owner uploads back.
+    $result = replayAccountDeletions(iamDb(), $read['events'], $since, $dryRun, $given);
+    if (isset($result['refused'])) {
+        fwrite($err, $result['refused'] . "\n");
+
+        return 1;
+    }
+
+    fwrite($out, ($dryRun ? "A dry run: nothing is changed.\n" : '') . "The record from {$result['from']} on (an hour before the backup's time), in the order it happened:\n");
+    foreach ($result['lines'] as $line) {
+        fwrite($out, '  ' . $line . "\n");
+    }
+    fwrite($out, $result['summary'] . "\n");
+    if ($result['warning'] !== null) {
+        fwrite($out, "\n" . $result['warning'] . "\n");
+    }
+
+    return 0;
 }

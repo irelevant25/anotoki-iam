@@ -125,6 +125,7 @@ export const en = {
   'error.notFound': 'That no longer exists.',
   'error.approvalPending': 'This account is waiting for an administrator’s approval.',
   'error.accountDeletionPending': 'This account is being deleted. To use it again, cancel the deletion on your account page.',
+  'error.authenticatorPaused': 'Too many wrong codes, so codes from your authenticator app are paused for 15 minutes. Try again after that.',
 
   // ── Sign in ────────────────────────────────────────────────────────────────
   'login.pageTitle': 'Sign in',
@@ -173,6 +174,14 @@ export const en = {
   'login.totp.rememberDeviceNote': 'On this browser only. Your password is still needed - this only skips the code.',
   'login.totp.submit': 'Verify',
   'login.startOver': 'Start over',
+
+  'login.paused.title': 'Codes are paused',
+  'login.paused.text': 'After five wrong codes, codes from your authenticator app are paused until {time}.',
+  'login.paused.emailLead': 'Meanwhile you can sign in with a code we email you instead.',
+  'login.paused.sendCode': 'Email me a code',
+  'login.paused.codeSent': 'A six-digit code is on its way to {email}. It is good for ten minutes.',
+  'login.paused.passwordFirst': 'To sign in meanwhile, start over with your password: then we can email you a code instead.',
+  'login.paused.emailSpent': 'Five codes by email were wrong as well, so a code by email waits until then too. A recovery code still works.',
 
   'login.unconfirmed.title': 'Confirm your email address',
   'login.unconfirmed.text': 'Open the link we sent to {email} to confirm the address, then sign in again.',
@@ -518,6 +527,7 @@ export const en = {
   'sessions.method.login_code': 'Emailed code',
   'sessions.method.google': 'Google',
   'sessions.method.email_link': 'Emailed link',
+  'sessions.method.password_email': 'Password and emailed code',
   'sessions.method.unknown': 'Other',
   'sessions.ended.signed_out': 'Signed out',
   'sessions.ended.signed_out_elsewhere': 'Ended from another device',

@@ -134,10 +134,45 @@ In the Cloudflare zone, keep Network -> Pseudo IPv4 off "Overwrite headers":
 that setting writes a stand-in IPv4 into `CF-Connecting-IP` for an IPv6
 visitor, and the IAM would count every such visitor by the stand-in instead of
 their own network (an IPv6 visitor is counted by their /64,
-`docs/decisions.md`). And Cloudflare's ranges are every Cloudflare customer's,
-not this zone's alone - pinning the trust to the owner's zone (a secret header
-from a Transform Rule, or Authenticated Origin Pulls) is an open decision of
-the owner's, written down in `docs/decisions.md`.
+`docs/decisions.md`).
+
+And Cloudflare's ranges are every Cloudflare customer's, not this zone's
+alone: anybody's Worker reaches the host from them and writes the
+`CF-Connecting-IP` it likes. So the zone adds a secret to every request
+through it, and the IAM believes the header only on a request that carries it
+(the owner's decision of 2026-10-13, `docs/decisions.md`; anotoki-lib 0.5.2):
+
+1. Make a long random value - 32 characters or more, letters and digits, for
+   example `php -r "echo bin2hex(random_bytes(24));"`. One value serves every
+   anotoki site of the zone.
+2. In the Cloudflare zone: Rules -> Transform Rules -> Modify Request Header
+   -> Create rule, for every request of the zone (all incoming requests):
+   **Set static**, header `X-Anotoki-Origin`, value the secret. Deploy it.
+3. On the host, beside the other configuration, `config/cloudflare.local.php`
+   - by hand, over SFTP: the installer neither asks for it nor writes it, and
+   no build carries it:
+
+   ```php
+   <?php return ['origin_secret' => '<the same value>'];
+   ```
+
+   `<?php` its very first bytes: a file that prints something of its own - no
+   `<?php` line, a byte-order mark an editor put before it - or that PHP
+   cannot read is passed over and fails closed: a secret no request carries,
+   so every visitor counts as their Cloudflare edge until the file is saved
+   again (PHP's error log says so, by its size or the kind of error, never its
+   text). Spaces or a line break around the value do not matter: it is
+   trimmed.
+
+Without the file, or with an empty value, the IAM believes `CF-Connecting-IP`
+from Cloudflare's ranges alone, as before. With it, a request from the ranges
+that does not carry the value counts as the Cloudflare edge it came through:
+one source for the limiter, however many addresses it writes. The rule alone
+changes nothing; the file without the rule, or with another value, counts
+every visitor as their edge until the two agree - set them together, and keep
+the value out of every file anybody else reads. To change it: the rule first,
+then the file, within a minute (between the two, visitors count as their
+edges).
 
 ### The sign-in hint's domain
 
@@ -447,16 +482,21 @@ server with the Backups page's Download ("Backups" below).
 Deleted accounts are made nobody's by housekeeping, which runs on ordinary
 traffic (the sites' sign-ins and refreshes, the IAM's own pages, the sites
 reading the list), at most an hour after one is due - no cron. **A database
-backup is never restored to bring an account back.** If one older than a
-deletion must be restored, note first which ids were deleted since - the list
-(`GET /api/public/anonymized-accounts?since=` the backup's time), or the sites'
-own records of what they scrubbed - and after the restore set them due again,
-for housekeeping to delete within the hour:
+backup is never restored to bring an account back.** Every deletion asked
+for, cancelled and done is also a line of `storage/records/account-deletions.jsonl`
+(since round 3): if the database is lost and an older backup must be put back,
+"When the database is lost" (below) does again what the record holds.
 
-```sql
-UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '30 days', deletion_due_at = CURRENT_TIMESTAMP
- WHERE id IN (/* the ids */) AND anonymized_at IS NULL;
-```
+**Round 3** (the owner's decisions of 2026-10-13): anotoki-lib **0.5.2** (the
+PHP half; the frontend stays on the 0.5.0 tarball) and migration **019**.
+Upload, then Apply on the Migrations page: 019 brings the authenticator's
+pause - five wrong codes pause an account's codes for fifteen minutes, a code
+by email standing in after the password until five of those are wrong too -
+and its words in English and Slovak; until it is applied the authenticator is checked as before. Put
+`config/cloudflare.local.php` on the host with the zone's Transform Rule
+("Behind Cloudflare" above), both at once. Nothing to do for the record: its
+folder `storage/records/` is made with its first line; download it with the
+backups from then on.
 
 ### The family's library (anotoki/lib)
 
@@ -475,9 +515,10 @@ Languages pages -, the admin tools the IAM takes, both halves - the error log,
 the audit log and backups (a migration set of its own, `anotoki_admin`,
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
-styles and palette, its components, the top bar and the frame. Both halves of
-the IAM are on 0.5.0 (`composer.json`'s `^0.5.0`, the 0.5.0 tarball; never
-0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+styles and palette, its components, the top bar and the frame. The IAM is on
+PHP 0.5.2, Angular 0.5.0 (`composer.json`'s `^0.5.0`, the lock on v0.5.2 - the
+restore's sequences, the origin secret: the PHP half alone -, and the 0.5.0
+tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/php/migrations`, `/php/resources`),
 which `build-dist.php` uploads with the rest of `vendor/` and which are denied
@@ -584,7 +625,9 @@ backup from the Backups page** to take it off the server.
 
 **The IAM never restores a backup in place** (restore is off, the page says
 why): it would bring back revoked tokens and sessions, old passwords, removed
-roles and deleted people. A backup's data is read on a computer with the
+roles and deleted people. When the database itself is lost, a backup is put
+back by hand and the record of deletions replayed onto it ("When the database
+is lost", below). A backup's data is read on a computer with the
 repository and the IAM's master key:
 
 ```bash
@@ -618,6 +661,101 @@ on the page; one is refused (`no_space`) while the disk has less than twice the
 last one free. Delete old manual ones there. Only files the library made
 itself, by their names, are ever deleted; anything else put in
 `storage/backups/` stays.
+
+**Keep the record of deletions with the backups.** Every deletion asked for,
+cancelled and done is a line of `storage/records/account-deletions.jsonl` -
+ids and times, nothing of the person - kept beside the database, add-only
+(`docs/decisions.md`, 2026-10-13). It is what brings the deletions back after a
+restore by hand (below), so it must outlive the database: it stays with the
+server's files, and **whenever you download a backup, download that file over
+SFTP too** (its folder is readable by the FTP account; the web never serves
+it). `php account-deletions.php --list --record=<a copy>` reads one.
+
+### When the database is lost
+
+The IAM restores nothing in place (the Backups page's restore is off, and stays
+off - the owner's decision of 2026-10-13). A lost or broken database is put
+back by hand, on a computer with the repository, PHP 8.2+ and `psql`:
+
+1. **Gather** the newest backup (downloaded from the Backups page, or
+   `storage/backups/` over SFTP where the FTP account may read it), a copy of
+   the live `config/secret.local.php` (the master key it was made under), and
+   `storage/records/account-deletions.jsonl` - from the server over SFTP, or
+   the copy downloaded with the backups when the server's own is gone too.
+2. **Read the backup out**, into a new folder of your own:
+
+   ```bash
+   cd backend
+   php backup.php --from=<the backup's folder> --key=<the secret.local.php copy> --extract=<id> <a new folder>
+   ```
+
+   It prints the migrations the backup had applied and a `\copy` line for each
+   table. **The backup's time** is `snapshot_at` in `<the new folder>/manifest.json`
+   (the database's clock when it was made; `--inspect=<id>` shows when it was
+   made, within a moment of it).
+3. **Load it into an empty database** - a new one made in the hosting panel,
+   or the old one emptied. In `psql`, connected to it, from the new folder:
+   each `schema/<set>/<file>.sql` in the order printed (`\i ...`), then each
+   `\copy` line as printed (parents first), then every sequence as
+   `manifest.json`'s `sequences` says (`SELECT setval('<sequence>', <value>, true);`).
+4. **Point a configuration at it**: on this computer, copies of the live
+   `config/*.local.php` - `database.local.php` naming the restored database
+   (reachable from here), `secret.local.php` the live master key, and
+   `iam.local.php`, `mail.local.php` (the `file` driver is enough for this).
+5. **Apply what the backup lacks**: `php migration.php` (it backs the restored
+   database up first, into this computer's `storage/backups`). The replay
+   refuses while one waits.
+6. **Replay the record**, first as a dry run, then for real:
+
+   ```bash
+   php account-deletions.php --replay --since=<snapshot_at> --record=<the record's copy> --dry-run
+   php account-deletions.php --replay --since=<snapshot_at> --record=<the record's copy>
+   ```
+
+   From an hour before the backup's time on, in the order the events happened
+   (by their own times, whatever order their lines stand in), each account
+   ends as its last event says: a deletion asked for since the backup is asked
+   again with its own times (its thirty days keep their date), a cancellation
+   is made, an account deleted since is deleted again now (with no second
+   "deleted" mail); what the backup holds already is "already so". Then every
+   session, refresh and personal token, remembered browser and mailed link or
+   code is ended: everybody signs in again. It prints ids and times only, and
+   what it changed is in the audit log and in the record's copy, as lines of
+   their own (`"replayed": true`). Run again, it changes nothing.
+
+   Its summary ends with the IAM's live administrators afterwards. **A
+   `WARNING` that none is left** means the backup is older than every
+   administrator who stays - one made since is not in it, and the record knows
+   deletions, not roles. Mend it before the IAM goes live: an administrator
+   whose deletion was asked again signs in (the IAM's own sign-in works for a
+   deletion pending) and cancels it on the account page - or give a live
+   account the IAM's ADMIN by hand, in `psql`:
+
+   ```sql
+   INSERT INTO user_roles (user_id, role_id)
+   SELECT <the account's id>, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id
+    WHERE a.client_id = 'iam' AND r.name = 'ADMIN'
+   ON CONFLICT DO NOTHING;
+   ```
+7. **Accounts made after the backup are not in it.** Their people sign up
+   again; the replay keeps every id the record names from being issued again.
+   Any other id issued since - a site's `sub` for somebody's data - must not go
+   to somebody else either: move the id sequence past the highest `sub` the
+   sites hold (`SELECT setval('users_id_seq', <that id>);`; each site's own
+   database lists the subs it knows). Passwords, roles and settings changed
+   since the backup are as they were then.
+8. **Check**: `php migration.php --status` is up to date; every account the
+   record says was deleted (`php account-deletions.php --list --record=...`) is
+   a `deleted-{id}` placeholder, every deletion pending has its date (Admin
+   panel -> Users, once live); `php account-deletions.php --replay ... --dry-run`
+   says nothing more to do, and names at least one live administrator, with
+   no warning.
+9. **Put it back live**: the restored database where the host reaches it (if it
+   was loaded elsewhere, moved with `pg_dump` / the hosting panel's import),
+   the host's `config/database.local.php` naming it, and **the record's copy -
+   with the replay's lines - uploaded over the host's
+   `storage/records/account-deletions.jsonl`**. Delete the extracted folder:
+   it is the database in the clear.
 
 ### The error log
 
@@ -659,6 +797,8 @@ gets a line for every 500, its message redacted the same way.
 | Somebody wants their account deleted | They do it themselves: the account page → **Delete my account**, with their password (or, without one, right after signing in). It is closed at once - signed out everywhere, refused by every site - mailed, and deleted thirty days later unless they cancel it on the same page. Nobody can ask or cancel for them, an administrator included; the last administrator of the IAM must make another one first. Then the row stays as `deleted-{id}`, switched off, and nothing about it can be changed |
 | See whose deletion is pending, and who was deleted | Admin panel → Users: an account's deletion date while it is pending; the time it was deleted, and its placeholder name, after |
 | Somebody got a "New sign-in" mail they do not recognise | Change the password (the account page → Security, or "Forgot password" - a reset also forgets every browser the account knew); everywhere else is signed out with it. The account page → Sessions shows where the account is signed in |
+| Somebody got a "Wrong codes for your anotoki account" mail | Five wrong authenticator codes paused the account's codes for fifteen minutes (migration 019). If it was not them, somebody got past the first step - the password, as a rule: change the password (the account page → Security; meanwhile they sign in with their password and a code by email, or a recovery code). The audit log has `account.authenticator_paused` with the address it came from; the person's page under Users lists the attempts (`bad_totp`, then `totp_paused`; `bad_email_code` and `email_code_paused` for codes by email guessed at) |
+| Somebody's authenticator codes are refused "for 15 minutes" | The pause: it ends by itself fifteen minutes after the fifth wrong code. Meanwhile the sign-in page offers a code by email after the password - until five of those are wrong in the pause too - and a recovery code works; nothing to switch off. Resetting two-factor (Users → the person) and setting it up again with a new secret ends it too |
 | See what went wrong | Admin panel → **Error log**: failures grouped by kind, each with its trace and every occurrence; Clear when they are dealt with |
 | See who did what | Admin panel → **Audit log**: who, what, about what, from where - filtered by person, action, what it is about and dates (the address keeps the filters, so a link to a filtered log works) |
 | Back the database up, or take a copy home | Admin panel → **Backups** → Back up now / Download (the password asked each time). A copy opens only with the master key - "Backups" above |
@@ -691,6 +831,8 @@ php translations.php --status              # the frontend's keys against the dat
 php translations.php --export sk [file]    # a language's own strings as flat JSON
 php translations.php --import sk file      # and back in, checked as the admin panel checks a save
 php backup.php --list                      # the database's backups in storage/backups (--create, --inspect=<id>, --extract=<id> <folder>)
+php account-deletions.php --list           # the record of deletions asked, cancelled and done (storage/records; --record=<a copy>)
+php account-deletions.php --replay --since=<the backup's time> [--record=<a copy>] [--dry-run]   # after a restore by hand ("When the database is lost")
 php tests/run.php                          # every test, against throwaway databases
 ```
 
@@ -698,7 +840,8 @@ php tests/run.php                          # every test, against throwaway datab
 
 | Symptom | Likely cause |
 | --- | --- |
-| Every request answers 503 `not_set_up`; the pages say "not set up yet" | The installer has not run, or a `config/*.local.php` is missing or wrong. On a development machine `setup.php` lists which. |
+| Every request answers 503 `not_set_up`; the pages say "not set up yet" | The installer has not run, or a `config/*.local.php` is missing or wrong. On a development machine `setup.php` lists which. A file that "prints N bytes of its own" was written by hand without its `<?php` line or with a byte-order mark before it (an editor's "UTF-8 with BOM"): save it again as plain UTF-8 starting with `<?php`. |
+| Every visitor seems to come from a few Cloudflare addresses (the limiter refuses people who did nothing; Sessions shows `104.x`, `172.6x.x` and the like) | `config/cloudflare.local.php` has an origin secret the zone does not send: the Transform Rule is missing, or its value differs ("Behind Cloudflare" above). Set the rule's value and the file's to the same, or remove the file. Or the file cannot be read - a byte-order mark, no `<?php` line, a parse error - and fails closed, every visitor their edge: save it again as plain UTF-8 starting with `<?php`. PHP's error log says which: the file passed over and failing closed, or holding no value. |
 | The pages say "The site is not available right now", on an installed IAM | A `config/*.local.php` is missing or wrong (uploaded over, or deleted) - the API answers 503 `not_set_up` with `installed: true` - or the database does not answer (`/api/site-status` says `unavailable`). Restore the file from your copy; the installer is gone and is not offered. The pages notice by themselves |
 | Migrations says "Another database update is running" | Another apply holds the lock - another administrator, `php migration.php`, the installer. Wait a moment and look again; nothing was applied |
 | Apply says "The backup before the update could not be made, so nothing was applied" | The backup it makes first failed: `storage/backups/` is not writable by PHP, the disk is too full, or the host's PHP lacks COPY (pdo_pgsql) or AES-256-GCM (openssl) - the Backups page's status says which. Mend that and Apply again |

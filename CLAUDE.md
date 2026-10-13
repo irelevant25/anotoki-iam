@@ -34,6 +34,7 @@ php reset-password.php <email> [pw] [--clear-2fa]
 php translations.php --status             # the pages' keys against the database's; each language's coverage; the mails' keys against MAIL_KEYS
 php translations.php --export sk [file]   # a language's own strings as flat JSON; --import sk file puts them back (both refuse while a migration waits)
 php backup.php --list                     # the database's backups (encrypted; --create, --inspect=<id>, --extract=<id> <folder>; --from= --key= for a downloaded one)
+php account-deletions.php --list          # the record of deletions asked, cancelled, done (storage/records); --replay --since=<the backup's time> [--dry-run] after a restore by hand
 php build-dist.php                        # -> backend/dist/ for upload
 composer update anotoki/lib --prefer-dist # the family's library, with frontend/package.json's @anotoki/lib URL (docs/operations.md)
 
@@ -53,11 +54,21 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 ## Configuration and the installer
 
 - Everything that differs per installation - the database (and the legacy
-  `users` database for the import), the master key, `public_url`, mail, Google
+  `users` database for the import), the master key, `public_url`, mail, Google,
+  the Cloudflare zone's origin secret (`cloudflare.local.php`, optional,
+  uploaded by hand: the installer neither asks for it nor writes it)
   - comes **only** from `backend/config/*.local.php` (gitignored), read through
   `config/config.php` (`localConfig()`). The committed `config/*.php` hold the
   loaders and the tunables that are the same everywhere; there is no template
-  to fall back on.
+  to fall back on. A file is read cleanly or not at all
+  (`readLocalConfigFile()`, the round-3 lesson of 2026-10-13): what it prints
+  when PHP requires it - no `<?php` line, a byte-order mark or a line before
+  it - is caught, never sent, and the file is passed over (said by its fault
+  and byte count, never its text; a required one leaves the IAM not set up,
+  `iamSetUpProblems()` naming it; `cloudflare.local.php` so fails closed, a
+  secret no request carries); so is one PHP cannot read. The installer
+  reads through it too, and saves over no file it could not read (a master
+  key with a BOM is still the key).
 - They are **required**: the anotoki family's gate (anotoki/lib's `SiteGate`
   over `iamSiteState()`, `api/migration_runner.php`; asked only while the IAM
   is not set up, so a set-up IAM does no database work for it) answers every
@@ -191,6 +202,30 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   browser is known by the `anotoki_iam_device` cookie (only a hash kept; it
   opens nothing); an account's first browser is noted in silence, so release
   day mails nobody; at most five an hour; a reset forgets the browsers.
+- **Five wrong authenticator codes pause an account's codes for fifteen
+  minutes** (migration 019, the owner's decision of 2026-10-13;
+  `api/authenticator_pause.php`): counted for the account, whatever address
+  they come from, within a rolling fifteen minutes, from nought again after a
+  right code or a completed sign-in; on every way that takes a code - the
+  password sign-in, the emailed code's, Google, a reset, the account page's
+  turning two-factor off and new recovery codes (`authenticatorCheck()`, one
+  check at a time per account: the row held). During the pause a code is
+  refused unchecked (`403 authenticator_paused` with `paused_until`; refused
+  ones count towards no next pause); a recovery code and a remembered browser
+  still work; the password sign-in may finish with a code mailed to the
+  address in the authenticator's place (`email_code`, after the password -
+  never without it: `pausedEmailCodeCheck()`), counted as the authenticator's
+  codes are - under the same hold on the row, five wrong in a pause
+  (`bad_email_code`) and every one is refused unchecked until it ends
+  (`email_code: false`, codes mailed since included; the security review of
+  2026-10-13) -, which remembers no browser and is a session of its own
+  method, `password_email`, its `amr` `["pwd", "email", "mfa"]` (never `otp`:
+  the mailbox stood in). The trade, as the owner chose it when asked plainly:
+  the password holder can start a pause at will and its mail lands in the same
+  mailbox, so the password and the mailbox together sign in. The owner is
+  mailed once a pause (`mail.authenticatorPaused.*`), and the audit log keeps
+  `account.authenticator_paused`. Switching two-factor on with a new secret
+  clears it.
 - **A sign-in sets a hint every anotoki site reads** (the owner's decision
   of 2026-10-07; `docs/decisions.md`, `api/session.php`):
   `anotoki_signed_in`, a random value per session that opens nothing and
@@ -260,9 +295,20 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   limiter counts the visitor, the audit log keeps their address, a session
   shows it; the error log keeps only a keyed hash of the address's bucket (an
   IPv6 address its /64: the IAM's `clientKey`) - a pseudonym while its key
-  lasts, never "an address nobody can read back". `tests/addresses.test.php`
-  holds the attacks it stops (a forged header from outside the ranges, the
-  other headers from inside them, a catch-all range).
+  lasts, never "an address nobody can read back". Cloudflare's ranges are
+  every Cloudflare customer's, so with the origin secret (the owner's decision
+  of 2026-10-13, anotoki-lib 0.5.2: `config/cloudflare.local.php`
+  `['origin_secret' => ...]`, `iamOriginSecret()`, trimmed; the same value in a
+  Transform Rule of the zone that sets `X-Anotoki-Origin` on every request)
+  `CF-Connecting-IP` is believed only on a request that carries it - any other
+  from the ranges is the edge it came from, coarser, never looser; passed to
+  `requestIp()` (and so the limiter and the audit log) and `iamAdminContext()`;
+  without the file, as before; with one that cannot be read cleanly, a secret
+  no request carries (fails closed: every request from the ranges its edge).
+  Never printed or logged.
+  `tests/addresses.test.php` holds the attacks it stops (a forged header from
+  outside the ranges, the other headers from inside them, a catch-all range, a
+  Worker writing a new address into every guess without the secret).
 - **The admin panel's tools are the family's library's** (anotoki-lib 0.4.1,
   then 0.5.0 - the owner's decisions of 2026-10-11; `docs/decisions.md`): the
   error log, the audit log and backups - one page each, the library's routes
@@ -309,9 +355,17 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `AfterResponse`), before every Apply (`iamMigratorWithBackup()`: no backup,
   nothing applied) and by hand, kept until the owner deletes them (no maximum
   age - the owner's decision of 2026-10-11: a deleted person's data stays in
-  the backups made before, encrypted, until then) - and NEVER restored here (`restore: false`)
-  until an `afterRestore` that ends every session and token and deletes again
-  the accounts deleted since has been reviewed. The Backups page names who made
+  the backups made before, encrypted, until then) - and NEVER restored here (`restore: false`;
+  the owner's decision of 2026-10-13 kept it off): a database lost is put back
+  by hand, offline (`php backup.php --extract`, psql), and then
+  `php account-deletions.php --replay --since=<the backup's time>` does again
+  what the add-only record beside the database holds -
+  `storage/records/account-deletions.jsonl`, a line for every deletion asked
+  for, cancelled and done, ids and times, written once each commits; replayed
+  in the order the events happened, by their own times, not the file's - and
+  ends every session, token, remembered browser and mailed link, and warns
+  when it leaves no live administrator (docs/operations.md, "When the
+  database is lost"). The Backups page names who made
   each (the context's `names`). `php backup.php` reads one offline with the
   master key (`--inspect` the manifest alone, in memory). Backups are built
   only once the IAM is set up (their key is the master key's).
@@ -339,7 +393,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `iamKeyScanner()` for the CLI and the tests), and the carried-over `totp.php`,
   `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php`
   (whose words now come from the database, `MAIL_FALLBACK` the last resort),
-  `account_deletion.php` and `sign_in_devices.php` (016),
+  `account_deletion.php` and `sign_in_devices.php` (016; the deletion record
+  and its replay, `recordAccountDeletionEvent()` / `replayAccountDeletions()`,
+  are `account_deletion.php`'s), `authenticator_pause.php` (019: the one
+  authenticator check every way in calls, `authenticatorCheck()`),
   `migration_runner.php` (the family's library wired in: `iamMigrator()` - the
   library's admin set, the IAM's set, then the library's translations set -,
   `iamMigrationLabel()`, `iamSiteState()`; beside them `ensureDatabase()`,
@@ -349,7 +406,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `iamBackups()`, `iamMigratorWithBackup()`; `audit.php` is `audit()` over the
   library's `AuditLog`, `iamAuditLog()`).
   `helpers.php` holds `requestIp()` (the library's `ClientAddress` over
-  `config/iam.php`'s trusted proxies), `languageCodes()` / `languageOrDefault()`
+  `config/iam.php`'s trusted proxies and `config/cloudflare.php`'s origin
+  secret), `languageCodes()` / `languageOrDefault()`
   (read through the library's `offeredCodes()`, `en`/`sk` before the tables
   exist) and the text and refusal helpers the announcements use.
 - Files under `storage/` go through `iamStorageDir()`, config through
@@ -382,10 +440,11 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): both on
-  0.5.0 (the migrations module, the translations module, the UI kit, the
-  admin tools, the pages' error reporter; never 0.4.0, which fails on PHP
-  8.2). Never
+  halves, updated together where both change (`docs/operations.md`): PHP
+  0.5.2, Angular 0.5.0 (the migrations module, the translations module, the UI
+  kit, the admin tools, the pages' error reporter; 0.5.1 and 0.5.2 changed the
+  PHP half alone - the restore's sequences, the origin secret; never 0.4.0,
+  which fails on PHP 8.2). Never
   edit the vendored copy: a change goes to the library and comes back as a
   release. Its routes here: `GET /api/site-status` (first-party, public, no
   CORS), `/api/admin/migrations[/file|/apply]` inside the admin group, the
@@ -414,13 +473,18 @@ master-key ciphertext for TOTP secrets and signing keys; identical answers for
 known and unknown addresses; the limiter on every mail-sending and sign-in
 endpoint, counting the visitor - `CF-Connecting-IP` alone, pinned in the
 code, believed only on a connection from the trusted proxies (Cloudflare's
-ranges; none wider than an IPv4 /8 or an IPv6 /16); the same switches on every way in; no self-lockout, no removing the
+ranges; none wider than an IPv4 /8 or an IPv6 /16) and, with the zone's
+origin secret, only on a request that carries it in `X-Anotoki-Origin`;
+five wrong authenticator codes pause an account's codes for fifteen minutes
+on every way that takes one, a code by email standing in only after the
+password and only until five of those are wrong; the same switches on every way in; no self-lockout, no removing the
 last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; the sign-in hint opens nothing and no account no site lets in has one;
 the session cookie never gets a Domain, and is __Host- on https, where the bare name is never read; no loopback address
 left on a real host's install, nor seeded into a live IAM by a later migration;
 backups only encrypted under the master key, made, downloaded and deleted only
-with the account page's proof, never restored in place; no secret, token,
-cookie or address in the error log;
+with the account page's proof, never restored in place - a restore by hand
+replays the deletion record; no secret, token,
+cookie or address in the error log, and no local file's text printed;
 the installer's proof (token, or nonce on this computer only). Changing one is
 a decision for `docs/decisions.md`, not a refactor.
 

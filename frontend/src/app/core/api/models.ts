@@ -83,6 +83,20 @@ export interface SignInOptions {
 export interface PasswordSignInBody extends SignInOptions {
   email: string;
   password: string;
+  /**
+   * While the account's authenticator codes are paused (`authenticator_paused`
+   * with `email_code: true`): the code mailed by `POST /api/login/code`, in the
+   * authenticator's place - after the password, never without it.
+   */
+  email_code?: string;
+}
+
+/** What `authenticator_paused` carries beside `code` and `error` (in an ApiError's `details`). */
+export interface AuthenticatorPausedDetails {
+  /** When the pause ends, ISO-8601. */
+  paused_until: string;
+  /** On the password's sign-in: a code by email may stand in for the authenticator (`email_code`) - false once five were wrong in this pause. */
+  email_code?: boolean;
 }
 
 export interface CodeSignInBody extends SignInOptions {
@@ -196,7 +210,7 @@ export interface AccountPreferences {
   time_format: TimeFormatChoice | null;
 }
 
-export type SessionMethod = 'password' | 'login_code' | 'google' | 'email_link';
+export type SessionMethod = 'password' | 'login_code' | 'google' | 'email_link' | 'password_email';
 
 export interface SessionEntry {
   id: number;

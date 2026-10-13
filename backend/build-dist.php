@@ -19,8 +19,9 @@
  *
  * Not shipped: setup.php (uploaded by hand for the first install only), the CLI
  * tools (migration.php, import-legacy.php, create-admin.php, reset-password.php,
- * clients.php, translations.php, backup.php), tests/, and config/*.local.php - which
- * setup.php writes on the server itself. Nor composer.json and composer.lock: vendor/ loads itself, and
+ * clients.php, translations.php, backup.php, account-deletions.php), tests/, and
+ * config/*.local.php - which setup.php writes on the server itself, all but
+ * cloudflare.local.php (the origin secret), uploaded by hand once. Nor composer.json and composer.lock: vendor/ loads itself, and
  * in the web root they would hand anybody the list of every dependency and its
  * version.
  */
@@ -108,7 +109,7 @@ echo "\nFirst install only: upload backend/setup.php to the web root too and ope
 
 if ($leftOut) {
     sort($leftOut);
-    echo "\nLeft out on purpose (setup.php writes the server's own):\n";
+    echo "\nLeft out on purpose (the server keeps its own: setup.php writes them, and cloudflare.local.php is uploaded by hand):\n";
     foreach ($leftOut as $file) {
         echo "  config/{$file}\n";
     }

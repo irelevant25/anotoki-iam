@@ -53,13 +53,14 @@ final class AuditLog implements AuditRecorder
 
     public const ACTION_PATTERN = '/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/D';
 
-    private const OPTIONS = ['recordAddress', 'address', 'pendingFile', 'ready', 'personTargetType', 'actorIds', 'onError', 'trustedProxies', 'clientHeader'];
+    private const OPTIONS = ['recordAddress', 'address', 'pendingFile', 'ready', 'personTargetType', 'actorIds', 'onError', 'trustedProxies', 'clientHeader', 'originSecret'];
 
     private readonly bool $recordAddress;
     private readonly ?Closure $address;
     /** @var list<string> */
     private readonly array $trustedProxies;
     private readonly string $clientHeader;
+    private readonly ?string $originSecret;
     private readonly ?string $pendingFile;
     private readonly ?Closure $ready;
     private readonly string $personTargetType;
@@ -85,10 +86,12 @@ final class AuditLog implements AuditRecorder
      *   onError?: Closure(string): void,
      *   trustedProxies?: list<string>,
      *   clientHeader?: string,
+     *   originSecret?: string,
      * } $options
      *   - recordAddress: keep the requester's address (the IAM does; the sites do not), from `address` -
      *     the site's own reading - or by ClientAddress's rule: the connection's REMOTE_ADDR, or the
-     *     `clientHeader` (CF-Connecting-IP) of a connection from one of `trustedProxies`
+     *     `clientHeader` (CF-Connecting-IP) of a connection from one of `trustedProxies` - with an
+     *     `originSecret` (0.5.2), only on a request that carries it (ClientAddress::ORIGIN_HEADER)
      *   - pendingFile: where entries wait while the table is missing (storage/logs/audit-pending.jsonl);
      *     without one they go to `onError`
      *   - ready: whether entries may go into the table now (default: it exists). The IAM: only once its
@@ -110,6 +113,8 @@ final class AuditLog implements AuditRecorder
         $this->address = $options['address'] ?? null;
         $this->trustedProxies = array_values(array_filter($options['trustedProxies'] ?? [], 'is_string'));
         $this->clientHeader = (string) ($options['clientHeader'] ?? ClientAddress::CLOUDFLARE_HEADER);
+        $secret = $options['originSecret'] ?? null;
+        $this->originSecret = is_string($secret) && $secret !== '' ? $secret : null;
         $pending = $options['pendingFile'] ?? null;
         $this->pendingFile = is_string($pending) && $pending !== '' ? $pending : null;
         $this->ready = $options['ready'] ?? null;
@@ -620,7 +625,7 @@ final class AuditLog implements AuditRecorder
     private function addressOf(ServerRequestInterface $request): ?string
     {
         try {
-            $address = $this->address !== null ? ($this->address)($request) : ClientAddress::of($request, $this->trustedProxies, $this->clientHeader);
+            $address = $this->address !== null ? ($this->address)($request) : ClientAddress::of($request, $this->trustedProxies, $this->clientHeader, $this->originSecret);
         } catch (Throwable) {
             $address = null;
         }

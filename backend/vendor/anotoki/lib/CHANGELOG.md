@@ -5,6 +5,21 @@ and the npm package `@anotoki/lib` (`angular/projects/lib/package.json`). While 
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.5.2 - 2026-10-13
+
+Cloudflare's published ranges are every Cloudflare customer's, not the owner's zone alone: anybody's Worker can
+open a raw socket to a host from them and write a `CF-Connecting-IP` of its choosing - a fresh address for
+every request, past every per-address limit. `ClientAddress::of()`, `AdminContext` (`originSecret:`, its last
+argument) and `AuditLog` (`'originSecret'`) take an origin secret: with one, the header is believed only on a
+request that also carries that secret in `X-Anotoki-Origin` (`ClientAddress::ORIGIN_HEADER`), which a Transform
+Rule of the owner's Cloudflare zone adds to every request through it (the owner's decision of 2026-10-13).
+Without it such a request counts as the edge's address - coarser, never looser. The secret is compared in
+constant time, marked `#[\SensitiveParameter]`, and never logged. A site given no secret behaves as in 0.5.1.
+
+What a site may do: read the secret from its local settings and pass it wherever it passes `trustedProxies`.
+Only the PHP half changed: a site takes it with `composer update anotoki/lib`; its frontend may stay on the
+0.5.0 tarball.
+
 ## 0.5.1 - 2026-10-12
 
 A restore set every sequence one step past the later of the backup's value and today's - by +1, and the

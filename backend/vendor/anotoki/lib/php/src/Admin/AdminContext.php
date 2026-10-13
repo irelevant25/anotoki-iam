@@ -66,6 +66,8 @@ final class AdminContext
      * @param null|Closure(ServerRequestInterface): bool $isAdmin  the site's ADMIN check; every admin() group needs it
      * @param null|Closure(list<int|string>): array<int|string, string> $names  people's names by id
      * @param list<string> $trustedProxies  the site's proxies' ranges, whose clientHeader is believed
+     * @param string|null $originSecret  the secret the owner's Cloudflare zone adds (ClientAddress::ORIGIN_HEADER):
+     *        with it, the clientHeader is believed only on a request that carries it (0.5.2)
      */
     public function __construct(
         private readonly Closure $actorId,
@@ -77,6 +79,7 @@ final class AdminContext
         private readonly ?Closure $names = null,
         array $trustedProxies = [],
         private readonly string $clientHeader = ClientAddress::CLOUDFLARE_HEADER,
+        #[\SensitiveParameter] private readonly ?string $originSecret = null,
     ) {
         if (is_string($proofKind) && !in_array($proofKind, [self::PROOF_PASSWORD, self::PROOF_RECENT_SIGN_IN], true)) {
             throw new InvalidArgumentException("The proof is 'password' or 'recent_sign_in', not \"$proofKind\".");
@@ -235,7 +238,7 @@ final class AdminContext
                 // The rule's own answer below.
             }
         }
-        $address = ClientAddress::of($request, $this->trustedProxies, $this->clientHeader);
+        $address = ClientAddress::of($request, $this->trustedProxies, $this->clientHeader, $this->originSecret);
 
         return $address === null ? '?' : ClientAddress::bucket($address);
     }

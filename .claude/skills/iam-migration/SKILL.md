@@ -114,13 +114,16 @@ runs after the IAM's files.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
   that no migration wrote. It also counts what the migrations leave (after
-  018 and the library's sets: 625 keys - 483 of the pages, 48 of the mails, 94
-  of the library's - 1250 strings): a migration that adds or removes keys
+  019 and the library's sets: 638 keys - 492 of the pages, 52 of the mails, 94
+  of the library's - 1276 strings): a migration that adds or removes keys
   moves those numbers, and `tests/top-bar-strings.test.php` is the pattern for
   testing one on an installed IAM. A migration test that builds a database
   "up to" its file and applies what is pending applies every later file too
   - the library's set included - so assert on its own file
   (`applyMigrationsThrough()`, or `['applied'][0]`), not on the list.
+  `tests/strings-through-the-library.test.php` holds 017 that way by naming
+  the keys of the IAM's later files (`LATER_PAGE_KEYS`, `LATER_MAIL_KEYS`): a
+  migration that adds keys adds them there too.
 - **`anotoki.` is the library's namespace.** Never write a key there; the
   library's 002 writes them and their descriptions. 017 moved the IAM's
   `lang.*` there once, and that is the pattern for moving another word the

@@ -46,7 +46,15 @@ declare(strict_types=1);
  *   config/google.local.php    the Google sign-in client id, only if one is given
  *
  * Whatever else those files hold - trusted proxies added by hand, say - is kept.
- * A file whose content would not change is not written again.
+ * A file whose content would not change is not written again. One that cannot
+ * be read cleanly - written by hand without its <?php line or with a
+ * byte-order mark before it, so that it prints when PHP reads it, or one PHP
+ * cannot read at all - is never shown and never written over: the page says
+ * which, and nothing is saved until it is corrected (setupSavedProblems()).
+ *
+ * It never reads or writes config/cloudflare.local.php - the secret the
+ * owner's Cloudflare zone adds to every request (config/cloudflare.php),
+ * uploaded by hand.
  *
  * "TEST CONNECTION"
  *
@@ -389,7 +397,10 @@ function setupToken(array $context): ?string
         return null;
     }
 
-    $config = (static fn(string $path): mixed => require $path)($file);
+    // Read as every local file is (readLocalConfigFile()): one that prints -
+    // the token itself, into the page anybody may open - is none, and a new
+    // one is written in its place.
+    $config = readLocalConfigFile($file)['value'];
     $token = is_array($config) ? ($config['token'] ?? null) : null;
 
     return is_string($token) && $token !== '' ? $token : null;
@@ -454,15 +465,49 @@ function setupHttps(array $server): bool
 
 // ── What is configured, and what the form starts from ───────────────────────
 
-/** A config/*.local.php of this installation, read fresh. */
+/** The files the installer writes, and reads back. config/cloudflare.local.php is none of them: it is never read or written here. */
+const SETUP_FILES = ['database', 'secret', 'iam', 'mail', 'google'];
+
+/**
+ * A config/*.local.php of this installation, read fresh - as every local file
+ * is read (readLocalConfigFile(), config/config.php): what it prints is caught,
+ * never put into the page, and a file that prints, or that PHP cannot read, is
+ * read as none (setupSavedProblems() says which).
+ */
 function setupSavedFile(array $context, string $name): mixed
 {
     $path = $context['config'] . '/' . $name . '.local.php';
 
-    return is_file($path) ? (static fn(string $file): mixed => require $file)($path) : null;
+    return is_file($path) ? readLocalConfigFile($path)['value'] : null;
 }
 
-/** @return array{database: ?array, iam: ?array, mail: ?array, google: ?array, secret: bool} */
+/**
+ * The files the installer would write that are there but cannot be read
+ * cleanly - one that prints (no <?php line, a byte-order mark before it), or
+ * that PHP cannot read: a sentence each, naming the file and its fault, never
+ * a value in it. While there is
+ * one, nothing is saved: the installer never writes over a file it could not
+ * read - a master key with a byte-order mark before it is still the key every
+ * signing key and two-factor secret is encrypted with, and a fresh one in its
+ * place would make them all unreadable.
+ *
+ * @return list<string>
+ */
+function setupSavedProblems(array $context): array
+{
+    $problems = [];
+    foreach (SETUP_FILES as $name) {
+        $path = $context['config'] . '/' . $name . '.local.php';
+        $problem = is_file($path) ? readLocalConfigFile($path)['problem'] : null;
+        if ($problem !== null) {
+            $problems[] = "config/{$name}.local.php {$problem}. Correct it by hand (or move it away), then reload: the installer writes over no file it cannot read.";
+        }
+    }
+
+    return $problems;
+}
+
+/** @return array{database: ?array, iam: ?array, mail: ?array, google: ?array, secret: bool, problems: list<string>} */
 function setupSaved(array $context): array
 {
     $pick = static fn(mixed $value): ?array => is_array($value) ? $value : null;
@@ -474,6 +519,7 @@ function setupSaved(array $context): array
         'mail' => $pick(setupSavedFile($context, 'mail')),
         'google' => $pick(setupSavedFile($context, 'google')),
         'secret' => is_string($secret) && preg_match('/^[0-9a-f]{64}$/i', trim($secret)) === 1,
+        'problems' => setupSavedProblems($context),
     ];
 }
 
@@ -920,6 +966,13 @@ function setupSave(bool $local, array $server, array $post, array $context): arr
 {
     $saved = setupSaved($context);
     $values = setupPosted(setupValues($local, $server, $saved), $post);
+
+    // Nothing is written while a file it would write over cannot be read
+    // (setupSavedProblems()) - the master key least of all.
+    if ($saved['problems'] !== []) {
+        return setupForm($local, $context, $saved, $values, $saved['problems'], 409);
+    }
+
     $errors = setupErrors($local, $values, $post);
 
     if ($errors !== []) {
@@ -1090,10 +1143,14 @@ function setupForm(bool $local, array $context, array $saved, array $values, arr
     if ($local) {
         $problems = iamSetUpProblems();
         $items = [];
-        foreach (['database', 'secret', 'iam', 'mail', 'google'] as $name) {
-            $present = is_file($context['config'] . '/' . $name . '.local.php');
-            $items[] = '<li class="' . ($present ? 'good' : ($name === 'google' ? '' : 'bad')) . '"><span><code>config/' . $name . '.local.php</code> '
-                . ($present ? ($name === 'secret' ? 'present - never shown here' : 'present') : ($name === 'google' ? 'not there - Google sign-in is off' : 'missing')) . '</span></li>';
+        foreach (SETUP_FILES as $name) {
+            $path = $context['config'] . '/' . $name . '.local.php';
+            $present = is_file($path);
+            $unread = $present ? readLocalConfigFile($path)['problem'] : null;
+            $items[] = $unread !== null
+                ? '<li class="bad"><span><code>config/' . $name . '.local.php</code> cannot be read: it ' . setupEscape($unread) . '</span></li>'
+                : '<li class="' . ($present ? 'good' : ($name === 'google' ? '' : 'bad')) . '"><span><code>config/' . $name . '.local.php</code> '
+                    . ($present ? ($name === 'secret' ? 'present - never shown here' : 'present') : ($name === 'google' ? 'not there - Google sign-in is off' : 'missing')) . '</span></li>';
         }
         if ($state !== null) {
             $items[] = !empty($state['connected'])
@@ -1234,7 +1291,8 @@ function setupHandle(array $server, array $query, array $post, string $rawBody, 
         return $json !== null ? setupTest($local, $server, $json, $context) : setupSave($local, $server, $post, $context);
     }
 
-    return setupForm($local, $context, $saved, setupValues($local, $server, $saved));
+    // A file that cannot be read is said at once, before anybody fills the form in.
+    return setupForm($local, $context, $saved, setupValues($local, $server, $saved), $saved['problems']);
 }
 
 // The tests load this file for its functions and hand setupHandle() requests

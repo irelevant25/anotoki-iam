@@ -180,8 +180,11 @@ test('an installed IAM with a history: 018 moves every entry exactly, its id kep
     $pdo = buildIamAsInstalled('_installed');
     $history = writeHistory($pdo);
     same(8, count($history), 'the history written');
-    same([...ADMIN_SET_FILES, AUDIT_MIGRATION, ...array_slice(array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_translations/'))), 2)],
-        pendingMigrations($pdo), 'what an upload brings an installed IAM: the library\'s admin set, 018, the translations set\'s new files');
+    // 018 and every file of the IAM's after it (019, the authenticator's pause, ...): what waited on an IAM
+    // built through 017 when 018 came, and what has come since.
+    $iam = migrationFiles('iam');
+    same([...ADMIN_SET_FILES, ...array_slice($iam, (int) array_search(AUDIT_MIGRATION, $iam, true)), ...array_slice(array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_translations/'))), 2)],
+        pendingMigrations($pdo), 'what an upload brings an installed IAM: the library\'s admin set, 018 and the IAM\'s files after it, the translations set\'s new files');
 
     $result = applyPendingMigrations($pdo);
     same([[], null], [pendingMigrations($pdo), $result['failed']], 'every file applied, every gate passed (' . ($result['error'] ?? '') . ')');

@@ -3,8 +3,9 @@
 /**
  * Sending mail: the messages the IAM sends by itself - a confirmation, a
  * reset, a sign-in code, an approval, an account's deletion asked for,
- * cancelled and done, a sign-in from a new browser - and the announcements an
- * administrator writes (api/announcements.php).
+ * cancelled and done, a sign-in from a new browser, authenticator codes paused
+ * after five wrong ones - and the announcements an administrator writes
+ * (api/announcements.php).
  *
  * Two drivers, chosen in config/mail.local.php (config/mail.php describes it):
  * `mail` hands the message to PHP's mail(), which is what the hosting
@@ -57,13 +58,14 @@ const MAIL_KIND_DELETION_REQUESTED = 'account_deletion_requested';
 const MAIL_KIND_DELETION_CANCELLED = 'account_deletion_cancelled';
 const MAIL_KIND_ACCOUNT_DELETED = 'account_deleted';
 const MAIL_KIND_NEW_SIGN_IN = 'new_sign_in';
+const MAIL_KIND_AUTHENTICATOR_PAUSED = 'authenticator_paused';
 
 /**
  * Kinds whose subject holds nothing secret. Default-deny: the sign-in code is in
  * its message's subject, so an unlisted kind is logged with no subject at all.
  */
 const MAIL_SUBJECT_SAFE_KINDS = [MAIL_KIND_CONFIRMATION, MAIL_KIND_PASSWORD_RESET, MAIL_KIND_ACCOUNT_APPROVED, MAIL_KIND_ANNOUNCEMENT, MAIL_KIND_ANNOUNCEMENT_TEST,
-    MAIL_KIND_DELETION_REQUESTED, MAIL_KIND_DELETION_CANCELLED, MAIL_KIND_ACCOUNT_DELETED, MAIL_KIND_NEW_SIGN_IN];
+    MAIL_KIND_DELETION_REQUESTED, MAIL_KIND_DELETION_CANCELLED, MAIL_KIND_ACCOUNT_DELETED, MAIL_KIND_NEW_SIGN_IN, MAIL_KIND_AUTHENTICATOR_PAUSED];
 
 const MAIL_SENDER_NOREPLY = 'noreply';
 const MAIL_SENDER_SUPPORT = 'support';
@@ -137,11 +139,19 @@ const MAIL_KEYS = [
     'mail.newSignIn.greeting' => ['username'],
     'mail.newSignIn.intro' => [],
     'mail.newSignIn.ignore' => [],
+    // The authenticator's pause (api/authenticator_pause.php): five wrong
+    // codes, once a pause. The time of the fifth and the browser are the
+    // server's lines, as a new sign-in's are; the account page's security
+    // its last one.
+    'mail.authenticatorPaused.subject' => [],
+    'mail.authenticatorPaused.greeting' => ['username'],
+    'mail.authenticatorPaused.intro' => [],
+    'mail.authenticatorPaused.ignore' => [],
 ];
 
 /**
- * The English of every mail string, as migrations 006, 012, 013 and 016 seed
- * it (a test holds the two together). Used string by string whenever the
+ * The English of every mail string, as migrations 006, 012, 013, 016 and 019
+ * seed it (a test holds the two together). Used string by string whenever the
  * database has nothing to say: no tables yet, a query that failed, a row that
  * is gone.
  */
@@ -194,6 +204,10 @@ const MAIL_FALLBACK = [
     'mail.newSignIn.greeting' => 'Hello {username},',
     'mail.newSignIn.intro' => 'Your anotoki account was just signed in to from a browser or device it has not been used on before:',
     'mail.newSignIn.ignore' => 'If it was you, there is nothing to do. If it was not, change your password now, and end that sign-in on the page that shows every place your account is signed in:',
+    'mail.authenticatorPaused.subject' => 'Wrong codes for your anotoki account',
+    'mail.authenticatorPaused.greeting' => 'Hello {username},',
+    'mail.authenticatorPaused.intro' => 'Somebody got past the first step of signing in to your anotoki account - your password, a code we emailed you, or Google - and then typed five wrong codes from your authenticator app. So its codes are paused for 15 minutes. The fifth try:',
+    'mail.authenticatorPaused.ignore' => 'If it was you, there is nothing to do: sign in after the pause, or with a code we email you. If it was not, somebody knows your password or can get into your email: change your password now on your account page:',
 ];
 
 /**
@@ -333,7 +347,7 @@ function mailFill(string $key, string $text, array $values): string
  * A whole message: ['subject' => ..., 'body' => ...].
  *
  * $mail is 'confirm', 'reset', 'loginCode', 'approved', 'deletionRequested',
- * 'deletionCancelled', 'deleted' or 'newSignIn'. $line is the message's
+ * 'deletionCancelled', 'deleted', 'newSignIn' or 'authenticatorPaused'. $line is the message's
  * middle line - the link, or the code - put in here and never by a string;
  * '' for a message that has none (the account deleted: there is nothing left
  * to go to). $after names the paragraphs under it: the link's or the code's
@@ -590,4 +604,19 @@ function sendNewSignInMail(array $user, ?string $device, int $when): bool
     $text = mailMessage('newSignIn', mailWordsFor($user), $details, ['username' => $user['username']], ['ignore'], iamPageUrl('/account/sessions'));
 
     return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_NEW_SIGN_IN, $user['id'] ?? null);
+}
+
+/**
+ * Five wrong authenticator codes paused the account's codes
+ * (api/authenticator_pause.php): when the fifth came, and its browser in a few
+ * words - from the fixed list, as a new sign-in's (signInDeviceLabel()) - then
+ * the account page's security, where the password is changed. Once a pause:
+ * only the request that starts one sends it.
+ */
+function sendAuthenticatorPausedMail(array $user, ?string $device, int $when): bool
+{
+    $details = '    ' . mailTime($user, $when) . ($device !== null ? "\n    " . $device : '');
+    $text = mailMessage('authenticatorPaused', mailWordsFor($user), $details, ['username' => $user['username']], ['ignore'], iamPageUrl('/account/security'));
+
+    return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_AUTHENTICATOR_PAUSED, $user['id'] ?? null);
 }

@@ -61,13 +61,21 @@ genshin site, and every administrator there when 007 ran.
 
 Everything that belongs to one installation - the database connection (and
 the genshin site's old `users` database, for the one-time import), the master
-key, the public address, mail, Google - is in `backend/config/*.local.php` and
-nowhere else: gitignored, never defaulted from anything committed. The
-committed `config/*.php` beside them read those files and hold only the
-tunables that are the same everywhere.
+key, the public address, mail, Google, the Cloudflare zone's origin secret -
+is in `backend/config/*.local.php` and nowhere else: gitignored, never
+defaulted from anything committed. The committed `config/*.php` beside them
+read those files and hold only the tunables that are the same everywhere.
+Each file is read cleanly or not at all (`readLocalConfigFile()`): one that
+prints when PHP requires it - no `<?php` line, a byte-order mark or a line
+before it - would send what it holds ahead of every answer, so what it prints
+is caught and goes nowhere and the file is passed over, said by its fault and
+its byte count, never its text; so is one PHP cannot read. The origin secret's
+(`cloudflare.local.php`) so passed over fails closed: a secret no request
+carries, every request from Cloudflare's ranges its edge.
 
 They are required. Until `database`, `secret`, `iam` and `mail` are all there
-and sensible (`google` is optional), the API answers every request - discovery
+and sensible (`google` and `cloudflare` are optional; the installer never
+writes `cloudflare`, the secret uploaded by hand), the API answers every request - discovery
 included, all but `/api/site-status` - with the anotoki family's
 `503 {code: "not_set_up", installed, message, setup?}`, and the pages show
 "not set up yet" with a link to the installer - the link, and `setup`, only
@@ -85,7 +93,8 @@ as much as on a server:
 | Afterwards | stays, re-runnable: shows what is saved, never a password or the key; a blank password keeps the saved one | `storage/installed.lock`, then it deletes itself and its token |
 
 Both build the database with the anotoki family's migration engine (below),
-keep an existing master key, keep whatever else the files hold, and either
+keep an existing master key, keep whatever else the files hold - and save over
+none they could not read cleanly -, and either
 bring the genshin site's accounts over or make the first administrator. "Test connection" beside
 the database fields is a small JSON request to the same page, under the same
 nonce or token, and answers in the words every anotoki setup page uses
@@ -229,7 +238,7 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). |
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
 | `sessions` | A signed-in browser at the IAM: the cookie's hash, a public `sid`, how it signed in, sliding expiry with an absolute cap. |
-| `login_attempts`, `email_log` | The limiter's memory and the history; the mail log keeps no bodies. |
+| `login_attempts`, `email_log` | The limiter's memory and the history; the mail log keeps no bodies. An attempt's `outcome` says how it went (`bad_totp` - a wrong authenticator code, which the pause counts by account; `totp_paused` - one refused unchecked during a pause; `bad_email_code` - a wrong code by email beside the password during a pause, five of which end the mailbox's standing in until it ends; `email_code_paused` - one refused unchecked then; ...). The pause itself is `users.totp_paused_until`, and `totp_count_from` where the count starts again (019). |
 | `applications` (+ `application_redirect_uris`, `application_origins`, `application_roles`) | The sites: exact redirect URIs, the origins allowed to call the token endpoint, whether the site requires signing in (`login_required`, published to the sites' backends at `GET /api/public/applications/{client_id}`), token lifetime, their roles and which of them may sign in (`may_sign_in`). Every application is a public client and has the same roles - ADMIN, EDITOR, MEMBER (the IAM's own entry ADMIN, MEMBER) - and every account holds MEMBER everywhere: triggers of migrations 010 and 011 keep it so for every account and application made later. `type`, `secret_hash`, `show_on_landing` and `access` stay, unread (`access` only while 010 is pending), until a later migration drops them - not a way back: once 010 is applied no build from before it goes on the host (`decisions.md`). `sort_order` is the order of the public list. |
 | `user_roles` | Who holds which application role, and who granted it. |
 | `auth_requests` | What an application asked for while the person signs in (and logouts waiting for confirmation). |
@@ -319,6 +328,22 @@ scans a code enable would refuse).
 - **The sites** read the deleted ids at `GET /api/public/anonymized-accounts`
   and scrub their own copies of the person's name and address, keeping the
   rest of their data under the id, nobody's now.
+- **The record beside the database** (the owner's decision of 2026-10-13):
+  each request, cancellation and anonymization is also a line of
+  `storage/records/account-deletions.jsonl` - add-only, the account's id and
+  the database's time, nothing of the person - written once its transaction
+  committed (`recordAccountDeletionEvent()`; a line that cannot be written is
+  the error log's, never the person's). A database lost and put back by hand
+  from an older backup would bring back everybody deleted since: `php
+  account-deletions.php --replay --since=<the backup's time>` does again what
+  the record holds - in the order the events happened (their own times, not
+  the file's), each account as its last event says, a request with its own
+  times, an anonymization run now - keeps the ids the record names from being
+  issued again, ends every session, token, remembered browser and mailed link
+  the restore brought back, and warns when it leaves the IAM no live
+  administrator (`replayAccountDeletions()`; docs/operations.md, "When the
+  database is lost"). Its own changes are lines of the record too, so running
+  it again changes nothing.
 
 ## A mail for a sign-in from a new browser
 
@@ -517,7 +542,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 ## The admin panel's tools: the error log, the audit log, backups
 
 Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11; 0.5.0 since): the same pages, routes and
+owner's decision of 2026-10-11; PHP 0.5.2, Angular 0.5.0 now): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and
@@ -528,7 +553,10 @@ still let nobody in). Where a request comes from is the family's one rule
 or - on a connection from Cloudflare's published ranges, the IAM's trusted
 proxies (`config/iam.php`; none wider than an IPv4 /8 or an IPv6 /16 is
 believed) - the visitor's it names in `CF-Connecting-IP`, the one header read,
-pinned in the code; the limiter counts it, the audit log keeps it, a session
+pinned in the code, and with the zone's origin secret
+(`config/cloudflare.local.php`, the owner's decision of 2026-10-13) only on a
+request that carries it in `X-Anotoki-Origin` - any other from the ranges is
+the edge it came from; the limiter counts it, the audit log keeps it, a session
 shows it, and a header from anywhere else is never believed.
 
 - **The audit log** (`/admin/audit`) is `anotoki_audit_log`, written by the
@@ -590,10 +618,14 @@ written down, not a refactor.
    and per source. The source is the connection's address, or the visitor's
    that Cloudflare names in `CF-Connecting-IP` on a connection from its
    published ranges (the owner's decision of 2026-10-11) - that header alone,
-   pinned in the code, never from anywhere else, and never a configured range
-   wider than an IPv4 /8 or an IPv6 /16 - counted by its bucket: an IPv4
-   address whole, an IPv6 address by its /64, so a network of one's own is no
-   supply of fresh sources (`limiterSource()`).
+   pinned in the code, never from anywhere else, never a configured range
+   wider than an IPv4 /8 or an IPv6 /16, and with the zone's origin secret only
+   on a request that carries it (2026-10-13: Cloudflare's ranges are every
+   customer's; without it a request from them is the edge it came from) -
+   counted by its bucket: an IPv4 address whole, an IPv6 address by its /64,
+   so a network of one's own is no supply of fresh sources (`limiterSource()`).
+   And wrong authenticator codes are counted **per account** too, whatever
+   their sources: five within fifteen minutes pause its codes (rule 12).
 8. **Every way in checks the same switches** (login enabled, account disabled,
    an account waiting for approval, a role that may sign in) - a switch on one
    door is a lock on one of five. An account whose deletion is pending is
@@ -609,7 +641,17 @@ written down, not a refactor.
     named exactly and compared on the percent-decoded path the router matches;
     none of the four ever reads the session cookie.
 12. **Two-factor holds on every way in, resets included**; an authenticator code
-    is accepted once, and every miss counts against the limiter.
+    is accepted once, and every miss counts against the limiter. **Five wrong
+    codes for an account pause its codes for fifteen minutes** (the owner's
+    decision of 2026-10-13, migration 019): on every way that takes one, a code
+    is then refused without being checked (`authenticator_paused`), one check
+    at a time per account; a recovery code and a remembered device still work,
+    and the password's sign-in may finish with a code mailed to the address -
+    after the password, never in its place, and never by the mailbox alone;
+    counted as the authenticator's codes are, five wrong in a pause and none
+    until it ends; its session's `amr` says `email`, never `otp`. The owner is
+    mailed once a pause. (So the password and the mailbox together sign in:
+    the owner's choice, docs/decisions.md.)
 13. **Proving an address on an account never confirmed clears it**: nothing its
     registrant set survives the owner's arrival. **A reset takes an account back
     completely** - sessions, personal tokens, devices, outside identities, the
@@ -643,22 +685,25 @@ written down, not a refactor.
     key, its rows never in the clear on the disk; it is made, downloaded and
     deleted only with the account page's proof (the password, or a sign-in of
     the last 15 minutes) and audited; a download is a single-use ticket for
-    one backup, one administrator and a minute. Restoring is off until an
-    `afterRestore` that ends every session and token and deletes again the
-    accounts deleted since has been reviewed. The error log keeps no secret,
-    token, cookie, header, body, query string or address.
+    one backup, one administrator and a minute. Restoring is off (kept off by
+    the owner's decision of 2026-10-13): a database lost is put back by hand,
+    and the add-only record of deletions beside it is replayed onto it - every
+    deletion since done again, every session and token ended. The error log
+    keeps no secret, token, cookie, header, body, query string or address, and
+    no local configuration file's text is ever printed.
 
 ## Where the code lives
 
 | File | |
 | --- | --- |
 | `backend/setup.php` | The installer: writes `config/*.local.php`, builds the database, the accounts, the sites' production addresses. |
-| `backend/config/` | `config.php` (reading `*.local.php`, whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`. |
+| `backend/config/` | `config.php` (reading `*.local.php` - cleanly or not at all, `readLocalConfigFile()` - and whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`, `cloudflare.php` (the zone's origin secret). |
 | `backend/api/index.php` | Front controller: requires, middleware order (the error log's outermost, the family's gate where "not set up" is answered), error handler; the library's after-the-answer runner after `$app->run()`. |
 | `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`: the library's admin set, the IAM's set, then the library's translations set; `iamMigrationLabel()` names a library file `set/name`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
 | `backend/api/admin_tools.php` | The IAM's configuration of the library's admin tools: `iamAdminContext()` (who acts, who the ADMIN is, the proof, the address and its bucket, the people's names, the error body), `iamErrorLog()` with the IAM's names of secrets (`IAM_SECRET_NAMES`, given to the library's redactor) and its own prefixes and cookies (`iamRedactSecrets()`, down an exception's chain; `iamClientErrorRedaction()` on the pages' own errors), `iamBackups()` (encrypted, never restored), `iamMigratorWithBackup()`. |
 | `backend/api/audit.php` | `audit()`, every route's one way into the audit log - the library's `AuditLog` (`iamAuditLog()`), waiting in a file until 018 has run (`auditMovedToLibrary()`). |
 | `backend/backup.php` | The backups from the command line - the library's command on the IAM's backups: list, make, inspect, extract; another IAM's with its master key. Never uploaded. |
+| `backend/account-deletions.php` | The record of deletions from the command line: list it, and replay it onto a database put back by hand (`--replay --since=`, `--dry-run`, `--record=` a copy). Never uploaded. |
 | `backend/vendor/anotoki/lib` | The anotoki family's library (Composer): the migration engine, the gate, the status and Migrations routes; the translations - the tables' migration set and the library's words, the checks of a string, the bundle and the admin routes, the command line's tools; the admin tools - their tables' set, the error log, the audit log, backups, their routes. Never edited here - updated by Composer (`docs/operations.md`). |
 | `backend/api/routes/oidc.php` | Discovery, JWKS, authorize, token, userinfo, a site's save of its reader's preferences, logout, revoke, the public list of sites, the public "is sign-in required here?" answer. |
 | `backend/api/routes/login.php` | Sign-in (password, emailed code, Google), registration, confirmation, resets, the pending request (accept/cancel), sign-out, stopping the news. |
@@ -668,7 +713,8 @@ written down, not a refactor.
 | `backend/api/session.php` | The session cookie (its `__Host-` name; the bare one never read on HTTPS, only expired), the sign-in hint, sliding expiry, revocation, the limiter. |
 | `backend/api/keys.php`, `jwt.php`, `crypto.php` | Keys (made on first use), signing, encryption. |
 | `backend/api/applications.php`, `accounts.php`, `settings.php` | The rules about who may use what. |
-| `backend/api/account_deletion.php` | An account's deletion: asked, cancelled, done when due (housekeeping), and the public list of deleted ids. |
+| `backend/api/account_deletion.php` | An account's deletion: asked, cancelled, done when due (housekeeping), and the public list of deleted ids; the record of each beside the database, and its replay after a restore by hand (`account-deletions.php`, the command line's). |
+| `backend/api/authenticator_pause.php` | The one authenticator check of every way that takes a code (`authenticatorCheck()`), and its pause: five wrong codes for an account, fifteen minutes (019); the code by email that stands in during it on the password's sign-in, counted the same way (`pausedEmailCodeCheck()`). |
 | `backend/api/sign_in_devices.php` | The browsers an account signed in from, the device cookie, and the mail for a new one. |
 | `backend/api/totp.php`, `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php` | Carried over from the genshin site, rules intact. |
 | `backend/api/legacy_import.php` | The one-time move of the genshin site's accounts. |

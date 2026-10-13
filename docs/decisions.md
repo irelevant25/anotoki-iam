@@ -1557,3 +1557,213 @@ Both halves of the IAM take anotoki-lib 0.5.0 (`composer.json` `^0.5.0`, the
   anotoki site's admin area says it; "Security · anotoki account" elsewhere,
   as before.
 
+## 2026-10-13 - The owner's decision: the visitor's address only through the owner's Cloudflare zone (the origin secret)
+
+The 2026-10-11 entry left a choice to the owner: Cloudflare's published ranges
+are every Cloudflare customer's, not the owner's zone alone, and anybody's
+Worker can open a raw socket to the host from them and write the
+`CF-Connecting-IP` it likes - a fresh address for every guess, past the
+sign-in limiter. The owner chose the secret header, for every anotoki site
+(round 3, step 2). A change of a security rule (architecture.md, "The rules
+that carry the weight", 7), made here as the owner's:
+
+- **How.** A Transform Rule of the owner's zone (Rules -> Transform Rules ->
+  Modify Request Header, "Set static") adds `X-Anotoki-Origin` with a long
+  random value to every request through the zone. With the same value in
+  `config/cloudflare.local.php` (`['origin_secret' => '...']`), the IAM
+  believes `CF-Connecting-IP` only on a request from Cloudflare's ranges that
+  also carries it; any other request from the ranges is the edge it came from
+  - coarser, never looser. The anotoki library checks it (anotoki-lib 0.5.2,
+  `ClientAddress::of()`'s fourth argument): compared in constant time, never
+  logged. From outside the ranges the secret makes nobody a proxy.
+- **The setting.** An optional local file, the same in every anotoki site,
+  uploaded by hand: the installer neither asks for it nor writes it, and
+  `iamSetUpProblems()` does not ask for it. Read through `localConfig()`
+  (`iamOriginSecret()`, `config/cloudflare.php`), trimmed - a header's value
+  never starts or ends with a space, so a value saved with a line break at its
+  end would never match; an empty value, or one that is no string, is no
+  secret (said in PHP's error log once a day, by the file's name). A file that
+  is there but cannot be read cleanly - it prints (a byte-order mark, no
+  `<?php` line), or PHP cannot read it - fails closed (the security review of
+  2026-10-13): a secret no request carries (random, of the process, never
+  written anywhere), so every request from the ranges counts as its edge until
+  the file is mended, said in the error log - a slip of the editor never
+  switches the check off. Never printed, logged or in an answer;
+  `origin_secret` is among the redactor's names besides.
+- **Where.** `requestIp()` - and so the limiter, the audit log and the
+  sessions - and `iamAdminContext()` (the library's limits and the error log's
+  hash, which read `requestIp()` through the IAM's `clientKey` anyway).
+- **What it costs.** Nothing for a visitor who comes through the zone. Should
+  the Transform Rule be missing, or its value differ from the file's, every
+  visitor is counted as the edge they came through, as before 2026-10-11: the
+  two are set together (docs/operations.md, "Behind Cloudflare").
+- **What it stops** (`tests/addresses.test.php`): with the secret, a request
+  from the ranges without the header, or with a wrong one (cut short, longer,
+  another case, twice), is the edge; with it, the visitor; the right one from
+  outside the ranges, the connection. A Worker writing a new address into
+  every guess without the secret is one source - the eleventh guess is refused,
+  every one counted under the edge - while the account's owner, coming through
+  the zone, signs in.
+
+The round's lesson from the five sites, applied here: **a local file is read
+cleanly or not at all.** A `config/*.local.php` written by hand without its
+`<?php` line, with a byte-order mark or a blank line before it, or with text
+after a closing tag that comes before its `return`, prints what is outside its
+PHP when PHP requires it - all of it, the master key or the origin secret
+included, where the line is missing - ahead of every answer. `localConfig()`
+reads every file through `readLocalConfigFile()`: what it prints is caught and
+goes nowhere, and the file is passed over - said in PHP's error log by its
+byte count, never its text; a required one leaves the IAM not set up, and
+`iamSetUpProblems()` names it and its fault; the origin secret's fails closed
+(above). One PHP cannot read is passed
+over the same way, said by the kind of error and its line alone (a parse
+error's message can quote the file). The installer reads its files through it
+too, never shows one, and saves over none it could not read - a master key with
+a byte-order mark before it is still the key every signing key and two-factor
+secret is encrypted with, and a fresh one in its place would make them all
+unreadable (`setupSavedProblems()`, `tests/setup.test.php`).
+
+## 2026-10-13 - The owner's decision: five wrong authenticator codes pause an account's codes for fifteen minutes
+
+The owner's numbers: five wrong codes, fifteen minutes. Reaching the
+authenticator step means the first one was passed - the password, as a rule.
+Six digits are all that is left, three in a million right at any moment, and
+the limiter counts sources: a guesser with many of them guessed at one account
+without a ceiling of its own. A change of a security rule (architecture.md,
+"The rules that carry the weight", 7 and 12), made here as the owner's
+(migration 019, `api/authenticator_pause.php`):
+
+- **The count.** Five wrong codes for an account - counted for the account,
+  whatever address they come from, within a rolling fifteen minutes, and from
+  nought again after a right code or a completed sign-in - pause its codes for
+  fifteen minutes from the fifth. One check at a time for an account (its row
+  held), so a burst sent at once is checked one after another: five, then the
+  pause. The wrong codes are the limiter's own attempts (`bad_totp`, by
+  account); `users.totp_paused_until` and `totp_count_from` keep the rest.
+- **The pause.** A code is refused without being checked - `403
+  authenticator_paused` with `paused_until` - and nothing refused meanwhile
+  counts towards the next pause (`totp_paused`). On every way that takes an
+  authenticator code (the same switches on every way in): the password sign-in,
+  the emailed code's, Google, a password reset, and the account page's turning
+  two-factor off and new recovery codes. Not the confirmation of a new secret
+  when two-factor is switched on: that is a secret just shown to the session
+  itself, and switching on with a new secret clears the pause.
+- **What still works.** A recovery code (fifty bits: not guessable) and a
+  remembered browser (a 256-bit secret), as before. And the password's sign-in
+  may finish with a code mailed to the address in the authenticator's place:
+  the emailed sign-in's own code (`POST /api/login/code`; five live at most, ten
+  minutes each), sent back as `email_code` with the password - checked only
+  after the password was found right, and only while the codes are paused.
+  Its wrong ones are counted for the account as the authenticator's are (the
+  security review of 2026-10-13: without it, codes could be asked for again
+  and again, each five tries more): under the same hold on the account's row,
+  read before the code is, five wrong in a pause (`bad_email_code`) and every
+  code by email is refused unchecked until the pause ends - one mailed since,
+  the right one, too (`403 authenticator_paused`, `email_code: false`,
+  `email_code_paused`); a burst sent at once is checked one at a time, five at
+  most. Holding the mailbox alone gets nobody anywhere: the emailed code's own
+  sign-in still asks for the authenticator, paused with it. A browser is not
+  remembered for such a sign-in, and its session says the mailbox stood in:
+  method `password_email`, `amr` `["pwd", "email", "mfa"]` - never `otp`,
+  which is an authenticator's code.
+- **The trade, said plainly.** During a pause the password and the mailbox
+  sign in without the authenticator, and the pause is the password holder's
+  to start: five wrong codes, typed on purpose, begin it at any moment, and
+  the mail that tells the owner lands in that same mailbox. So in practice
+  the password and the mailbox together sign in; the authenticator stands
+  only between the account and somebody who holds the password without the
+  mailbox. The owner's choice of 2026-10-13, confirmed when asked plainly
+  after the security review: the alternative - during a pause, recovery codes
+  and remembered browsers alone, no code by email - was offered and declined,
+  so that somebody holding the password cannot lock the owner out by
+  guessing. Outside a pause a mailed code stands in for nothing.
+- **The owner is told**, once a pause - by the request that begins it, at an
+  address its owner proved: somebody got past the first step (the password, a
+  mailed code, or Google) and typed five wrong codes; if it was not them,
+  somebody knows the password or can get into the mailbox - change the
+  password (the account page's security). Its words in English and Slovak
+  (`mail.authenticatorPaused.*`, 019). The audit log keeps
+  `account.authenticator_paused`, by nobody, from the guesser's address.
+- **The admin panel** adds no page: its sign-in attempts list says
+  `totp_paused` for a code refused unchecked, `bad_recovery` for a wrong
+  recovery code during a pause, `bad_email_code` for a wrong code by email and
+  `email_code_paused` for one refused unchecked after five; Sessions (and the
+  account page's) say "Password and emailed code" for `password_email`.
+- **With 019 pending** the step is checked as before, with no pause.
+- **What it stops** (`tests/authenticator-pause.test.php`): five wrong codes
+  from five addresses pause it, and the sixth - the right code - is refused
+  unchecked and not spent; the five may come by five ways; a code by email signs
+  in during the pause, never with a wrong password and never by the mailbox
+  alone; five wrong codes by email and none stands in until the pause ends,
+  one mailed since and the right one included, and eight sent at once (each
+  waiting at the account's row) are four refusals, the fifth's pause and three
+  unchecked - five checked; a check whose transaction began before the pause
+  did, reading the row after it, starts afresh so its try is counted (an
+  attempt is kept at its transaction's start); such a sign-in's ID token says
+  `pwd`, `email`, `mfa`; outside a pause a code by email stands in for nothing; the pause
+  lifts after fifteen minutes and the count starts again; one mail a pause, in
+  the account's language, none to an unproved address; a right code, a
+  recovery code or a completed sign-in starts the count again; recovery codes
+  and remembered browsers work during the pause.
+
+## 2026-10-13 - The owner's decision: the IAM's restore stays off; a record of every deletion, replayed after a restore by hand
+
+The IAM never restores a backup in place (2026-10-11). But were its database
+lost and an older backup put back by hand, every deletion asked for,
+cancelled or done since would be lost with it - an anonymized person's name,
+address and history back, and a request's thirty days gone. The owner's
+decision: keep the restore off, and keep a record beside the database that a
+restore by hand replays (`api/account_deletion.php`, `account-deletions.php`):
+
+- **The record.** `storage/records/account-deletions.jsonl`, add-only, a line
+  for every event - `requested` (with when it is due), `cancelled`,
+  `anonymized` - with the account's id and the database's own time to the
+  microsecond: nothing of the person. Written once the event's transaction
+  committed, never for one rolled back; a cancellation by the owner of an
+  unconfirmed address (`claimUnconfirmedAccount()`) is one too. A line that
+  cannot be written is the error log's, loudly - the event, its account's id
+  and time - and never the person's: the deletion was made. Its folder is
+  guarded against the web like the library's (a deny-all `.htaccess`, an empty
+  `index.html`) and readable by the FTP account: the owner downloads it with
+  the backups.
+- **The replay.** `php account-deletions.php --replay --since=<the backup's time>
+  [--record=<a copy>] [--dry-run]`, on the owner's computer against the
+  restored database: the events from an hour before the backup's time on (a
+  transaction that began before its snapshot may have committed after it), in
+  the order they happened - by their own times, not the file's order, since a
+  line is written once its transaction committed and two a moment apart can
+  stand the other way round; a request a replay made again by when it was
+  first asked (the security review of 2026-10-13) -, each account's last event
+  deciding where it ends - a request with its own times, a cancellation, an
+  anonymization run now, with no second last mail - and only where the
+  database does not say so already. Then the ids the record
+  names but the database lacks (accounts made after the backup) are kept from
+  being issued again (the id sequence moved past them), and every way back in
+  the restore brought back is ended: live sessions, refresh and personal
+  tokens, remembered browsers, mailed links and codes - everybody signs in
+  again. Refused while migrations wait. Its changes are lines of the record
+  (`"replayed": true`, at the time they were made) and entries of the audit
+  log, so a backup made between the restore and the replay is covered by the
+  next replay too. A dry run changes nothing; a second run nothing more. It
+  says how many live administrators the IAM has afterwards, and warns when
+  none (the same review): the backup may be older than every administrator who
+  stays - one made since is not in it, and the record knows deletions, not
+  roles - while the last-admin rule let the one in it ask for a deletion. The
+  way back: an administrator whose deletion was asked again signs in and
+  cancels it, or a live account is given the IAM's ADMIN in the database by
+  hand (docs/operations.md), before the IAM goes live again.
+- **What it does not do.** Accounts made after the backup are lost (their ids
+  kept only where the record names them); a password, a role or a setting
+  changed since comes back as it was. The steps are docs/operations.md's,
+  "When the database is lost".
+- **Why the panel's restore stays off.** All of this would have to run inside
+  the library's restore, with an `afterRestore` reviewed as the 2026-10-11
+  entry asks; the owner keeps it off, and the replay is the documented way back.
+- **What it stops** (`tests/deletion-record.test.php`): a database put back
+  from before a request, an anonymization and a cancelled request - the
+  replay does all three again, the request with its very times, and ends every
+  session from before; a dry run changes nothing; a second run nothing more;
+  an account the database lacks keeps its id; events whose lines stand out of
+  order are replayed in the order they happened; a replay that leaves no live
+  administrator says so, dry and for real; it refuses while migrations wait.
+

@@ -22,6 +22,17 @@ const AMR_BY_METHOD = [
     SESSION_METHOD_LOGIN_CODE => 'email',
     SESSION_METHOD_EMAIL_LINK => 'email',
     SESSION_METHOD_GOOGLE => 'google',
+    SESSION_METHOD_PASSWORD_EMAIL => 'pwd',
+];
+
+/**
+ * The second factor's own name in `amr`, where it was not the authenticator's
+ * `otp`: the password's sign-in finished, during the authenticator's pause,
+ * with a code mailed to the address - the mailbox stood in, and a site reading
+ * `amr` is told so rather than told an authenticator answered.
+ */
+const AMR_SECOND_FACTOR_BY_METHOD = [
+    SESSION_METHOD_PASSWORD_EMAIL => 'email',
 ];
 
 /**
@@ -409,7 +420,7 @@ function amrFor(array $session): array
     $amr = [AMR_BY_METHOD[$session['method']] ?? 'pwd'];
 
     if (asBool($session['mfa'])) {
-        $amr[] = 'otp';
+        $amr[] = AMR_SECOND_FACTOR_BY_METHOD[$session['method']] ?? 'otp';
         $amr[] = 'mfa';
     }
 

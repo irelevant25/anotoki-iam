@@ -52,19 +52,23 @@ require_once __DIR__ . '/migration_runner.php';
 /**
  * The IAM's own names a secret is written under: the bodies' fields that
  * carry a credential - a current or a new password, a remembered device's
- * token, a code (the sign-in's, the mailed one, an authenticator's), a
- * recovery code, Google's credential - and a two-factor secret. Given to the
+ * token, a code (the sign-in's, the mailed one - `email_code` where it stands
+ * in for the authenticator during its pause -, an authenticator's), a
+ * recovery code, Google's credential - a two-factor secret, and the origin
+ * secret of config/cloudflare.local.php. Given to the
  * library's redactor once, as the process starts (Redactor::addSecretNames(),
  * anotoki-lib 0.5.0): from then on every message the library writes down - an
  * exception's and each of its causes', a PHP warning's, a page's own error,
  * PHP's error log line for a 500 - loses `name=value` and `name: value` of
  * them, quoted or not, whatever the value looks like (one with no digit in it
  * is no token-like run to the library). `password`, `token`, `secret`,
- * `cookie` and their kin are the family's names already. What a name cannot
+ * `cookie` and their kin are the family's names already - each a whole word:
+ * `secret` takes nothing out of `origin_secret=`, nor `code` out of
+ * `email_code=`. What a name cannot
  * say - a refresh or personal token by its prefix, the IAM's cookies by their
  * configured names - is iamRedactSecrets()'s.
  */
-const IAM_SECRET_NAMES = ['current_password', 'new_password', 'device_token', 'totp_secret', 'totp', 'recovery_code', 'recovery_codes', 'code', 'credential'];
+const IAM_SECRET_NAMES = ['current_password', 'new_password', 'device_token', 'totp_secret', 'totp', 'recovery_code', 'recovery_codes', 'code', 'email_code', 'credential', 'origin_secret'];
 Redactor::addSecretNames(...IAM_SECRET_NAMES);
 
 /**
@@ -117,14 +121,17 @@ function iamAdminContext(): AdminContext
         // subscriber's whole network, so a sender cannot walk past a limit
         // through the addresses of its own network. The proxies themselves -
         // the ranges iamTrustedProxies() believes, the header the library's
-        // own, CF-Connecting-IP, never another - for whatever of the library
-        // reads them from here.
+        // own, CF-Connecting-IP, never another - and the owner's zone's
+        // secret, without which a request from those ranges is the edge it
+        // came from (config/cloudflare.php, anotoki-lib 0.5.2), for whatever
+        // of the library reads them from here.
         clientKey: static function (Request $request): string {
             $ip = requestIp($request);
 
             return $ip === null ? '' : ClientAddress::bucket($ip);
         },
         trustedProxies: iamTrustedProxies(),
+        originSecret: iamOriginSecret(),
         // The people's names by id, for the pages that show who did what - the
         // Backups page's "By": each account's username as it is now (an
         // anonymized account's placeholder, never the name it had), as the
@@ -386,7 +393,11 @@ function iamErrorLogKey(): string
  *     bring back revoked refresh tokens and sessions, old passwords, removed
  *     roles and deleted people. It is switched on only with an afterRestore
  *     that ends every session and token and deletes again every account
- *     deleted since - reviewed first (docs/decisions.md, 2026-10-11).
+ *     deleted since - reviewed first (docs/decisions.md, 2026-10-11); the
+ *     owner kept it off (2026-10-13). A database lost is put back by hand,
+ *     offline, and the record of deletions kept beside it replayed onto it
+ *     (account-deletions.php, api/account_deletion.php; docs/operations.md,
+ *     "When the database is lost").
  *   - Daily (the first housekeeping run of a UTC day, after the answer; 14
  *     kept), before every update the Migrations page or the command line
  *     applies (5 kept), and by hand (until deleted).

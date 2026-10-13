@@ -395,6 +395,9 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         if ($on->rowCount() === 0) {
             return accountGone($response);
         }
+        // A secret of its own: whatever was guessed at an earlier one, and any
+        // pause it brought, says nothing of this one (api/authenticator_pause.php).
+        clearAuthenticatorPause($pdo, (int) $user['id']);
         $codes = generateRecoveryCodes($pdo, (int) $user['id']);
 
         // The other sessions were signed in without the second factor - what
@@ -409,6 +412,9 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
     // A current code is needed to turn it off - somebody at a signed-in machine
     // should not be able to quietly remove what would have stopped them. A
     // recovery code is accepted too: a lost phone is exactly when this is needed.
+    // Through the authenticator's pause, as every way that takes a code: five
+    // wrong ones for the account and its codes are refused unchecked for
+    // fifteen minutes, here as at the sign-in - a recovery code still works.
     $group->post('/2fa/disable', function (Request $request, Response $response) {
         $user = me($request);
         $pdo = iamDb();
@@ -419,9 +425,8 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         if (loginAttemptsExceeded($pdo, $request, (string) $user['email'])) {
             return tooManyAttempts($response);
         }
-        if (!totpChallengePassed($pdo, $user, (string) (requestBody($request)['code'] ?? ''))) {
-            recordLoginAttempt($pdo, $request, (string) $user['email'], (int) $user['id'], ATTEMPT_METHOD_ACCOUNT_TOTP, 'bad_totp');
-            return respondError($response, 400, 'totp_invalid', 'That code is not right');
+        if ($refused = accountTotpRefusal($response, authenticatorCheck($pdo, $request, $user, requestBody($request)['code'] ?? '', ATTEMPT_METHOD_ACCOUNT_TOTP))) {
+            return $refused;
         }
 
         $off = $pdo->prepare('UPDATE users SET totp_enabled = FALSE, totp_secret = NULL WHERE id = ?' . liveAccountSql($pdo));
@@ -447,13 +452,13 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             return respondError($response, 409, 'totp_not_on', 'Two-factor authentication is not on');
         }
         // Limited like a sign-in: a stolen session guessing its way to a fresh
-        // set of recovery codes would own the second factor for good.
+        // set of recovery codes would own the second factor for good - and
+        // through the authenticator's pause, as every way that takes a code.
         if (loginAttemptsExceeded($pdo, $request, (string) $user['email'])) {
             return tooManyAttempts($response);
         }
-        if (!totpCodeAccepted($pdo, $user, (string) (requestBody($request)['code'] ?? ''))) {
-            recordLoginAttempt($pdo, $request, (string) $user['email'], (int) $user['id'], ATTEMPT_METHOD_ACCOUNT_TOTP, 'bad_totp');
-            return respondError($response, 400, 'totp_invalid', 'That code is not right');
+        if ($refused = accountTotpRefusal($response, authenticatorCheck($pdo, $request, $user, requestBody($request)['code'] ?? '', ATTEMPT_METHOD_ACCOUNT_TOTP, recovery: false))) {
+            return $refused;
         }
 
         audit($request, (int) $user['id'], 'account.recovery_codes_renewed', 'user', $user['id']);
@@ -677,6 +682,23 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         return withSignInHint(accountAnswer($response, (int) $user['id']), currentSession($request));
     });
 })->add(requireSession());
+
+/**
+ * The account page's answer to a refused authenticator step
+ * (authenticatorCheck()): a wrong code - or none - is `400 totp_invalid`, as it
+ * always was here; the account's codes paused, `403 authenticator_paused` with
+ * until when. Null when the step passed.
+ */
+function accountTotpRefusal(Response $response, array $result): ?Response
+{
+    if ($result['passed']) {
+        return null;
+    }
+
+    return $result['code'] === 'authenticator_paused'
+        ? respondError($response, 403, 'authenticator_paused', $result['error'], $result['extra'])
+        : respondError($response, 400, 'totp_invalid', 'That code is not right');
+}
 
 /** An account's personal tokens, newest first. The secret is never among them. */
 function personalTokensOf(PDO $pdo, int $userId): array

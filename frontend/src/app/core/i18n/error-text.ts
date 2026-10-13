@@ -19,6 +19,7 @@ const BY_CODE: Record<string, TranslationKey> = {
   invalid_credentials: 'error.invalidCredentials',
   password_login_unavailable: 'error.passwordLoginUnavailable',
   totp_invalid: 'error.totpInvalid',
+  authenticator_paused: 'error.authenticatorPaused',
   email_not_confirmed: 'error.emailNotConfirmed',
   login_disabled: 'error.loginDisabled',
   account_disabled: 'error.accountDisabled',

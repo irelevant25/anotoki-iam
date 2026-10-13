@@ -57,11 +57,14 @@ function claimUnconfirmedAccount(PDO $pdo, \Psr\Http\Message\ServerRequestInterf
     if (accountDeletionReady($pdo)) {
         $cancelled = $pdo->prepare(
             'UPDATE users SET deletion_requested_at = NULL, deletion_due_at = NULL
-              WHERE id = ? AND deletion_due_at IS NOT NULL AND anonymized_at IS NULL RETURNING id'
+              WHERE id = ? AND deletion_due_at IS NOT NULL AND anonymized_at IS NULL RETURNING ' . recordTimeSql('CURRENT_TIMESTAMP')
         );
         $cancelled->execute([$userId]);
-        if ($cancelled->fetchColumn() !== false) {
+        $at = $cancelled->fetchColumn();
+        if ($at !== false) {
             audit($request, $userId, 'account.deletion_cancelled', 'user', $userId, ['by' => 'address_claimed']);
+            // Committed with its statement: a line of the record beside the database (api/account_deletion.php).
+            recordAccountDeletionEvent('cancelled', $userId, (string) $at);
         }
     }
 }

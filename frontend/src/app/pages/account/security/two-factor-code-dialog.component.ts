@@ -88,6 +88,9 @@ export class TwoFactorCodeDialogComponent {
     this.code.set('');
     if (error.code === 'totp_invalid') {
       this.codeError.set(this._i18n.t('error.totpInvalid'));
+    } else if (error.code === 'authenticator_paused') {
+      // Five wrong codes for the account: its authenticator codes wait fifteen minutes, here as at the sign-in.
+      this.codeError.set(this._i18n.t('error.authenticatorPaused'));
     } else {
       this.formError.set(errorText(error, (key) => this._i18n.t(key)));
     }
