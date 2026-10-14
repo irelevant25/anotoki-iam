@@ -434,6 +434,35 @@ account's theme and saves a choice to it - one save at a time, the latest
 last - and the `appDate` pipe writes the account's order and clock. Signed
 out, each device keeps its own theme, as before.
 
+## The legal pages
+
+Terms, Privacy and Contact are the anotoki family's pages (anotoki-lib 0.6.0,
+the owner's decisions of 2026-10-13; `@anotoki/lib/legal/pages`), on the
+library's own paths - `/terms`, `/privacy`, `/contact` - and the IAM's
+Privacy page is the one every anotoki site links to for the account itself.
+Anybody may read them: they are in the family's frame
+(`layouts/legal-layout`), whose bar is the account pages' for somebody
+signed in and Sign in for anybody else (the top bar's `public` area), and
+the session is asked for before the first page when one of them is where the
+site was opened. The foot of every sign-in and account page links to them
+(`layouts/site-footer`, the library's `<anotoki-legal-links>`); the admin
+panel does not.
+
+The words are the library's (`anotoki.legal.*`, written by its translations
+set's 005); the facts are the IAM's - what it keeps, for how long, its
+cookies and stored items, who else handles data
+(`frontend/src/app/core/legal/legal-facts.ts`): its own strings (`legal.*`,
+migration 020, English and informal Slovak, reworded on the Translations page
+like any other) and, in the code only, every address a page links to (the
+account's Security page, where an account is deleted; the operator,
+Cloudflare and Google in the library), the cookies' names and the days. A
+rewording can change words, never where a link goes (the 0.6.0 review). The
+facts are written from the code as it is - the tables, the housekeeping, the
+deletion, the backups' keeping, the session and device cookies - so a change
+to any of those changes them too, and the day in `legal-facts.ts`. Only the
+pages read them: their frame gives them, and the first load, which every
+sign-in page shares, carries only the footer's links.
+
 ## The IAM's own words
 
 What the sign-in pages, the account page and the IAM's own mails say - and the
@@ -542,7 +571,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 ## The admin panel's tools: the error log, the audit log, backups
 
 Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11; PHP 0.5.2, Angular 0.5.0 now): the same pages, routes and
+owner's decision of 2026-10-11; 0.6.0 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and
@@ -724,6 +753,7 @@ written down, not a refactor.
 | `frontend/src/app/core/i18n/` | `translations.config.ts` (the IAM's configuration of `@anotoki/lib/translations`: its storage names, `en.ts` as the last resort, the account's language and its save), `translation.service.ts` (the library's service, seen with the IAM's keys), the typed `t` pipe, `en.ts` (the keys and the English of last resort). |
 | `frontend/src/app/core/migrations/` | How the pages use `@anotoki/lib/migrations`: who is the IAM's ADMIN, the sign-in, the language and the IAM's own not-set-up words, the account's dates. |
 | `frontend/src/app/core/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the database (the IAM's own strings where it has one, `kit-words.ts`; the library's `anotoki.*` for the rest), the icons the IAM's templates name, the account's theme and the languages. |
-| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). The account pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`. |
+| `frontend/src/app/core/legal/` | How the pages use the family's legal pages (`@anotoki/lib/legal`): `legal.config.ts` (the language, the database's words - in the first load, for the footer's links) and `legal-facts.ts` (the IAM's facts and every address the pages link to, given by the pages' frame). |
+| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px), `legal-layout` (the legal pages' frame), `site-footer` (Terms · Privacy · Contact under the sign-in and account pages). The account pages, the legal pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`. |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

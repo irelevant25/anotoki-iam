@@ -145,18 +145,8 @@
                                         }
                                     </ul>
                                 }
-                                @if (chosen().length > 0) {
-                                    <ul class="chosen" aria-label="People chosen">
-                                        @for (person of chosen(); track person.id) {
-                                            <li class="chip">
-                                                <span class="break">{{ person.username }}</span>
-                                                <button type="button" class="chip-remove" [attr.aria-label]="'Remove ' + person.username" (click)="removePerson(person.id)">
-                                                    <anotoki-icon name="x" [size]="14" />
-                                                </button>
-                                            </li>
-                                        }
-                                    </ul>
-                                }
+                                <!-- In the page while people can be chosen, empty or not: the focus goes to the list when its last chip goes. -->
+                                <anotoki-chip-list label="People chosen" [items]="chosenChips()" (remove)="removePerson($event)" />
                             </div>
                         }
 

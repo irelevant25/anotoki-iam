@@ -13,6 +13,7 @@ import { SelectComponent, SelectOption, TextFieldComponent } from '@anotoki/lib/
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { PaginationComponent } from '@anotoki/lib/ui/pagination';
+import { ProgressBarComponent } from '@anotoki/lib/ui/progress';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
 import { ToastService } from '@anotoki/lib/ui/toast';
@@ -50,6 +51,7 @@ import { RECIPIENT_LABELS, STATUS_LABELS, people, templateLabel } from './announ
     IconComponent,
     PageHeaderComponent,
     PaginationComponent,
+    ProgressBarComponent,
     SelectComponent,
     SpinnerComponent,
     TabsComponent,

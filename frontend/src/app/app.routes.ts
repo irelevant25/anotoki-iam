@@ -3,15 +3,20 @@ import { sessionGuard } from './core/auth/guards';
 import { notSetUpTitle } from './pages/auth/not-set-up/not-set-up-title';
 
 /**
- * Three areas, each loaded only when it is visited:
+ * Four areas, each loaded only when it is visited:
  *
  *   the sign-in pages   no session needed; bilingual; the night-sky layout
  *   /account            the signed-in account; bilingual; the app shell
  *   /admin              IAM administrators; English; the app shell
+ *   the legal pages     anybody's; bilingual; the app shell - /terms,
+ *                       /privacy (the one every anotoki site links to for the
+ *                       account) and /contact, the family's pages
+ *                       (@anotoki/lib/legal/pages), with the IAM's facts
+ *                       (core/legal/legal-facts.ts)
  *
  * The sign-in layout comes last because its not-found child (`**`) would
- * otherwise swallow /account and /admin before they were tried. A URL under
- * either area that none of its pages match falls through to that same page.
+ * otherwise swallow the others before they were tried. A URL under /account
+ * or /admin that none of its pages match falls through to that same page.
  *
  * Titles are translation keys on the translated pages and plain English in
  * the admin panel; IamTitleStrategy takes either.
@@ -27,6 +32,15 @@ export const routes: Routes = [
     path: 'admin',
     canActivate: [sessionGuard],
     loadChildren: () => import('./pages/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
+  },
+  {
+    path: '',
+    loadComponent: () => import('./layouts/legal-layout/legal-layout.component').then((m) => m.LegalLayoutComponent),
+    children: [
+      { path: 'terms', title: 'legal.termsPageTitle', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.TermsPageComponent) },
+      { path: 'privacy', title: 'legal.privacyPageTitle', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.PrivacyPageComponent) },
+      { path: 'contact', title: 'legal.contactPageTitle', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.ContactPageComponent) },
+    ],
   },
   {
     path: '',

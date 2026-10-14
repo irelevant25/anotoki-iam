@@ -3,6 +3,7 @@ import { ApplicationConfig, DOCUMENT, inject, provideAppInitializer, provideBrow
 import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from "@angular/router";
 import { provideAnotokiAdmin } from "@anotoki/lib/admin";
 import { provideAnotokiErrorReport } from "@anotoki/lib/error-report";
+import { provideAnotokiLegal } from "@anotoki/lib/legal";
 import { provideAnotokiMigrations, siteStatusInterceptor } from "@anotoki/lib/migrations";
 import { ThemeService, provideAnotokiShell } from "@anotoki/lib/shell";
 import { provideAnotokiTranslations } from "@anotoki/lib/translations";
@@ -15,6 +16,7 @@ import { IamTitleStrategy } from "./core/i18n/title.strategy";
 import { TranslationService } from "./core/i18n/translation.service";
 import { iamTranslationsConfig, startTranslations } from "./core/i18n/translations.config";
 import { iamShellConfig, iamUiConfig } from "./core/kit/kit.config";
+import { iamLegalConfig } from "./core/legal/legal.config";
 import { iamMigrationsConfig } from "./core/migrations/migrations.config";
 
 export const appConfig: ApplicationConfig = {
@@ -54,6 +56,13 @@ export const appConfig: ApplicationConfig = {
     // Backups pages, English, for the IAM's ADMIN alone; what only the panel
     // says and does is handed over by its routes (core/admin/admin-tools.config.ts).
     provideAnotokiAdmin(iamAdminToolsConfig),
+    // The family's legal pages - Terms, Privacy, Contact, on lazy routes - and
+    // the footer's links to them: the library's words around the IAM's facts,
+    // every address the pages link to in the code (core/legal/legal.config.ts;
+    // the facts, which only the pages read, come with their frame:
+    // core/legal/legal-facts.ts, layouts/legal-layout).
+    // The IAM's Privacy page is the one every anotoki site links to.
+    provideAnotokiLegal(iamLegalConfig),
     { provide: TitleStrategy, useClass: IamTitleStrategy },
     // The theme applies itself on construction; asking for it here makes that
     // happen before the first page renders, not on first use. The words are

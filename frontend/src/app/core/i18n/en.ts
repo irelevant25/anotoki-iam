@@ -49,7 +49,7 @@ export const en = {
   'brand.lead': 'Sign in once and move between the anotoki sites without signing in again.',
   'brand.point1': 'Your progress and settings stay with you on every site.',
   'brand.point2': 'Two-factor authentication and a list of every signed-in browser.',
-  'brand.point3': 'Nothing is shared with anybody outside anotoki.',
+  'brand.point3': 'Nothing is sold or used for ads; Privacy says who else handles data.',
 
   // ── Common ─────────────────────────────────────────────────────────────────
   'common.cancel': 'Cancel',
@@ -591,6 +591,100 @@ export const en = {
   'tokens.created.howTitle': 'How a script uses it',
   'tokens.created.how': 'Exchange it at the token endpoint for a short-lived access token, then call the site’s API with that. Exchange again when it expires.',
   'tokens.created.done': 'I have copied it',
+
+  // ── The legal pages: the anotoki account’s facts ───────────────────────────
+  // Terms, Privacy and Contact are the library’s pages (@anotoki/lib/legal/pages)
+  // around these facts (core/legal/legal-facts.ts): each must stay true of the
+  // code - what the IAM keeps, and for how long.
+  'legal.termsPageTitle': 'Terms of use',
+  'legal.privacyPageTitle': 'Privacy policy',
+  'legal.contactPageTitle': 'Contact',
+  'legal.about':
+    'The anotoki account is one account for every anotoki site: you make it here, sign in with it here and look after it here - your name and address, your password, two-factor authentication, where you are signed in and the sites you use.',
+  'legal.termsWhatTitle': 'About the anotoki account',
+  'legal.account.name': 'Your account',
+  'legal.account.what':
+    'Your e-mail address and whether you confirmed it, your name, your password - only as a hash, a fingerprint it can be checked against, never the password itself -, your language, your look and how dates and times are written for you, whether you want news, and when the account was made and last signed in.',
+  'legal.account.why': 'To make and keep your account, to sign you in, and to write to you about it.',
+  'legal.account.kept': 'Until your account is deleted.',
+  'legal.twoFactor.name': 'Two-factor authentication',
+  'legal.twoFactor.what':
+    'If you turn it on: your authenticator app’s secret, encrypted with a key that is not in the database; your recovery codes, only as hashes, and which you have used; and, after five wrong codes in 15 minutes, until when its codes are paused.',
+  'legal.twoFactor.why': 'To ask for a second proof when you sign in, so that your password alone gets nobody in.',
+  'legal.twoFactor.kept': 'Until you turn it off - the secret and the codes go then - or your account is deleted; new recovery codes replace the old ones.',
+  'legal.google.name': 'Signing in with Google',
+  'legal.google.what': 'If you sign in with Google or connect it to your account: your Google account’s permanent id and the e-mail address Google gave with it.',
+  'legal.google.why': 'To know your Google account when you sign in with it.',
+  'legal.google.kept': 'Until you disconnect Google, or your account is deleted.',
+  'legal.sessions.name': 'Where you are signed in',
+  'legal.sessions.what':
+    'Each time a browser signs in to your account: how you signed in, the browser and system it calls itself, its IP address, when it began and was last used, and when and why it ended - and only a hash of the cookie that keeps it signed in.',
+  'legal.sessions.why': 'To keep you signed in, to show you where you are signed in and let you sign a browser out from afar, and to end the sites’ sign-ins with it.',
+  'legal.sessions.kept': 'Until your account is deleted - also after the sign-in ended, so that the account page can show the ones there were.',
+  'legal.attempts.name': 'Sign-in attempts',
+  'legal.attempts.what':
+    'Every try to sign in, right or wrong, every wrong password or code typed on the account page, and every request that mails a code or a link - signing up, a password reset, a sign-in code, a new confirmation: the address typed, its account if there is one, the IP address (an IPv6 address by its first half), the way and how it went. Also for an address no account has.',
+  'legal.attempts.why': 'To stop guessing and floods: the limits count them.',
+  'legal.attempts.kept': 'A year; those of your account go when it is deleted.',
+  'legal.remembered.name': 'Remembered devices',
+  'legal.remembered.what':
+    'A browser where you asked, after a two-factor code, to be remembered for 30 days: a hash of the key it keeps, the browser and system it calls itself, its IP address, and when it was remembered and last used.',
+  'legal.remembered.why': 'To skip the two-factor code in that browser for 30 days - never the password.',
+  'legal.remembered.kept': 'It works for 30 days, until you forget your remembered devices or change your password; the record stays until your account is deleted.',
+  'legal.browsers.name': 'Browsers you sign in from',
+  'legal.browsers.what':
+    'For each browser your account signed in from: a hash of a random value the browser keeps in a cookie, the browser and system in a few words ("Firefox · Windows"), when it was first and last seen, and when you were mailed about it.',
+  'legal.browsers.why': 'To mail you when your account signs in from a browser it has not signed in from before.',
+  'legal.browsers.kept': 'Until you reset your password, or your account is deleted.',
+  'legal.sites.name': 'The anotoki sites',
+  'legal.sites.what':
+    'Which anotoki sites your account may use and its roles on each, with who gave a role and when; the sign-ins of the sites you use - only hashes of the keys each was given, and when they were used; and the tokens for scripts you make, with their names. When you sign in to a site, the anotoki account tells it your account’s id, your name, your e-mail address, your language, look and date and time format, and your roles there.',
+  'legal.sites.why': 'To sign you in to every anotoki site with one account, and to tell each site what you may do there.',
+  'legal.sites.kept': 'Your roles until your account is deleted; a site’s sign-in or a token for scripts 30 days after it ended or ran out.',
+  'legal.mails.name': 'E-mails to you',
+  'legal.mails.what':
+    'For every e-mail the account sends you - a confirmation, a code, a password reset, a security notice, an approval, news: the address, what kind it was, its subject (not when it holds a code), whether it went and when. Never its text. The codes and links in them only as hashes, and when they were used.',
+  'legal.mails.why': 'To know what was sent and whether it went, and to check a code or a link when you use it.',
+  'legal.mails.kept': 'The record of an e-mail until your account is deleted; a code or a link 30 days after it ran out.',
+  'legal.news.name': 'News from anotoki sites',
+  'legal.news.what':
+    'Now and then an e-mail about a new version, a new site or a survey, sent only to accounts with the news switched on. Signing up offers it in a box left unticked; an account made before the news began, made by an administrator or brought over from the genshin site’s old accounts started with it on. For each news e-mail: who it went to, at which address, in which language and how it went.',
+  'legal.news.why': 'To tell those who want it what is new on the anotoki sites. Switch it off on the account page, or with the link at the end of every news e-mail.',
+  'legal.news.kept': 'Who a news e-mail went to stays with it; when your account is deleted, your address there is replaced by a placeholder.',
+  'legal.approvals.name': 'Approval of new accounts',
+  'legal.approvals.what':
+    'While new accounts wait for approval - a switch the operator may turn on -, an account made by signing up signs in nowhere until an administrator of the anotoki account approves it: they see its name and address, and approving it is mailed to you. Declining switches the account off without deleting it, and is not mailed.',
+  'legal.approvals.why': 'To keep the anotoki sites to the people they are meant for, while that switch is on.',
+  'legal.approvals.kept': 'Whether the account was approved, until it is deleted. A declined account cannot sign in to delete itself: to have it deleted, write to us.',
+  'legal.deletion.name': 'Deleting your account',
+  'legal.deletion.what':
+    'When you ask for it, your account closes at once: you are signed out everywhere else, no anotoki site lets you in any more, and you are mailed. For 30 days you can still sign in here and cancel it. Then everything of yours listed here is deleted or taken out, and you are mailed once more; only a placeholder stays - your account’s number with a made-up name and address, and when it was made, asked to be deleted and deleted. The anotoki sites learn the number, and take your name out of what they keep.',
+  'legal.deletion.why': 'So that a deletion can still be undone for a while, and so that the account’s number is never anybody else’s.',
+  'legal.deletion.kept':
+    'The placeholder for good. Each deletion asked for, cancelled and done is also a line - the account’s number and the time - of a record kept beside the database, for good too, so that it is done again if the database is ever put back from a copy.',
+  'legal.audit.what':
+    'What the administrators of the anotoki account do on its admin panel, and the security changes you make to your own account - your password, two-factor authentication, Google, a token for scripts, a deletion asked for or cancelled: who did what, to what and when, and the IP address it came from.',
+  'legal.audit.why': 'So that every change can be traced, and a misused account found out.',
+  'legal.audit.kept': 'With no set time limit. When an account is deleted, its IP addresses, name and address go from the entries by it and about it; what was done stays.',
+  'legal.backups.what':
+    'A copy of the whole database - every account in it -, made on each day the anotoki account is used, before every update, and by hand when an administrator asks for one. Each copy holds what was kept when it was made. A copy is never put back over the database from here: if the database is ever lost and put back from a copy by hand, every deletion asked for since is done again.',
+  'legal.backups.why': 'To put the database back by hand if it is ever lost.',
+  'legal.backups.kept':
+    'The 14 newest daily copies and the 5 newest made before an update; a copy made by hand until an administrator deletes it. A copy an administrator downloads stays encrypted, and is kept off the server until the operator deletes it. What is deleted here stays in the copies made before, until they go.',
+  'legal.storage.session.purpose': 'Keeps you signed in to the anotoki account in this browser: a random value only this site can read - no script on its pages can. The account keeps only its hash.',
+  'legal.storage.session.kept':
+    'Until you sign out or close the browser - the sign-in ends a day after you last used it, a week at most. If you asked to stay signed in: up to 90 days, the sign-in ending 30 days after you last used it.',
+  'legal.storage.device.purpose':
+    'Tells the anotoki account whether your account has signed in from this browser before, so that a sign-in from a new browser can be mailed to you: a random value only this site can read. It opens nothing, and the account keeps only its hash.',
+  'legal.storage.device.kept': '400 days, set again at every sign-in.',
+  'legal.storage.remembered.purpose': 'If you asked, after a two-factor code, to remember this device: the key that skips the code in this browser for 30 days - never the password.',
+  'legal.storage.remembered.kept': 'Until a later sign-in replaces it, you forget your remembered devices on the account page, or you clear the site’s data in your browser. It works for 30 days.',
+  'legal.storage.tabLanguage.purpose': 'A language a link chose for this tab (?lang= in its address).',
+  'legal.storage.drafts.purpose': 'Administrators only: words typed on the admin panel’s Translations and Languages pages and not saved yet.',
+  'legal.storage.untilTabClosed': 'Until the tab is closed.',
+  'legal.google.role':
+    'Draws its "Sign in with Google" button on the sign-in and sign-up pages, and on the account page while Google is not connected, whenever signing in with Google is switched on: your browser loads the button from Google, so Google sees your IP address and its own cookies. Only if you choose to sign in with Google does Google tell the anotoki account your Google account’s id, e-mail address and name. What Google itself keeps, its own privacy policy says. A company based in the USA: data may be handled outside the EU.',
+  'legal.mail.role': 'Sends the anotoki account’s e-mails: address confirmations, sign-in codes, password resets, security notices, approvals, and news to those who have it switched on.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

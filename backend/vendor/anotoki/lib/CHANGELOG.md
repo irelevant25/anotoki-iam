@@ -5,6 +5,321 @@ and the npm package `@anotoki/lib` (`angular/projects/lib/package.json`). While 
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.6.0 - 2026-10-14
+
+**The legal pages** (the first part of 0.6.0; the owner's decisions of 2026-10-13): **Terms**, **Privacy** and
+**Contact** for every anotoki site - their structure and the family's shared wording are the library's, each site
+gives its own facts (README.md, "Legal pages"). The texts are a good-faith draft for the owner, not legal advice.
+
+- `@anotoki/lib/legal` (new): `provideAnotokiLegal()` - the site's facts (`LegalFacts`: its name and what it is, what
+  it keeps, what for and how long, its visitors, the feedback form, the error log, the audit log, the backups, its
+  cookies and browser storage, counting visits, who else handles data, where the account lives, the fan clause),
+  its paths, and the operator (`LEGAL_OPERATOR`: Code Hero s.r.o., linked to its site, run from Slovakia; the
+  support address kept in two parts and joined only as a page draws it) - and `<anotoki-legal-links>`, Terms ·
+  Privacy · Contact for a footer, which registers its words (`anotoki.legalLinks.*`). 1.5 kB gzipped in a first load.
+- `@anotoki/lib/legal/pages` (new): `TermsPageComponent`, `PrivacyPageComponent`, `ContactPageComponent`, each for a
+  lazy route - drawn with the kit, a heading per section, the list of sections moving the focus, 390 px; the Contact
+  page opens the feedback form in the kit's dialog (`@anotoki/lib/feedback/form`, its code loaded with the press, the
+  focus given back to the button after) on a site that takes feedback, and gives the address alone elsewhere. The
+  pages read their words (`anotoki.legal.*`) themselves and never register them: pages of text, they come with the
+  pages alone. `scripts/check-package.mjs` lets those pages import them unregistered (`READ_BY_THEIR_PAGES`), refuses
+  any other importer, and holds every first load free of them (a new first load: the words + the legal links).
+- The library's words: `anotoki.legal.*` (118 keys) and `anotoki.legalLinks.*` (4), English and Slovak - the Slovak
+  impersonal (no "ty", no "Vy"), so that the pages fit the formal survey too - in `php/resources/library-words.json`,
+  generated into `@anotoki/lib/words/legal` and `/legal-links` (`bun run words` says in their headers how each is
+  read); `anotoki_translations/005_legal_words.sql` writes them by 002's rule (a key's strings only where it has none)
+  with its gate on English. 216 library keys in all.
+- Tests: the PHP half's schema test compares the database's words with the JSON in PHP's order (a Slovak server
+  collation reads "ch" as one letter after "h"), and the command test reads the coverage's columns as the command
+  writes them (a count of three digits); Vitest covers the pages, the footer's links and the words (703 tests).
+
+What a site must do: nothing to keep building - the pages are new. To show them: apply `anotoki_translations/005` on
+the Migrations page (122 keys: about 10 kB of text a language in the site's bundle); give `provideAnotokiLegal()` its
+facts - the site's own words as keys of its own in its database, English and Slovak - and add the three lazy routes;
+put `<anotoki-legal-links>` in the footer (in the family's frame, `[shellFooter]`), or the three links in its own
+footer with the same words (`anotoki.legalLinks.*`); name the hosting company once the owner gives it ("to be named"
+until then). Per site: `feedback` on genshin, Piano Academy, Japanese Academy and the build analyzer (the IAM and the
+survey take none); `visitors` where it has them; `fanDisclaimer: 'hoyoverse'` on genshin and the build analyzer; the
+IAM `account.isIam`, `backups: { encrypted: true }`, its audit log in its own words, `google` and `mail` among the
+processors, its session and device cookies - and its own Privacy page at the address the other sites link to.
+
+**The admin pages' fixes** (the second part of 0.6.0; each found by a site's review or UI test in rounds 2 and 3):
+
+- The base `code` style no longer shows through the admin pages - in the pages' own styles, `@anotoki/lib/styles`' base
+  unchanged: the Translations page breaks a key only after a dot ("anotoki.legal." then "backupsWhereEncrypted": a
+  `<wbr>` after each dot, which adds nothing to what a screen reader hears or a copy takes), inside a word only when a
+  word alone is wider than the line, where the base broke code anywhere ("anotoki.feedback.anonymou|s"); the Backups
+  page's id reads as an id - small, muted, its own width - not a grey bar the width of its cell; the Errors page's path
+  in a row keeps its chip around the path instead of stretching it across the cell.
+- The Errors page says where a page's own error (`source: client`) happened: the page's path in its row ("/kanji",
+  "and 1 more page"), as its details' Page, in its occurrences' Page column and under "On the pages" - no longer the
+  report's own route in the row (`POST /api/client-errors`) nor its method in the details ("POST /kanji"). The PHP
+  half writes the lines as before: old lines read the same way.
+- The Errors page's Range lines up with Level and Status: its label at the fields' gap, the segmented control (38 px)
+  on the middle of the selects (44 px), where its label sat 6 px below theirs.
+- `anotokiAuthInterceptor` leaves a report of the page's own error alone, as the README said an interceptor may: a
+  request marked `ANOTOKI_ERROR_REPORT` goes as any request - the token (or, with none to send, not at all), a
+  visitor's key - and its failure comes back as it came: no fresh token and no retry, no page following a session that
+  ended (nothing cleared, no reload, no sign-in), no key forgotten, no sign-in noted as required. The mark is an entry
+  point of its own, `@anotoki/lib/error-report/marker` (a token, 0.1 kB), which the auth module reads without the
+  reporter - through `@anotoki/lib/error-report` the sign-in's first load would have grown 2.3 kB gzipped beside lazy
+  pages; that entry point names it too, so a site's import stays as it is.
+- No refusal or answer carries a failure's own words any more - a TypeError's names the absolute path of the file it was
+  called in (a site's mutation run found one in a `restore_failed`), a database's its host, its user and the values it
+  quotes: a fixed sentence of the library's says what failed and that the error log says why, and the failure goes to
+  the site's `onError` (its error log, redacted there). Backups: `backup_failed`, `before_restore_failed`,
+  `restore_failed` (and its `backup.restore_failed` entry in the audit log, kept for good; a restore a hook ended still
+  says what had loaded may have stayed, and names the backup of before), `archive_invalid`, `ticket_failed`,
+  `database_unavailable`, the status card's problem, `after_restore_error`, and the Apply's error when the backup before
+  it fails; `onError` now hears `archive_invalid`, `ticket_failed`, `database_unavailable` and the status card too.
+  People: a scrub a hook stopped says so in the library's words on the People page (`sync.error`), what the hook threw
+  going to the server's log, redacted (it went there unredacted). `JsonBody`'s `invalid_json` says "The body is not
+  JSON." without the parser's words. Left as they are, on purpose: the Migrations page's error - PostgreSQL's words
+  about the site's own SQL, and a site hook's own refusal (genshin's order guard): what that page is for - and the
+  command lines, which speak to the owner's own terminal.
+- The top bar: a link with a number beside it is heard "Feedback, 3 new" - the number seen alone (`aria-hidden`), what
+  it counts heard after the link's name: the kit's new `topbar.linkCount` ("{count} new", Slovak "nové: {count}") or
+  the site's own words, `TopBarLink.badgeLabel` ("125 reviews due"), in the page's language and marked so inside a link
+  marked as another; the folded bar's button "Menu: Feedback, 3 new" (links apart by "; "). The words are visually
+  hidden, as the kit hides any: Chromium's tree puts a space before their comma ("Feedback , 3 new"), which is not
+  heard. `anotoki_translations/006_top_bar_words.sql` writes the key by 002's rule, its gate on English (217 library
+  keys).
+- Tests: PHPUnit - a real TypeError in a restore's hook and in its after-restore work (its absolute path in the error
+  log, never in the answer or the audit entry), a database that cannot be asked and a tickets folder that cannot be
+  written, a hook's TypeError in the scrub, the JSON body's sentence, 006's words and gate; the tests that read a
+  refusal's words for what failed read the error log's. Vitest - the report's 401 through the real reporter and the
+  interceptor, one with no token to send and a visitor's; a page's own error's row and details; a key's pieces; the
+  bar's link heard in English and Slovak, with the site's words, inside a link of another language.
+
+What a site must do: apply `anotoki_translations/006` on the Migrations page (one key; until then the kit's built-in
+words say it). A site whose link's number counts something else than new things gives `badgeLabel` in its words -
+Japanese Academy's Kanji, its reviews due: without it the link is heard "Kanji, 125 new". A site's spec that reads a
+badged link's `textContent` finds the hidden words after the number ("Feedback 3, 3 new"): it reads the badge
+(`.anotoki-top-bar__badge`) or the name a screen reader is given. A site's test that reads a Backups refusal's,
+`after_restore_error`'s or the People scrub's words for what failed reads its `onError` (the error log) instead; one
+that reads `invalid_json`'s words in brackets, the plain sentence.
+
+**The kit's simple pieces** (the third part of 0.6.0): what the sites still drew themselves at round 2's end
+(README.md, "0.6.0's pieces" and the core's pieces). Every new piece is an entry point of its own, never re-exported by
+`@anotoki/lib/ui` and outside every first load; the core's pieces gained what only they can hold.
+
+- `@anotoki/lib/ui/chips` (new): `button[anotokiChip]` - a small round-ended button with a `tone` (a step's state),
+  `pressed` (a toggle) or `checked` (a radio), a check before the words of a chosen one, 44 px where the pointer is a
+  finger; `<anotoki-chip-group>` - choice chips that wrap, one at a time (a radio group: one Tab stop, the arrows, Home
+  and End over the chips that cannot be chosen) or several (`multiple`, toggles, `[(values)]` in the options' order),
+  a field of the kit's (label, hint, error, required, optional, disabled), an option's words in another language
+  (`lang`), a quieter note (a count); `<anotoki-chip-list>` - removable chips, each button named with its chip's words
+  ("Remove: Furina"), the focus going on to the next chip once the page takes one away. (Piano's step chips,
+  Japanese Academy's choice rows, genshin's chips and toggle groups.)
+- `@anotoki/lib/ui/segmented`: options may be `disabled` (shown, passed over by the arrows; the Tab stop the first that
+  can be chosen) and carry a colour `mark` (a CSS colour of the site's, the build analyzer's grades), and options too
+  wide for their line wrap onto another instead of running off it (the pill a rounded box then) - nothing changes
+  where they fit. The kit's select shows no marks: a native `<option>` holds words alone.
+- `@anotoki/lib/ui/badge`: `wrap` - long words wrap inside the badge (Japanese Academy's paper).
+- `@anotoki/lib/ui/button`: `variant="danger-ghost"`, the quiet red of a row's Delete (genshin); a small link button
+  (`variant="link" size="sm"`) is 44 px high and wide where the pointer is a finger (`pointer: coarse`; 24 px for a
+  mouse, as before) - Japanese Academy's "All", "None" and "▶ Listen".
+- `@anotoki/lib/ui/card`: `tone="highlight"`, the page's call to action (Piano's Continue card); `@anotoki/lib/ui/link-card`
+  (new): `a[anotokiLinkCard]`, a card that is one link as a whole, its focus ring round the card, development warning
+  about a control inside (the build analyzer's grid of characters).
+- `@anotoki/lib/ui/stat-tiles` (new): `<anotoki-stat-tiles>` of `<anotoki-stat-tile label value note>` - figures in a
+  grid as wide as the page allows, a number written the page's way (Piano's Stats).
+- `@anotoki/lib/ui/progress` (new): `<anotoki-progress-bar>` - `role="progressbar"` with its value, ends and name, the
+  value said as "45 %", "3 of 10" or the page's own words, moving on its own with no value, a tone or the site's own
+  colour (`--anotoki-progress-color`) (the build analyzer's score bars).
+- `@anotoki/lib/ui/icons`: the build analyzer's own icons, the family's now - `iconRocket`, `iconUpload`,
+  `iconLightbulb`, `iconPause`, `iconMinus`, `iconWrench`, `iconGamepad`, `iconSave` (the admin pages' own copy of
+  upload is the same drawing).
+- `@anotoki/lib/ui/piece-words` (new): `pieceWords()`, how a piece of its own entry point reads its own words - the
+  site's string first (provideAnotokiUi's `lookup`: the database's), then the built-in words of the page's language,
+  then English. Such a piece has no provide*() function, and provideAnotokiUi is in every first load: its words are
+  read by the piece itself, never registered, as the legal pages read theirs (`READ_BY_THEIR_PAGES` in both scripts).
+- `@anotoki/lib/ui/disclosure` (new): `<anotoki-disclosure>` - a button with `aria-expanded` and `aria-controls`, in a
+  heading of the page's outline with `headingLevel`, its content made at once and hidden, or given as
+  `<ng-template anotokiDisclosurePanel>` made only while open and dropped when closed - or kept once made (`keep`); a
+  card's look or `plain`. `<anotoki-accordion>`: one open at a time or `multiple`, Down, Up, Home and End between its own
+  disclosures' buttons (Japanese Academy's, the build analyzer's and genshin's `<details>`).
+- `@anotoki/lib/ui/stepper` (new): `<anotoki-stepper>` - a named list of steps, the current one `aria-current="step"`
+  heard "Step 3 of 4: Import", one done heard "…, done" with a check, `navigable` steps done as buttons back to them,
+  the marks alone where the row is narrow (its own width: a container query); `<anotoki-step-dots>` - the same for the
+  ear, dots or pills of short words for the eye (the build analyzer's wizard, Piano's lesson dots).
+- `@anotoki/lib/ui/labelled-group` (new): `<anotoki-labelled-group>` - a label drawn as the fields', naming a group of
+  controls (role="group"), labelling one native control (`for`), or shown beside a control that names itself
+  (`selfNamed`), stacked at a field's height or `inline` (Japanese Academy's choice labels). The Errors page's Range and
+  the Feedback dialog's Mark as are drawn with it now (their own label classes gone; the Range still lines up with the
+  selects beside it; Mark as in the text's ink, as every field's label, where it was muted).
+- `@anotoki/lib/ui/page-header`: a lead with markup of its own, `[pageLead]` content beside the plain `lead` (genshin).
+- `@anotoki/lib/styles` (tables): `.table-middle`, every cell on its row's middle (genshin); stacked (`.table-stack`),
+  a number's cell starts at its label (Piano) and a badge or a button keeps its own width instead of stretching across
+  the column.
+- `@anotoki/lib/ui/dialog`: `size="xl"`, 64rem (genshin's editors and previews); `DialogSize` names the four.
+- `@anotoki/lib/ui/spinner`: `showLabel` and `inline` take a bare attribute (Piano).
+- `@anotoki/lib/ui/select` and `@anotoki/lib/ui/field` (new): the select alone, for a first page that draws one (Piano's
+  piano box in its bar, a `@defer` until now), and the fields' base they share; `@anotoki/lib/ui/forms` names both as
+  before. Measured by the package check's new first load "a select": 7.0 kB gzipped beside lazy pages, where the select
+  from `ui/forms` took every field with it - 11.2.
+- The admin tools' Backups page: a restore that failed is headed "The restore failed", the answer's own sentence under
+  it - rolled back whole, or ended with what it had loaded perhaps still there -, where the heading said "nothing of it
+  stayed" of both.
+- The library's words: `anotoki.chips.remove`, `anotoki.progress.count`, `anotoki.stepper.stepOf` and
+  `anotoki.stepper.done`, English and impersonal Slovak, in `php/resources/library-words.json`, generated into
+  `@anotoki/lib/words/chips`, `/progress` and `/stepper`; `anotoki_translations/007_kit_piece_words.sql` writes them by
+  002's rule, its gate naming its own keys (221 library keys).
+- The package check: the ui and the shell together may weigh 28.5 kB gzipped (28 before; 28.3 now, 27.96 before): the
+  segmented control's, the button's, the badge's, the card's, the page header's and the spinner's additions are the core
+  pieces' own. The bar's first load is 20.2 kB of its 21.5 (19.9 before), a button's 5.0 of 5.5 (4.9), the gate's 8.5 of 9
+  (8.4); every new piece stays out of every first load, and a select alone has a first load of its own (7.0 of 7.5).
+- Tests: Vitest for every piece - its roles, its aria states, its keyboard, its words in English and Slovak and the
+  site's own -, the segmented control's disabled options and marks, the dialog's xl, the spinner's bare attributes, the
+  page header's lead, and the restore's heading with each answer (760 tests); PHPUnit for 007's words, its rule and its
+  gate (515, 1 skipped).
+
+What a site must do: nothing to keep building - everything is new, and the defaults are as before but three that change
+how a page looks where it was broken or small: a segmented control too wide for its line wraps instead of running off
+it, a small link button is 44 px on a touch screen, and a stacked table's badges keep their own width. To use the new
+words in a site's own wording, apply `anotoki_translations/007` on the Migrations page (four keys; until then the pieces
+say the library's built-in words). A site that draws the select on its first page imports it from
+`@anotoki/lib/ui/select` (its `@defer` may go).
+
+**The kit's navigation pieces** (the fourth part of 0.6.0): what the sites still drew themselves - Japanese Academy's
+section tabs, the build analyzer's and genshin's tabs with a count or an icon, genshin's tabs cut off on a phone with
+no hint that they scroll, genshin's grouped admin navigation (README.md, "0.6.0's pieces"). The IAM's admin panel keeps
+its own side navigation for now.
+
+- `@anotoki/lib/ui/tabs`: a tab takes an `icon` before its label and the kit's `badge` after it (a count or a short word,
+  a `badgeTone`) - seen as it is and heard after the label with a comma, as itself or in the site's words
+  (`badgeLabel`): "Issues, 3", "Issues, 3 open" - and a `lang` on a label of another language; `count` is as it was.
+  `<anotoki-link-tabs>` (new): a section's pages drawn as tabs - a named `nav` of ordinary links (`routerLink`, each a
+  Tab stop, never the ARIA tabs pattern), the page's link `aria-current="page"`: the router's (`exact`, else the most
+  specific of those the address is at or under) or the one `current` names whatever the address says. Tabs and link
+  tabs that do not fit their line scroll sideways in the kit's strip, never the page: the edge with more beyond it
+  fades under a small arrow (28 px to a mouse, 44 to a finger) that moves the row; the arrows are out of the tab order,
+  `aria-hidden` and never take the focus (the keyboard and a screen reader reach every tab itself, each brought into
+  view clear of the fade as it takes the focus); the chosen tab, the page's link, is brought into view as it is drawn
+  and whenever it changes. The tabs' markup gained a strip around the tablist (`anotoki-tab-strip`, its scroller
+  `anotoki-tab-strip__scroller`) and a span around each label (`anotoki-tabs__label`): a tab's words and the tablist's
+  children are as they were.
+- `@anotoki/lib/ui/side-nav` (new): `<anotoki-side-nav>` - a named `nav` of links in groups under headings that name
+  their lists (`headingLevel`: headings of the page's outline), optionally `collapsible` (a button with `aria-expanded`
+  and `aria-controls`; `collapsed` starts closed; the group of the page's link opens by itself); links with an icon and
+  a badge (filled as the top bar's, heard "Feedback, 3 new" - the bar's `topbar.linkCount` - or in the site's words),
+  pages elsewhere in a new tab, the page's link `aria-current="page"`. Up to the site's `phoneMax` it moves into the
+  kit's drawer, opened by its own button or by the site's anywhere in its page (`[anotokiSideNavTrigger]`): the button
+  says `aria-expanded`, `aria-haspopup="dialog"` and `aria-controls` while the drawer is there; the focus goes in and
+  comes back to the button, the drawer closes on a link, Escape, the backdrop and its Close, and nothing of the
+  navigation is in the tab order while it is shut.
+- `@anotoki/lib/ui/current-link` (new): `currentLink()`, which of a navigation's links is the page's - what the link
+  tabs and the side navigation mark, a site's own navigation too.
+- The library's words: `anotoki.tabs.scrollBack` and `anotoki.tabs.scrollForward` (the arrows' tooltips, "Earlier tabs"
+  and "More tabs"), English and impersonal Slovak, read by the tabs themselves (`@anotoki/lib/words/tabs`,
+  `READ_BY_THEIR_PAGES`); `anotoki_translations/008_tab_words.sql` writes them by 002's rule, its gate naming its own
+  keys (223 library keys). `anotoki.topbar.linkCount`'s description names the side navigation too (006, unreleased,
+  its description alone).
+- The package check: the new entry points are outside every first load and the core; ui + shell stay 28.34 kB of 28.5
+  (the shell 13.92 of 14), every first load as it was; `ui/tabs` 5.1 kB gzipped (2.0 before), `ui/side-nav` 5.1,
+  `ui/current-link` 0.6 - lazy pages.
+- Tests: Vitest for the tabs' icons, badges and words, the strip (its fades, its arrows, what it brings into view, at
+  once or gliding, reduced motion, the focus), the link tabs (the nav, the router's page, `exact`, `current`, a click),
+  `currentLink()` (paths relative to the page, after every navigation), the side navigation (its groups, headings,
+  badges in English and Slovak, a page elsewhere, collapsible groups and the tab order, the drawer and its focus, the
+  site's own button, a turned tablet, groups made again) (791 tests); PHPUnit for 008's words, its rule and its gate
+  (518, 1 skipped).
+
+What a site must do: nothing to keep building - the new pieces are new, and a row of tabs that fits looks as it did; a
+row that does not fit now fades at its edge under an arrow where it was cut. To word the arrows in a site's own way,
+apply `anotoki_translations/008` on the Migrations page (two keys; until then the tabs say the library's built-in
+words). A site's spec that reads a tab's `textContent` finds a badge's hidden words after it ("Issues 3, 3"): it reads
+the badge (`anotoki-badge`) or the name a screen reader is given.
+
+**The kit's input pieces** (the fifth part of 0.6.0): the inputs genshin and the build analyzer still drew themselves
+(README.md, "0.6.0's input pieces"). Each an entry point of its own, never re-exported by `@anotoki/lib/ui` and outside
+every first load; each a field of the kit's (label, hint, error, invalid, optional, disabled). What the browser checks
+in them is a convenience, never a defence: the server checks every value again.
+
+- `@anotoki/lib/ui/date-field` (new): `<anotoki-date-field>` - a date typed in the reader's date format (`format`: the
+  anotoki account's `date_format`, or null for the page language's own; typing lenient - any separator, a 0 or none, an
+  ISO date in any format) or chosen in a calendar opened by a button inside the field (or Alt+Down): a modal dialog
+  under it, a grid of the month's days (Intl's names, in the page's language) - the arrow keys, Home and End, Page Up
+  and Page Down (with Shift a year), Enter, Escape back to the field, Tab round the dialog; every day named whole, the
+  chosen one `aria-selected`, today `aria-current="date"`, `min` and `max` struck through and stopping the keyboard. The
+  value is ISO: `'YYYY-MM-DD'`, `''` for none; `dayMonth` (genshin's birthdays) a day and a month without a year,
+  `'--MM-DD'`, 29 February included. A text that is no date, or one outside `min` and `max`, is no value (`''`), and the
+  field says why once left. Genshin's `hideYear` stored its birthdays in year 4 (`0004-02-29`): it reads `--02-29` now.
+- `@anotoki/lib/ui/slider` (new): `<anotoki-slider>` - the native range input in the kit's look (the keyboard, a finger
+  and a screen reader as everywhere; a 44 px box), marks under the track with their words, the value shown and heard in
+  words where it has them (`aria-valuetext`: a tick's words, or the page's `valueText`) - genshin's three difficulties
+  were heard "0, 1, 2".
+- `@anotoki/lib/ui/color-field` (new): `<anotoki-color-field>` - the device's colour picker behind a colour box and
+  the colour's code beside it, kept in step (a typed code checked: `#rrggbb`, `#rgb`, with or without `#`), suggested
+  colours as a radio group, each with its name - never a colour alone. The value is `'#rrggbb'` lower-case, `''` for
+  none (the box crossed out, never black). `readColor()` reads a code the field's way.
+- `@anotoki/lib/ui/file-picker` (new): `<anotoki-file-picker>` - files chosen with a real button (the device's chooser)
+  or dropped on the area round it (never the only way; the drop words not said on a touch screen); the kinds taken
+  (`accept`, as the attribute says them) and the largest size (`maxSize`) checked in the browser - a file refused with
+  its reason (role="alert"); one file or `multiple` (never the same twice); the files listed with a remove button each,
+  the focus going on as one goes; a screen reader told what was chosen. It never uploads: `files` is the browser's
+  `File` objects. The browser's check is a convenience: the server checks every file again.
+- `@anotoki/lib/ui/combobox` (new): `<anotoki-combobox>` - the ARIA 1.2 combobox with a list box (genshin's characters
+  with their portraits): typing filters, accents and case aside, by names and `keywords`, the names starting with it
+  first; Down, Up, Alt+Down, Enter, Escape; the active option by aria-activedescendant, the focus kept in the field; a
+  picture beside its name with an empty alt; "No matches"; a long list drawn `limit` at a time with how many more wait
+  ("30 more: keep typing"), both told to a screen reader; one at a time (`[(value)]`) or several (`multiple`,
+  `[(values)]`, the chosen ones the kit's removable chips over the field). The list box in the top layer, as wide as the
+  field.
+- `@anotoki/lib/ui/rich-text` (new): `<anotoki-rich-text-toolbar>` - the ARIA toolbar pattern over an editor (one Tab
+  stop, Left/Right/Home/End, `aria-pressed` for a format on, drawn with a ring), twelve buttons with the kit's icons and
+  names (`tools`, `'|'` between groups), `unavailable` and `disabled` kept in the row aria-disabled, a site's own
+  controls in its row and Tab stop (`[anotokiToolbarItem]`). It holds no text and inserts none: a press is `(command)`
+  for the site's editor - a library's (TipTap), or a plain contenteditable through `[anotokiRichTextEditable]`
+  (`run()` with the browser's own editing, the selection put back first; `link()` refusing every address but a web,
+  mail or the site's own - `safeLinkAddress()`; `active()`; a paste or a drop of markup comes in as plain text, a drop of
+  files not at all). The site cleans what its editor holds before it shows it, and its server what it keeps.
+- `@anotoki/lib/ui/icons`: `iconIndent` and `iconOutdent`, drawn as the family's others (the toolbar's own copies).
+- The library's words: `anotoki.dateField.*` (6: the calendar's button and name "Choose a date: {field}", the month
+  buttons, "Write the date like {example}.", the earliest and latest date), `anotoki.colorField.*` (3: the colour box's
+  and the swatches' names after the label, the code's message), `anotoki.filePicker.*` (9: the button, the drop words,
+  "{name} is too large: {size}, at most {max}.", the kind refused, one file only, "Remove: {name}", "Chosen: {names}"),
+  `anotoki.combobox.*` (3: "No matches", "{count} more: keep typing to narrow the list.", "{field}: chosen") and
+  `anotoki.richText.*` (13: "Formatting" and the twelve buttons), English and impersonal Slovak, read by the pieces
+  themselves (`@anotoki/lib/words/date-field`, `/color-field`, `/file-picker`, `/combobox`, `/rich-text`,
+  `READ_BY_THEIR_PAGES`); `anotoki_translations/009_input_words.sql` writes the 34 by 002's rule, its gate naming its own
+  keys (257 library keys). Month and day names are never words: Intl writes them.
+- The package check: every first load as it was (ui + shell 28.34 kB of 28.5); the input pieces are lazy, each held to
+  a limit of its own (`LAZY_LIMITS`, kB gzipped: `ui/date-field` 9.4 of 10 - the field, its calendar and the dates'
+  reading and writing -, `ui/slider` 3.5 of 4, `ui/color-field` 4.3 of 4.5, `ui/file-picker` 5.2 of 5.5,
+  `ui/combobox` 6.7 of 7, `ui/rich-text` 5.4 of 6); no bundle names an HTML sink. The pieces that draw the family's
+  icons carry their own copies (`own-copies.spec.ts`: the calendar, the picker's two, the toolbar's twelve).
+- Tests: Vitest - the dates' reading and writing in the four formats and the languages' own, the field's typing, its
+  messages, min and max, the calendar's dialog, grid, keys, focus and words in English and Slovak, a day and a month; the
+  slider's label, words, marks and fill; the colour field's code, box, swatches and words; the file picker's checks,
+  chooser, drops, list, focus and words; the combobox's filter, keys, active option, pictures, notes, one and several,
+  chips and words; the toolbar's role, names, pressed states, one Tab stop and arrows with a site's own item, presses and
+  words, and the contenteditable's commands, kept selection, states, links and pastes (861 tests); PHPUnit for 009's
+  words, its rule and its gate (520, 1 skipped).
+
+What a site must do: nothing to keep building - the pieces are new. To word them in its own way, apply
+`anotoki_translations/009` on the Migrations page (until then they say the library's built-in words). Genshin, as it
+takes them: its birthdays from `0004-MM-DD` to `--MM-DD` (or back, at its API), the account's `date_format` into
+`format`; its own toolbar's buttons for the kit's (its font menus and colour pickers as `[anotokiToolbarItem]`s), its
+editor's `execCommand` calls through `[anotokiRichTextEditable]` - its paste then plain text -, and its own allow-list
+kept for showing the editor's text.
+
+**The security review of 0.6.0** (the whole of it, read-only, 2026-10-14): no High, no Medium; its three Lows fixed.
+
+- `[anotokiRichTextEditable]`: a paste or a drop that comes with no data transfer (no browser does this on a
+  contenteditable today) lets in at most the event's own text as text, never what the browser brought - it failed open.
+- `<anotoki-segmented>`: an option's colour mark is bound as `background-color`, so a mark is a colour and never a
+  picture (`url(...)` from another host).
+- The package check refuses every way a string becomes markup, as the IAM's deploy check does: `setHTMLUnsafe`,
+  `parseHTMLUnsafe`, `srcdoc`, `document.write`, `DOMParser`, `parseFromString` and `createContextualFragment` beside
+  `innerHTML`, `outerHTML`, `insertAdjacentHTML` and the sanitizer's bypasses - for the five sites with no deploy check
+  of their own, it is the only gate.
+
+What a site must do, from the review: keep every address it gives `provideAnotokiLegal()` (the account's pages, the
+processors', the operator's) in its code, never in a string an administrator can reword; a site that takes the file
+picker checks each file's kind by its content, and its size, on its server; genshin keeps its server's allow-list for
+the editor's HTML (`href` schemes too) and the one that shows it - the kit is no defence for either.
+
 ## 0.5.2 - 2026-10-13
 
 Cloudflare's published ranges are every Cloudflare customer's, not the owner's zone alone: anybody's Worker can

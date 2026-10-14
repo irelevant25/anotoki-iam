@@ -111,6 +111,38 @@ final class Backups
     /** Why a restore the database ended left nothing of it (load()); %s: how long it may wait between two statements. */
     private const ENDED = 'the database ended its connection, and its transaction with it - as it ends a restore that waits more than %s between two of its statements: a hook inside it that works on another connection waits on the restore\'s own locks (a delete hook works on the $pdo it is given, never on the site\'s own connection).';
 
+    // What a refusal or an answer says of a failure: a fixed sentence of the library's, never the message the failure
+    // carries - PHP's, the database's or a hook's own: a TypeError's names the absolute path of the file it was called
+    // in, a database's its host, its user and the values it quotes. The failure itself goes to `onError` - the site's
+    // error log, which redacts every line it writes - and the sentence says to look there.
+
+    /** 500 backup_failed. */
+    private const BACKUP_FAILED = 'The backup could not be made. The error log says why.';
+
+    /** The Apply's error, from beforeApplyHook(). */
+    private const BEFORE_UPDATE_FAILED = 'The backup before the update could not be made, so nothing was applied. The error log says why.';
+
+    /** 503 database_unavailable (preview()), and the status card's problem. */
+    private const CANNOT_ASK = 'The database cannot be asked now. The error log says why.';
+
+    /** 500 ticket_failed. */
+    private const TICKET_FAILED = 'The download could not be prepared. The error log says why.';
+
+    /** 422 archive_invalid (restore()). */
+    private const UNREADABLE = 'This backup cannot be read here: it was changed, damaged or cut short, made under another key, or not made here - the error log says which. One not made here is restored offline (README).';
+
+    /** 500 before_restore_failed. */
+    private const BEFORE_RESTORE_FAILED = 'The backup of what is there now could not be made, so nothing was restored. The error log says why.';
+
+    /** 500 restore_failed, rolled back whole. */
+    private const RESTORE_FAILED = 'The restore failed, and nothing of it stayed. The error log says why.';
+
+    /** 500 restore_failed, its transaction ended by a hook (RestoreEnded); %s: the before-restore backup's id. */
+    private const RESTORE_ENDED = 'The restore did not finish, and what it had loaded may have stayed (%s holds the data as it was). The error log says why.';
+
+    /** The answer's after_restore_error: the site's afterRestore threw. */
+    private const AFTER_RESTORE_FAILED = 'What this site does after a restore did not all go through. The error log says what.';
+
     public const DAILY = 'daily';
     public const MANUAL = 'manual';
     public const BEFORE_MIGRATION = 'before-migration';
@@ -281,7 +313,7 @@ final class Backups
     /**
      * A backup made now. Refused 409 busy while another backup or an Apply runs,
      * 507 no_space when the disk has less than twice the last backup free, 500
-     * backup_failed (the reason redacted).
+     * backup_failed (a fixed sentence; why, to `onError`).
      *
      * @return array<string, mixed>|Refusal  the backup's entry in the list
      */
@@ -318,7 +350,7 @@ final class Backups
         } catch (Throwable $e) {
             ($this->onError)($e);
 
-            return new Refusal(500, 'backup_failed', 'The backup could not be made: ' . Redactor::text($e->getMessage()));
+            return new Refusal(500, 'backup_failed', self::BACKUP_FAILED);
         } finally {
             $this->release($held);
         }
@@ -373,7 +405,8 @@ final class Backups
                 $id = $this->beforeMigration($files);
             } catch (Throwable $e) {
                 ($this->onError)($e);
-                throw new RuntimeException('The backup before the update could not be made, so nothing was applied: ' . Redactor::text($e->getMessage()));
+                // The Apply's answer says what is thrown here (the Migrations page): the fixed sentence, never $e's.
+                throw new RuntimeException(self::BEFORE_UPDATE_FAILED, 0, $e);
             }
             if ($id !== null) {
                 $notes[] = "A backup of the database as it was is $id.";
@@ -460,7 +493,8 @@ final class Backups
             $status['problems'] = $problems;
             $status['restorable'] = $this->restoreEnabled && $status['copy_available'] && $problems === [];
         } catch (Throwable $e) {
-            $status['problems'][] = 'The database cannot be asked: ' . Redactor::text($e->getMessage());
+            ($this->onError)($e);
+            $status['problems'][] = self::CANNOT_ASK;
         }
 
         return $status;
@@ -483,7 +517,9 @@ final class Backups
             $pdo = ($this->connect)();
             $live = $this->liveSchema($pdo);
         } catch (Throwable $e) {
-            return new Refusal(503, 'database_unavailable', 'The database cannot be asked: ' . Redactor::text($e->getMessage()));
+            ($this->onError)($e);
+
+            return new Refusal(503, 'database_unavailable', self::CANNOT_ASK);
         }
         $schema = self::schemaDifference($info['schema'] ?? [], $live);
         $reasons = [];
@@ -573,7 +609,9 @@ final class Backups
         try {
             $ticket = $this->tickets->issue($id, $actorId);
         } catch (Throwable $e) {
-            return new Refusal(500, 'ticket_failed', 'The download could not be prepared: ' . Redactor::text($e->getMessage()));
+            ($this->onError)($e);
+
+            return new Refusal(500, 'ticket_failed', self::TICKET_FAILED);
         }
         $this->audit?->record($request, $actorId, 'backup.downloaded', 'backup', $id, ['kind' => $info['kind'], 'size' => $info['size']]);
 
@@ -645,7 +683,9 @@ final class Backups
                     }
                     [$manifest, $spools] = $this->unpack($id, $info, $work, spooled: true);
                 } catch (Throwable $e) {
-                    return new Refusal(422, 'archive_invalid', 'The backup cannot be read: ' . Redactor::text($e->getMessage()));
+                    ($this->onError)($e);
+
+                    return new Refusal(422, 'archive_invalid', self::UNREADABLE);
                 }
 
                 $live = $this->liveSchema($pdo);
@@ -663,7 +703,7 @@ final class Backups
                 } catch (Throwable $e) {
                     ($this->onError)($e);
 
-                    return new Refusal(500, 'before_restore_failed', 'The backup of what is there now could not be made, so nothing was restored: ' . Redactor::text($e->getMessage()));
+                    return new Refusal(500, 'before_restore_failed', self::BEFORE_RESTORE_FAILED);
                 }
                 $this->audit?->record($request, $actorId, 'backup.created', 'backup', $before['id'], self::auditDetails($before));
 
@@ -671,12 +711,12 @@ final class Backups
                     $loaded = $this->load($pdo, $live['shape'], $manifest, $spools);
                 } catch (Throwable $e) {
                     ($this->onError)($e);
-                    $reason = Redactor::text($e->getMessage());
-                    $this->audit?->record($request, $actorId, 'backup.restore_failed', 'backup', $id, ['before_restore' => $before['id'], 'error' => Utf8::cut($reason, 500)]);
+                    // Told as the answer tells it: the audit log keeps its entries for good, and the failure's own
+                    // words are the error log's.
+                    $said = $e instanceof RestoreEnded ? sprintf(self::RESTORE_ENDED, $before['id']) : self::RESTORE_FAILED;
+                    $this->audit?->record($request, $actorId, 'backup.restore_failed', 'backup', $id, ['before_restore' => $before['id'], 'error' => $said]);
 
-                    return new Refusal(500, 'restore_failed', ($e instanceof RestoreEnded
-                        ? 'The restore did not finish, and what it had loaded may have stayed (' . $before['id'] . ' holds the data as it was): '
-                        : 'The restore failed and nothing of it stayed: ') . $reason);
+                    return new Refusal(500, 'restore_failed', $said);
                 }
             } finally {
                 $this->unlock($pdo);
@@ -702,7 +742,7 @@ final class Backups
                 ($this->afterRestore)($manifest, $pdo);
             } catch (Throwable $e) {
                 ($this->onError)($e);
-                $afterError = Redactor::text($e->getMessage());
+                $afterError = self::AFTER_RESTORE_FAILED;
             }
         }
         $this->prune();

@@ -1,6 +1,7 @@
 import { readStorage, writeStorage } from '../util/storage';
 
-const DEVICE_TOKEN_KEY = 'anotoki-iam:device-token';
+/** Where it is kept (localStorage) - named on the Privacy page too (core/legal/legal-facts.ts). */
+export const DEVICE_TOKEN_KEY = 'anotoki-iam:device-token';
 
 /**
  * The remembered-device token: a browser that answered a two-factor code in

@@ -7,6 +7,7 @@ import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
 import { SelectComponent, SelectOption, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../../core/api/account.api';
@@ -63,6 +64,7 @@ const QUICK_LINKS: QuickLink[] = [
     ButtonComponent,
     CardComponent,
     IconComponent,
+    LinkCardComponent,
     PageHeaderComponent,
     SelectComponent,
     SwitchComponent,

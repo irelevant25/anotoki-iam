@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { LanguageSwitcherComponent, ThemeToggleComponent } from '@anotoki/lib/shell';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { TPipe } from '../../core/i18n/t.pipe';
+import { SiteFooterComponent } from '../site-footer/site-footer.component';
 
 /**
  * The frame of every page that works without a session: signing in and out,
@@ -10,14 +11,15 @@ import { TPipe } from '../../core/i18n/t.pipe';
  *
  * On a wide screen, a night sky on the left says what this is - one account
  * for every anotoki site - and the form sits on the right. On a phone the sky
- * shrinks to a band with the logo, and the card follows under it.
+ * shrinks to a band with the logo, and the card follows under it. Under the
+ * form, on every width, the footer's links to the legal pages.
  *
  * The sky is always night, in both themes: it is the brand, not a surface.
  * Its stars are CSS gradients and its twinkle stops under reduced motion.
  */
 @Component({
   selector: 'app-auth-layout',
-  imports: [RouterOutlet, TPipe, IconComponent, LanguageSwitcherComponent, ThemeToggleComponent],
+  imports: [RouterOutlet, TPipe, IconComponent, LanguageSwitcherComponent, ThemeToggleComponent, SiteFooterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './auth-layout.component.html',
   styleUrl: './auth-layout.component.scss',

@@ -197,6 +197,60 @@ function iamRedactSecrets(string $text): string
 }
 
 /**
+ * What the audit log keeps, for good, of a failed Apply's error
+ * (`migrations.applied`): its first line, through the library's redactor
+ * (PostgreSQL's DETAIL and a value echoed at a line's end, addresses, tokens)
+ * and the IAM's own names of secrets, every absolute file path taken out, at
+ * most 500 characters. PostgreSQL's whole message can quote a row
+ * (`Key (email)=(...) already exists`) and a hook's can name a path on the
+ * server; the administrator who pressed Apply still sees the whole error on
+ * the Migrations page - only what is kept for good is cut (the security
+ * review of anotoki-lib 0.6.0, 2026-10-14).
+ */
+function iamMigrationErrorForAudit(?string $error): ?string
+{
+    if ($error === null || trim($error) === '') {
+        return $error;
+    }
+    // The first line, split as the bytes come (\r\n, \r or \n), never as UTF-8:
+    // a message that is not UTF-8 makes a /u split fail, and the whole of it
+    // would stay. Made UTF-8 after the cut.
+    $first = '';
+    foreach (preg_split('/\r\n|\r|\n/', $error) ?: [] as $line) {
+        if (trim($line) !== '') {
+            $first = trim($line);
+            break;
+        }
+    }
+    $first = mb_scrub($first, 'UTF-8');
+    // A value PostgreSQL quotes at the end of the line whose closing quote fell
+    // on a later line (a value with a line break in it): left open by the cut,
+    // it goes whole.
+    $first = preg_replace('/(:\s+)"(?:[^"]|"")*$/u', '$1"{…}"', $first) ?? '';
+    $text = preg_replace(
+        [
+            // C:\... or C:/... - a drive letter not inside a word (so never https:// or a SQLSTATE).
+            '#(?<![\w])[A-Za-z]:[\\\\/][^\s"\'<>]*#u',
+            // \\server\share\... - a Windows network path.
+            '#\\\\\\\\[^\s"\'<>]+#u',
+            // file:///..., phar:///..., stream:/... - a path behind any scheme but the web's.
+            '#(?<![\w.+-])(?!https?:)[A-Za-z][A-Za-z0-9+.-]*:/+[^\s"\'<>]*#u',
+            // /two/or/more/segments - not inside a word, and never a URL's own slashes.
+            '#(?<![\w.~:/-])/(?:[^\s/"\'<>]+/)+[^\s/"\'<>]*#u',
+            // What a path with a space in it leaves after the rules above
+            // ("Jane Doe\iam\x.php", "Doe/www/x.php"): a word with a backslash
+            // in it, or one with two slashes in it.
+            '#[^\s"\'<>{}]*\\\\[^\s"\'<>]*#u',
+            '#(?<=^|[\s"\'(])[^\s"\'<>/{}]+/[^\s"\'<>/]+/[^\s"\'<>]*#u',
+        ],
+        '{path}',
+        iamRedactSecrets(Redactor::text($first))
+    ) ?? '{a message the IAM could not read}';
+
+    return mb_strlen($text) > 500 ? mb_substr($text, 0, 500) . '…' : $text;
+}
+
+/**
  * An exception's message, and each of its causes' - the whole chain
  * getPrevious() walks -, with the IAM's own prefixes and cookies taken out
  * (iamRedactSecrets()), in place: the error log reads them next, with their

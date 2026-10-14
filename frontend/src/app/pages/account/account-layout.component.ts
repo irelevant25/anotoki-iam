@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, 
 import { RouterOutlet } from '@angular/router';
 import { ShellComponent } from '@anotoki/lib/shell';
 import { SessionService } from '../../core/auth/session.service';
+import { SiteFooterComponent } from '../../layouts/site-footer/site-footer.component';
 import { AppTopBarComponent } from '../../layouts/top-bar/top-bar.component';
 import { DeletionBannerComponent } from './deletion-banner.component';
 
@@ -9,11 +10,12 @@ import { DeletionBannerComponent } from './deletion-banner.component';
  * The account area: the family's frame (@anotoki/lib/shell - the skip link,
  * the bar, `<main>`), whose top bar has the account pages as its links - and,
  * while the account's deletion is pending, the notice above every one of
- * them that says when, and cancels it.
+ * them that says when, and cancels it. Under them the footer's links to the
+ * legal pages.
  */
 @Component({
   selector: 'app-account-layout',
-  imports: [RouterOutlet, ShellComponent, AppTopBarComponent, DeletionBannerComponent],
+  imports: [RouterOutlet, ShellComponent, AppTopBarComponent, DeletionBannerComponent, SiteFooterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './account-layout.component.html',
   styleUrl: './account-layout.component.scss',

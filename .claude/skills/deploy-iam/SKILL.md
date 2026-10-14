@@ -93,6 +93,13 @@ other proxies, or none, says so in `iam.local.php` - `docs/operations.md`,
 needs PHP's `zlib` beside `mbstring`. The backups' files are the PHP user's
 alone (`0600`): take one off the server with the Backups page's Download.
 
+anotoki-lib 0.6.0 brings the legal pages - Terms, Privacy and Contact at
+`/terms`, `/privacy` and `/contact`, the Privacy page the one every anotoki
+site links to for the account: the IAM goes up before the sites. Apply right
+after the upload: it brings 020 (the IAM's facts for the pages), 021 (two
+Slovak buttons informal) and the library's translations 005-009; until then
+the facts show as their keys.
+
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 with no address - never a `localhost` one there. Admin panel →
 Applications → the site, `{site}` being its https address: redirect URI

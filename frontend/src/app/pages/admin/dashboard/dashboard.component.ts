@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { RouterLink } from '@angular/router';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
@@ -41,7 +42,7 @@ const LINKS: { link: string; label: string; text: string; icon: IconName }[] = [
 /** /admin - the numbers at a glance, each a way into the list behind it. */
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, ErrorStateComponent, IconComponent, PageHeaderComponent],
+  imports: [RouterLink, ErrorStateComponent, IconComponent, LinkCardComponent, PageHeaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',

@@ -498,6 +498,21 @@ and its words in English and Slovak; until it is applied the authenticator is ch
 folder `storage/records/` is made with its first line; download it with the
 backups from then on.
 
+**anotoki-lib 0.6.0** (both halves) and migrations **020** and **021**, later
+in round 3: the family's legal pages - Terms, Privacy and Contact at `/terms`,
+`/privacy` and `/contact`, linked from the foot of the sign-in and account
+pages; the IAM's Privacy page is the one every anotoki site links to for the
+account, so the IAM goes up before the sites that link to it. Upload, then
+Apply on the Migrations page: it brings 020 (the IAM's facts for the pages,
+in English and Slovak, and the sign-in pages' sky made true beside them - no
+longer "nothing is shared"), 021 (the sign-in page's two "email me a code"
+buttons in the informal Slovak) and the library's translations 005-009 (the
+legal pages' words, the top bar's, the kit's new pieces'). Until then the
+pages say the library's built-in words, and the IAM's facts show as their
+keys - so Apply right after the upload. The hosting company and the mail
+service are "to be named" on the Privacy page until the owner names them
+(`frontend/src/app/core/legal/legal-facts.ts`, `processors`).
+
 ### The family's library (anotoki/lib)
 
 What the anotoki sites share lives in one library,
@@ -515,10 +530,9 @@ Languages pages -, the admin tools the IAM takes, both halves - the error log,
 the audit log and backups (a migration set of its own, `anotoki_admin`,
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
-styles and palette, its components, the top bar and the frame. The IAM is on
-PHP 0.5.2, Angular 0.5.0 (`composer.json`'s `^0.5.0`, the lock on v0.5.2 - the
-restore's sequences, the origin secret: the PHP half alone -, and the 0.5.0
-tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+styles and palette, its components, the top bar and the frame, and the legal
+pages. The IAM is on 0.6.0, both halves (`composer.json`'s `^0.6.0`, the lock
+on v0.6.0, and the 0.6.0 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/php/migrations`, `/php/resources`),
 which `build-dist.php` uploads with the rest of `vendor/` and which are denied
@@ -530,7 +544,7 @@ development machine:
 
 ```bash
 cd backend
-composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.5.0"); change it first for 0.6
+composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.6.0"); change it first for 0.7
 # frontend/package.json: "@anotoki/lib": the new release's .tgz URL, then
 cd ../frontend
 bun install                         # bun.lock

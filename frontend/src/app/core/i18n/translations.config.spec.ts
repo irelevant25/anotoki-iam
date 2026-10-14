@@ -9,7 +9,8 @@ import { ApiError } from "../api/api-error";
 import { AccountUser } from "../api/models";
 import { SessionService } from "../auth/session.service";
 import { en } from "./en";
-import { LANGUAGE_STORAGE, iamTranslationsConfig, useAdminPages } from "./translations.config";
+import { TranslationService } from "./translation.service";
+import { LANGUAGE_STORAGE, iamTranslationsConfig, startTranslations, useAdminPages } from "./translations.config";
 
 const ENGLISH: TranslationBundle = { language: "en", languages: TEST_LANGUAGES, values: { ...en } };
 const SLOVAK: TranslationBundle = { language: "sk", languages: TEST_LANGUAGES, values: { ...en, "overview.languageSaved": "Jazyk je uložený." }, english: { ...en } };
@@ -166,5 +167,35 @@ describe("the translations, as the IAM configures them", () => {
     expect(admin.languageNotes?.afterDelete?.(language("cs", 0), { strings: 4, accounts: 0 })).toBeNull();
     // A failure in the admin panel's words.
     expect(admin.failureText?.({ status: 0, code: "network", message: "", details: {} })).toBe("The server could not be reached. Check the connection and try again.");
+  });
+
+  it("the start asks for the account before the words on the account and admin pages and on the legal pages, whose bar shows who is signed in - never on the sign-in pages", async () => {
+    const asked: string[] = [];
+    const ask = {
+      ensure: () =>
+        defer(() => {
+          asked.push("account");
+          return of(null);
+        }),
+    } as unknown as SessionService;
+    const words = {
+      init: () => {
+        asked.push("words");
+        return Promise.resolve();
+      },
+    } as unknown as TranslationService;
+    for (const path of ["/", "/account/security", "/admin/users", "/privacy", "/terms", "/contact", "/login", "/register", "/not-set-up"]) {
+      asked.length = 0;
+      await startTranslations(ask, words, path);
+      expect([path, ...asked]).toEqual(["/login", "/register", "/not-set-up"].includes(path) ? [path, "words"] : [path, "account", "words"]);
+    }
+  });
+
+  it("a legal page opens without the account when the server cannot say: the words still come", async () => {
+    const unreachable: ApiError = { status: 0, code: "network", message: "", details: {} };
+    const ask = { ensure: () => throwError(() => unreachable) } as unknown as SessionService;
+    const init = vi.fn(() => Promise.resolve());
+    await startTranslations(ask, { init } as unknown as TranslationService, "/privacy");
+    expect(init).toHaveBeenCalledTimes(1);
   });
 });

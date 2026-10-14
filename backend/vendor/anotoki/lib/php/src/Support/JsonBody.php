@@ -67,8 +67,9 @@ final class JsonBody
 
         try {
             return json_decode($raw, false, self::DEPTH, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            return new Refusal(400, 'invalid_json', 'The body is not JSON (' . $e->getMessage() . ').');
+        } catch (JsonException) {
+            // A fixed sentence, as every refusal of the library's: never the words of the exception it caught.
+            return new Refusal(400, 'invalid_json', 'The body is not JSON.');
         }
     }
 

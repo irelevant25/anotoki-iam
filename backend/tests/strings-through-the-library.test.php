@@ -69,12 +69,44 @@ const MOVED_KEYS = [
 
 /**
  * The keys the IAM's own files after 017 write - 019's, the authenticator's
- * pause: applying all that waits after 016 brings them too, and their own
- * file's test holds them (authenticator-pause.test.php). A later file that
- * adds keys adds them here - this test holds 017 and the library's set.
+ * pause, and 020's, the legal pages' facts: applying all that waits after 016
+ * brings them too, and their own files' tests hold them
+ * (authenticator-pause.test.php, legal-pages-strings.test.php). A later file
+ * that adds keys adds them here - this test holds 017 and the library's set.
  */
-const LATER_PAGE_KEYS = ['error.authenticatorPaused', 'login.paused.title', 'login.paused.text', 'login.paused.emailLead', 'login.paused.sendCode', 'login.paused.codeSent', 'login.paused.passwordFirst', 'login.paused.emailSpent', 'sessions.method.password_email'];
+const LATER_PAGE_KEYS = [
+    'error.authenticatorPaused', 'login.paused.title', 'login.paused.text', 'login.paused.emailLead', 'login.paused.sendCode', 'login.paused.codeSent', 'login.paused.passwordFirst',
+    'login.paused.emailSpent', 'sessions.method.password_email',
+    'legal.termsPageTitle', 'legal.privacyPageTitle', 'legal.contactPageTitle', 'legal.about', 'legal.termsWhatTitle', 'legal.account.name', 'legal.account.what',
+    'legal.account.why', 'legal.account.kept', 'legal.twoFactor.name', 'legal.twoFactor.what', 'legal.twoFactor.why', 'legal.twoFactor.kept',
+    'legal.google.name', 'legal.google.what', 'legal.google.why', 'legal.google.kept', 'legal.sessions.name', 'legal.sessions.what',
+    'legal.sessions.why', 'legal.sessions.kept', 'legal.attempts.name', 'legal.attempts.what', 'legal.attempts.why', 'legal.attempts.kept',
+    'legal.remembered.name', 'legal.remembered.what', 'legal.remembered.why', 'legal.remembered.kept', 'legal.browsers.name', 'legal.browsers.what',
+    'legal.browsers.why', 'legal.browsers.kept', 'legal.sites.name', 'legal.sites.what', 'legal.sites.why', 'legal.sites.kept', 'legal.mails.name',
+    'legal.mails.what', 'legal.mails.why', 'legal.mails.kept', 'legal.news.name', 'legal.news.what', 'legal.news.why', 'legal.news.kept',
+    'legal.approvals.name', 'legal.approvals.what', 'legal.approvals.why', 'legal.approvals.kept', 'legal.deletion.name', 'legal.deletion.what',
+    'legal.deletion.why', 'legal.deletion.kept', 'legal.audit.what', 'legal.audit.why', 'legal.audit.kept', 'legal.backups.what', 'legal.backups.why',
+    'legal.backups.kept', 'legal.storage.session.purpose', 'legal.storage.session.kept', 'legal.storage.device.purpose', 'legal.storage.device.kept',
+    'legal.storage.remembered.purpose', 'legal.storage.remembered.kept', 'legal.storage.tabLanguage.purpose', 'legal.storage.drafts.purpose',
+    'legal.storage.untilTabClosed', 'legal.google.role', 'legal.mail.role',
+];
 const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticatorPaused.greeting', 'mail.authenticatorPaused.intro', 'mail.authenticatorPaused.ignore'];
+
+/**
+ * The strings of keys from before 017 that the IAM's own files after it
+ * reword - 020's: the sign-in pages' sky made true beside the Privacy page;
+ * 021's: the sign-in page's button that has a code emailed, in the informal
+ * Slovak ("ty") - 'key language' => its words after them. Applying all that
+ * waits after 016 brings them too, and their own files' tests hold them
+ * (legal-pages-strings.test.php, informal-code-buttons.test.php); 017 keeps
+ * every other string as it was. A later file that rewords a string adds it
+ * here.
+ */
+const LATER_REWORDED = [
+    'brand.point3 en' => 'Nothing is sold or used for ads; Privacy says who else handles data.',
+    'brand.point3 sk' => 'Nič sa nepredáva ani nepoužíva na reklamu; kto ďalší spracúva údaje, nájdeš v Súkromí.',
+    'login.useCode sk' => 'Radšej mi pošli kód e-mailom',
+];
 
 /** Those keys' strings, as stringsOf() names them: 'key language', in English and Slovak. */
 function laterCells(): array
@@ -175,6 +207,14 @@ function sameButRenamedAndLibrary(array $before, array $after, string $code): vo
             continue;
         }
         $expected = underNewNames($before[$map]);
+        // What a later file rewords reads its words: in this language's own strings (`values`), and an English
+        // rewording in the English beside another language's (`english`) too.
+        foreach (LATER_REWORDED as $cell => $words) {
+            [$key, $language] = explode(' ', $cell);
+            if (($map === 'english' ? $language === 'en' : $language === $code) && isset($expected[$key])) {
+                $expected[$key] = $words;
+            }
+        }
         $added = array_diff_key($after[$map], $expected, array_flip(LATER_PAGE_KEYS));
         same($expected, array_intersect_key($after[$map], $expected), "$code $map: every string as it was, the four keys under their new names");
         same(LATER_PAGE_KEYS, array_values(array_intersect(LATER_PAGE_KEYS, array_keys($after[$map]))), "$code $map: the later files' own keys, as their files have them");
@@ -276,9 +316,12 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
 
         // The strings: every one as it was - the four keys' under their new names - and the library's others added, written by nobody.
         $after = stringsOf($pdo);
-        $expected = underNewNames($strings);
+        $expected = array_diff_key(underNewNames($strings), LATER_REWORDED);
         same($expected, array_intersect_key($after, $expected), 'every string as it was: word, writer, time');
-        $added = array_diff_key($after, $expected, array_flip(laterCells()));
+        foreach (LATER_REWORDED as $cell => $words) {
+            same([$words, null], array_slice($after[$cell] ?? [], 0, 2), "$cell: as the later file rewords it, by nobody");
+        }
+        $added = array_diff_key($after, $expected, array_flip(laterCells()), LATER_REWORDED);
         same(laterCells(), array_values(array_intersect(laterCells(), array_keys($after))), 'the later files\' own keys, in English and Slovak');
         same(sorted(array_merge(...array_map(static fn(string $key): array => ["$key en", "$key sk"], libraryKeysOf002()))), sorted(array_keys($added)), 'and nothing else but the library\'s other keys, in English and Slovak');
         foreach ($added as $cell => [$value, $by]) {

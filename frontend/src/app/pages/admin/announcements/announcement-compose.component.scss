@@ -138,50 +138,6 @@
   }
 }
 
-.chosen {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  max-width: 100%;
-  padding: 0.2rem 0.25rem 0.2rem 0.65rem;
-  border-radius: 999px;
-  background: var(--anotoki-primary-soft);
-  color: var(--anotoki-primary-soft-text);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.chip-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-
-  &:hover {
-    background: color-mix(in srgb, currentColor 14%, transparent);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--anotoki-focus);
-    outline-offset: 1px;
-  }
-}
-
 .reach {
   display: flex;
   flex-direction: column;

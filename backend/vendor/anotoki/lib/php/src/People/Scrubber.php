@@ -6,6 +6,7 @@ namespace Anotoki\Lib\People;
 
 use Anotoki\Lib\Auth\IamClient;
 use Anotoki\Lib\Support\Log;
+use Anotoki\Lib\Support\Redactor;
 use Closure;
 use InvalidArgumentException;
 use LogicException;
@@ -36,8 +37,10 @@ use Throwable;
  *      (fn(PDO $pdo, int $sub, ?array $former): void, $former the row's
  *      ['name' => …, 'anonymized_at' => …] before, null when the site never
  *      knew the person). A hook that throws rolls that account back; the run
- *      stops there, `since` stays before it, and the error is kept for the
- *      People page - the next run tries again;
+ *      stops there, `since` stays before it, and the People page is told so in
+ *      a fixed sentence - what the hook threw goes to the server's log alone,
+ *      redacted (a TypeError's message names an absolute path) - and the next
+ *      run tries again;
  *   4. keeps `since` - the newest anonymized_at handled; the IAM's `since` is
  *      inclusive, so that second comes again, which is harmless: every step is
  *      idempotent, and the hooks must be too - with checked_at, ok_at (a run
@@ -183,8 +186,9 @@ final class Scrubber
                     $result['scrubbed'] += $this->scrub($account['sub'], $account['anonymized_at']) ? 1 : 0;
                 } catch (Throwable $e) {
                     $result['state'] = 'stopped';
-                    $result['error'] = "The scrub of account {$account['sub']} failed: " . $e->getMessage();
-                    Log::say('[anotoki people] ' . $result['error']);
+                    // Kept and answered for the People page: the library's sentence, never what the scrub threw.
+                    $result['error'] = "The scrub of account {$account['sub']} failed: the server's error log says why.";
+                    Log::say("[anotoki people] The scrub of account {$account['sub']} failed: " . Redactor::text($e->getMessage()));
                     break 2;
                 }
                 $result['handled']++;

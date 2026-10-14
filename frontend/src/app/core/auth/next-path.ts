@@ -58,6 +58,19 @@ export function isSessionArea(url: string): boolean {
   return ['/account', '/admin'].some((area) => path === area || path.startsWith(area + '/'));
 }
 
+/**
+ * The legal pages - Terms, Privacy, Contact: the family's, on the library's
+ * own paths (provideAnotokiLegal() names none of its own). Anybody's, with no
+ * session needed; their frame shows whoever is signed in.
+ */
+export const LEGAL_PAGES = ['/terms', '/privacy', '/contact'] as const;
+
+/** Whether a URL is one of the legal pages. */
+export function isLegalPage(url: string): boolean {
+  const path = url.split(/[?#]/)[0];
+  return LEGAL_PAGES.some((page) => path === page);
+}
+
 /** Whether a URL is in the admin panel, which is English only. */
 export function isAdminArea(url: string): boolean {
   const path = url.split(/[?#]/)[0];

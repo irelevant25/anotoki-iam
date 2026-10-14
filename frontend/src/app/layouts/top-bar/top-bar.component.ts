@@ -58,6 +58,11 @@ export const PHONE_BAR_MAX = 1040;
  * strip under the bar on a phone - admin-layout): thirteen sections are a
  * list, not a row of links. Its bar has no links of its own.
  *
+ * The legal pages (layouts/legal-layout) are anybody's: their bar is the
+ * account pages' - the brand, the language, the theme, the person's menu -
+ * with the account pages as links only while somebody is signed in, and Sign
+ * in otherwise (no row of links that would each be the sign-in page).
+ *
  * Every word a reader of the account pages meets is a key; in the admin panel
  * the translations answer in English (`effectiveLanguage`), and what only the
  * panel shows is written here in English, as the panel's templates are. The
@@ -84,8 +89,13 @@ export const PHONE_BAR_MAX = 1040;
   styleUrl: './top-bar.component.scss',
 })
 export class AppTopBarComponent {
-  /** Which part of the IAM the page belongs to: what the brand says and links to, the links, and where the other part is. */
-  readonly area = input.required<'account' | 'admin'>();
+  /**
+   * Which part of the IAM the page belongs to: what the brand says and links
+   * to, the links, and where the other part is - the account pages, the admin
+   * panel, or a page anybody may read (the legal pages: the account's bar,
+   * its links only for somebody signed in).
+   */
+  readonly area = input.required<'account' | 'admin' | 'public'>();
 
   private readonly _session = inject(SessionService);
   private readonly _loginApi = inject(LoginApi);
@@ -108,7 +118,9 @@ export class AppTopBarComponent {
     return this.area() === 'admin' ? { area, panel: 'admin panel', link: '/admin', label: `anotoki ${area} admin panel - home` } : { area, link: '/account', label: this._i18n.t('brand.home') };
   });
 
-  protected readonly links = computed<TopBarLink[]>(() => (this.area() === 'account' ? ACCOUNT_LINKS.map((link) => ({ id: link.path, label: this._i18n.t(link.key), path: link.path })) : []));
+  protected readonly links = computed<TopBarLink[]>(() =>
+    this.area() === 'account' || (this.area() === 'public' && this._session.signedIn()) ? ACCOUNT_LINKS.map((link) => ({ id: link.path, label: this._i18n.t(link.key), path: link.path })) : [],
+  );
 
   protected readonly person = computed<TopBarPerson | null>(() => {
     const me = this._session.user();

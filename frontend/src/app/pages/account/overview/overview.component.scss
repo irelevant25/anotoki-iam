@@ -48,30 +48,17 @@
   list-style: none;
 }
 
+// Each card is the kit's link card (a[anotokiLinkCard]: its box, hover and focus ring); what is inside is the page's.
 .quick-link {
   display: flex;
   align-items: flex-start;
   gap: 0.9rem;
   height: 100%;
   padding: 1.1rem 1.1rem 1.1rem 1rem;
-  border: 1px solid var(--anotoki-border);
-  border-radius: var(--anotoki-radius-lg);
-  background: var(--anotoki-surface);
-  color: var(--anotoki-text);
-  text-decoration: none;
-  box-shadow: var(--anotoki-shadow-sm);
-  transition:
-    border-color var(--anotoki-duration) var(--anotoki-ease),
-    transform var(--anotoki-duration) var(--anotoki-ease);
 
-  &:hover {
-    border-color: color-mix(in srgb, var(--anotoki-primary) 45%, var(--anotoki-border));
-    transform: translateY(-1px);
-
-    .quick-arrow {
-      color: var(--anotoki-primary);
-      transform: translateX(2px);
-    }
+  &:hover .quick-arrow {
+    color: var(--anotoki-primary);
+    transform: translateX(2px);
   }
 }
 

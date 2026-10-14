@@ -27,7 +27,7 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.5.0) - which every anotoki site
+its GitHub release, named in `package.json` (0.6.0) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
 tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,
@@ -41,8 +41,10 @@ not-set-up page, the admin panel's "A database update is waiting" line;
 `@anotoki/lib/migrations/page` is the Migrations page) and
 `@anotoki/lib/admin` (the admin tools' configuration; `@anotoki/lib/admin/errors`,
 `/audit` and `/backups` are the admin panel's Error log, Audit log and Backups
-pages) and `@anotoki/lib/error-report` (the pages' own errors, reported to the
-backend's error log: `provideAnotokiErrorReport()` in `app.config.ts`). The
+pages), `@anotoki/lib/error-report` (the pages' own errors, reported to the
+backend's error log: `provideAnotokiErrorReport()` in `app.config.ts`) and
+`@anotoki/lib/legal` (the legal pages' configuration and the footer's Terms ·
+Privacy · Contact; `@anotoki/lib/legal/pages` is the three pages). The
 IAM takes nothing of its auth, people or feedback modules: it is the IAM. Its PHP half is the
 backend's `anotoki/lib`. A new version: its release's URL in `package.json`,
 then `bun install` and `npm install --package-lock-only`, so that
@@ -86,10 +88,20 @@ pages drawn for real behind the IAM's interceptor and session - the IAM's
 ADMIN alone, a refusal in the panel's words, the CSRF header on every write,
 the password as the proof, "Sign in again" signing out and coming back, a
 failed sign-out said in a toast, restoring off with the IAM's reason, a person
-the log names linked to the Users page), and the
+the log names linked to the Users page), the legal pages as the IAM fills
+them in (`core/legal/legal-facts.spec.ts`: the library's Privacy and Contact
+pages drawn for real in their frame's configuration - the IAM's twelve parts,
+its audit log and encrypted backups, its cookies by name, who else handles
+data, no feedback form, the root configuration with no facts of its own, and
+every link where the code says: an administrator's rewording changes a
+link's words, never its address), and the
 address the not-set-up page sends the browser back to - a path that stays on
 this site, as the browser reads it (`core/auth/next-path.ts`'s
-`sameOriginPath()`; `next-path.spec.ts`).
+`sameOriginPath()`; `next-path.spec.ts`, with the legal pages' paths - the
+family's own - and their coming back after a sign-in). The top bar's spec
+holds its `public` area too (the legal pages: the account's links only for
+somebody signed in), and the translations' that the start asks for the
+account first on the legal pages, never on the sign-in pages.
 
 `npm start` needs the backend beside it, set up once through its installer
 (`../DEV.md`):
@@ -158,16 +170,28 @@ src/
                            `anotoki.*` otherwise -, the icons the IAM's templates
                            name (icons.ts), the theme (the account's while signed
                            in), the languages (the translations' forShell())
+      legal/               the family's legal pages wired in: legal.config.ts (the
+                           language, the database's words - for the footer's links,
+                           in the first load) and legal-facts.ts (the IAM's facts:
+                           what it keeps and how long, its cookies by name, who else
+                           handles data, every address the pages link to - given by
+                           the pages' frame, out of the first load)
       google/              Google Identity Services, loaded on demand
     ui/                    google-button, the IAM's own; the rest of the kit is the
                            family's (@anotoki/lib/ui)
     layouts/               auth-layout (the night-sky sign-in pages' own frame),
                            top-bar (the anotoki family's one bar, worded and wired
-                           for the IAM - below)
+                           for the IAM - below), legal-layout (the legal pages'
+                           frame: the family's, the bar's `public` area), site-footer
+                           (Terms · Privacy · Contact under the sign-in and account
+                           pages)
     pages/
       auth/                /login /register /confirm-email /forgot-password
                            /reset-password /logout /unsubscribe /error
                            /not-set-up, and not-found
+      (the legal pages)    /terms /privacy /contact are the family's
+                           (@anotoki/lib/legal/pages, lazy), in layouts/legal-layout,
+                           with the IAM's facts (core/legal)
       account/             /account and its four sub-pages (the top bar's links),
                            in the family's frame (<anotoki-shell>)
       admin/               /admin, in the family's frame with the panel's side
@@ -201,7 +225,9 @@ scripts/
   `pages/auth/_auth-page.scss`, `pages/admin/_admin-list.scss`,
   `pages/admin/_admin-field.scss` (the few fields the admin panel draws by hand).
 - **The family's kit, not one of our own.** Buttons, fields, dialogs, menus,
-  toasts, badges, alerts, cards, tabs, the pagination, the QR code are the
+  toasts, badges, alerts, cards and link cards (the account overview's and the
+  admin dashboard's), tabs, chips (the people an announcement is for), the
+  progress bar (an announcement's sending), the pagination, the QR code are the
   `anotoki-*` components of the kit, each imported from its own entry point
   (`@anotoki/lib/ui/button`, `ui/forms`, `ui/dialog`, `ui/toast`, ... - never
   the `@anotoki/lib/ui` barrel; what only lazy pages use, only they import).
@@ -265,7 +291,9 @@ scripts/
   button (`preventDefault()` - left to the browser, the focus would fall to
   `<body>`). The admin panel keeps its own side navigation under it (the
   family's frame, `<anotoki-shell [nav]>` in `pages/admin/admin-layout`, a
-  strip of links on a narrow screen).
+  strip of links on a narrow screen). On the legal pages, which anybody may
+  read, the bar is the account pages' for somebody signed in and the brand,
+  the language, the theme and Sign in for anybody else (`area="public"`).
 - **Theming** is custom properties only: the family's `--anotoki-*` tokens,
   written for both themes by `styles.scss` (`anotoki.root()` - the IAM's
   palette is the family's), and the night sky's own. Components never contain

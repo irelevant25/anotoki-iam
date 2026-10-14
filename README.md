@@ -17,6 +17,11 @@ runs as its own subdomain.
   sessions, the sites you can use, tokens for scripts - and deleting the
   account: closed at once, deleted thirty days later unless cancelled, the
   sites keeping what was made there under no name.
+- **Terms, Privacy and Contact**: the anotoki family's legal pages with the
+  account's own facts - what it keeps, why and for how long, its cookies, who
+  else handles data. The Privacy page is the one every anotoki site links to
+  for the account; the foot of the sign-in and account pages links to all
+  three.
 - **Admin panel**: accounts, per-site roles, sessions, the mail log, the sites
   themselves (redirect URIs, origins, roles that may sign in), switches - new
   accounts can be made to wait for an administrator's approval -,
@@ -114,7 +119,7 @@ hosting:
   the genshin site, and every administrator there when 007 ran - a grant at
   those moments: promoting or removing an administrator later changes no
   site's roles. 007 goes on an installed IAM after the sites are updated.
-- Migrations 001-019, applied by the engine every anotoki site shares - the
+- Migrations 001-021, applied by the engine every anotoki site shares - the
   family's library, anotoki-lib (`anotoki/lib` in `backend/vendor/`,
   `@anotoki/lib` in the frontend); an installed IAM gets the later ones through
   the admin panel's Migrations page (or setup.php / `php migration.php` on
@@ -150,6 +155,12 @@ hosting:
   of an add-only record beside the database; after a backup put back by hand,
   `php account-deletions.php --replay` does them again. The admin panel never
   restores.
-- The pages and mails in English and Slovak, reworded in the admin panel.
+- Terms, Privacy and Contact (anotoki-lib 0.6.0, the owner's decisions of
+  2026-10-13): the family's pages at `/terms`, `/privacy` and `/contact`,
+  anybody's, around the IAM's facts (migration 020) - written from what the
+  code keeps, every address a page links to in the code alone. The hosting
+  company and the mail service are "to be named" until the owner names them.
+- The pages and mails in English and Slovak, reworded in the admin panel -
+  the Slovak informal ("ty") throughout (021 made the last two buttons so).
 - "Test connection" on the installer answers in the family's words, the
   survey's setup page's.

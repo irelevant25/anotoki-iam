@@ -2,17 +2,17 @@
     "packages": [
         {
             "name": "anotoki/lib",
-            "version": "v0.5.2",
-            "version_normalized": "0.5.2.0",
+            "version": "v0.6.0",
+            "version_normalized": "0.6.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/irelevant25/anotoki-lib.git",
-                "reference": "ce510c8ef87248357966594a6149beac1748e249"
+                "reference": "98039e5be8188cc80ee757b566a85192feb25dec"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/ce510c8ef87248357966594a6149beac1748e249",
-                "reference": "ce510c8ef87248357966594a6149beac1748e249",
+                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/98039e5be8188cc80ee757b566a85192feb25dec",
+                "reference": "98039e5be8188cc80ee757b566a85192feb25dec",
                 "shasum": ""
             },
             "require": {
@@ -34,7 +34,7 @@
                 "ext-curl": "asks the IAM with curl (PHP's own streams otherwise)",
                 "ext-zlib": "the backups compress with it (Backups needs it)"
             },
-            "time": "2026-10-13T06:44:44+00:00",
+            "time": "2026-10-14T13:25:41+00:00",
             "type": "library",
             "installation-source": "dist",
             "autoload": {
@@ -58,7 +58,7 @@
             "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes), the translations (the schema, the words' routes and the command line), signing in (the IAM's tokens, who a request is, the boot configuration, a stand-in IAM for tests) and people (the site's record of them and the GDPR scrub). The Angular half is @anotoki/lib.",
             "homepage": "https://github.com/irelevant25/anotoki-lib",
             "support": {
-                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.5.2",
+                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.6.0",
                 "issues": "https://github.com/irelevant25/anotoki-lib/issues"
             },
             "install-path": "../anotoki/lib"

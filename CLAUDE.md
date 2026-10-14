@@ -273,7 +273,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   mails stay the IAM's (`MAIL_KEYS`, `MAIL_FALLBACK`, `mailWords()`,
   `mailFill()`, `mailMessage()`); their rules are `IamMailRules`, which the
   library's checks ask. `anotoki.` is the library's namespace: its own words
-  (54 keys, the kit's and the status page's) come from its migration set
+  (257 keys since 0.6.0: the kit's, the status page's, the legal pages' and
+  more) come from its migration set
   `anotoki_translations`, which runs after the IAM's set everywhere
   (`iamMigrator()`), is recorded in `migrations` as `set/name`, and writes a
   key's strings only where the key has none. Migration 017 moved `lang.label` /
@@ -440,10 +441,9 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): PHP
-  0.5.2, Angular 0.5.0 (the migrations module, the translations module, the UI
-  kit, the admin tools, the pages' error reporter; 0.5.1 and 0.5.2 changed the
-  PHP half alone - the restore's sequences, the origin secret; never 0.4.0,
+  halves, updated together where both change (`docs/operations.md`): 0.6.0,
+  both halves (the migrations module, the translations module, the UI kit,
+  the admin tools, the pages' error reporter, the legal pages; never 0.4.0,
   which fails on PHP 8.2). Never
   edit the vendored copy: a change goes to the library and comes back as a
   release. Its routes here: `GET /api/site-status` (first-party, public, no
@@ -534,7 +534,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.5.0), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.6.0), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they
@@ -560,11 +560,23 @@ a decision for `docs/decisions.md`, not a refactor.
   downloaded and deleted behind the password or a sign-in of the last 15
   minutes); `/admin/migrations` is the family's `<anotoki-migrations-page>`,
   and `<anotoki-update-banner>` sits above the panel's pages; the Migrations
-  page is `@anotoki/lib/migrations/page`, out of the first load).
+  page is `@anotoki/lib/migrations/page`, out of the first load), and the
+  legal pages (`/terms`, `/privacy`, `/contact`: the family's
+  `@anotoki/lib/legal/pages`, lazy, anybody's, in `layouts/legal-layout` -
+  the family's frame, the top bar's `public` area - with the IAM's facts,
+  `core/legal/legal-facts.ts`, given by that frame and out of the first load;
+  the Privacy page is the one every anotoki site links to for the account;
+  Terms · Privacy · Contact under the sign-in and account pages,
+  `layouts/site-footer`, not in the admin panel). The facts are true of the
+  code as it is: a change to what the IAM keeps, or for how long, changes
+  their `legal.*` strings (by a migration) and `IAM_LEGAL_UPDATED`; every
+  address a page links to is in the code, never a string (the 0.6.0 review).
 - **The top bar** (`layouts/top-bar`) is the anotoki family's one bar,
   `<anotoki-top-bar>` from `@anotoki/lib/shell` (its menus, keys and fold are
   the library's, tested there), worded and wired for the IAM; the account
-  pages and the admin panel are in the family's frame, `<anotoki-shell>`.
+  pages, the legal pages and the admin panel are in the family's frame,
+  `<anotoki-shell>` (on the legal pages, `area="public"`: the account's bar
+  for somebody signed in, the brand, language, theme and Sign in otherwise).
   One row: brand, the account pages as links, the language (not in the admin
   panel), the theme (the family's segmented switch), the person's menu (the
   admin panel for the IAM's ADMIN, "Back to your account" from it, Sign out

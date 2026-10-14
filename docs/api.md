@@ -1798,6 +1798,10 @@ interface ApplyResult {
 - Every apply that was not busy is audited, `migrations.applied`, with
   `{ applied: string[], failed: string | null, error: string | null }` (the
   files' names - a library set's as `set/name`) - one with nothing to apply too.
+  The entry is kept for good, so its `error` is the answer's first line only,
+  redacted - no row's values, address, token or path on the server
+  (`iamMigrationErrorForAudit()`, the security review of 2026-10-14); the
+  answer itself still carries the whole error for the administrator.
   The audit entries that waited for migration 018 go in before it, with their
   own times ("The admin tools" below).
 

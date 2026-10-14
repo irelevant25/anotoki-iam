@@ -163,7 +163,7 @@ describe('AppTopBarComponent', () => {
   const childrenOf = (selector: string) =>
     Array.from(host.querySelector(selector)!.children).map((child) => child.tagName.toLowerCase() + (child.className ? '.' + String(child.className).split(' ')[0] : ''));
 
-  async function draw(area: 'account' | 'admin' = 'account'): Promise<void> {
+  async function draw(area: 'account' | 'admin' | 'public' = 'account'): Promise<void> {
     // The English areas are where the page is: the title strategy tells the translations so after every navigation.
     i18n().noteAddress(area === 'admin' ? '/admin' : '/account');
     fixture = TestBed.createComponent(AppTopBarComponent);
@@ -610,6 +610,61 @@ describe('AppTopBarComponent', () => {
     signIn.click();
     await fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/login?next=%2Faccount%2Fsecurity');
+  });
+
+  describe('on a page anybody may read - the legal pages (area "public")', () => {
+    it('signed in: the account pages’ bar - the brand, their links (none of them the page), the language, the person’s menu with the admin panel', async () => {
+      await draw('public');
+      await at('/privacy');
+      expect(childrenOf('.anotoki-top-bar__row')).toEqual(['anotoki-brand.anotoki-brand', 'nav.anotoki-top-bar__nav', 'div.anotoki-top-bar__actions']);
+      expect(wordmark()).toEqual(['anotoki', 'účet']);
+      expect(host.querySelector('anotoki-brand a')?.getAttribute('href')).toBe('/account');
+      expect(links().map(described)).toEqual([
+        'Prehľad /account',
+        'Zabezpečenie /account/security',
+        'Prihlásenia /account/sessions',
+        'Aplikácie /account/applications',
+        'Tokeny pre skripty /account/tokens',
+      ]);
+      expect(languageButton().getAttribute('aria-label')).toBe('Jazyk: Slovenčina (SK)');
+      await openMenu();
+      expect(items().map(words)).toEqual(['Administrátorský panel', 'Odhlásiť sa']);
+    });
+
+    it('signed out: no links - each would be the sign-in page -, the language, the theme, and Sign in coming back to the page', async () => {
+      user.set(null);
+      await draw('public');
+      await at('/privacy');
+      expect(links()).toEqual([]);
+      expect(childrenOf('.anotoki-top-bar__actions').slice(0, 2)).toEqual(['anotoki-language-switcher.anotoki-language-switcher', 'anotoki-theme-toggle.anotoki-theme-toggle']);
+      const signIn = host.querySelector<HTMLButtonElement>('.anotoki-top-bar__actions .anotoki-top-bar__sign-in')!;
+      expect(words(signIn)).toBe('Prihlásiť sa');
+      signIn.click();
+      await fixture.whenStable();
+      expect(TestBed.inject(Router).url).toBe('/login?next=%2Fprivacy');
+    });
+
+    it('the links come with a sign-in and go with Sign out, the page staying where it is', async () => {
+      user.set(null);
+      await draw('public');
+      await at('/terms');
+      expect(links()).toEqual([]);
+      session.set({ ...MIRA });
+      await fixture.whenStable();
+      expect(links().length).toBe(5);
+      session.clear();
+      await fixture.whenStable();
+      expect(links()).toEqual([]);
+      expect(TestBed.inject(Router).url).toBe('/terms');
+    });
+
+    it('on a phone, signed out: the menu holds Sign in alone', async () => {
+      user.set(null);
+      windowOf(360);
+      await draw('public');
+      await openMenu();
+      expect(items().map(words)).toEqual(['Prihlásiť sa']);
+    });
   });
 
   it('the person’s name gives way up to 1240 px - the round button alone', async () => {

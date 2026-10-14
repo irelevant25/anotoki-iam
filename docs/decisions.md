@@ -1767,3 +1767,70 @@ restore by hand replays (`api/account_deletion.php`, `account-deletions.php`):
   order are replayed in the order they happened; a replay that leaves no live
   administrator says so, dry and for real; it refuses while migrations wait.
 
+## 2026-10-14 - anotoki-lib 0.6.0: the legal pages, with the IAM's facts
+
+Both halves of the IAM take anotoki-lib 0.6.0 (`composer.json` `^0.6.0`, the
+0.6.0 tarball). The owner's decisions of 2026-10-13, for every anotoki site:
+**Terms, Privacy and Contact** from the library - their structure and the
+family's words its own, each site giving its facts -, the operator Code Hero
+s.r.o. (the family's default, written to at the support address), Slovak law,
+16 the age for an account without a parent's permission, the hosting company
+"to be named" until the owner names it. The texts are a good-faith draft for
+the owner, not legal advice. What the IAM decided with them:
+
+- **The pages are anybody's, in the family's frame.** On the library's paths
+  (`/terms`, `/privacy`, `/contact`) - the IAM's Privacy page is the one every
+  site links to for the account - in the frame the account pages have, whose
+  bar is theirs for somebody signed in and Sign in for anybody else (the top
+  bar's `public` area: no row of account links that would each be the sign-in
+  page). Not the night-sky frame: a long page of text beside the sky reads
+  badly, and the sky's column is the sign-in form's. The session is asked for
+  before the first page when a legal page is where the site was opened, as on
+  the account pages, so the bar and the account's language are right at once.
+  The footer's links are on every sign-in and account page; not in the admin
+  panel, which is English and the administrators'.
+- **The facts are the code's, and say what the code does.** Twelve parts of
+  what the IAM keeps - the account, two-factor authentication, Google, the
+  sessions and the sign-in attempts with their addresses, the remembered and
+  the known browsers, the sites and their sign-ins, the mails, the news, the
+  approvals, the deletion and what stays -, the audit log and the backups in
+  its own words, its cookies and stored items by name, and Google and the mail
+  service in words true of it: Google's button is loaded from Google wherever
+  it is drawn (the sign-in, sign-up and account pages, while Google sign-in is
+  switched on), so the library's "only if you choose to sign in with Google"
+  would not be; news goes to the accounts with it switched on, which is not
+  only those who asked (an account made by an administrator, brought over
+  from the genshin site or there before 013 starts with it on); the backups
+  are made daily, before an update and by hand, never restored here, and a
+  downloaded one is kept off the server. Where the code keeps something
+  without a limit - the sessions and the remembered browsers with their
+  addresses, the mail log, the audit log, the deletion record, the
+  placeholder - the page says so. Migration 020 writes the strings (English and
+  informal Slovak); a change to what the IAM keeps, or for how long, changes
+  them and the day in `legal-facts.ts`. Terms' first heading is the IAM's own
+  ("About the anotoki account"; the library's "What {site} is" read "What
+  anotoki account is"), read in place of the library's word
+  (`legal.config.ts`, as the kit's words are). And the sign-in pages' sky,
+  which said "Nothing is shared with anybody outside anotoki" - untrue beside
+  the page that names who else handles data -, now says "Nothing is sold or
+  used for ads; Privacy says who else handles data" (020 rewords 006's words
+  only, and only where no administrator saved the string - `updated_by` -: a
+  saved one is the owner's choice, in 006's very words too, and stays with its
+  writer; the security review of the pass).
+- **Addresses only in the code** (the 0.6.0 review): every link of the pages -
+  the account's Security page, where an account is deleted; the operator,
+  Cloudflare, Google and the authority in the library - is the code's, never a
+  string an administrator rewords; `tests/legal-pages-strings.test.php` holds
+  020's strings free of any, and `legal-facts.spec.ts` shows a rewording
+  changing a link's words and never its address.
+- **Out of the first load, what only the pages read**: the root configuration
+  (the language, the database's words) is there for the footer's links; the
+  facts come with the pages' frame (`layouts/legal-layout`). The facts' English
+  is in `en.ts`, as every page string is - the first load's growth (about
+  10 kB of text before compression, 2.5 kB after).
+- **The Slovak "ty" everywhere** (021): the sign-in page's two buttons that
+  have a code emailed asked in the formal plural ("pošlite"); 019's had
+  followed 006's on purpose, and both are informal now - where no
+  administrator saved them on the Translations page (`updated_by`): a saved
+  string stays, in the formal words too.
+

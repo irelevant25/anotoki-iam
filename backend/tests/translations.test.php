@@ -59,8 +59,8 @@ const GENSHIN_ORIGIN = 'http://localhost:4200';
 const ENGLISH = ['code' => 'en', 'name' => 'English', 'native_name' => 'English'];
 const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina'];
 
-/** The IAM's own keys, as the migrations leave them: 492 of the pages and 52 of the mails (019: the authenticator's pause, 9 and 4). */
-const IAM_PAGE_KEYS = 492;
+/** The IAM's own keys, as the migrations leave them: 562 of the pages and 52 of the mails (019: the authenticator's pause, 9 and 4; 020: the legal pages' facts, 70 of the pages). */
+const IAM_PAGE_KEYS = 562;
 const IAM_MAIL_KEYS = 52;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -591,8 +591,8 @@ test('the two languages the IAM is released in, and every key - the IAM\'s and t
         'the languages'
     );
     $library = count(LibraryWords::keys());
-    same(94, $library, 'the library\'s words: 94 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 - and 004 - the feedback form\'s 31)');
-    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the IAM\'s own: 492 keys of the pages and 52 of the mails');
+    same(257, $library, 'the library\'s words: 257 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 -, 004 - the feedback form\'s 31 -, 005 - the legal pages\' 122 -, 006 - the top bar\'s 1 -, 007 - the kit\'s pieces\' 4 -, 008 - the tabs\' 2 - and 009 - the input pieces\' 34)');
+    same(IAM_PAGE_KEYS + IAM_MAIL_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the IAM\'s own: 562 keys of the pages and 52 of the mails');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'and the library\'s beside them');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('en')), 'each has an English string');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('sk')), 'and a Slovak one');
@@ -664,7 +664,7 @@ test('placeholders: a Slovak string uses none its English lacks; the two the pag
 
     // Everything the migrations wrote - the IAM's and the library's - would be accepted by the panel as it is.
     same([], iamTranslations()->storedRefusals(), 'every stored string passes the rules it is edited under');
-    same(2 * (IAM_PAGE_KEYS + IAM_MAIL_KEYS + count(LibraryWords::keys())), (int) iamDb()->query('SELECT count(*) FROM translations')->fetchColumn(), 'all 1170 of them');
+    same(2 * (IAM_PAGE_KEYS + IAM_MAIL_KEYS + count(LibraryWords::keys())), (int) iamDb()->query('SELECT count(*) FROM translations')->fetchColumn(), 'all 1742 of them');
 });
 
 test('the mails: MAIL_KEYS and MAIL_FALLBACK are exactly what the database has', function () {
@@ -698,7 +698,7 @@ test('the frontend\'s compiled English is the database\'s: the same keys without
     $dictionary = EnglishDictionary::read(iamFrontendSources() . '/' . TRANSLATION_DICTIONARY_FILE, 'en');
     $pages = array_filter(seeded('en'), static fn(string $key): bool => !str_starts_with($key, 'mail.') && !LibraryWords::isLibraryKey($key), ARRAY_FILTER_USE_KEY);
 
-    same(IAM_PAGE_KEYS, count($pages), 'the pages have 492 keys of their own');
+    same(IAM_PAGE_KEYS, count($pages), 'the pages have 562 keys of their own');
     foreach (array_keys($dictionary) as $key) {
         check(KeyScanner::shapeOk((string) $key), "$key in en.ts has the shape of a key, so the scan can find it");
     }
@@ -720,7 +720,7 @@ test('every page key the database has is used by the frontend, and nothing in th
     same([], $scan['problems'], 'what the scan does not let through');
     same([], $scan['unused'], 'in the database, used nowhere - a key built at run time cannot be seen and is forbidden; delete a dead key with a migration');
     same([], array_keys($scan['missing']), 'used by the frontend, not in the database - the page would show the key');
-    same(IAM_PAGE_KEYS, count($scan['used']), 'all 492');
+    same(IAM_PAGE_KEYS, count($scan['used']), 'all 562');
     same([], array_values(array_filter(array_keys($scan['used']), static fn(string $key): bool => str_starts_with($key, 'mail.') || LibraryWords::isLibraryKey($key))), 'the mail keys are not the frontend\'s, and the library\'s are the library\'s pages\'');
 
     $files = iamKeyScanner()->sourceFiles();
@@ -1108,7 +1108,7 @@ test('the bundle: a language\'s strings with English underneath, the library\'s 
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 492 strings of the pages, and the library\'s 54');
+    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 562 strings of the pages, and the library\'s 257');
     same('Save', $english->json()['values']['common.save'], 'a string');
     same(['Language', 'Language: {name} ({code})'], [$english->json()['values']['anotoki.language.label'] ?? null, $english->json()['values']['anotoki.language.button'] ?? null], 'the library\'s words, from the database');
     check(str_contains($english->header('Content-Type'), 'application/json'), 'as JSON');

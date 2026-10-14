@@ -117,7 +117,7 @@
             <ul class="quick">
                 @for (item of quickLinks; track item.link) {
                     <li>
-                        <a class="quick-link" [routerLink]="item.link">
+                        <a anotokiLinkCard class="quick-link" [routerLink]="item.link">
                             <span class="quick-icon"><anotoki-icon [name]="item.icon" [size]="20" /></span>
                             <span class="quick-text">
                                 <span class="quick-title">{{ item.title | t }}</span>
@@ -134,7 +134,7 @@
                 }
                 @if (me.is_admin) {
                     <li>
-                        <a class="quick-link quick-admin" routerLink="/admin">
+                        <a anotokiLinkCard class="quick-link quick-admin" routerLink="/admin">
                             <span class="quick-icon"><anotoki-icon name="sliders" [size]="20" /></span>
                             <span class="quick-text">
                                 <span class="quick-title">{{ "overview.adminTitle" | t }}</span>

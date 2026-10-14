@@ -2,7 +2,7 @@ import { inject } from "@angular/core";
 import { AnotokiTranslationsConfig, TranslationsAdminConfig } from "@anotoki/lib/translations";
 import { firstValueFrom } from "rxjs";
 import { AccountApi } from "../api/account.api";
-import { isSessionArea } from "../auth/next-path";
+import { isLegalPage, isSessionArea } from "../auth/next-path";
 import { SessionService } from "../auth/session.service";
 import { en } from "./en";
 import { TranslationService } from "./translation.service";
@@ -98,10 +98,14 @@ export function useAdminPages(config: TranslationsAdminConfig): void {
  * is known before the one request for the words; then the library's start:
  * the cached bundle at once when it is in the language wanted, and a wait for
  * the fresh one - a second with a cache, three without. Never rejects.
+ *
+ * The legal pages are asked for the account too: anybody may read them, and
+ * their frame's bar shows whoever is signed in - in the account's language -
+ * or Sign in.
  */
 export async function startTranslations(session: SessionService, i18n: TranslationService, path: string): Promise<void> {
   // `/` is the account area too: it redirects there.
-  if (path === "/" || isSessionArea(path)) {
+  if (path === "/" || isSessionArea(path) || isLegalPage(path)) {
     try {
       await firstValueFrom(session.ensure());
     } catch {

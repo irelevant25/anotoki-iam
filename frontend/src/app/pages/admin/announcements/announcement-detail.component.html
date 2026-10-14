@@ -34,9 +34,7 @@
                     </span>
                     <span class="muted">{{ percent() }}%</span>
                 </div>
-                <div class="progress" role="progressbar" aria-label="Done" aria-valuemin="0" [attr.aria-valuemax]="d.counts.total" [attr.aria-valuenow]="done()">
-                    <span class="progress-bar" [style.width.%]="percent()"></span>
-                </div>
+                <anotoki-progress-bar label="Done" format="count" [value]="done()" [max]="d.counts.total" />
                 <p class="counts">
                     @if (d.counts.failed) {
                         <span>

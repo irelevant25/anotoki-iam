@@ -352,8 +352,8 @@ test('a fresh IAM has 019: the two columns, nobody paused or counted from, and t
     $words = iamDb()->query("SELECT key_name, language_code FROM translations WHERE key_name LIKE 'login.paused.%' OR key_name LIKE 'mail.authenticatorPaused.%'
                                 OR key_name IN ('error.authenticatorPaused', 'sessions.method.password_email')")->fetchAll(PDO::FETCH_NUM);
     same(26, count($words), 'thirteen keys, each in English and Slovak');
-    same('Pošlite mi kód e-mailom', iamDb()->query("SELECT value FROM translations WHERE key_name = 'login.paused.sendCode' AND language_code = 'sk'")->fetchColumn(),
-        'the Slovak button in the form of the sign-in page\'s other one ("Radšej mi pošlite kód e-mailom")');
+    same('Pošli mi kód e-mailom', iamDb()->query("SELECT value FROM translations WHERE key_name = 'login.paused.sendCode' AND language_code = 'sk'")->fetchColumn(),
+        'the Slovak button in the form of the sign-in page\'s other one ("Radšej mi pošli kód e-mailom") - informal ("ty") since 021, which reworded both (informal-code-buttons.test.php)');
     same(MAIL_FALLBACK['mail.authenticatorPaused.subject'], mailWords('en')['mail.authenticatorPaused.subject'], 'the mail\'s English is the code\'s');
     same('Nesprávne kódy k tvojmu účtu anotoki', mailWords('sk')['mail.authenticatorPaused.subject'], 'and its Slovak');
 });

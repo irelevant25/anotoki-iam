@@ -274,6 +274,93 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
     }
 });
 
+test('a failed Apply is kept for good as its error\'s first line - no row\'s values, no address, no path on the server (the 0.6.0 review)', function () {
+    // PostgreSQL's whole message: its DETAIL quotes the row that collided.
+    $collision = "SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint \"users_email_key\"\nDETAIL:  Key (email)=(someone@example.test) already exists.\nCONTEXT:  SQL statement \"UPDATE users SET email = lower(email)\"";
+    same('SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint "users_email_key"', iamMigrationErrorForAudit($collision), 'the first line, and nothing of the row');
+
+    // A value of a row echoed at the end of the first line itself.
+    $echoed = iamMigrationErrorForAudit('SQLSTATE[22P02]: Invalid text representation: 7 ERROR:  invalid input syntax for type uuid: "Someone Private"');
+    check(!str_contains($echoed, 'Someone') && str_contains($echoed, 'invalid input syntax for type uuid'), 'the echoed value goes, the reason stays: ' . $echoed);
+
+    // An address and a token wherever they stand.
+    $person = iamMigrationErrorForAudit('ERROR:  could not mail someone@example.test from 203.0.113.9 with iam_rt_abcdef0123456789abcdef0123456789');
+    check(!str_contains($person, 'someone@') && !str_contains($person, '203.0.113.9') && !str_contains($person, 'abcdef0123456789'), 'no address, no token: ' . $person);
+
+    // A hook's failure naming a file on the server, Windows and Unix alike - and a URL left as it is.
+    $windows = iamMigrationErrorForAudit('TypeError: iamThing(): Argument #1 ($pdo) must be of type PDO, null given, called in C:\\Users\\someone\\anotoki-iam\\backend\\api\\thing.php on line 12');
+    check(!str_contains($windows, 'someone') && str_contains($windows, '{path}') && str_contains($windows, 'must be of type PDO'), 'a Windows path goes: ' . $windows);
+    $unix = iamMigrationErrorForAudit('file_put_contents(/home/someone/www/iam/storage/backups/x.tmp): Failed to open stream: Permission denied');
+    check(!str_contains($unix, 'someone') && str_contains($unix, '{path}') && str_contains($unix, 'Permission denied'), 'a Unix path goes: ' . $unix);
+    same('ERROR:  see https://www.postgresql.org/docs/current/errcodes-appendix.html', iamMigrationErrorForAudit('ERROR:  see https://www.postgresql.org/docs/current/errcodes-appendix.html'), 'a URL is no path');
+
+    // Nothing to keep, and a long one cut.
+    same([null, ''], [iamMigrationErrorForAudit(null), iamMigrationErrorForAudit('')], 'no error, nothing');
+    same(501, mb_strlen((string) iamMigrationErrorForAudit(str_repeat('é', 2000))), 'at most 500 characters and the ellipsis');
+
+    // The review's cases: a quoted value with a line break in it, left open by the cut ...
+    $open = iamMigrationErrorForAudit("SQLSTATE[22P02]: Invalid text representation: 7 ERROR:  invalid input syntax for type integer: \"Jane Private\nElm Street 5\"");
+    check(!str_contains($open, 'Jane') && !str_contains($open, 'Elm') && str_contains($open, 'invalid input syntax for type integer'), 'an open quote goes whole: ' . $open);
+    // ... one with a Unicode line separator in it, which is no line break here ...
+    $separator = iamMigrationErrorForAudit("ERROR:  invalid input syntax for type integer: \"Jane Private\u{2028}Elm Street 5\"");
+    check(!str_contains($separator, 'Jane') && !str_contains($separator, 'Elm'), 'a value with U+2028 in it goes whole: ' . $separator);
+    // ... a message that is not UTF-8 ...
+    $bytes = iamMigrationErrorForAudit("ERROR:  bad \xff\xfe value\nDETAIL:  Key (email)=(someone@example.test) already exists.\nSTATEMENT:  UPDATE users SET email = 'x'");
+    check(!str_contains($bytes, 'someone') && !str_contains($bytes, 'DETAIL') && !str_contains($bytes, 'UPDATE users') && mb_check_encoding($bytes, 'UTF-8'), 'not UTF-8: still its first line alone, as UTF-8: ' . $bytes);
+    // ... and the path forms the first rules let through.
+    foreach ([
+        'could not open file:///home/someone/iam/x.sql for reading',
+        'phar:///home/someone/iam/lib.phar/x.php failed',
+        'stream:/home/someone/x was refused',
+        'could not read \\\\fileserver\\someone\\iam\\x.sql',
+        'called in C:\\Users\\Jane Someone\\iam\\backend\\x.php on line 12',
+        'cannot write /home/Jane Someone/www/iam/storage/x.tmp now',
+    ] as $message) {
+        $kept = iamMigrationErrorForAudit($message);
+        check(!str_contains($kept, 'someone') && !str_contains($kept, 'Someone') && str_contains($kept, '{path}'), "no path: {$message} -> {$kept}");
+    }
+});
+
+test('a failed Apply through the Migrations page: the answer has the whole error, the audit log one redacted line (the 0.6.0 review)', function () {
+    $main = testEnvironment()['db'];
+    $failing = $main . '_failing';
+    buildIamThrough('_failing', BEFORE_NEWEST);
+    useIamDatabase($failing);
+
+    try {
+        $adminId = makeUser('admin', 'admin@example.test', PASSWORD);
+        grantRole($adminId, 'iam', 'ADMIN');
+        // Whatever the newest file is, its record in the bookkeeping table fails, as a statement would that collides
+        // with a row: PostgreSQL's DETAIL quotes the row, and the message names a path on the server.
+        iamDb()->exec(<<<'SQL'
+            CREATE FUNCTION iam_test_fail_the_record() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                RAISE EXCEPTION 'could not record the file: see /home/someone/www/iam/storage/x.log'
+                    USING DETAIL = 'Key (email)=(someone@example.test) already exists.';
+            END $$
+            SQL);
+        iamDb()->exec('CREATE TRIGGER iam_test_fail_the_record BEFORE INSERT ON migrations FOR EACH ROW EXECUTE FUNCTION iam_test_fail_the_record()');
+
+        $admin = signedIn('admin@example.test', '10.18.4.3');
+        $applied = $admin->post('/api/admin/migrations/apply');
+        same(200, $applied->status, 'a failed file is still 200: the page shows it - ' . $applied->body);
+        same(['set' => NEWEST_FILE[0], 'name' => NEWEST_FILE[1]], $applied->json()['failed'] ?? null, 'the newest failed');
+        $answered = (string) ($applied->json()['error'] ?? '');
+        check(str_contains($answered, 'someone@example.test') && str_contains($answered, '/home/someone/'), 'the administrator who pressed Apply sees the whole error: ' . $answered);
+        same([NEWEST], pendingMigrations(iamDb()), 'nothing applied');
+
+        $details = (array) json_decode((string) iamDb()->query("SELECT details FROM anotoki_audit_log WHERE action = 'migrations.applied' ORDER BY id DESC LIMIT 1")->fetchColumn(), true);
+        $kept = (string) ($details['error'] ?? '');
+        same(NEWEST, $details['failed'] ?? null, 'the entry names the file');
+        check(str_contains($kept, 'could not record the file') && str_contains($kept, '{path}'), 'the entry keeps the reason: ' . $kept);
+        check(!str_contains($kept, 'someone') && !str_contains($kept, 'DETAIL') && !str_contains($kept, "\n"), 'and no row\'s values, no path, one line: ' . $kept);
+    } finally {
+        iamDb()->exec('DROP TRIGGER IF EXISTS iam_test_fail_the_record ON migrations');
+        iamDb()->exec('DROP FUNCTION IF EXISTS iam_test_fail_the_record()');
+        useIamDatabase($main);
+    }
+});
+
 test('the command line builds a database from nothing, says what it has, dry-runs without touching it, and waits its turn', function () {
     $main = testEnvironment()['db'];
     $fresh = $main . '_cli';

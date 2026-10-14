@@ -15,6 +15,8 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
 }
 
+// Each tile and each card below is the kit's link card (a[anotokiLinkCard]: its box, hover and focus ring);
+// what is inside is the dashboard's own.
 .tile {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -23,19 +25,8 @@
   row-gap: 0.15rem;
   align-items: center;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--anotoki-border);
-  border-radius: var(--anotoki-radius-lg);
-  background: var(--anotoki-surface);
-  color: var(--anotoki-text);
-  text-decoration: none;
-  box-shadow: var(--anotoki-shadow-sm);
-  transition: border-color var(--anotoki-duration) var(--anotoki-ease);
 
-  &:hover {
-    border-color: color-mix(in srgb, var(--anotoki-primary) 45%, var(--anotoki-border));
-  }
-
-  &[data-tone="warning"] .tile-icon {
+  &.tile-warning .tile-icon {
     background: var(--anotoki-warning-soft);
     color: var(--anotoki-warning);
   }
@@ -77,15 +68,6 @@
   gap: 0.8rem;
   height: 100%;
   padding: 1rem 1.1rem;
-  border: 1px solid var(--anotoki-border);
-  border-radius: var(--anotoki-radius-lg);
-  background: var(--anotoki-surface);
-  color: var(--anotoki-text);
-  text-decoration: none;
-
-  &:hover {
-    border-color: color-mix(in srgb, var(--anotoki-primary) 45%, var(--anotoki-border));
-  }
 
   anotoki-icon {
     color: var(--anotoki-primary);

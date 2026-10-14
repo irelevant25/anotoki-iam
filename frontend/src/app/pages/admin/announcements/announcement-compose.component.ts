@@ -6,6 +6,7 @@ import { HoldsUnsavedChanges } from '@anotoki/lib/translations';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { ChipItem, ChipListComponent } from '@anotoki/lib/ui/chips';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { CheckboxComponent, RadioGroupComponent, RadioOption, SelectComponent, SelectOption, SwitchComponent, TextFieldComponent, TextareaComponent } from '@anotoki/lib/ui/forms';
@@ -82,6 +83,7 @@ interface Person {
     ButtonComponent,
     CardComponent,
     CheckboxComponent,
+    ChipListComponent,
     ErrorStateComponent,
     IconComponent,
     PageHeaderComponent,
@@ -122,6 +124,8 @@ export class AnnouncementComposeComponent implements HoldsUnsavedChanges {
   protected readonly everybody = signal(false);
   protected readonly roles = signal<RoleGrant[]>([]);
   protected readonly chosen = signal<Person[]>([]);
+  /** The people chosen as the kit's removable chips: each by name, its button "Remove: <name>". */
+  protected readonly chosenChips = computed<ChipItem[]>(() => this.chosen().map((person) => ({ value: String(person.id), label: person.username })));
   protected readonly search = signal('');
   protected readonly found = signal<AdminUser[]>([]);
   protected readonly count = signal<AudienceCount | null>(null);
@@ -337,7 +341,9 @@ export class AnnouncementComposeComponent implements HoldsUnsavedChanges {
     this.found.set([]);
   }
 
-  protected removePerson(id: number): void {
+  /** A chip's remove button (the kit's chip list, whose values are the ids): the list moves the focus on once the chip is gone. */
+  protected removePerson(value: string): void {
+    const id = Number(value);
     this.chosen.update((chosen) => chosen.filter((person) => person.id !== id));
   }
 

@@ -1496,12 +1496,14 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         // and an anonymized account's person out of them at once.
         flushWaitingAuditEntries(iamDb());
         // The files by the IAM's names for them: a library set's as `set/name`
-        // (iamMigrationLabel()), since every set's numbers start at 001.
+        // (iamMigrationLabel()), since every set's numbers start at 001. A
+        // failure's error is kept as its first line, redacted, no path
+        // (iamMigrationErrorForAudit()): the answer below still has it whole.
         $label = static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']);
         audit($request, (int) actor($request)['id'], 'migrations.applied', null, null, [
             'applied' => array_map($label, $result['applied']),
             'failed' => $result['failed'] === null ? null : $label($result['failed']),
-            'error' => $result['error'],
+            'error' => iamMigrationErrorForAudit($result['error']),
         ]);
     });
 })->add(requireSignInRules())->add(requireAdmin())->add(requireSession());

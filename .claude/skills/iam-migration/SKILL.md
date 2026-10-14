@@ -114,8 +114,8 @@ runs after the IAM's files.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
   that no migration wrote. It also counts what the migrations leave (after
-  019 and the library's sets: 638 keys - 492 of the pages, 52 of the mails, 94
-  of the library's - 1276 strings): a migration that adds or removes keys
+  021 and the library's sets: 871 keys - 562 of the pages, 52 of the mails, 257
+  of the library's - 1742 strings): a migration that adds or removes keys
   moves those numbers, and `tests/top-bar-strings.test.php` is the pattern for
   testing one on an installed IAM. A migration test that builds a database
   "up to" its file and applies what is pending applies every later file too
@@ -123,7 +123,8 @@ runs after the IAM's files.
   (`applyMigrationsThrough()`, or `['applied'][0]`), not on the list.
   `tests/strings-through-the-library.test.php` holds 017 that way by naming
   the keys of the IAM's later files (`LATER_PAGE_KEYS`, `LATER_MAIL_KEYS`): a
-  migration that adds keys adds them there too.
+  migration that adds keys adds them there too, and one that rewords a string
+  from before 017 adds it to `LATER_REWORDED` (020's and 021's).
 - **`anotoki.` is the library's namespace.** Never write a key there; the
   library's 002 writes them and their descriptions. 017 moved the IAM's
   `lang.*` there once, and that is the pattern for moving another word the
@@ -142,8 +143,12 @@ runs after the IAM's files.
   reach live IAMs is an `UPDATE` of that row, and says in the header that it
   replaces whatever the panel made of it (the owner exports first -
   `docs/operations.md`) - or, kinder, an `UPDATE ... WHERE value = '<the
-  earlier migration's words>'`, which leaves the owner's rewording alone
-  (`009_admin_panel.sql`, tested by `tests/admin-panel-strings.test.php`).
+  earlier migration's words>' AND updated_by IS NULL`, which leaves the
+  owner's rewording alone (`009_admin_panel.sql`, tested by
+  `tests/admin-panel-strings.test.php`) and an administrator's deliberate
+  save of those very words too (`updated_by` says who saved it; 020 and 021,
+  the security review of 2026-10-14) - its gate's "old words left" check
+  looks only at the rows with `updated_by IS NULL` as well.
   A removed key is a `DELETE FROM translation_keys`; its strings go with it.
   A renamed key is an `UPDATE translation_keys SET name = ...`: its strings
   follow by the foreign key's `ON UPDATE CASCADE`.
