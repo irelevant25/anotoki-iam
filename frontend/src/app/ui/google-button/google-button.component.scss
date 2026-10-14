@@ -1,20 +1,151 @@
+// The IAM's own button is drawn in Google's published branding for a
+// sign-in button (developers.google.com/identity/branding-guidelines): the
+// "G" in its four colours, Google's fill, stroke and text - light and dark -,
+// its font, a pill. Those colours are Google's, by its terms: the one place a
+// page draws in colours that are not the family's tokens, beside the sign-in
+// pages' night sky. The height, the focus ring and the motion are the kit's.
+
 :host {
   display: none;
 }
 
-:host(.is-ready) {
+:host(.app-google-button--on) {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+
+  // Google's light theme: white, a grey stroke, near-black words; its state layer.
+  --_google-fill: #ffffff;
+  --_google-stroke: #747775;
+  --_google-text: #1f1f1f;
+  --_google-state: #303030;
 }
 
-.google-button {
-  display: none;
+:host(.app-google-button--dark) {
+  // Google's dark theme.
+  --_google-fill: #131314;
+  --_google-stroke: #8e918f;
+  --_google-text: #e3e3e3;
+  --_google-state: #ffffff;
 }
 
-.google-button-ready {
+// The place both buttons take in turn: as high as a finger's target, so the
+// page does not move when Google's (40 px in a frame) takes the IAM's.
+.app-google-button__place {
   display: flex;
+  align-items: center;
   justify-content: center;
-  min-height: 44px;
+  min-height: var(--anotoki-control-height, 44px);
+}
+
+.app-google-button__button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 400px;
+  min-height: var(--anotoki-control-height, 44px);
+  margin: 0;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--_google-stroke);
+  border-radius: 999px;
+  background: var(--_google-fill);
+  color: var(--_google-text);
+  font-family: Roboto, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
+  transition: box-shadow var(--anotoki-duration, 160ms) var(--anotoki-ease, ease);
+
+  // Google's state layer: a veil of the words' colour, 8% on hover, 12% on focus and press.
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--_google-state);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--anotoki-duration, 160ms) var(--anotoki-ease, ease);
+  }
+
+  &:hover {
+    box-shadow:
+      0 1px 2px 0 rgb(60 64 67 / 30%),
+      0 1px 3px 1px rgb(60 64 67 / 15%);
+  }
+
+  &:hover::before {
+    opacity: 0.08;
+  }
+
+  &:active::before,
+  &:focus-visible::before {
+    opacity: 0.12;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--anotoki-focus);
+    outline-offset: 2px;
+  }
+
+  &[aria-busy="true"] {
+    cursor: progress;
+  }
+}
+
+.app-google-button__mark {
+  display: block;
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.app-google-button__words {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-google-button__spinner {
+  --anotoki-spinner-color: currentColor;
+  flex: none;
+}
+
+// Google's own button, in Google's frame. Its scheme is the frame's own, so
+// that the frame's ground stays see-through on a dark page.
+.app-google-button__frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--anotoki-control-height, 44px);
+  border-radius: 999px;
   color-scheme: normal;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--anotoki-focus);
+    outline-offset: 2px;
+  }
+}
+
+.app-google-button__failed {
+  margin: 0;
+  color: var(--anotoki-danger-text);
+  font-size: 0.875rem;
 }

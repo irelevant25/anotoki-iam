@@ -66,7 +66,9 @@ call exactly those endpoints and must handle exactly those refusal codes.
   BEM on each component's host class (`anotoki-<component>__<part>`,
   `--<state>`). Use it; a piece it lacks goes to the library rather than a
   one-off here. `frontend/src/app/ui/` holds only the IAM's own
-  (`google-button`).
+  (`google-button`: its button in Google's branding first; Google's script
+  and button only after a press - `GoogleSignInService.load()`, which nothing
+  else calls -, the owner's decision of 2026-10-14).
 - `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame) and
   `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
   `@anotoki/lib/shell`, worded and wired for the IAM - CLAUDE.md says what it
@@ -89,7 +91,8 @@ call exactly those endpoints and must handle exactly those refusal codes.
 3. Signals and `computed`; OnPush; `inject()`; the new control flow. No zone.js,
    no UI library but the family's.
 4. Colours only from the family's `--anotoki-*` custom properties (light and
-   dark, written by `styles.scss`) and the night sky's;
+   dark, written by `styles.scss`), the night sky's, and Google's own on the
+   Google button (its branding);
    check 390 px width; labels, `autocomplete`, focus, `role="alert"` on errors.
 5. The auth and account pages' words live in the database. A new string is a
    key and its English in `en.ts` plus a migration with the key, its English

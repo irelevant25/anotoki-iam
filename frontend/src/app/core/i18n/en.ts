@@ -76,6 +76,16 @@ export const en = {
   'common.passwordTooLong': 'That password is too long - at most 72 characters.',
   'common.approvalWait': 'An administrator has to approve your account before you can sign in. We will email you once they have.',
 
+  // ── Signing in with Google ─────────────────────────────────────────────────
+  // The IAM's own button (ui/google-button), drawn with nothing fetched from
+  // Google; a press brings Google's own button into its place.
+  'google.signIn': 'Sign in with Google',
+  'google.signUp': 'Sign up with Google',
+  'google.continue': 'Continue with Google',
+  'google.frame': 'Google’s own button',
+  'google.ready': 'Google’s own button is ready: press it to choose your Google account.',
+  'google.failed': 'Google could not be reached: this browser may be blocking it, or you are offline.',
+
   // ── The UI kit ─────────────────────────────────────────────────────────────
   'ui.showPassword': 'Show password',
   'ui.hidePassword': 'Hide password',
@@ -683,7 +693,7 @@ export const en = {
   'legal.storage.drafts.purpose': 'Administrators only: words typed on the admin panel’s Translations and Languages pages and not saved yet.',
   'legal.storage.untilTabClosed': 'Until the tab is closed.',
   'legal.google.role':
-    'Draws its "Sign in with Google" button on the sign-in and sign-up pages, and on the account page while Google is not connected, whenever signing in with Google is switched on: your browser loads the button from Google, so Google sees your IP address and its own cookies. Only if you choose to sign in with Google does Google tell the anotoki account your Google account’s id, e-mail address and name. What Google itself keeps, its own privacy policy says. A company based in the USA: data may be handled outside the EU.',
+    'Only when you press "Sign in with Google", "Sign up with Google" or "Continue with Google" - on the sign-in and sign-up pages, and on the account page while Google is not connected - does your browser load anything from Google: Google’s own button, so Google sees your IP address and its own cookies. Only if you then choose your Google account does Google tell the anotoki account your Google account’s id, e-mail address and name. What Google itself keeps, its own privacy policy says. A company based in the USA: data may be handled outside the EU.',
   'legal.mail.role': 'Sends the anotoki account’s e-mails: address confirmations, sign-in codes, password resets, security notices, approvals, and news to those who have it switched on.',
 } as const;
 

@@ -463,6 +463,13 @@ to any of those changes them too, and the day in `legal-facts.ts`. Only the
 pages read them: their frame gives them, and the first load, which every
 sign-in page shares, carries only the footer's links.
 
+Google is among who else handles data in the IAM's own words: nothing is
+loaded from Google until somebody presses the IAM's own Google button
+(`frontend/src/app/ui/google-button`, in Google's branding; migration 022, the
+owner's decision of 2026-10-14). The press fetches Google's script - once a
+visit - and draws Google's own button in its place, whose press opens Google's
+account chooser and hands the page the id token the server checks, as before.
+
 ## The IAM's own words
 
 What the sign-in pages, the account page and the IAM's own mails say - and the
@@ -498,6 +505,13 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   only where the key has none, so an owner's rewording - and a language left
   blank on purpose - stays; their descriptions are the library's, and their
   placeholders are the library's English's whatever a stored rewording says.
+  One later file of the set rewords strings it wrote before: 0.6.1's `010`
+  gives the Privacy page's two sentences on where the backups are
+  (`anotoki.legal.backupsWherePlain`, `anotoki.legal.backupsWhereEncrypted`)
+  their new words, in English and Slovak, but only while each is still
+  `005`'s word for word - a rewording stays. An administrator cannot have
+  saved 005's very words before it on any site: every site applies 005 and
+  010 in the same Apply.
   The IAM's language switcher said its two words as `lang.label` and
   `lang.button`; migration 017 moved them, with every string, writer and date,
   to `anotoki.language.label` and `anotoki.language.button`, and renamed
@@ -571,7 +585,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 ## The admin panel's tools: the error log, the audit log, backups
 
 Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11; 0.6.0 now, both halves): the same pages, routes and
+owner's decision of 2026-10-11; 0.6.1 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and

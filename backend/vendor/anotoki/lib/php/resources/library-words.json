@@ -777,13 +777,13 @@
         },
         "anotoki.legal.backupsWherePlain": {
             "description": "The anotoki library's Privacy page: where the backups are, on a site whose backups are not encrypted. No placeholders.",
-            "en": "The copies stay on the site's own server, out of public reach.",
-            "sk": "Kópie zostávajú na vlastnom serveri stránky, mimo verejného prístupu."
+            "en": "The copies are kept on the site's server, out of public reach; an administrator may also keep a downloaded copy elsewhere.",
+            "sk": "Kópie sa uchovávajú na serveri stránky, mimo verejného prístupu; správca si môže stiahnutú kópiu uložiť aj inde."
         },
         "anotoki.legal.backupsWhereEncrypted": {
             "description": "The anotoki library's Privacy page: where the backups are, on a site whose backups are encrypted (the anotoki account's). No placeholders.",
-            "en": "The copies stay on the site's own server, out of public reach, and are encrypted.",
-            "sk": "Kópie zostávajú na vlastnom serveri stránky, mimo verejného prístupu, a sú šifrované."
+            "en": "The copies are kept on the site's server, out of public reach, and are encrypted; an administrator may also keep a downloaded copy, encrypted the same way, elsewhere.",
+            "sk": "Kópie sa uchovávajú na serveri stránky, mimo verejného prístupu, a sú šifrované; správca si môže stiahnutú kópiu, rovnako šifrovanú, uložiť aj inde."
         },
         "anotoki.legal.backupsWhy": {
             "description": "The anotoki library's Privacy page: what the backups are for. No placeholders.",

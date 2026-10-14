@@ -1834,3 +1834,54 @@ the owner, not legal advice. What the IAM decided with them:
   administrator saved them on the Translations page (`updated_by`): a saved
   string stays, in the formal words too.
 
+## 2026-10-14 - The owner's decision: Google only on a press (and anotoki-lib 0.6.1)
+
+While Google sign-in was switched on, the sign-in, sign-up and account pages
+fetched Google's script (`https://accounts.google.com/gsi/client`) as they
+opened, to draw Google's own button: every visitor's browser contacted Google,
+also one who never used it - and the Privacy page had to say so. The owner's
+decision: Google is contacted only when somebody presses the button.
+
+- **The IAM's own button first** (`ui/google-button`): a real `<button>` in
+  Google's published branding for a sign-in button - the "G" in its four
+  colours, drawn by the page (never fetched), Google's light and dark fill,
+  stroke and words, a pill -, the IAM's words in the page's language ("Sign in
+  with Google", "Sign up with Google", "Continue with Google": migration 022,
+  English and Slovak), the kit's 44 px. Its colours are Google's, by its terms:
+  beside the sign-in pages' night sky, the one place a page draws in colours
+  that are not the family's tokens.
+- **A press** fetches Google's script - once a page life;
+  `GoogleSignInService.load()`, which nothing but a press calls - and draws
+  Google's own button in the same place: only Google's carries its account
+  chooser, so choosing the account is a second press, on Google's button. A
+  live region says it is ready. The focus moves onto the frame that holds
+  Google's button - which is Google's, where no page can put the focus -: the
+  next Tab is Google's button, and Enter opens it. The id token comes back as
+  before; the server's check (`google_identity.php`) is unchanged.
+- **No script** - blocked, offline, not there within 15 seconds - or one that
+  will not draw: the IAM's button stays, and a line under it says Google could
+  not be reached (an alert, and the button's description); everything else on
+  the page works, and another press tries again.
+- **The Privacy page says so**: 022 rewords 020's `legal.google.role` - "your
+  browser loads the button from Google" wherever it is drawn - to "only when
+  you press ... does your browser load anything from Google", and its
+  description; 020's words only, where no administrator saved the string
+  (`updated_by`). The IAM keeps its own sentence over the library's ("only if
+  you choose to sign in with Google"), which would leave out the press itself:
+  Google sees the browser before anybody chooses an account.
+- **Unchanged**: the CSP (it allowed Google's script, frame and style
+  already), the "or" above the button (whenever there is one), the theme and
+  the language followed (Google's button drawn again in the page's).
+- **Tested**: the button's spec (no script, no frame and no request of any
+  kind before a press; the script once; Google's button drawn, said and
+  focused; the token out; the failure line; the words), 022's
+  (`tests/google-button-strings.test.php`, on a fresh IAM and on installed
+  ones as an owner may have left them), and a browser check with every request
+  watched - none to Google before a press on the three pages, at 1280 and 390
+  px, light and dark, English and Slovak.
+
+Both halves take **anotoki-lib 0.6.1** with it: the library's translations 010
+make the Privacy page's sentence on where the backups are true where an
+administrator keeps a downloaded copy elsewhere, as `docs/operations.md` asks
+the owner to. Nothing of the IAM's changed for it.
+

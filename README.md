@@ -119,7 +119,7 @@ hosting:
   the genshin site, and every administrator there when 007 ran - a grant at
   those moments: promoting or removing an administrator later changes no
   site's roles. 007 goes on an installed IAM after the sites are updated.
-- Migrations 001-021, applied by the engine every anotoki site shares - the
+- Migrations 001-022, applied by the engine every anotoki site shares - the
   family's library, anotoki-lib (`anotoki/lib` in `backend/vendor/`,
   `@anotoki/lib` in the frontend); an installed IAM gets the later ones through
   the admin panel's Migrations page (or setup.php / `php migration.php` on
@@ -160,6 +160,11 @@ hosting:
   anybody's, around the IAM's facts (migration 020) - written from what the
   code keeps, every address a page links to in the code alone. The hosting
   company and the mail service are "to be named" until the owner names them.
+- Google is contacted only when somebody asks for it (migration 022, the
+  owner's decision of 2026-10-14): the sign-in, sign-up and account pages draw
+  the IAM's own "Sign in with Google" button, in Google's branding, and only a
+  press on it fetches Google's script and puts Google's own button in its
+  place - whose press opens Google's account chooser.
 - The pages and mails in English and Slovak, reworded in the admin panel -
   the Slovak informal ("ty") throughout (021 made the last two buttons so).
 - "Test connection" on the installer answers in the family's words, the

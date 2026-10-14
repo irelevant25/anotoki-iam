@@ -27,7 +27,7 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.6.0) - which every anotoki site
+its GitHub release, named in `package.json` (0.6.1) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
 tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,
@@ -94,7 +94,16 @@ pages drawn for real in their frame's configuration - the IAM's twelve parts,
 its audit log and encrypted backups, its cookies by name, who else handles
 data, no feedback form, the root configuration with no facts of its own, and
 every link where the code says: an administrator's rewording changes a
-link's words, never its address), and the
+link's words, never its address), the Google button
+(`ui/google-button/google-button.component.spec.ts`: the IAM's own button -
+Google's "G" drawn on the page, the IAM's words in the page's language - with
+no script, no frame and no request of any kind before a press; a press
+fetching Google's script once a page life and drawing Google's own button in
+its place, said in a live region, the focus on its frame, the id token out as
+Google gave it, drawn again for a new theme or language and never for
+nothing; a script blocked, slow or broken leaving the IAM's button and a line
+under it, a press trying again; the focus never taken from where somebody
+went meanwhile), and the
 address the not-set-up page sends the browser back to - a path that stays on
 this site, as the browser reads it (`core/auth/next-path.ts`'s
 `sameOriginPath()`; `next-path.spec.ts`, with the legal pages' paths - the
@@ -176,9 +185,11 @@ src/
                            what it keeps and how long, its cookies by name, who else
                            handles data, every address the pages link to - given by
                            the pages' frame, out of the first load)
-      google/              Google Identity Services, loaded on demand
-    ui/                    google-button, the IAM's own; the rest of the kit is the
-                           family's (@anotoki/lib/ui)
+      google/              Google Identity Services, fetched only when somebody
+                           presses the IAM's Google button - never as a page opens
+    ui/                    google-button, the IAM's own (its button in Google's
+                           branding first, Google's own only after a press); the
+                           rest of the kit is the family's (@anotoki/lib/ui)
     layouts/               auth-layout (the night-sky sign-in pages' own frame),
                            top-bar (the anotoki family's one bar, worded and wired
                            for the IAM - below), legal-layout (the legal pages'
@@ -321,8 +332,9 @@ the web root, next to the backend's `api/`. The `.htaccess` it writes:
 - sets `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin` and a
   Content-Security-Policy that allows this origin plus Google Identity Services
-  and the family's visitor counter (`https://umami.anotoki.eu`, Umami), and
-  nothing inline.
+  (its script, its frame and its style - fetched only after a press on the
+  IAM's Google button) and the family's visitor counter
+  (`https://umami.anotoki.eu`, Umami), and nothing inline.
 
 The policy is why `angular.json` turns off critical-CSS inlining in the
 production build: its stylesheet loader is an inline `onload` handler, which

@@ -100,6 +100,13 @@ after the upload: it brings 020 (the IAM's facts for the pages), 021 (two
 Slovak buttons informal) and the library's translations 005-009; until then
 the facts show as their keys.
 
+anotoki-lib 0.6.1 and migration 022 bring Google only on a press: the IAM's
+own Google button first, Google's script only after somebody presses it.
+Apply right after the upload: it brings 022 (the button's words, and the
+Privacy page's sentence about Google) and the library's translations 010 (the
+Privacy page's sentence on where the backups are); until then the button
+shows its key (`google.signIn`).
+
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 with no address - never a `localhost` one there. Admin panel →
 Applications → the site, `{site}` being its https address: redirect URI

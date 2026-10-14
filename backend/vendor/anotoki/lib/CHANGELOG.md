@@ -5,6 +5,24 @@ and the npm package `@anotoki/lib` (`angular/projects/lib/package.json`). While 
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.6.1 - 2026-10-14
+
+**The Privacy page's backups, made true** (found by the IAM's site pass of 0.6.0): the two sentences on where the
+backups are said the copies "stay on the site's own server", but an administrator may download one from the Backups
+page and keep it elsewhere - the IAM's operations guide asks its owner to. `anotoki.legal.backupsWherePlain` and
+`anotoki.legal.backupsWhereEncrypted` now say so ("... an administrator may also keep a downloaded copy elsewhere", the
+encrypted one "encrypted the same way"), in English and the impersonal Slovak.
+
+- `anotoki_translations/010_backups_where_words.sql` rewords each of the four strings only while it is still 005's
+  word for word - a site that reworded either sentence on its Translations page keeps its words -, and its gate checks
+  that both keys have English and that no string is left in 005's words. The Angular half's built-in words follow
+  (`bun run words`).
+- Tests: PHPUnit - 010 on a database in 005's words, with a site's own Slovak kept, and its gate; Vitest - the Privacy
+  page says the new words.
+
+What a site must do: apply `anotoki_translations/010` on the Migrations page with the rest of 0.6.0's set (on a site
+that applied 005 already, until then the page reads the old sentence).
+
 ## 0.6.0 - 2026-10-14
 
 **The legal pages** (the first part of 0.6.0; the owner's decisions of 2026-10-13): **Terms**, **Privacy** and

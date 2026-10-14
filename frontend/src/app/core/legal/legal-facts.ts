@@ -113,7 +113,9 @@ export function iamLegalFacts(i18n: TranslationService, secure: boolean): LegalF
       // "To be named" until the owner names the hosting company and the mail service (PHP's mail() on the host, config/mail.php).
       { preset: 'hosting' },
       { preset: 'cloudflare' },
-      // Google's button is loaded from Google wherever it is drawn: the library's words would say "only if you choose".
+      // Nothing is loaded from Google until somebody presses the IAM's own button (ui/google-button, 2026-10-14); that
+      // press already lets Google see the browser, before anybody chooses an account - which the library's words
+      // ("only if you choose to sign in with Google") would leave out.
       { preset: 'google', role: i18n.t('legal.google.role') },
       { preset: 'mail', role: i18n.t('legal.mail.role') },
     ],

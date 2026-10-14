@@ -22,7 +22,7 @@
     "@angular/core": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
-    "@anotoki/lib": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.6.0/anotoki-lib-0.6.0.tgz",
+    "@anotoki/lib": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.6.1/anotoki-lib-0.6.1.tgz",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

@@ -69,9 +69,10 @@ const MOVED_KEYS = [
 
 /**
  * The keys the IAM's own files after 017 write - 019's, the authenticator's
- * pause, and 020's, the legal pages' facts: applying all that waits after 016
- * brings them too, and their own files' tests hold them
- * (authenticator-pause.test.php, legal-pages-strings.test.php). A later file
+ * pause, 020's, the legal pages' facts, and 022's, the IAM's own Google
+ * button: applying all that waits after 016 brings them too, and their own
+ * files' tests hold them (authenticator-pause.test.php,
+ * legal-pages-strings.test.php, google-button-strings.test.php). A later file
  * that adds keys adds them here - this test holds 017 and the library's set.
  */
 const LATER_PAGE_KEYS = [
@@ -89,6 +90,7 @@ const LATER_PAGE_KEYS = [
     'legal.backups.kept', 'legal.storage.session.purpose', 'legal.storage.session.kept', 'legal.storage.device.purpose', 'legal.storage.device.kept',
     'legal.storage.remembered.purpose', 'legal.storage.remembered.kept', 'legal.storage.tabLanguage.purpose', 'legal.storage.drafts.purpose',
     'legal.storage.untilTabClosed', 'legal.google.role', 'legal.mail.role',
+    'google.signIn', 'google.signUp', 'google.continue', 'google.frame', 'google.ready', 'google.failed',
 ];
 const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticatorPaused.greeting', 'mail.authenticatorPaused.intro', 'mail.authenticatorPaused.ignore'];
 

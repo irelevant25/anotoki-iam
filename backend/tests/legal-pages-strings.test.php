@@ -20,6 +20,11 @@
  * administrator can reword. Where the pages' links go - the account page,
  * the operator, Cloudflare, Google - is the code's (frontend
  * core/legal/legal-facts.ts and the library), never a string's.
+ *
+ * A later file rewords one of 020's strings: 022 says that Google is
+ * contacted only when somebody presses the button (legal.google.role;
+ * google-button-strings.test.php holds it). A fresh IAM has 022's words
+ * there, so an IAM built only through 020 is compared with it on the rest.
  */
 
 declare(strict_types=1);
@@ -32,6 +37,8 @@ bootTests();
 const LEGAL_MIGRATION = '020_legal_pages.sql';
 const BEFORE_LEGAL = '019_authenticator_pause.sql';
 const LEGAL_KEY_COUNT = 70;
+/** 020's keys a later file rewords (022: Google only on a press) - their strings and description are that file's on a fresh IAM. */
+const LATER_REWORDED_LEGAL = ['legal.google.role'];
 /** The sign-in pages' sky, brand.point3: what 006 wrote, and what 020 makes of it - English, Slovak. */
 const SKY_BEFORE = ['Nothing is shared with anybody outside anotoki.', 'Nič sa nezdieľa s nikým mimo anotoki.'];
 const SKY_AFTER = ['Nothing is sold or used for ads; Privacy says who else handles data.', 'Nič sa nepredáva ani nepoužíva na reklamu; kto ďalší spracúva údaje, nájdeš v Súkromí.'];
@@ -133,7 +140,9 @@ test('an IAM built through 019, as its owner left it: 020 adds its keys and stri
 
     $result = applyMigrationsThrough($pdo, LEGAL_MIGRATION);
     same([[LEGAL_MIGRATION], null], [$result['applied'], $result['failed']], '020 applied, its gate passed - a saved string in 006\'s words is no failure (' . ($result['error'] ?? '') . ')');
-    same(legalStrings(iamDb()), legalStrings($pdo), 'every key, description and string as on a fresh IAM');
+    $later = array_flip(LATER_REWORDED_LEGAL);
+    same(array_diff_key(legalStrings(iamDb()), $later), array_diff_key(legalStrings($pdo), $later), 'every key, description and string as on a fresh IAM - but for what a later file rewords');
+    check(str_contains((string) legalStrings($pdo)['legal.google.role'][1], 'your browser loads the button from Google'), 'which holds 020\'s own words here: the button loaded wherever it is drawn');
     same([[SKY_BEFORE[0], $owner], ['Nič nepredávame, nikomu.', $owner]], skyRows($pdo), 'the owner\'s choices as the owner saved them, by the owner: 006\'s English kept, the Slovak reworded kept');
     same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name = 'common.save' AND language_code = 'sk'")->fetchColumn(), 'and the Slovak string the owner blanked stays blank');
 });

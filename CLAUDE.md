@@ -277,7 +277,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   more) come from its migration set
   `anotoki_translations`, which runs after the IAM's set everywhere
   (`iamMigrator()`), is recorded in `migrations` as `set/name`, and writes a
-  key's strings only where the key has none. Migration 017 moved `lang.label` /
+  key's strings only where the key has none - but for 0.6.1's 010, which
+  rewords the Privacy page's two `anotoki.legal.backupsWhere*` sentences while
+  each is still 005's word for word (no site can have saved 005's very words
+  before it: every site applies 005 and 010 in the same Apply). Migration 017 moved `lang.label` /
   `lang.button` there and renamed `sessions.*.other` to `.unknown`; once it is
   applied, no build from before it goes on the host again (it would show
   those four as keys). Both route groups stay behind `requireAdmin()`; the
@@ -441,7 +444,7 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): 0.6.0,
+  halves, updated together where both change (`docs/operations.md`): 0.6.1,
   both halves (the migrations module, the translations module, the UI kit,
   the admin tools, the pages' error reporter, the legal pages; never 0.4.0,
   which fails on PHP 8.2). Never
@@ -534,7 +537,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.6.0), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.6.1), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they
@@ -544,6 +547,21 @@ a decision for `docs/decisions.md`, not a refactor.
   `anotoki-button--primary`): a spec or a browser check reads those names.
   Build on it; a piece it lacks goes to the library.
   `frontend/src/app/ui/` keeps the IAM's own (`google-button`).
+- **Google only on a press** (the owner's decision of 2026-10-14;
+  `docs/decisions.md`): the sign-in, sign-up and account pages draw the IAM's
+  own button (`ui/google-button`: a real `<button>` in Google's branding, the
+  "G" drawn by the page, the IAM's words `google.*`) and ask nothing of Google
+  until somebody presses it. Only that press calls
+  `GoogleSignInService.load()` - Google's script, once a page life - and
+  draws Google's own button in its place, whose press opens Google's chooser;
+  a live region says it is ready, and the focus goes onto the frame around it
+  (the next Tab is Google's button). No script - blocked, offline, not within
+  15 seconds - leaves the IAM's button and a line under it. The id token and
+  the server's check are as before; the Privacy page says so (migration
+  022's `legal.google.role`). Never load Google's script as a page opens.
+  Once 022 is applied, no build from before it goes on the host again (it
+  would load Google's script as each page opens, while the Privacy page says
+  only a press does); fix forward.
 - Pages: the sign-in flow (`/login`, `/register`, `/confirm-email`,
   `/forgot-password`, `/reset-password`, `/logout`, `/error`, `/not-set-up`),
   the account page (`/account/**`, the family's frame at `maxWidth="88rem"`),
@@ -594,7 +612,9 @@ a decision for `docs/decisions.md`, not a refactor.
   segments).
 - Zoneless and signals-first; OnPush everywhere; no UI library but the
   family's. Colours only from the family's `--anotoki-*` custom properties
-  (written for light and dark by `styles.scss`) and the sign-in pages' night sky.
+  (written for light and dark by `styles.scss`), the sign-in pages' night sky,
+  and Google's own on the IAM's Google button (its branding: the "G", Google's
+  light and dark fill, stroke and words - `ui/google-button`).
   Every page works at 390 px (360 px for the top bar).
 - The auth and account pages' words, and the mails', are rows in the
   database (`languages`, `translation_keys`, `translations`, migration 006),

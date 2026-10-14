@@ -114,10 +114,13 @@ runs after the IAM's files.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
   that no migration wrote. It also counts what the migrations leave (after
-  021 and the library's sets: 871 keys - 562 of the pages, 52 of the mails, 257
-  of the library's - 1742 strings): a migration that adds or removes keys
+  022 and the library's sets: 877 keys - 568 of the pages, 52 of the mails, 257
+  of the library's - 1754 strings): a migration that adds or removes keys
   moves those numbers, and `tests/top-bar-strings.test.php` is the pattern for
-  testing one on an installed IAM. A migration test that builds a database
+  testing one on an installed IAM. A test that holds an IAM built through an
+  earlier file to a fresh one leaves out what a later file rewords
+  (`legal-pages-strings.test.php`'s `LATER_REWORDED_LEGAL`: 022's sentence
+  about Google). A migration test that builds a database
   "up to" its file and applies what is pending applies every later file too
   - the library's set included - so assert on its own file
   (`applyMigrationsThrough()`, or `['applied'][0]`), not on the list.

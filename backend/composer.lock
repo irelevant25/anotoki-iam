@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "anotoki/lib",
-            "version": "v0.6.0",
+            "version": "v0.6.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/irelevant25/anotoki-lib.git",
-                "reference": "98039e5be8188cc80ee757b566a85192feb25dec"
+                "reference": "0327cd1292a7f0933b490e187236fa9c0deb34fb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/98039e5be8188cc80ee757b566a85192feb25dec",
-                "reference": "98039e5be8188cc80ee757b566a85192feb25dec",
+                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/0327cd1292a7f0933b490e187236fa9c0deb34fb",
+                "reference": "0327cd1292a7f0933b490e187236fa9c0deb34fb",
                 "shasum": ""
             },
             "require": {
@@ -61,10 +61,10 @@
             "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes), the translations (the schema, the words' routes and the command line), signing in (the IAM's tokens, who a request is, the boot configuration, a stand-in IAM for tests) and people (the site's record of them and the GDPR scrub). The Angular half is @anotoki/lib.",
             "homepage": "https://github.com/irelevant25/anotoki-lib",
             "support": {
-                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.6.0",
+                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.6.1",
                 "issues": "https://github.com/irelevant25/anotoki-lib/issues"
             },
-            "time": "2026-10-14T13:25:41+00:00"
+            "time": "2026-10-14T18:53:36+00:00"
         },
         {
             "name": "fig/http-message-util",

@@ -97,6 +97,13 @@ public address - `http://localhost:4300` for development, and the hosted https
 address. No redirect URI is needed: Google Identity Services hands the browser
 an id token.
 
+The pages draw the IAM's own "Sign in with Google" button (in Google's
+branding) and ask nothing of Google until somebody presses it (the owner's
+decision of 2026-10-14): the press fetches Google's script - once a visit - and
+puts Google's own button in its place, and a press on that opens Google's
+account chooser. A browser that cannot reach Google keeps the IAM's button,
+with a line under it saying so.
+
 ### Behind Cloudflare (or another proxy)
 
 Every sign-in limit counts failures per address, the audit log keeps the
@@ -513,6 +520,19 @@ keys - so Apply right after the upload. The hosting company and the mail
 service are "to be named" on the Privacy page until the owner names them
 (`frontend/src/app/core/legal/legal-facts.ts`, `processors`).
 
+**anotoki-lib 0.6.1** (both halves) and migration **022**, at the end of round
+3: Google only on a press - the sign-in, sign-up and account pages draw the
+IAM's own Google button and fetch Google's script only when somebody presses it
+(the owner's decision of 2026-10-14). Upload, then Apply on the Migrations
+page: it brings 022 (that button's words, in English and Slovak, and the
+Privacy page's sentence about Google made true: only a press loads anything
+from Google) and the library's translations 010 (the Privacy page's sentence
+on where the backups are: an administrator may keep a downloaded copy
+elsewhere). Until then the button shows its keys (`google.signIn`) - so Apply
+right after the upload. **Once 022 is applied, a build from before it never
+goes on the host again** - it would load Google's script as each page opens,
+while the Privacy page says only a press does; fix forward.
+
 ### The family's library (anotoki/lib)
 
 What the anotoki sites share lives in one library,
@@ -531,8 +551,8 @@ the audit log and backups (a migration set of its own, `anotoki_admin`,
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
 styles and palette, its components, the top bar and the frame, and the legal
-pages. The IAM is on 0.6.0, both halves (`composer.json`'s `^0.6.0`, the lock
-on v0.6.0, and the 0.6.0 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+pages. The IAM is on 0.6.1, both halves (`composer.json`'s `^0.6.0`, the lock
+on v0.6.1, and the 0.6.1 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/php/migrations`, `/php/resources`),
 which `build-dist.php` uploads with the rest of `vendor/` and which are denied
@@ -878,6 +898,8 @@ php tests/run.php                          # every test, against throwaway datab
 | An announcement stopped going out half-way | Its page was closed: it is sent only while the page is open - open it (Announcements → it) and press Continue sending. Waiting "for the host's hourly allowance" is `hourly_limit` at work; it goes on by itself |
 | Announcement mails "failed", or never arrive | The host refused them: its hourly limit (set `hourly_limit`), or the sender is not a real mailbox on the hosted domain. Each person's status is on the announcement's page, and the Email log has every mail |
 | Somebody gets no announcements | They did not tick "Send me news" when they signed up (or signed up with Google from the sign-in page, where nobody is asked), they stopped the news (the link at the end of one, or the switch on their account page - the audit log says which: `account.news_mail`), their address is not confirmed, they wait for approval, or they are switched off |
-| Google button missing | No `google.local.php`, the switch is off, or the page's origin is not an authorised JavaScript origin of the client. |
+| Google button missing | No `google.local.php`, or the switch is off (Settings). |
+| "Google could not be reached" under the Google button | A press could not fetch Google's script: the browser blocks `accounts.google.com` (an extension, a network's filter) or is offline. The other ways in work; another press tries again. |
+| Google's own button does not come after a press, or its window refuses | The page's origin is not an authorised JavaScript origin of the client, or the client id in `google.local.php` is wrong. |
 | The pages are English only, with no language switcher, after an upload | A migration with the words is pending: `/api/translations/...` answers 503 `translations_unavailable`. Admin panel → Migrations → Apply pending. |
 | A page shows a key (`login.title`) where a word should be | The key has no string in the database: a migration that adds it is pending, or its English row was removed by hand. `php translations.php --status` on a copy names it. |

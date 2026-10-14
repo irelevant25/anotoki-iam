@@ -191,6 +191,8 @@ describe('the legal pages, as the IAM fills them in', () => {
     ]);
     expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name')).toEqual(['The hosting company (to be named)', 'Cloudflare, Inc.', 'Google', 'The mail service (to be named)']);
     expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name + p')[2]).toBe(en['legal.google.role']);
+    // Google is contacted only when somebody presses the button (ui/google-button; the owner's decision of 2026-10-14).
+    expect(en['legal.google.role']).toMatch(/^Only when you press "Sign in with Google".* does your browser load anything from Google/);
     expect(host.querySelector('[data-section="account"]')?.textContent).toContain('This site is the anotoki account itself');
     expect(host.querySelector('[data-account-privacy]')).toBeNull();
 
