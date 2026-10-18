@@ -113,8 +113,7 @@ $files = iamMigrationFiles($migrator);
 $pending = array_map($label, $status['pending']);
 
 foreach ($status['missing'] as $record) {
-    say('red', '  ! ' . $label($record) . ' is recorded as applied but is not '
-        . ($record['set'] === iamMigrationSet()->name ? 'in migrations/iam/' : "among the files of the set {$record['set']}"));
+    say('red', '  ! ' . $label($record) . ' is recorded as applied but is not ' . ($record['set'] === iamMigrationSet()->name ? 'in migrations/iam/' : "among the files of the set {$record['set']}"));
 }
 
 if ($statusOnly) {

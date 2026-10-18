@@ -55,7 +55,7 @@ if (in_array('--dev', $argv, true)) {
     $iam = $pdo->query("SELECT id, home_url FROM applications WHERE client_id = 'iam'")->fetch();
     if ($iam && ($iam['home_url'] === null || onThisComputer($iam['home_url'])) && $iam['home_url'] !== iamIssuer()) {
         $home->execute([iamIssuer(), $iam['id']]);
-        echo "  iam: home is " . iamIssuer() . "\n";
+        echo '  iam: home is ' . iamIssuer() . "\n";
     }
 
     foreach (DEV_CLIENTS as $clientId => $frontend) {
@@ -121,14 +121,12 @@ foreach ($pdo->query('SELECT * FROM applications ORDER BY sort_order, client_id'
     // access - worth reading before uploading the build that brings 010,
     // whose header says what it makes of a members-only application.
     $rules = array_key_exists('login_required', $application);
-    $who = !$rules ? "access: {$application['access']}"
-        : ($application['system'] ? 'the IAM itself' : 'sign-in required: ' . ($application['login_required'] ? 'yes' : 'no'));
+    $who = !$rules ? "access: {$application['access']}" : ($application['system'] ? 'the IAM itself' : 'sign-in required: ' . ($application['login_required'] ? 'yes' : 'no'));
     // Every client is public since 011; one that is not yet is worth a word
     // before that migration is applied (it will have to use PKCE).
     $type = $application['type'] === 'public' ? '' : ", {$application['type']} - 011 makes it public";
-    echo "\n{$application['client_id']}  ({$application['name']}{$type}, {$who}"
-        . ($application['enabled'] ? '' : ', DISABLED') . ")\n";
-    echo "  home: " . ($application['home_url'] ?? '-') . "\n";
+    echo "\n{$application['client_id']}  ({$application['name']}{$type}, {$who}" . ($application['enabled'] ? '' : ', DISABLED') . ")\n";
+    echo '  home: ' . ($application['home_url'] ?? '-') . "\n";
 
     if ($rules && !$application['system']) {
         $maySignIn = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? AND may_sign_in ORDER BY name');

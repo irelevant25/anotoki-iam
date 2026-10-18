@@ -35,7 +35,7 @@ function rolesOf(PDO $pdo, int $userId): array
         'SELECT a.client_id, r.name AS role FROM user_roles ur
            JOIN application_roles r ON r.id = ur.role_id
            JOIN applications a ON a.id = r.application_id
-          WHERE ur.user_id = ? ORDER BY a.sort_order, a.client_id, r.name'
+          WHERE ur.user_id = ? ORDER BY a.sort_order, a.client_id, r.name',
     );
     $statement->execute([$userId]);
 
@@ -75,7 +75,9 @@ function adminUserSelect(PDO $pdo): string
     $deletion = accountDeletionReady($pdo);
     $blockedIn = signInRulesReady($pdo)
         ? "COALESCE((SELECT json_agg(a.client_id ORDER BY a.sort_order, a.client_id) FROM applications a
-                      WHERE a.system = FALSE AND a.enabled AND " . blockedFromSql('u', 'a') . "), '[]')"
+                      WHERE a.system = FALSE AND a.enabled AND " .
+            blockedFromSql('u', 'a') .
+            "), '[]')"
         : "'[]'";
     if ($deletion) {
         $blockedIn = "CASE WHEN u.anonymized_at IS NOT NULL THEN '[]' ELSE {$blockedIn} END";
@@ -146,9 +148,7 @@ function adminUserDetail(PDO $pdo, int $id): ?array
     $identities = $pdo->prepare('SELECT id, provider, email, created_at FROM user_identities WHERE user_id = ? ORDER BY id');
     $identities->execute([$id]);
 
-    $attempts = $pdo->prepare(
-        'SELECT id, email, ip, method, outcome, created_at FROM login_attempts WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 50'
-    );
+    $attempts = $pdo->prepare('SELECT id, email, ip, method, outcome, created_at FROM login_attempts WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 50');
     $attempts->execute([$id]);
 
     $sessions = array_map(static fn(array $row): array => sessionEntry($row), sessionsFor($pdo, $id));
@@ -203,7 +203,7 @@ function grantsIamAdmin(PDO $pdo, array $roleIds): bool
     $placeholders = implode(',', array_fill(0, count($roleIds), '?'));
     $statement = $pdo->prepare(
         "SELECT 1 FROM application_roles r JOIN applications a ON a.id = r.application_id
-          WHERE r.id IN ($placeholders) AND a.client_id = ? AND r.name = 'ADMIN'"
+          WHERE r.id IN ($placeholders) AND a.client_id = ? AND r.name = 'ADMIN'",
     );
     $statement->execute([...$roleIds, IAM_CLIENT_ID]);
 
@@ -241,8 +241,10 @@ function switchOffAccount(PDO $pdo, int $id): ?array
     }
 
     revokeSessionsFor($pdo, $id, SESSION_REVOKED_DISABLED);
-    $pdo->prepare("UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'account_disabled'
-                    WHERE user_id = ? AND revoked_at IS NULL")->execute([$id]);
+    $pdo->prepare(
+        "UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'account_disabled'
+                    WHERE user_id = ? AND revoked_at IS NULL",
+    )->execute([$id]);
 
     return null;
 }
@@ -254,22 +256,26 @@ function switchOffAccount(PDO $pdo, int $id): ?array
  */
 function waitingAccounts(PDO $pdo): array
 {
-    $rows = $pdo->query(
-        'SELECT id, username, email, email_confirmed, created_at FROM users
-          WHERE NOT approved AND NOT disabled ORDER BY created_at, id'
-    )->fetchAll();
+    $rows = $pdo
+        ->query(
+            'SELECT id, username, email, email_confirmed, created_at FROM users
+          WHERE NOT approved AND NOT disabled ORDER BY created_at, id',
+        )
+        ->fetchAll();
 
-    return array_map(static fn(array $row): array => [
-        'user_id' => (int) $row['id'],
-        'username' => $row['username'],
-        'email' => $row['email'],
-        'email_confirmed' => asBool($row['email_confirmed']),
-        'created_at' => isoTime($row['created_at']),
-    ], $rows);
+    return array_map(
+        static fn(array $row): array => [
+            'user_id' => (int) $row['id'],
+            'username' => $row['username'],
+            'email' => $row['email'],
+            'email_confirmed' => asBool($row['email_confirmed']),
+            'created_at' => isoTime($row['created_at']),
+        ],
+        $rows,
+    );
 }
 
 $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
-
     // ── Overview ─────────────────────────────────────────────────────────────
 
     $group->get('/stats', function (Request $request, Response $response) {
@@ -333,9 +339,12 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         // With a role, MEMBER included, exactly that role.
         if (($clientId = field($query, 'application')) !== '') {
             $role = strtoupper(field($query, 'role'));
-            $where[] = 'EXISTS (SELECT 1 FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
+            $where[] =
+                'EXISTS (SELECT 1 FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
                                  JOIN applications a ON a.id = r.application_id
-                                WHERE ur.user_id = u.id AND a.client_id = ?' . ($role !== '' ? ' AND r.name = ?' : " AND r.name <> 'MEMBER'") . ')';
+                                WHERE ur.user_id = u.id AND a.client_id = ?' .
+                ($role !== '' ? ' AND r.name = ?' : " AND r.name <> 'MEMBER'") .
+                ')';
             $params[] = $clientId;
             if ($role !== '') {
                 $params[] = $role;
@@ -442,7 +451,7 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             // will be sent the password.
             $insert = $pdo->prepare(
                 'INSERT INTO users (username, email, password, email_confirmed, language, force_password_change)
-                 VALUES (?, ?, ?, TRUE, ?, ?) RETURNING id'
+                 VALUES (?, ?, ?, TRUE, ?, ?) RETURNING id',
             );
             $insert->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $language, pgBool(!empty($body['force_password_change']))]);
             $id = (int) $insert->fetchColumn();
@@ -656,9 +665,15 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
         $approved = approveAccount($pdo, $id);
         if ($approved === null) {
-            return respondError($response, 409, 'not_waiting', $target['username'] . (accountAwaitsApproval($target) && asBool($target['disabled'])
-                ? ' is switched off - switch the account on first, and it waits for approval again'
-                : ' is not waiting for approval'));
+            return respondError(
+                $response,
+                409,
+                'not_waiting',
+                $target['username'] .
+                    (accountAwaitsApproval($target) && asBool($target['disabled'])
+                        ? ' is switched off - switch the account on first, and it waits for approval again'
+                        : ' is not waiting for approval'),
+            );
         }
         audit($request, (int) actor($request)['id'], 'user.approved', 'user', $id);
 
@@ -691,7 +706,13 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             return respondError($response, 409, 'not_waiting', $target['username'] . (asBool($target['disabled']) ? ' is switched off already' : ' is not waiting for approval'));
         }
         if (!asBool($target['email_confirmed'])) {
-            return respondError($response, 409, 'not_confirmed', $target['username'] . '\'s address is not confirmed: whoever registered it may not own it, and declining would keep its owner out. It cannot sign in until the address is confirmed anyway');
+            return respondError(
+                $response,
+                409,
+                'not_confirmed',
+                $target['username'] .
+                    '\'s address is not confirmed: whoever registered it may not own it, and declining would keep its owner out. It cannot sign in until the address is confirmed anyway',
+            );
         }
         if ($refusal = switchOffAccount($pdo, $id)) {
             return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
@@ -824,7 +845,7 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
                     COALESCE((SELECT json_agg(DISTINCT a.name) FROM refresh_tokens rt JOIN applications a ON a.id = rt.application_id
                                WHERE rt.session_id = s.id), '[]') AS applications
                FROM sessions s JOIN users u ON u.id = s.user_id
-              WHERE $filter ORDER BY s.created_at DESC, s.id DESC LIMIT 200"
+              WHERE $filter ORDER BY s.created_at DESC, s.id DESC LIMIT 200",
         );
         $statement->execute($params);
 
@@ -832,11 +853,14 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         $counted->execute($params);
 
         return respondJson($response, [
-            'sessions' => array_map(static fn(array $row): array => sessionEntry($row) + [
-                'user_id' => (int) $row['user_id'],
-                'username' => $row['username'],
-                'email' => $row['email'],
-            ], $statement->fetchAll()),
+            'sessions' => array_map(
+                static fn(array $row): array => sessionEntry($row) + [
+                    'user_id' => (int) $row['user_id'],
+                    'username' => $row['username'],
+                    'email' => $row['email'],
+                ],
+                $statement->fetchAll(),
+            ),
             'total' => (int) $counted->fetchColumn(),
             'active' => (int) $pdo->query("SELECT count(*) FROM sessions s WHERE $live")->fetchColumn(),
             'methods' => $pdo->query('SELECT DISTINCT method FROM sessions ORDER BY method')->fetchAll(PDO::FETCH_COLUMN),
@@ -906,7 +930,8 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         $rows = $pdo->prepare(
             "SELECT e.id, e.recipient, e.kind, e.subject, e.status, e.error, e.user_id, u.username, e.created_at
                FROM email_log e LEFT JOIN users u ON u.id = e.user_id
-             $sql ORDER BY e.created_at DESC, e.id DESC LIMIT $size OFFSET " . (($page - 1) * $size)
+             $sql ORDER BY e.created_at DESC, e.id DESC LIMIT $size OFFSET " .
+                ($page - 1) * $size,
         );
         $rows->execute($params);
 
@@ -930,244 +955,248 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     // left. The draft is checked the same way for a preview, a test and Send
     // (announcementDraft()).
 
-    $group->group('', function (\Slim\Routing\RouteCollectorProxy $news) {
+    $group
+        ->group('', function (\Slim\Routing\RouteCollectorProxy $news) {
+            // What was sent, newest first, fifty a page.
+            $news->get('/announcements', function (Request $request, Response $response) {
+                $pdo = iamDb();
+                $page = min(max(1, (int) ($request->getQueryParams()['page'] ?? 1)), 100000);
+                $size = 50;
+                $rows = $pdo->query(ANNOUNCEMENT_SELECT . " ORDER BY a.created_at DESC, a.id DESC LIMIT $size OFFSET " . ($page - 1) * $size)->fetchAll();
 
-        // What was sent, newest first, fifty a page.
-        $news->get('/announcements', function (Request $request, Response $response) {
-            $pdo = iamDb();
-            $page = min(max(1, (int) ($request->getQueryParams()['page'] ?? 1)), 100000);
-            $size = 50;
-            $rows = $pdo->query(ANNOUNCEMENT_SELECT . " ORDER BY a.created_at DESC, a.id DESC LIMIT $size OFFSET " . (($page - 1) * $size))->fetchAll();
+                return respondJson($response, [
+                    'total' => (int) $pdo->query('SELECT count(*) FROM announcements')->fetchColumn(),
+                    'page' => $page,
+                    'pageSize' => $size,
+                    'items' => array_map('announcementSummary', $rows),
+                ]);
+            });
 
-            return respondJson($response, [
-                'total' => (int) $pdo->query('SELECT count(*) FROM announcements')->fetchColumn(),
-                'page' => $page,
-                'pageSize' => $size,
-                'items' => array_map('announcementSummary', $rows),
-            ]);
-        });
+            // Everything the composer starts from: the templates' words in every
+            // language on offer, the languages, the senders, the sites and their
+            // roles, and the administrator's own address - where a test goes.
+            $news->get('/announcements/compose', function (Request $request, Response $response) {
+                $pdo = iamDb();
+                $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? ORDER BY name');
+                $applications = [];
+                foreach ($pdo->query('SELECT id, client_id, name, home_url, system, enabled FROM applications ORDER BY sort_order, name')->fetchAll() as $application) {
+                    $roles->execute([(int) $application['id']]);
+                    $applications[] = [
+                        'client_id' => $application['client_id'],
+                        'name' => $application['name'],
+                        'home_url' => $application['home_url'],
+                        'system' => asBool($application['system']),
+                        'enabled' => asBool($application['enabled']),
+                        'roles' => $roles->fetchAll(PDO::FETCH_COLUMN),
+                    ];
+                }
 
-        // Everything the composer starts from: the templates' words in every
-        // language on offer, the languages, the senders, the sites and their
-        // roles, and the administrator's own address - where a test goes.
-        $news->get('/announcements/compose', function (Request $request, Response $response) {
-            $pdo = iamDb();
-            $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? ORDER BY name');
-            $applications = [];
-            foreach ($pdo->query('SELECT id, client_id, name, home_url, system, enabled FROM applications ORDER BY sort_order, name')->fetchAll() as $application) {
-                $roles->execute([(int) $application['id']]);
-                $applications[] = [
-                    'client_id' => $application['client_id'],
-                    'name' => $application['name'],
-                    'home_url' => $application['home_url'],
-                    'system' => asBool($application['system']),
-                    'enabled' => asBool($application['enabled']),
-                    'roles' => $roles->fetchAll(PDO::FETCH_COLUMN),
-                ];
-            }
+                $languages = array_values(array_filter(iamTranslations($pdo)->languages(), static fn(array $language): bool => $language['enabled']));
+                usort($languages, static fn(array $a, array $b): int => ($b['code'] === TRANSLATION_FALLBACK) <=> ($a['code'] === TRANSLATION_FALLBACK));
 
-            $languages = array_values(array_filter(iamTranslations($pdo)->languages(), static fn(array $language): bool => $language['enabled']));
-            usort($languages, static fn(array $a, array $b): int => ($b['code'] === TRANSLATION_FALLBACK) <=> ($a['code'] === TRANSLATION_FALLBACK));
+                return respondJson($response, [
+                    'templates' => announcementTemplates($pdo),
+                    'languages' => array_map(static fn(array $language): array => ['code' => $language['code'], 'name' => $language['name'], 'native_name' => $language['native_name']], $languages),
+                    'senders' => announcementSenders($pdo),
+                    'applications' => $applications,
+                    'email' => actor($request)['email'],
+                    'limits' => ANNOUNCEMENT_FIELDS + ['link' => ANNOUNCEMENT_LINK_MAX, 'people' => ANNOUNCEMENT_PEOPLE_MAX],
+                    // How fast it may go: the composer says so when mail really
+                    // leaves and no hourly limit is named - an announcement could
+                    // then use up what the host allows, codes and resets with it.
+                    'pacing' => ['driver' => (string) (mailConfig()['driver'] ?? 'file'), 'hourly_limit' => announcementHourlyLimit()],
+                ]);
+            });
 
-            return respondJson($response, [
-                'templates' => announcementTemplates($pdo),
-                'languages' => array_map(static fn(array $language): array => ['code' => $language['code'], 'name' => $language['name'], 'native_name' => $language['native_name']], $languages),
-                'senders' => announcementSenders($pdo),
-                'applications' => $applications,
-                'email' => actor($request)['email'],
-                'limits' => ANNOUNCEMENT_FIELDS + ['link' => ANNOUNCEMENT_LINK_MAX, 'people' => ANNOUNCEMENT_PEOPLE_MAX],
-                // How fast it may go: the composer says so when mail really
-                // leaves and no hourly limit is named - an announcement could
-                // then use up what the host allows, codes and resets with it.
-                'pacing' => ['driver' => (string) (mailConfig()['driver'] ?? 'file'), 'hourly_limit' => announcementHourlyLimit()],
-            ]);
-        });
+            // {audience}: how many it reaches, and why the others are left out.
+            $news->post('/announcements/audience', function (Request $request, Response $response) {
+                $pdo = iamDb();
+                $audience = announcementAudience($pdo, requestBody($request)['audience'] ?? null);
+                if (translationRefused($audience)) {
+                    return translationRefuse($response, $audience);
+                }
 
-        // {audience}: how many it reaches, and why the others are left out.
-        $news->post('/announcements/audience', function (Request $request, Response $response) {
-            $pdo = iamDb();
-            $audience = announcementAudience($pdo, requestBody($request)['audience'] ?? null);
-            if (translationRefused($audience)) {
-                return translationRefuse($response, $audience);
-            }
+                return respondJson($response, announcementAudienceCount($pdo, $audience));
+            });
 
-            return respondJson($response, announcementAudienceCount($pdo, $audience));
-        });
+            // A draft and a language: the mail a reader of that language would
+            // get - its own version, or the English one. The link to stop the
+            // news leads to the page without a token.
+            $news->post('/announcements/preview', function (Request $request, Response $response) {
+                $pdo = iamDb();
+                $body = requestBody($request);
+                $language = field($body, 'language') ?: TRANSLATION_FALLBACK;
+                if (!in_array($language, languageCodes($pdo), true)) {
+                    return respondError($response, 422, 'unknown_language', 'The IAM does not offer that language');
+                }
+                $draft = announcementDraft($pdo, $body, $language);
+                if (translationRefused($draft)) {
+                    return translationRefuse($response, $draft);
+                }
 
-        // A draft and a language: the mail a reader of that language would
-        // get - its own version, or the English one. The link to stop the
-        // news leads to the page without a token.
-        $news->post('/announcements/preview', function (Request $request, Response $response) {
-            $pdo = iamDb();
-            $body = requestBody($request);
-            $language = field($body, 'language') ?: TRANSLATION_FALLBACK;
-            if (!in_array($language, languageCodes($pdo), true)) {
-                return respondError($response, 422, 'unknown_language', 'The IAM does not offer that language');
-            }
-            $draft = announcementDraft($pdo, $body, $language);
-            if (translationRefused($draft)) {
-                return translationRefuse($response, $draft);
-            }
+                return respondJson(
+                    $response,
+                    announcementDraftMessage($draft, $language, iamPageUrl('/unsubscribe')) + [
+                        'sender' => ['address' => $draft['sender']['address'], 'name' => $draft['sender']['name']],
+                    ],
+                );
+            });
 
-            return respondJson($response, announcementDraftMessage($draft, $language, iamPageUrl('/unsubscribe')) + [
-                'sender' => ['address' => $draft['sender']['address'], 'name' => $draft['sender']['name']],
-            ]);
-        });
+            // The same, to the administrator's own address - and to nobody else's,
+            // so that this is never a way to mail anybody anything.
+            $news->post('/announcements/test', function (Request $request, Response $response) {
+                $pdo = iamDb();
+                $actor = actor($request);
+                $body = requestBody($request);
+                $language = field($body, 'language') ?: TRANSLATION_FALLBACK;
+                if (!in_array($language, languageCodes($pdo), true)) {
+                    return respondError($response, 422, 'unknown_language', 'The IAM does not offer that language');
+                }
+                $draft = announcementDraft($pdo, $body, $language);
+                if (translationRefused($draft)) {
+                    return translationRefuse($response, $draft);
+                }
+                if (!announcementTestAllowed($pdo, (int) $actor['id'])) {
+                    return respondError($response, 429, 'too_many_tests', 'That is ' . ANNOUNCEMENT_TESTS_PER_HOUR . ' tests in an hour - the next one in a little while');
+                }
 
-        // The same, to the administrator's own address - and to nobody else's,
-        // so that this is never a way to mail anybody anything.
-        $news->post('/announcements/test', function (Request $request, Response $response) {
-            $pdo = iamDb();
-            $actor = actor($request);
-            $body = requestBody($request);
-            $language = field($body, 'language') ?: TRANSLATION_FALLBACK;
-            if (!in_array($language, languageCodes($pdo), true)) {
-                return respondError($response, 422, 'unknown_language', 'The IAM does not offer that language');
-            }
-            $draft = announcementDraft($pdo, $body, $language);
-            if (translationRefused($draft)) {
-                return translationRefuse($response, $draft);
-            }
-            if (!announcementTestAllowed($pdo, (int) $actor['id'])) {
-                return respondError($response, 429, 'too_many_tests', 'That is ' . ANNOUNCEMENT_TESTS_PER_HOUR . ' tests in an hour - the next one in a little while');
-            }
+                $sent = announcementSendTest($draft, $language, $actor);
+                audit($request, (int) $actor['id'], 'announcement.tested', null, null, [
+                    'language' => isset($draft['content'][$language]) ? $language : TRANSLATION_FALLBACK,
+                    'subject' => $draft['content'][$language]['subject'] ?? $draft['content'][TRANSLATION_FALLBACK]['subject'],
+                ]);
 
-            $sent = announcementSendTest($draft, $language, $actor);
-            audit($request, (int) $actor['id'], 'announcement.tested', null, null, [
-                'language' => isset($draft['content'][$language]) ? $language : TRANSLATION_FALLBACK,
-                'subject' => $draft['content'][$language]['subject'] ?? $draft['content'][TRANSLATION_FALLBACK]['subject'],
-            ]);
+                return respondJson($response, ['sent' => $sent, 'email' => $actor['email']]);
+            });
 
-            return respondJson($response, ['sent' => $sent, 'email' => $actor['email']]);
-        });
+            // A draft and its audience: the announcement, and the list of people
+            // it goes to. Nothing is sent until the page asks for the first batch.
+            $news->post('/announcements', function (Request $request, Response $response) {
+                $pdo = iamDb();
+                $body = requestBody($request);
+                $actorId = (int) actor($request)['id'];
 
-        // A draft and its audience: the announcement, and the list of people
-        // it goes to. Nothing is sent until the page asks for the first batch.
-        $news->post('/announcements', function (Request $request, Response $response) {
-            $pdo = iamDb();
-            $body = requestBody($request);
-            $actorId = (int) actor($request)['id'];
+                $draft = announcementDraft($pdo, $body);
+                if (translationRefused($draft)) {
+                    return translationRefuse($response, $draft);
+                }
+                $audience = announcementAudience($pdo, $body['audience'] ?? null);
+                if (translationRefused($audience)) {
+                    return translationRefuse($response, $audience);
+                }
+                $created = announcementCreate($pdo, $draft, $audience, $actorId);
+                if (translationRefused($created)) {
+                    return translationRefuse($response, $created);
+                }
 
-            $draft = announcementDraft($pdo, $body);
-            if (translationRefused($draft)) {
-                return translationRefuse($response, $draft);
-            }
-            $audience = announcementAudience($pdo, $body['audience'] ?? null);
-            if (translationRefused($audience)) {
-                return translationRefuse($response, $audience);
-            }
-            $created = announcementCreate($pdo, $draft, $audience, $actorId);
-            if (translationRefused($created)) {
-                return translationRefuse($response, $created);
-            }
+                audit($request, $actorId, 'announcement.created', 'announcement', $created['id'], [
+                    'subject' => $draft['content'][TRANSLATION_FALLBACK]['subject'],
+                    'sender' => $draft['sender']['address'],
+                    'recipients' => $created['recipients'],
+                    'audience' => ['everybody' => $audience['everybody'], 'roles' => $audience['roles'], 'people' => count($audience['user_ids'])],
+                ]);
 
-            audit($request, $actorId, 'announcement.created', 'announcement', $created['id'], [
-                'subject' => $draft['content'][TRANSLATION_FALLBACK]['subject'],
-                'sender' => $draft['sender']['address'],
-                'recipients' => $created['recipients'],
-                'audience' => ['everybody' => $audience['everybody'], 'roles' => $audience['roles'], 'people' => count($audience['user_ids'])],
-            ]);
+                return respondJson($response, announcementDetail($pdo, $created['id']), 201);
+            });
 
-            return respondJson($response, announcementDetail($pdo, $created['id']), 201);
-        });
+            $news->get('/announcements/{id:[0-9]+}', function (Request $request, Response $response, array $args) {
+                $detail = announcementDetail(iamDb(), (int) $args['id']);
 
-        $news->get('/announcements/{id:[0-9]+}', function (Request $request, Response $response, array $args) {
-            $detail = announcementDetail(iamDb(), (int) $args['id']);
+                return $detail ? respondJson($response, $detail) : respondError($response, 404, 'not_found', 'Not found');
+            });
 
-            return $detail ? respondJson($response, $detail) : respondError($response, 404, 'not_found', 'Not found');
-        });
+            $news->get('/announcements/{id:[0-9]+}/recipients', function (Request $request, Response $response, array $args) {
+                $pdo = iamDb();
+                $id = (int) $args['id'];
+                if (announcementDetail($pdo, $id) === null) {
+                    return respondError($response, 404, 'not_found', 'Not found');
+                }
 
-        $news->get('/announcements/{id:[0-9]+}/recipients', function (Request $request, Response $response, array $args) {
-            $pdo = iamDb();
-            $id = (int) $args['id'];
-            if (announcementDetail($pdo, $id) === null) {
-                return respondError($response, 404, 'not_found', 'Not found');
-            }
+                return respondJson($response, announcementRecipients($pdo, $id, $request->getQueryParams()));
+            });
 
-            return respondJson($response, announcementRecipients($pdo, $id, $request->getQueryParams()));
-        });
-
-        // The next batch: the announcement as it stands after it, and `wait` -
-        // the seconds until the host's hourly allowance has room again, when
-        // it had none (announcementHourlyRoom()). One sent already answers as
-        // it is; one stopped is refused.
-        $news->post('/announcements/{id:[0-9]+}/send', function (Request $request, Response $response, array $args) {
-            $pdo = iamDb();
-            $id = (int) $args['id'];
-            $detail = announcementDetail($pdo, $id);
-
-            if ($detail === null) {
-                return respondError($response, 404, 'not_found', 'Not found');
-            }
-            if ($detail['status'] === 'stopped') {
-                return respondError($response, 409, 'stopped', 'This announcement was stopped - what was not sent then is never sent');
-            }
-            $wait = null;
-            if ($detail['status'] === 'sending') {
-                $wait = announcementSendBatch($pdo, $id)['wait'];
+            // The next batch: the announcement as it stands after it, and `wait` -
+            // the seconds until the host's hourly allowance has room again, when
+            // it had none (announcementHourlyRoom()). One sent already answers as
+            // it is; one stopped is refused.
+            $news->post('/announcements/{id:[0-9]+}/send', function (Request $request, Response $response, array $args) {
+                $pdo = iamDb();
+                $id = (int) $args['id'];
                 $detail = announcementDetail($pdo, $id);
-            }
 
-            return respondJson($response, $detail + ['wait' => $wait]);
-        });
+                if ($detail === null) {
+                    return respondError($response, 404, 'not_found', 'Not found');
+                }
+                if ($detail['status'] === 'stopped') {
+                    return respondError($response, 409, 'stopped', 'This announcement was stopped - what was not sent then is never sent');
+                }
+                $wait = null;
+                if ($detail['status'] === 'sending') {
+                    $wait = announcementSendBatch($pdo, $id)['wait'];
+                    $detail = announcementDetail($pdo, $id);
+                }
 
-        // Stopped: what is not sent yet never goes.
-        $news->post('/announcements/{id:[0-9]+}/stop', function (Request $request, Response $response, array $args) {
-            $pdo = iamDb();
-            $id = (int) $args['id'];
+                return respondJson($response, $detail + ['wait' => $wait]);
+            });
 
-            if (announcementDetail($pdo, $id) === null) {
-                return respondError($response, 404, 'not_found', 'Not found');
-            }
-            if (!announcementStop($pdo, $id)) {
-                return respondError($response, 409, 'not_sending', 'It is not sending any more');
-            }
+            // Stopped: what is not sent yet never goes.
+            $news->post('/announcements/{id:[0-9]+}/stop', function (Request $request, Response $response, array $args) {
+                $pdo = iamDb();
+                $id = (int) $args['id'];
 
-            $detail = announcementDetail($pdo, $id);
-            audit($request, (int) actor($request)['id'], 'announcement.stopped', 'announcement', $id, [
-                'sent' => $detail['counts']['sent'],
-                'not_sent' => $detail['counts']['pending'],
-            ]);
+                if (announcementDetail($pdo, $id) === null) {
+                    return respondError($response, 404, 'not_found', 'Not found');
+                }
+                if (!announcementStop($pdo, $id)) {
+                    return respondError($response, 409, 'not_sending', 'It is not sending any more');
+                }
 
-            return respondJson($response, $detail);
-        });
+                $detail = announcementDetail($pdo, $id);
+                audit($request, (int) actor($request)['id'], 'announcement.stopped', 'announcement', $id, [
+                    'sent' => $detail['counts']['sent'],
+                    'not_sent' => $detail['counts']['pending'],
+                ]);
 
-        // The senders: the installation's own (config/mail.local.php), which
-        // the panel cannot change, and those added here.
-        $news->get('/mail-senders', function (Request $request, Response $response) {
-            return respondJson($response, ['senders' => announcementSenders(iamDb()), 'domains' => mailDomains()]);
-        });
+                return respondJson($response, $detail);
+            });
 
-        $news->post('/mail-senders', function (Request $request, Response $response) {
-            $pdo = iamDb();
-            $body = requestBody($request);
-            $result = mailSenderAdd($pdo, $body['address'] ?? null, $body['name'] ?? null, (int) actor($request)['id']);
-            if (translationRefused($result)) {
-                return translationRefuse($response, $result);
-            }
+            // The senders: the installation's own (config/mail.local.php), which
+            // the panel cannot change, and those added here.
+            $news->get('/mail-senders', function (Request $request, Response $response) {
+                return respondJson($response, ['senders' => announcementSenders(iamDb()), 'domains' => mailDomains()]);
+            });
 
-            $sender = $result['sender'];
-            audit($request, (int) actor($request)['id'], 'mail_sender.added', 'mail_sender', $sender['id'], ['address' => $sender['address'], 'name' => $sender['name']]);
+            $news->post('/mail-senders', function (Request $request, Response $response) {
+                $pdo = iamDb();
+                $body = requestBody($request);
+                $result = mailSenderAdd($pdo, $body['address'] ?? null, $body['name'] ?? null, (int) actor($request)['id']);
+                if (translationRefused($result)) {
+                    return translationRefuse($response, $result);
+                }
 
-            return respondJson($response, ['sender' => $sender, 'senders' => announcementSenders($pdo), 'domains' => mailDomains()], 201);
-        });
+                $sender = $result['sender'];
+                audit($request, (int) actor($request)['id'], 'mail_sender.added', 'mail_sender', $sender['id'], ['address' => $sender['address'], 'name' => $sender['name']]);
 
-        // What was sent from it keeps its address: an announcement holds its
-        // sender as it was.
-        $news->delete('/mail-senders/{id:[0-9]+}', function (Request $request, Response $response, array $args) {
-            $pdo = iamDb();
-            $statement = $pdo->prepare('DELETE FROM mail_senders WHERE id = ? RETURNING address, name');
-            $statement->execute([(int) $args['id']]);
-            $removed = $statement->fetch();
+                return respondJson($response, ['sender' => $sender, 'senders' => announcementSenders($pdo), 'domains' => mailDomains()], 201);
+            });
 
-            if ($removed === false) {
-                return respondError($response, 404, 'not_found', 'Not found');
-            }
-            audit($request, (int) actor($request)['id'], 'mail_sender.removed', 'mail_sender', (int) $args['id'], ['address' => $removed['address'], 'name' => $removed['name']]);
+            // What was sent from it keeps its address: an announcement holds its
+            // sender as it was.
+            $news->delete('/mail-senders/{id:[0-9]+}', function (Request $request, Response $response, array $args) {
+                $pdo = iamDb();
+                $statement = $pdo->prepare('DELETE FROM mail_senders WHERE id = ? RETURNING address, name');
+                $statement->execute([(int) $args['id']]);
+                $removed = $statement->fetch();
 
-            return respondJson($response, ['senders' => announcementSenders($pdo), 'domains' => mailDomains()]);
-        });
-    })->add(requireAnnouncements());
+                if ($removed === false) {
+                    return respondError($response, 404, 'not_found', 'Not found');
+                }
+                audit($request, (int) actor($request)['id'], 'mail_sender.removed', 'mail_sender', (int) $args['id'], ['address' => $removed['address'], 'name' => $removed['name']]);
+
+                return respondJson($response, ['senders' => announcementSenders($pdo), 'domains' => mailDomains()]);
+            });
+        })
+        ->add(requireAnnouncements());
 
     // ── The admin tools: audit log, error log, backups ──────────────────────
     //
@@ -1253,10 +1282,7 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         // Who may sign in from the start - visitors welcome, or MEMBER
         // unticked - is a security setting like any later change of it.
         $application = adminApplication($pdo, $id);
-        $signInRoles = array_values(array_map(
-            static fn(array $role): string => $role['name'],
-            array_filter($application['roles'], static fn(array $role): bool => $role['may_sign_in'])
-        ));
+        $signInRoles = array_values(array_map(static fn(array $role): string => $role['name'], array_filter($application['roles'], static fn(array $role): bool => $role['may_sign_in'])));
         audit($request, (int) actor($request)['id'], 'application.created', 'application', $clientId, [
             'login_required' => $application['login_required'],
             'sign_in_roles' => $signInRoles,
@@ -1325,25 +1351,32 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             "SELECT u.id AS user_id, u.username, u.email, json_agg(r.name ORDER BY r.name) AS roles
                FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN users u ON u.id = ur.user_id
               WHERE r.application_id = ? GROUP BY u.id, u.username, u.email
-             HAVING bool_or(r.name <> 'MEMBER') ORDER BY u.username"
+             HAVING bool_or(r.name <> 'MEMBER') ORDER BY u.username",
         );
         $statement->execute([(int) $application['id']]);
 
         $blocked = [];
         if (!asBool($application['system'])) {
-            $blockedRows = $pdo->prepare('SELECT u.id AS user_id, u.username, u.email FROM users u, applications a
-                                           WHERE a.id = ? AND NOT u.disabled AND ' . blockedFromSql('u', 'a') . ' ORDER BY u.username');
+            $blockedRows = $pdo->prepare(
+                'SELECT u.id AS user_id, u.username, u.email FROM users u, applications a
+                                           WHERE a.id = ? AND NOT u.disabled AND ' .
+                    blockedFromSql('u', 'a') .
+                    ' ORDER BY u.username',
+            );
             $blockedRows->execute([(int) $application['id']]);
             $blocked = array_map(static fn(array $row): array => ['user_id' => (int) $row['user_id'], 'username' => $row['username'], 'email' => $row['email']], $blockedRows->fetchAll());
         }
 
         return respondJson($response, [
-            'members' => array_map(static fn(array $row): array => [
-                'user_id' => (int) $row['user_id'],
-                'username' => $row['username'],
-                'email' => $row['email'],
-                'roles' => json_decode((string) $row['roles'], true) ?: [],
-            ], $statement->fetchAll()),
+            'members' => array_map(
+                static fn(array $row): array => [
+                    'user_id' => (int) $row['user_id'],
+                    'username' => $row['username'],
+                    'email' => $row['email'],
+                    'roles' => json_decode((string) $row['roles'], true) ?: [],
+                ],
+                $statement->fetchAll(),
+            ),
             'blocked' => $blocked,
         ]);
     });
@@ -1472,13 +1505,12 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 
     // A language added, changed or deleted: what the IAM offers - discovery,
     // the pages' config, ui_locales, the accounts' languages - is read again.
-    TranslationsRoutes::languages($group, '', $translations, translationRefusalAnswer(...), $audited)
-        ->add(static function (Request $request, RequestHandler $handler): Response {
-            $response = $handler->handle($request);
-            languageCodes(null, true);
+    TranslationsRoutes::languages($group, '', $translations, translationRefusalAnswer(...), $audited)->add(static function (Request $request, RequestHandler $handler): Response {
+        $response = $handler->handle($request);
+        languageCodes(null, true);
 
-            return $response;
-        });
+        return $response;
+    });
 
     // ── Migrations ───────────────────────────────────────────────────────────
 
@@ -1506,7 +1538,10 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
             'error' => iamMigrationErrorForAudit($result['error']),
         ]);
     });
-})->add(requireSignInRules())->add(requireAdmin())->add(requireSession());
+})
+    ->add(requireSignInRules())
+    ->add(requireAdmin())
+    ->add(requireSession());
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Applications, in the admin panel's shape
@@ -1534,7 +1569,7 @@ function adminApplication(PDO $pdo, int $id): ?array
 
     $roles = $pdo->prepare(
         'SELECT r.name, r.description, r.may_sign_in, (SELECT count(*) FROM user_roles ur WHERE ur.role_id = r.id) AS members
-           FROM application_roles r WHERE r.application_id = ? ORDER BY r.name'
+           FROM application_roles r WHERE r.application_id = ? ORDER BY r.name',
     );
     $roles->execute([$id]);
 
@@ -1556,12 +1591,15 @@ function adminApplication(PDO $pdo, int $id): ?array
         'redirect_uris' => applicationRedirectUris($id, 'login'),
         'post_logout_redirect_uris' => applicationRedirectUris($id, 'logout'),
         'web_origins' => applicationOrigins($id),
-        'roles' => array_map(static fn(array $row): array => [
-            'name' => $row['name'],
-            'description' => $row['description'],
-            'may_sign_in' => asBool($row['may_sign_in']),
-            'members' => (int) $row['members'],
-        ], $roles->fetchAll()),
+        'roles' => array_map(
+            static fn(array $row): array => [
+                'name' => $row['name'],
+                'description' => $row['description'],
+                'may_sign_in' => asBool($row['may_sign_in']),
+                'members' => (int) $row['members'],
+            ],
+            $roles->fetchAll(),
+        ),
         'system' => asBool($application['system']),
         'created_at' => isoTime($application['created_at']),
         'updated_at' => isoTime($application['updated_at']),
@@ -1719,9 +1757,12 @@ function saveApplication(PDO $pdo, int $id, array $body, bool $creating): array
             $named = array_map(static fn(array $role): string => strtoupper(trim(is_string($role['name'] ?? null) ? $role['name'] : '')), $body['roles']);
             foreach (array_keys($current) as $name) {
                 if (!in_array($name, $named, true)) {
-                    return ['error' => $name === 'MEMBER'
-                        ? 'Every application keeps its MEMBER role - take it from people instead (Users -> the person -> Roles)'
-                        : "The roles are fixed - $name cannot be removed; $fixed"];
+                    return [
+                        'error' =>
+                            $name === 'MEMBER'
+                                ? 'Every application keeps its MEMBER role - take it from people instead (Users -> the person -> Roles)'
+                                : "The roles are fixed - $name cannot be removed; $fixed",
+                    ];
                 }
             }
         }
@@ -1822,16 +1863,19 @@ function adminSettingRows(): array
 {
     $statement = iamDb()->query(
         'SELECT s.name, s.group_name, s.type, s.options, s.value, s.updated_at, u.username AS updated_by
-           FROM settings s LEFT JOIN users u ON u.id = s.updated_by ORDER BY s.sort_order, s.name'
+           FROM settings s LEFT JOIN users u ON u.id = s.updated_by ORDER BY s.sort_order, s.name',
     );
 
-    return array_map(static fn(array $row): array => [
-        'name' => $row['name'],
-        'group_name' => $row['group_name'],
-        'type' => $row['type'],
-        'options' => $row['options'] === null || $row['options'] === '' ? [] : array_map('trim', explode(',', (string) $row['options'])),
-        'value' => $row['value'],
-        'updated_at' => isoTime($row['updated_at']),
-        'updated_by' => $row['updated_by'],
-    ], $statement->fetchAll());
+    return array_map(
+        static fn(array $row): array => [
+            'name' => $row['name'],
+            'group_name' => $row['group_name'],
+            'type' => $row['type'],
+            'options' => $row['options'] === null || $row['options'] === '' ? [] : array_map('trim', explode(',', (string) $row['options'])),
+            'value' => $row['value'],
+            'updated_at' => isoTime($row['updated_at']),
+            'updated_by' => $row['updated_by'],
+        ],
+        $statement->fetchAll(),
+    );
 }

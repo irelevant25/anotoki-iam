@@ -83,13 +83,23 @@ $memberId = makeUser('member', 'member@example.test', PASSWORD);
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('a page\'s error reaches the error log, written as the page\'s - its words scrubbed by the library\'s rules, the IAM\'s names of secrets and its own prefixes and cookies', function () {
-    $planted = ['password' => lettersOnly(16), 'code' => lettersOnly(), 'recovery' => lettersOnly(), 'pat' => lettersOnly(), 'rt' => lettersOnly(),
-        'cookie' => lettersOnly(), 'device' => lettersOnly(), 'query' => lettersOnly(), 'credential' => lettersOnly()];
+    $planted = [
+        'password' => lettersOnly(16),
+        'code' => lettersOnly(),
+        'recovery' => lettersOnly(),
+        'pat' => lettersOnly(),
+        'rt' => lettersOnly(),
+        'cookie' => lettersOnly(),
+        'device' => lettersOnly(),
+        'query' => lettersOnly(),
+        'credential' => lettersOnly(),
+    ];
     $report = [
         'type' => 'TypeError',
-        'message' => "Cannot read x: new_password={$planted['password']} code: {$planted['code']} recovery_code=\"{$planted['recovery']}\" "
-            . "iam_pat_{$planted['pat']} sent anotoki_iam={$planted['cookie']}; anotoki_iam_device={$planted['device']} credential={$planted['credential']} "
-            . 'for person@example.test from 198.51.100.9',
+        'message' =>
+            "Cannot read x: new_password={$planted['password']} code: {$planted['code']} recovery_code=\"{$planted['recovery']}\" " .
+            "iam_pat_{$planted['pat']} sent anotoki_iam={$planted['cookie']}; anotoki_iam_device={$planted['device']} credential={$planted['credential']} " .
+            'for person@example.test from 198.51.100.9',
         'page' => '/account/security',
         'stack' => ["at render (http://localhost:4300/chunk-AB12.js?v={$planted['query']}:3:4)", "at iam_rt_{$planted['rt']} (http://localhost:4300/main.js:1:2)"],
     ];
@@ -100,7 +110,11 @@ test('a page\'s error reaches the error log, written as the page\'s - its words 
 
     $line = clientLines()[0] ?? null;
     check($line !== null, 'written');
-    same(['client', 'error', 'TypeError', '/account/security', null, REPORTS], [$line['source'], $line['level'], $line['type'], $line['path'], $line['user_id'], $line['route']], 'as the page\'s own (its path the page\'s), by a visitor');
+    same(
+        ['client', 'error', 'TypeError', '/account/security', null, REPORTS],
+        [$line['source'], $line['level'], $line['type'], $line['path'], $line['user_id'], $line['route']],
+        'as the page\'s own (its path the page\'s), by a visitor',
+    );
     foreach (['new_password={…}', 'code: {…}', 'recovery_code={…}', 'iam_pat_{…}', 'anotoki_iam={…}', 'anotoki_iam_device={…}', 'credential={…}', '{email}', '{ip}'] as $mark) {
         check(str_contains((string) $line['message'], $mark), "the message keeps {$mark}: " . $line['message']);
     }
@@ -117,54 +131,76 @@ test('a page\'s error reaches the error log, written as the page\'s - its words 
     }
 });
 
-test('every text of a report the library writes goes through the IAM\'s own rules first - its type, message, page and stack, a list of frames or one text - and one nested deeper than the library reads is refused whole', function () {
-    $planted = ['type' => lettersOnly(), 'message' => lettersOnly(), 'page' => lettersOnly(), 'frame' => lettersOnly(), 'text' => lettersOnly(), 'deep' => lettersOnly()];
-    $browser = new Browser('10.50.3.1');
-    $send = static function (array $report) use ($browser): TestResponse {
-        $answer = $browser->post(REPORTS, $report);
-        if ($answer->status === 204) {
-            $GLOBALS['visitorReports']++;
+test(
+    'every text of a report the library writes goes through the IAM\'s own rules first - its type, message, page and stack, a list of frames or one text - and one nested deeper than the library reads is refused whole',
+    function () {
+        $planted = ['type' => lettersOnly(), 'message' => lettersOnly(), 'page' => lettersOnly(), 'frame' => lettersOnly(), 'text' => lettersOnly(), 'deep' => lettersOnly()];
+        $browser = new Browser('10.50.3.1');
+        $send = static function (array $report) use ($browser): TestResponse {
+            $answer = $browser->post(REPORTS, $report);
+            if ($answer->status === 204) {
+                $GLOBALS['visitorReports']++;
+            }
+
+            return $answer;
+        };
+
+        same(
+            204,
+            $send([
+                'type' => "iam_pat_{$planted['type']}",
+                'message' => "Failed with iam_rt_{$planted['message']}",
+                'page' => "/account/iam_pat_{$planted['page']}",
+                'stack' => ["at f (http://localhost:4300/main.js:1:2) iam_pat_{$planted['frame']}"],
+                'status' => 0,
+            ])->status,
+            'a report whose every text holds a token, its stack a list of frames',
+        );
+        same(
+            204,
+            $send(['type' => 'Error', 'message' => 'A stack as one text', 'stack' => "Error: A stack as one text\n    at g (http://localhost:4300/main.js:3:4) sent anotoki_iam={$planted['text']}"])
+                ->status,
+            'one whose stack is one text',
+        );
+        $deep = ['frame' => "iam_pat_{$planted['deep']}"];
+        for ($level = 0; $level < 40; $level++) {
+            $deep = [$deep];
         }
+        same(
+            [400, 'invalid_json'],
+            [($r = $send(['type' => 'Error', 'message' => "Deep iam_pat_{$planted['deep']}", 'stack' => $deep]))->status, $r->code()],
+            'one nested deeper than the library reads: refused whole, never written unredacted',
+        );
 
-        return $answer;
-    };
-
-    same(204, $send([
-        'type' => "iam_pat_{$planted['type']}",
-        'message' => "Failed with iam_rt_{$planted['message']}",
-        'page' => "/account/iam_pat_{$planted['page']}",
-        'stack' => ["at f (http://localhost:4300/main.js:1:2) iam_pat_{$planted['frame']}"],
-        'status' => 0,
-    ])->status, 'a report whose every text holds a token, its stack a list of frames');
-    same(204, $send(['type' => 'Error', 'message' => 'A stack as one text', 'stack' => "Error: A stack as one text\n    at g (http://localhost:4300/main.js:3:4) sent anotoki_iam={$planted['text']}"])->status,
-        'one whose stack is one text');
-    $deep = ['frame' => "iam_pat_{$planted['deep']}"];
-    for ($level = 0; $level < 40; $level++) {
-        $deep = [$deep];
-    }
-    same([400, 'invalid_json'], [($r = $send(['type' => 'Error', 'message' => "Deep iam_pat_{$planted['deep']}", 'stack' => $deep]))->status, $r->code()],
-        'one nested deeper than the library reads: refused whole, never written unredacted');
-
-    $listed = array_values(array_filter(clientLines(), static fn(array $line): bool => str_starts_with((string) $line['message'], 'Failed with')))[0] ?? null;
-    $text = array_values(array_filter(clientLines(), static fn(array $line): bool => $line['message'] === 'A stack as one text'))[0] ?? null;
-    check($listed !== null && $text !== null, 'both written');
-    same('Error', $listed['type'], 'a type that held a token is no identifier any more: "Error"');
-    check(str_contains((string) $listed['message'], 'iam_rt_{…}') && str_contains((string) $listed['path'], 'iam_pat_{…}') && str_contains((string) ($listed['trace'][0] ?? ''), 'iam_pat_{…}'),
-        'the message, the page and the frame each with the token taken out: ' . json_encode([$listed['message'], $listed['path'], $listed['trace']]));
-    check(str_contains((string) ($text['trace'][0] ?? ''), 'anotoki_iam={…}'), 'and a stack of one text, its cookie out: ' . json_encode($text['trace']));
-    check(array_filter(clientLines(), static fn(array $line): bool => str_starts_with((string) $line['message'], 'Deep')) === [], 'nothing of the deep one');
-    $log = errorLogText();
-    foreach ($planted as $what => $secret) {
-        check(!str_contains($log, $secret), "nothing of the {$what}'s token in the error log");
-    }
-});
+        $listed = array_values(array_filter(clientLines(), static fn(array $line): bool => str_starts_with((string) $line['message'], 'Failed with')))[0] ?? null;
+        $text = array_values(array_filter(clientLines(), static fn(array $line): bool => $line['message'] === 'A stack as one text'))[0] ?? null;
+        check($listed !== null && $text !== null, 'both written');
+        same('Error', $listed['type'], 'a type that held a token is no identifier any more: "Error"');
+        check(
+            str_contains((string) $listed['message'], 'iam_rt_{…}') && str_contains((string) $listed['path'], 'iam_pat_{…}') && str_contains((string) ($listed['trace'][0] ?? ''), 'iam_pat_{…}'),
+            'the message, the page and the frame each with the token taken out: ' . json_encode([$listed['message'], $listed['path'], $listed['trace']]),
+        );
+        check(str_contains((string) ($text['trace'][0] ?? ''), 'anotoki_iam={…}'), 'and a stack of one text, its cookie out: ' . json_encode($text['trace']));
+        check(array_filter(clientLines(), static fn(array $line): bool => str_starts_with((string) $line['message'], 'Deep')) === [], 'nothing of the deep one');
+        $log = errorLogText();
+        foreach ($planted as $what => $secret) {
+            check(!str_contains($log, $secret), "nothing of the {$what}'s token in the error log");
+        }
+    },
+);
 
 test('the IAM\'s own pages alone: the CSRF header and the IAM\'s Origin, never a CORS answer - and what the route refuses, refused in the IAM\'s error body', function () {
     $before = count(clientLines());
     $browser = new Browser('10.50.1.1');
     same([403, 'csrf'], [($r = $browser->post(REPORTS, ['message' => 'no header'], ['csrf' => false]))->status, $r->code()], 'without the CSRF header');
-    same([403, 'csrf'], [($r = $browser->post(REPORTS, ['message' => 'a site\'s page'], ['headers' => ['Origin' => 'http://localhost:4200']]))->status, $r->code()], 'from a site\'s origin, header and all');
-    $preflight = $browser->request('OPTIONS', REPORTS, ['headers' => ['Origin' => 'http://localhost:4200', 'Access-Control-Request-Method' => 'POST', 'Access-Control-Request-Headers' => 'content-type, x-iam-request']]);
+    same(
+        [403, 'csrf'],
+        [($r = $browser->post(REPORTS, ['message' => 'a site\'s page'], ['headers' => ['Origin' => 'http://localhost:4200']]))->status, $r->code()],
+        'from a site\'s origin, header and all',
+    );
+    $preflight = $browser->request('OPTIONS', REPORTS, [
+        'headers' => ['Origin' => 'http://localhost:4200', 'Access-Control-Request-Method' => 'POST', 'Access-Control-Request-Headers' => 'content-type, x-iam-request'],
+    ]);
     same(['', ''], [$preflight->header('Access-Control-Allow-Origin'), $preflight->header('Access-Control-Allow-Headers')], 'a preflight is answered nothing that lets a page elsewhere send');
     same($before, count(clientLines()), 'nothing written');
 

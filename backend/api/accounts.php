@@ -37,9 +37,7 @@ function claimUnconfirmedAccount(PDO $pdo, \Psr\Http\Message\ServerRequestInterf
 
     $userId = (int) $user['id'];
 
-    $pdo->prepare(
-        'UPDATE users SET password = NULL, totp_enabled = FALSE, totp_secret = NULL, totp_last_step = NULL, force_password_change = FALSE WHERE id = ?'
-    )->execute([$userId]);
+    $pdo->prepare('UPDATE users SET password = NULL, totp_enabled = FALSE, totp_secret = NULL, totp_last_step = NULL, force_password_change = FALSE WHERE id = ?')->execute([$userId]);
     if (announcementsReady($pdo)) {
         $pdo->prepare('UPDATE users SET news_mail = FALSE WHERE id = ?')->execute([$userId]);
     }
@@ -57,7 +55,7 @@ function claimUnconfirmedAccount(PDO $pdo, \Psr\Http\Message\ServerRequestInterf
     if (accountDeletionReady($pdo)) {
         $cancelled = $pdo->prepare(
             'UPDATE users SET deletion_requested_at = NULL, deletion_due_at = NULL
-              WHERE id = ? AND deletion_due_at IS NOT NULL AND anonymized_at IS NULL RETURNING ' . recordTimeSql('CURRENT_TIMESTAMP')
+              WHERE id = ? AND deletion_due_at IS NOT NULL AND anonymized_at IS NULL RETURNING ' . recordTimeSql('CURRENT_TIMESTAMP'),
         );
         $cancelled->execute([$userId]);
         $at = $cancelled->fetchColumn();
@@ -200,9 +198,7 @@ function accountAwaitsApproval(array $user): bool
  */
 function accountApprovalReady(PDO $pdo): bool
 {
-    return asBool($pdo->query(
-        "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'approved' AND NOT attisdropped)"
-    )->fetchColumn());
+    return asBool($pdo->query("SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'approved' AND NOT attisdropped)")->fetchColumn());
 }
 
 /**
@@ -251,8 +247,12 @@ function insertSignedUpAccount(PDO $pdo, array $account): array
         }
 
         $insert = $pdo->prepare(
-            'INSERT INTO users (' . implode(', ', array_keys($columns)) . ')
-             VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ') RETURNING id'
+            'INSERT INTO users (' .
+                implode(', ', array_keys($columns)) .
+                ')
+             VALUES (' .
+                implode(', ', array_fill(0, count($columns), '?')) .
+                ') RETURNING id',
         );
         $insert->execute(array_values($columns));
         $id = (int) $insert->fetchColumn();
@@ -310,9 +310,7 @@ const PREFERENCE_TIME_FORMATS = ['24', '12'];
  */
 function preferencesReady(PDO $pdo): bool
 {
-    return asBool($pdo->query(
-        "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'theme' AND NOT attisdropped)"
-    )->fetchColumn());
+    return asBool($pdo->query("SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'theme' AND NOT attisdropped)")->fetchColumn());
 }
 
 /**

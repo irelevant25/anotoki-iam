@@ -70,16 +70,20 @@ function iamOriginSecret(): ?string
     }
 
     if (localConfigProblem('cloudflare') !== null) {
-        localConfigSaid('config/cloudflare.local.php cannot be read cleanly: no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file is mended');
+        localConfigSaid(
+            'config/cloudflare.local.php cannot be read cleanly: no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file is mended',
+        );
 
         return iamUnmatchableOriginSecret();
     }
 
     $config = localConfig('cloudflare');
-    $secret = is_array($config) ? ($config['origin_secret'] ?? null) : null;
+    $secret = is_array($config) ? $config['origin_secret'] ?? null : null;
     $secret = is_string($secret) ? trim($secret) : '';
     if ($secret === '') {
-        localConfigSaid('config/cloudflare.local.php holds no origin_secret (a string with something in it): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names one - deleting the file switches the secret off');
+        localConfigSaid(
+            'config/cloudflare.local.php holds no origin_secret (a string with something in it): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names one - deleting the file switches the secret off',
+        );
 
         return iamUnmatchableOriginSecret();
     }
@@ -89,7 +93,11 @@ function iamOriginSecret(): ?string
     // docs/operations.md pasted into the file and the zone's rule alike - the
     // limiter that stopped tripping would tell the guesser it was right.
     if (strlen($secret) < IAM_ORIGIN_SECRET_MIN_LENGTH || strpbrk($secret, '<>') !== false) {
-        localConfigSaid('config/cloudflare.local.php holds an origin_secret shorter than ' . IAM_ORIGIN_SECRET_MIN_LENGTH . ' characters, or a placeholder (with < or >): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names the zone\'s long random value');
+        localConfigSaid(
+            'config/cloudflare.local.php holds an origin_secret shorter than ' .
+                IAM_ORIGIN_SECRET_MIN_LENGTH .
+                ' characters, or a placeholder (with < or >): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names the zone\'s long random value',
+        );
 
         return iamUnmatchableOriginSecret();
     }

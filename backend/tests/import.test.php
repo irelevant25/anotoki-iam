@@ -18,10 +18,13 @@ $totpSecret = totpSecret();
 $recoveryRaw = 'ABCDE23456';
 
 // Ids with gaps, as a real table has after deletions: they must survive as they are.
-$legacy->prepare("INSERT INTO users (id, role, username, email, email_confirmed, password, language, totp_secret, totp_enabled) VALUES
+$legacy
+    ->prepare(
+        "INSERT INTO users (id, role, username, email, email_confirmed, password, language, totp_secret, totp_enabled) VALUES
     (1, 'ADMIN', 'owner', 'owner@example.test', TRUE, ?, 'sk', ?, TRUE),
     (4, 'EDITOR', 'helper', 'helper@example.test', TRUE, ?, 'en', NULL, FALSE),
-    (9, 'USER', 'player', 'player@example.test', TRUE, NULL, 'de', NULL, FALSE)")
+    (9, 'USER', 'player', 'player@example.test', TRUE, NULL, 'de', NULL, FALSE)",
+    )
     ->execute([password_hash('owner password', PASSWORD_DEFAULT), $totpSecret, password_hash('helper password', PASSWORD_DEFAULT)]);
 $legacy->exec("INSERT INTO user_identities (id, user_id, provider, subject, email) VALUES (3, 9, 'google', 'google-sub-9', 'player@gmail.test')");
 $legacy->prepare('INSERT INTO user_recovery_codes (id, user_id, code_hash) VALUES (7, 1, ?)')->execute([sha256($recoveryRaw)]);
@@ -44,10 +47,19 @@ test('the import keeps ids, maps roles, encrypts two-factor secrets and leaves t
     // the old site's own.
     $roles = $summary['roles'];
     ksort($roles);
-    same([
-        'build-analyzer ADMIN' => 1, 'genshin ADMIN' => 1, 'genshin EDITOR' => 1, 'iam ADMIN' => 1,
-        'japanese-academy ADMIN' => 1, 'piano-academy ADMIN' => 1, 'survey ADMIN' => 1,
-    ], $roles, 'roles');
+    same(
+        [
+            'build-analyzer ADMIN' => 1,
+            'genshin ADMIN' => 1,
+            'genshin EDITOR' => 1,
+            'iam ADMIN' => 1,
+            'japanese-academy ADMIN' => 1,
+            'piano-academy ADMIN' => 1,
+            'survey ADMIN' => 1,
+        ],
+        $roles,
+        'roles',
+    );
     same(['build-analyzer', 'genshin', 'iam', 'japanese-academy', 'piano-academy', 'survey'], adminOf(iamDb(), 1), 'the old ADMIN holds ADMIN in the IAM and every first-party site');
     same(applicationsWithAdmin(iamDb()), adminOf(iamDb(), 1), 'which is every application that has one');
     same([], adminOf(iamDb(), 4), 'the old EDITOR holds no ADMIN');

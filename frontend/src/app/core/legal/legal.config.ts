@@ -1,7 +1,7 @@
-import { inject } from "@angular/core";
-import { AnotokiLegalConfig } from "@anotoki/lib/legal";
-import { TranslationKey } from "../i18n/en";
-import { TranslationService } from "../i18n/translation.service";
+import { inject } from '@angular/core';
+import { AnotokiLegalConfig } from '@anotoki/lib/legal';
+import { TranslationKey } from '../i18n/en';
+import { TranslationService } from '../i18n/translation.service';
 
 /**
  * The library's legal words the IAM says in its own (`legal.*`, migration
@@ -12,7 +12,7 @@ import { TranslationService } from "../i18n/translation.service";
  * written out whole, so the backend's scan of the pages finds it used.
  */
 const IAM_LEGAL_WORDS: Readonly<Record<string, TranslationKey>> = {
-  "anotoki.legal.termsWhatTitle": "legal.termsWhatTitle",
+  'anotoki.legal.termsWhatTitle': 'legal.termsWhatTitle',
 };
 
 /**

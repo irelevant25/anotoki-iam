@@ -44,10 +44,19 @@ function reader(string $ip = '10.15.0.1'): Browser
 function intoSurvey(Browser $browser, string $scope = 'openid profile email'): array
 {
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK, 'scope' => $scope,
-        'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'survey',
+                'redirect_uri' => SURVEY_CALLBACK,
+                'scope' => $scope,
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     $code = queryOf($start->location())['code'] ?? null;
     check($code !== null, 'a code straight away: ' . $start->location());
     $tokens = $browser->request('POST', '/api/oidc/token', [
@@ -86,10 +95,16 @@ function preferencesOf(int $userId): array
 function useIamDatabase(string $name): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -124,8 +139,11 @@ test('an IAM through 014, as its owner left it: 015 starts everybody on auto, an
 
     $result = applyMigrationsThrough($pdo, PREFERENCES_MIGRATION);
     same([[PREFERENCES_MIGRATION], null], [$result['applied'], $result['failed']], '015 applies (' . ($result['error'] ?? '') . ')');
-    same([['sk', 'auto', null, null], ['en', 'auto', null, null]],
-        $pdo->query('SELECT language, theme, date_format, time_format FROM users ORDER BY id')->fetchAll(PDO::FETCH_NUM), 'their languages kept, everything else automatic');
+    same(
+        [['sk', 'auto', null, null], ['en', 'auto', null, null]],
+        $pdo->query('SELECT language, theme, date_format, time_format FROM users ORDER BY id')->fetchAll(PDO::FETCH_NUM),
+        'their languages kept, everything else automatic',
+    );
     $word = static fn(string $key, string $code): string => (string) $pdo->query("SELECT value FROM translations WHERE key_name = '$key' AND language_code = '$code'")->fetchColumn();
     same('Kept here, my way.', $word('overview.appearanceHint', 'en'), 'the owner\'s rewording stays');
     same('Riadi sa ním každá stránka anotoki, kde používaš svoj účet.', $word('overview.appearanceHint', 'sk'), 'the Slovak, still 006\'s, is reworded');
@@ -140,7 +158,11 @@ test('the account page shows and saves the theme, the dates and the clock', func
 
     $saved = $reader->put('/api/account/profile', ['theme' => 'dark', 'date_format' => 'ymd_dash', 'time_format' => '12']);
     same([200, ['theme' => 'dark', 'date_format' => 'ymd_dash', 'time_format' => '12']], [$saved->status, $saved->json()['preferences'] ?? null], 'saved: ' . $saved->body);
-    same(['theme' => 'dark', 'date_format' => null, 'time_format' => '12'], $reader->put('/api/account/profile', ['date_format' => 'auto'])->json()['preferences'] ?? null, '"auto" is automatic again, the rest stays');
+    same(
+        ['theme' => 'dark', 'date_format' => null, 'time_format' => '12'],
+        $reader->put('/api/account/profile', ['date_format' => 'auto'])->json()['preferences'] ?? null,
+        '"auto" is automatic again, the rest stays',
+    );
     same(['theme' => 'dark', 'date_format' => null, 'time_format' => null], $reader->put('/api/account/profile', ['time_format' => null])->json()['preferences'] ?? null, 'and so is null');
 
     foreach ([['theme' => 'blue'], ['theme' => null], ['date_format' => 'dd.mm.yy'], ['time_format' => 24], ['time_format' => '36']] as $body) {
@@ -167,7 +189,10 @@ test('every token and userinfo carry the preferences with the profile scope, and
     check(in_array('preferences', (new Browser('10.15.1.2'))->get('/.well-known/openid-configuration')->json()['claims_supported'] ?? [], true), 'discovery names the claim');
 
     $bare = intoSurvey(reader('10.15.1.3'), 'openid email');
-    check(!array_key_exists('preferences', payloadOf($bare['id_token'])) && !array_key_exists('locale', payloadOf($bare['id_token'])), 'without the profile scope, neither the preferences nor the language');
+    check(
+        !array_key_exists('preferences', payloadOf($bare['id_token'])) && !array_key_exists('locale', payloadOf($bare['id_token'])),
+        'without the profile scope, neither the preferences nor the language',
+    );
     $reader->put('/api/account/profile', ['theme' => 'auto', 'date_format' => null, 'time_format' => null]);
 });
 
@@ -183,15 +208,22 @@ test('a site saves its reader\'s choice with the person\'s token: the account\'s
     same(['language' => 'sk', 'theme' => 'dark', 'date_format' => 'mdy_slash', 'time_format' => '12'], preferencesOf((int) $GLOBALS['readerId']), 'the account\'s');
     same(SURVEY_FRONTEND, $saved->header('Access-Control-Allow-Origin'), 'answered to the site\'s own origin');
 
-    same(['theme' => 'dark', 'date_format' => null, 'time_format' => '12'], savePreferences(['date_format' => 'auto'], $tokens['access_token'])->json()['preferences'] ?? null, 'one at a time; automatic again');
+    same(
+        ['theme' => 'dark', 'date_format' => null, 'time_format' => '12'],
+        savePreferences(['date_format' => 'auto'], $tokens['access_token'])->json()['preferences'] ?? null,
+        'one at a time; automatic again',
+    );
 
     $refreshed = (new Browser('10.15.2.2'))->request('POST', '/api/oidc/token', [
         'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'], 'client_id' => 'survey'],
         'headers' => ['Origin' => SURVEY_FRONTEND],
     ]);
     same(200, $refreshed->status, 'a refresh: ' . $refreshed->body);
-    same([['theme' => 'dark', 'date_format' => null, 'time_format' => '12'], 'sk'],
-        [payloadOf($refreshed->json()['id_token'])['preferences'] ?? null, payloadOf($refreshed->json()['id_token'])['locale'] ?? null], 'the next ID token carries them - every site follows');
+    same(
+        [['theme' => 'dark', 'date_format' => null, 'time_format' => '12'], 'sk'],
+        [payloadOf($refreshed->json()['id_token'])['preferences'] ?? null, payloadOf($refreshed->json()['id_token'])['locale'] ?? null],
+        'the next ID token carries them - every site follows',
+    );
     same(['theme' => 'dark', 'date_format' => null, 'time_format' => '12'], $reader->get('/api/account')->json()['preferences'] ?? null, 'and the account page shows them');
 
     $reader->put('/api/account/profile', ['theme' => 'auto', 'time_format' => null, 'language' => 'en']);
@@ -216,15 +248,18 @@ test('the site\'s save: only the person\'s token opens it, never the session coo
     same(401, savePreferences(['theme' => 'dark'], implode('.', $forged))->status, 'one rewritten for another account');
     same(401, savePreferences(['theme' => 'dark'], $tokens['id_token'])->status, 'an ID token is no access token');
 
-    foreach ([
-        [['theme' => 'blue'], 'a theme there is not'],
-        [['time_format' => 12], 'a clock as a number'],
-        [['language' => 'de'], 'a language the IAM does not offer'],
-        [['username' => 'taken'], 'anything but the four'],
-        [['theme' => 'dark', 'email_confirmed' => true], 'the four and something else'],
-        [[], 'nothing'],
-        [['dark'], 'a list'],
-    ] as [$body, $what]) {
+    foreach (
+        [
+            [['theme' => 'blue'], 'a theme there is not'],
+            [['time_format' => 12], 'a clock as a number'],
+            [['language' => 'de'], 'a language the IAM does not offer'],
+            [['username' => 'taken'], 'anything but the four'],
+            [['theme' => 'dark', 'email_confirmed' => true], 'the four and something else'],
+            [[], 'nothing'],
+            [['dark'], 'a list'],
+        ]
+        as [$body, $what]
+    ) {
         $refused = savePreferences($body, $tokens['access_token']);
         same([400, 'invalid_request'], [$refused->status, $refused->json()['error'] ?? null], $what . ': ' . $refused->body);
     }
@@ -234,11 +269,15 @@ test('the site\'s save: only the person\'s token opens it, never the session coo
     $scope = savePreferences(['theme' => 'dark'], $narrow['access_token']);
     same([403, 'insufficient_scope'], [$scope->status, $scope->json()['error'] ?? null], 'a token without the profile scope');
 
-    iamDb()->prepare('UPDATE users SET disabled = TRUE WHERE id = ?')->execute([(int) $GLOBALS['readerId']]);
+    iamDb()
+        ->prepare('UPDATE users SET disabled = TRUE WHERE id = ?')
+        ->execute([(int) $GLOBALS['readerId']]);
     try {
         same(401, savePreferences(['theme' => 'dark'], $tokens['access_token'])->status, 'an account switched off since');
     } finally {
-        iamDb()->prepare('UPDATE users SET disabled = FALSE WHERE id = ?')->execute([(int) $GLOBALS['readerId']]);
+        iamDb()
+            ->prepare('UPDATE users SET disabled = FALSE WHERE id = ?')
+            ->execute([(int) $GLOBALS['readerId']]);
     }
     same($before, preferencesOf((int) $GLOBALS['readerId']), 'still as it was');
 });
@@ -248,7 +287,9 @@ test('a write asks more of a token than userinfo: a sign-in behind it, its own s
     $tokens = intoSurvey($reader);
     $readerId = (int) $GLOBALS['readerId'];
     $before = preferencesOf($readerId);
-    $survey = static fn(string $sql) => iamDb()->prepare($sql)->execute(['survey']);
+    $survey = static fn(string $sql) => iamDb()
+        ->prepare($sql)
+        ->execute(['survey']);
 
     // Another site's page - registered, so its preflight is answered - holding the survey's token.
     $foreign = savePreferences(['theme' => 'dark'], $tokens['access_token'], ['Origin' => 'http://localhost:4200']);
@@ -282,7 +323,7 @@ test('a write asks more of a token than userinfo: a sign-in behind it, its own s
 
     // The reader kept out of the site: their MEMBER there taken away.
     $taken = iamDb()->prepare(
-        "DELETE FROM user_roles WHERE user_id = ? AND role_id = (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND r.name = 'MEMBER')"
+        "DELETE FROM user_roles WHERE user_id = ? AND role_id = (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND r.name = 'MEMBER')",
     );
     $taken->execute([$readerId]);
     try {
@@ -337,7 +378,11 @@ test('with 015 pending the account page and the tokens answer as before, and the
         $admin = new Browser('10.15.8.2');
         same(200, $admin->signIn('admin@example.test', 'correct horse')->status, 'the admin signs in');
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [PREFERENCES_MIGRATION], null], [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 1), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same(
+            [200, [PREFERENCES_MIGRATION], null],
+            [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 1), $applied->json()['failed'] ?? null],
+            'Apply pending: ' . $applied->body,
+        );
         same(200, savePreferences(['theme' => 'dark'], $tokens['access_token'])->status, 'from the next request on, in the same process');
     } finally {
         useIamDatabase($main);

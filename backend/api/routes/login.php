@@ -139,17 +139,11 @@ function completeSignIn(Request $request, Response $response, array $user, strin
     restartAuthenticatorCount($pdo, (int) $user['id']);
 
     // Only worth issuing where there is a code to skip.
-    $deviceToken = !empty($body['remember_device']) && asBool($user['totp_enabled'])
-        ? issueTrustedDevice($pdo, (int) $user['id'], $request)
-        : null;
+    $deviceToken = !empty($body['remember_device']) && asBool($user['totp_enabled']) ? issueTrustedDevice($pdo, (int) $user['id'], $request) : null;
 
     $fresh = userById($pdo, (int) $user['id']);
 
-    $answer = withSessionCookie(
-        respondJson($response, ['user' => accountPayload($pdo, $fresh), 'device_token' => $deviceToken] + $extra, $status),
-        $opened['secret'],
-        $opened['session']
-    );
+    $answer = withSessionCookie(respondJson($response, ['user' => accountPayload($pdo, $fresh), 'device_token' => $deviceToken] + $extra, $status), $opened['secret'], $opened['session']);
 
     if (signInHintAllowed($fresh)) {
         $answer = withSignInHint($answer, $opened['session']);
@@ -280,9 +274,7 @@ TranslationsRoutes::bundle($app, static fn(): Translations => iamTranslations(),
 // its words (iamClientErrorRedaction()) and a signed-in person is told apart
 // by the session (optionalSession(): read, nothing changed). Its requests are
 // never written into the log as failures of their own.
-ErrorLogRoutes::client($app, '/api/client-errors', iamErrorLog(), iamAdminContext())
-    ->add(iamClientErrorRedaction())
-    ->add(optionalSession());
+ErrorLogRoutes::client($app, '/api/client-errors', iamErrorLog(), iamAdminContext())->add(iamClientErrorRedaction())->add(optionalSession());
 
 // ── The pending authorization request ────────────────────────────────────────
 

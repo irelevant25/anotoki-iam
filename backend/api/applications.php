@@ -109,7 +109,7 @@ function userRolesIn(int $userId, int $applicationId): array
 {
     $statement = iamDb()->prepare(
         'SELECT r.name FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
-          WHERE ur.user_id = ? AND r.application_id = ? ORDER BY r.name'
+          WHERE ur.user_id = ? AND r.application_id = ? ORDER BY r.name',
     );
     $statement->execute([$userId, $applicationId]);
 
@@ -123,7 +123,7 @@ function isIamAdmin(int $userId): bool
         "SELECT 1 FROM user_roles ur
            JOIN application_roles r ON r.id = ur.role_id
            JOIN applications a ON a.id = r.application_id
-          WHERE ur.user_id = ? AND a.client_id = ? AND r.name = 'ADMIN'"
+          WHERE ur.user_id = ? AND a.client_id = ? AND r.name = 'ADMIN'",
     );
     $statement->execute([$userId, IAM_CLIENT_ID]);
 
@@ -175,7 +175,7 @@ function iamAdminCount(?int $besides = null): int
            JOIN application_roles r ON r.id = ur.role_id
            JOIN applications a ON a.id = r.application_id
            JOIN users u ON u.id = ur.user_id AND u.disabled = FALSE{$leaving}
-          WHERE a.client_id = ? AND r.name = 'ADMIN' AND ur.user_id <> ?"
+          WHERE a.client_id = ? AND r.name = 'ADMIN' AND ur.user_id <> ?",
     );
     $statement->execute([IAM_CLIENT_ID, $besides ?? 0]);
 
@@ -195,10 +195,14 @@ function iamAdminCount(?int $besides = null): int
  */
 function signInRulesReady(PDO $pdo): bool
 {
-    return asBool($pdo->query(
-        "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('application_roles') AND attname = 'may_sign_in' AND NOT attisdropped)
-            AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('applications') AND attname = 'login_required' AND NOT attisdropped)"
-    )->fetchColumn());
+    return asBool(
+        $pdo
+            ->query(
+                "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('application_roles') AND attname = 'may_sign_in' AND NOT attisdropped)
+            AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('applications') AND attname = 'login_required' AND NOT attisdropped)",
+            )
+            ->fetchColumn(),
+    );
 }
 
 /** The answer of what needs 010 while it is pending: a 503 that points at the Migrations page, not a 500. */
@@ -216,7 +220,7 @@ function userMaySignInTo(int $userId, int $applicationId): bool
 {
     $statement = iamDb()->prepare(
         'SELECT EXISTS (SELECT 1 FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
-                         WHERE ur.user_id = ? AND r.application_id = ? AND r.may_sign_in)'
+                         WHERE ur.user_id = ? AND r.application_id = ? AND r.may_sign_in)',
     );
     $statement->execute([$userId, $applicationId]);
 

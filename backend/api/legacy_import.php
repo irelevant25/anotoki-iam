@@ -39,8 +39,22 @@ require_once __DIR__ . '/audit.php';
  * The columns of the old users table the import reads - the shape the genshin
  * site's migrations up to 031 leave it in.
  */
-const LEGACY_USER_COLUMNS = ['id', 'role', 'username', 'email', 'email_confirmed', 'password', 'language', 'deleted',
-    'created_at', 'updated_at', 'password_login_enabled', 'totp_secret', 'totp_enabled', 'force_password_change'];
+const LEGACY_USER_COLUMNS = [
+    'id',
+    'role',
+    'username',
+    'email',
+    'email_confirmed',
+    'password',
+    'language',
+    'deleted',
+    'created_at',
+    'updated_at',
+    'password_login_enabled',
+    'totp_secret',
+    'totp_enabled',
+    'force_password_change',
+];
 
 /**
  * A connection to the old database, deliberately without the UTC setting.
@@ -50,12 +64,10 @@ const LEGACY_USER_COLUMNS = ['id', 'role', 'username', 'email', 'email_confirmed
  */
 function legacyConnect(array $config, string $name): PDO
 {
-    $pdo = new PDO(
-        "pgsql:host={$config['host']};port={$config['port']};dbname={$name};connect_timeout=5",
-        $config['username'],
-        $config['password'] ?? '',
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
-    );
+    $pdo = new PDO("pgsql:host={$config['host']};port={$config['port']};dbname={$name};connect_timeout=5", $config['username'], $config['password'] ?? '', [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
     $pdo->exec("SET client_encoding = 'UTF8'");
 
     return $pdo;
@@ -64,9 +76,7 @@ function legacyConnect(array $config, string $name): PDO
 /** Whether a table and a set of its columns exist in a database. */
 function legacyHasColumns(PDO $pdo, string $table, array $columns): bool
 {
-    $statement = $pdo->prepare(
-        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ?"
-    );
+    $statement = $pdo->prepare("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ?");
     $statement->execute([$table]);
     $present = $statement->fetchAll(PDO::FETCH_COLUMN);
 
@@ -83,9 +93,7 @@ function legacyRows(PDO $pdo, string $table, array $columns, array $timeColumns,
 {
     $select = [];
     foreach ($columns as $column) {
-        $select[] = in_array($column, $timeColumns, true)
-            ? "EXTRACT(EPOCH FROM ({$column} AT TIME ZONE " . $pdo->quote($zone) . ")) AS {$column}"
-            : $column;
+        $select[] = in_array($column, $timeColumns, true) ? "EXTRACT(EPOCH FROM ({$column} AT TIME ZONE " . $pdo->quote($zone) . ")) AS {$column}" : $column;
     }
 
     return $pdo->query('SELECT ' . implode(', ', $select) . " FROM {$table} ORDER BY id")->fetchAll();
@@ -117,7 +125,9 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
     $userColumns = LEGACY_USER_COLUMNS;
 
     if (!legacyHasColumns($legacy, 'users', $userColumns)) {
-        throw new RuntimeException("That database has no users table in the shape the genshin site left it (it needs the columns of its migrations up to 031). Bring the site's migrations up to date first.");
+        throw new RuntimeException(
+            "That database has no users table in the shape the genshin site left it (it needs the columns of its migrations up to 031). Bring the site's migrations up to date first.",
+        );
     }
 
     $site = $iam->prepare('SELECT id FROM applications WHERE client_id = ?');
@@ -145,16 +155,13 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
 
     $lastLogin = [];
     if (legacyHasColumns($legacy, 'user_sessions', ['user_id', 'created_at'])) {
-        $statement = $legacy->query(
-            'SELECT user_id, EXTRACT(EPOCH FROM (max(created_at) AT TIME ZONE ' . $legacy->quote($zone) . ')) AS at FROM user_sessions GROUP BY user_id'
-        );
+        $statement = $legacy->query('SELECT user_id, EXTRACT(EPOCH FROM (max(created_at) AT TIME ZONE ' . $legacy->quote($zone) . ')) AS at FROM user_sessions GROUP BY user_id');
         foreach ($statement->fetchAll() as $row) {
             $lastLogin[(int) $row['user_id']] = $row['at'];
         }
     }
 
-    $summary = ['accounts' => 0, 'identities' => 0, 'recovery_codes' => 0, 'sessions' => 0, 'login_attempts' => 0, 'emails' => 0,
-        'roles' => [], 'time_zone' => $zone, 'dry_run' => $dryRun];
+    $summary = ['accounts' => 0, 'identities' => 0, 'recovery_codes' => 0, 'sessions' => 0, 'login_attempts' => 0, 'emails' => 0, 'roles' => [], 'time_zone' => $zone, 'dry_run' => $dryRun];
 
     // The languages an account may have here, read once and before the
     // transaction, through this connection: the installer runs the import
@@ -162,11 +169,19 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
     $languages = languageCodes($iam);
     // Every application with an ADMIN role, read the same way: an ADMIN of the
     // old site becomes ADMIN of each.
-    $adminClients = array_values(array_unique(array_merge(
-        [$siteClientId, IAM_CLIENT_ID],
-        $iam->query("SELECT a.client_id FROM application_roles r JOIN applications a ON a.id = r.application_id
-                      WHERE r.name = 'ADMIN' ORDER BY a.client_id")->fetchAll(PDO::FETCH_COLUMN)
-    )));
+    $adminClients = array_values(
+        array_unique(
+            array_merge(
+                [$siteClientId, IAM_CLIENT_ID],
+                $iam
+                    ->query(
+                        "SELECT a.client_id FROM application_roles r JOIN applications a ON a.id = r.application_id
+                      WHERE r.name = 'ADMIN' ORDER BY a.client_id",
+                    )
+                    ->fetchAll(PDO::FETCH_COLUMN),
+            ),
+        ),
+    );
 
     $iam->beginTransaction();
 
@@ -174,7 +189,7 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
         $insertUser = $iam->prepare(
             'INSERT INTO users (id, username, email, email_confirmed, password, password_login_enabled, totp_secret, totp_enabled,
                                 force_password_change, language, disabled, last_login_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_timestamp(?), COALESCE(to_timestamp(?), CURRENT_TIMESTAMP), to_timestamp(?))'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_timestamp(?), COALESCE(to_timestamp(?), CURRENT_TIMESTAMP), to_timestamp(?))',
         );
 
         foreach ($users as $user) {
@@ -210,7 +225,7 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
                 $iam->prepare(
                     'INSERT INTO user_roles (user_id, role_id)
                      SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id
-                      WHERE a.client_id = ? AND r.name = ?'
+                      WHERE a.client_id = ? AND r.name = ?',
                 )->execute([(int) $user['id'], $clientId, $role]);
                 $summary['roles']["{$clientId} {$role}"] = ($summary['roles']["{$clientId} {$role}"] ?? 0) + 1;
             }
@@ -243,15 +258,25 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
                 "INSERT INTO sessions (id, user_id, token_hash, sid, method, ip, user_agent, created_at, auth_time, last_seen_at,
                                        expires_at, absolute_expires_at, revoked_at, revoked_reason)
                  VALUES (?, ?, ?, ?, ?, ?, ?, to_timestamp(?), to_timestamp(?), to_timestamp(?), to_timestamp(?), to_timestamp(?),
-                         COALESCE(to_timestamp(?), CURRENT_TIMESTAMP), ?)"
+                         COALESCE(to_timestamp(?), CURRENT_TIMESTAMP), ?)",
             );
             foreach (legacyRows($legacy, 'user_sessions', $sessionColumns, ['created_at', 'last_seen_at', 'expires_at', 'revoked_at'], $zone) as $row) {
                 $created = epochOrNull($row['created_at']) ?? (float) time();
                 $expires = epochOrNull($row['expires_at']) ?? $created;
                 $insert->execute([
-                    (int) $row['id'], (int) $row['user_id'], sha256(random_bytes(32)), substr(str_pad((string) $row['token_id'], 32, '0'), 0, 32),
-                    substr((string) $row['method'], 0, 16), $row['ip'], $row['user_agent'], $created, $created,
-                    epochOrNull($row['last_seen_at']), $expires, $expires, epochOrNull($row['revoked_at']),
+                    (int) $row['id'],
+                    (int) $row['user_id'],
+                    sha256(random_bytes(32)),
+                    substr(str_pad((string) $row['token_id'], 32, '0'), 0, 32),
+                    substr((string) $row['method'], 0, 16),
+                    $row['ip'],
+                    $row['user_agent'],
+                    $created,
+                    $created,
+                    epochOrNull($row['last_seen_at']),
+                    $expires,
+                    $expires,
+                    epochOrNull($row['revoked_at']),
                     $row['revoked_reason'] ?? 'migrated',
                 ]);
                 $summary['sessions']++;
@@ -261,15 +286,34 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
         if (legacyHasColumns($legacy, 'user_login_attempts', ['id', 'email', 'user_id', 'ip', 'method', 'outcome', 'created_at'])) {
             $insert = $iam->prepare('INSERT INTO login_attempts (id, email, user_id, ip, method, outcome, created_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(to_timestamp(?), CURRENT_TIMESTAMP))');
             foreach (legacyRows($legacy, 'user_login_attempts', ['id', 'email', 'user_id', 'ip', 'method', 'outcome', 'created_at'], ['created_at'], $zone) as $row) {
-                $insert->execute([(int) $row['id'], strtolower((string) $row['email']), $row['user_id'] === null ? null : (int) $row['user_id'], $row['ip'], $row['method'], $row['outcome'], epochOrNull($row['created_at'])]);
+                $insert->execute([
+                    (int) $row['id'],
+                    strtolower((string) $row['email']),
+                    $row['user_id'] === null ? null : (int) $row['user_id'],
+                    $row['ip'],
+                    $row['method'],
+                    $row['outcome'],
+                    epochOrNull($row['created_at']),
+                ]);
                 $summary['login_attempts']++;
             }
         }
 
         if (legacyHasColumns($legacy, 'email_log', ['id', 'recipient', 'kind', 'subject', 'status', 'error', 'user_id', 'created_at'])) {
-            $insert = $iam->prepare('INSERT INTO email_log (id, recipient, kind, subject, status, error, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(to_timestamp(?), CURRENT_TIMESTAMP))');
+            $insert = $iam->prepare(
+                'INSERT INTO email_log (id, recipient, kind, subject, status, error, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(to_timestamp(?), CURRENT_TIMESTAMP))',
+            );
             foreach (legacyRows($legacy, 'email_log', ['id', 'recipient', 'kind', 'subject', 'status', 'error', 'user_id', 'created_at'], ['created_at'], $zone) as $row) {
-                $insert->execute([(int) $row['id'], $row['recipient'], $row['kind'], $row['subject'], $row['status'], $row['error'], $row['user_id'] === null ? null : (int) $row['user_id'], epochOrNull($row['created_at'])]);
+                $insert->execute([
+                    (int) $row['id'],
+                    $row['recipient'],
+                    $row['kind'],
+                    $row['subject'],
+                    $row['status'],
+                    $row['error'],
+                    $row['user_id'] === null ? null : (int) $row['user_id'],
+                    epochOrNull($row['created_at']),
+                ]);
                 $summary['emails']++;
             }
         }
@@ -279,8 +323,16 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
             $iam->exec("SELECT setval(pg_get_serial_sequence('{$table}', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM {$table}), 1), (SELECT count(*) > 0 FROM {$table}))");
         }
 
-        if ((int) $iam->query("SELECT count(*) FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'iam' AND r.name = 'ADMIN'")->fetchColumn() === 0) {
-            throw new RuntimeException('None of those accounts is an ADMIN, so nobody could administer the IAM afterwards. Make one an admin in the genshin site first, or start with create-admin.php instead.');
+        if (
+            (int) $iam
+                ->query(
+                    "SELECT count(*) FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'iam' AND r.name = 'ADMIN'",
+                )
+                ->fetchColumn() === 0
+        ) {
+            throw new RuntimeException(
+                'None of those accounts is an ADMIN, so nobody could administer the IAM afterwards. Make one an admin in the genshin site first, or start with create-admin.php instead.',
+            );
         }
 
         // Into the audit log in this transaction, by nobody (the library's
@@ -312,12 +364,14 @@ function importLegacyAccounts(PDO $iam, PDO $legacy, string $siteClientId = 'gen
             exported_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
             iam_issuer  TEXT,
             accounts    INT          NOT NULL
-        )'
+        )',
     );
-    $legacy->prepare(
-        'INSERT INTO iam_handover (id, iam_issuer, accounts) VALUES (1, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET exported_at = CURRENT_TIMESTAMP, iam_issuer = EXCLUDED.iam_issuer, accounts = EXCLUDED.accounts'
-    )->execute([$issuer ?? (function_exists('iamIssuer') ? iamIssuer() : null), $summary['accounts']]);
+    $legacy
+        ->prepare(
+            'INSERT INTO iam_handover (id, iam_issuer, accounts) VALUES (1, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET exported_at = CURRENT_TIMESTAMP, iam_issuer = EXCLUDED.iam_issuer, accounts = EXCLUDED.accounts',
+        )
+        ->execute([$issuer ?? (function_exists('iamIssuer') ? iamIssuer() : null), $summary['accounts']]);
 
     return $summary;
 }

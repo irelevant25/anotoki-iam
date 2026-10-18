@@ -187,11 +187,21 @@ test('the wrong PKCE verifier, redirect URI or origin is refused', function () {
     same('invalid_grant', exchangeCode($browser, queryOf($start['location'])['code'], pkce()[0])->json()['error'] ?? null, 'wrong verifier');
 
     $start = authorize($browser);
-    same('invalid_grant', exchangeCode($browser, queryOf($start['location'])['code'], $start['verifier'], ['redirect_uri' => 'http://localhost:4200/other'])->json()['error'] ?? null, 'wrong redirect');
+    same(
+        'invalid_grant',
+        exchangeCode($browser, queryOf($start['location'])['code'], $start['verifier'], ['redirect_uri' => 'http://localhost:4200/other'])->json()['error'] ?? null,
+        'wrong redirect',
+    );
 
     $start = authorize($browser);
     $wrongOrigin = $browser->request('POST', '/api/oidc/token', [
-        'form' => ['grant_type' => 'authorization_code', 'code' => queryOf($start['location'])['code'], 'redirect_uri' => GENSHIN_CALLBACK, 'client_id' => 'genshin', 'code_verifier' => $start['verifier']],
+        'form' => [
+            'grant_type' => 'authorization_code',
+            'code' => queryOf($start['location'])['code'],
+            'redirect_uri' => GENSHIN_CALLBACK,
+            'client_id' => 'genshin',
+            'code_verifier' => $start['verifier'],
+        ],
         'headers' => ['Origin' => 'https://evil.test'],
     ]);
     same(400, $wrongOrigin->status, 'foreign origin');
@@ -212,7 +222,9 @@ test('refresh rotates; a spent token gets one sibling within the leeway, and a c
 
     $again = signInToGenshin(new Browser(), 'player@example.test')['refresh_token'];
     same(200, refreshWith($browser, $again)->status, 'a new sign-in refreshes');
-    iamDb()->prepare("UPDATE refresh_tokens SET used_at = CURRENT_TIMESTAMP - INTERVAL '5 minutes' WHERE token_hash = ?")->execute([sha256($again)]);
+    iamDb()
+        ->prepare("UPDATE refresh_tokens SET used_at = CURRENT_TIMESTAMP - INTERVAL '5 minutes' WHERE token_hash = ?")
+        ->execute([sha256($again)]);
     same('invalid_grant', refreshWith($browser, $again)->json()['error'] ?? null, 'reuse after the leeway is refused outright');
 });
 
@@ -242,12 +254,15 @@ test('RP-initiated logout with a valid id_token_hint signs out without asking', 
     $browser = new Browser();
     $tokens = signInToGenshin($browser, 'player@example.test');
 
-    $logout = $browser->get('/api/oidc/logout?' . http_build_query([
-        'client_id' => 'genshin',
-        'id_token_hint' => $tokens['id_token'],
-        'post_logout_redirect_uri' => 'http://localhost:4200/',
-        'state' => 'xyz',
-    ]));
+    $logout = $browser->get(
+        '/api/oidc/logout?' .
+            http_build_query([
+                'client_id' => 'genshin',
+                'id_token_hint' => $tokens['id_token'],
+                'post_logout_redirect_uri' => 'http://localhost:4200/',
+                'state' => 'xyz',
+            ]),
+    );
     same('http://localhost:4200/?state=xyz', $logout->location(), 'lands on the registered page');
     same(401, $browser->get('/api/account')->status, 'the IAM session is over');
 });
@@ -270,7 +285,11 @@ test('logout without a hint asks first, and an unregistered landing is refused',
 test('first-party writes need the CSRF header and the IAM\'s own origin', function () {
     $browser = new Browser();
     same('csrf', $browser->post('/api/login/password', ['email' => 'player@example.test', 'password' => 'correct horse'], ['csrf' => false])->code(), 'no header');
-    same('csrf', $browser->post('/api/login/password', ['email' => 'player@example.test', 'password' => 'correct horse'], ['headers' => ['Origin' => 'https://genshin.anotoki.eu']])->code(), 'a sibling site\'s origin');
+    same(
+        'csrf',
+        $browser->post('/api/login/password', ['email' => 'player@example.test', 'password' => 'correct horse'], ['headers' => ['Origin' => 'https://genshin.anotoki.eu']])->code(),
+        'a sibling site\'s origin',
+    );
     same(200, $browser->post('/api/login/password', ['email' => 'player@example.test', 'password' => 'correct horse'], ['headers' => ['Origin' => TEST_ISSUER]])->status, 'the IAM\'s own origin');
 
     // The router decodes the path before matching; the guard must see the same
@@ -278,7 +297,10 @@ test('first-party writes need the CSRF header and the IAM\'s own origin', functi
     same('csrf', $browser->post('/%61pi/login/password', ['email' => 'player@example.test', 'password' => 'correct horse'])->code(), 'an encoded /api/');
     same('csrf', $browser->post('/api%2Flogin%2Fpassword', ['email' => 'player@example.test', 'password' => 'correct horse'])->code(), 'encoded slashes');
     same('csrf', $browser->post('/api/oidc/..%2Flogin/password', ['email' => 'player@example.test', 'password' => 'correct horse'])->code(), 'through the exempt prefix');
-    check($browser->request('POST', '/api/oidc/token', ['form' => ['grant_type' => 'refresh_token', 'refresh_token' => 'x', 'client_id' => 'genshin']])->code() !== 'csrf', 'the token endpoint needs no header');
+    check(
+        $browser->request('POST', '/api/oidc/token', ['form' => ['grant_type' => 'refresh_token', 'refresh_token' => 'x', 'client_id' => 'genshin']])->code() !== 'csrf',
+        'the token endpoint needs no header',
+    );
 });
 
 test('the same answer for a wrong password and an unknown address, and the limiter holds', function () {
@@ -336,10 +358,19 @@ test('a site whose MEMBER may not sign in refuses an account holding only MEMBER
     $browser = new Browser();
     $browser->signIn('player@example.test', 'correct horse');
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'japanese-academy', 'redirect_uri' => JAPANESE_CALLBACK,
-        'scope' => 'openid profile', 'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'japanese-academy',
+                'redirect_uri' => JAPANESE_CALLBACK,
+                'scope' => 'openid profile',
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     $request = queryOf($start->location())['request'] ?? null;
     check($request !== null, 'no silent code for a non-member: ' . $start->location());
     same('access_denied', $browser->post("/api/login/request/{$request}/accept")->code(), 'accept refused');
@@ -349,22 +380,46 @@ test('a site whose MEMBER may not sign in refuses an account holding only MEMBER
     $back = queryOf($browser->post("/api/login/request/{$request}/cancel")->json()['redirect'] ?? '');
     same('access_denied', $back['error'] ?? null, 'the way back is an access_denied');
     same('This account cannot use Japanese Academy', $back['error_description'] ?? null, 'and says why, not "cancelled"');
-    $request = queryOf($browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'japanese-academy', 'redirect_uri' => JAPANESE_CALLBACK,
-        'scope' => 'openid profile', 'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]))->location())['request'] ?? null;
+    $request =
+        queryOf(
+            $browser
+                ->get(
+                    '/api/oidc/authorize?' .
+                        http_build_query([
+                            'response_type' => 'code',
+                            'client_id' => 'japanese-academy',
+                            'redirect_uri' => JAPANESE_CALLBACK,
+                            'scope' => 'openid profile',
+                            'state' => 's',
+                            'nonce' => 'n',
+                            'code_challenge' => $challenge,
+                            'code_challenge_method' => 'S256',
+                        ]),
+                )
+                ->location(),
+        )['request'] ?? null;
 
     grantRole($GLOBALS['playerId'], 'japanese-academy', 'EDITOR');
     $accept = $browser->post("/api/login/request/{$request}/accept");
     same(200, $accept->status, 'accepted once it holds a role there');
 
-    $tokens = $browser->request('POST', '/api/oidc/token', ['form' => [
-        'grant_type' => 'authorization_code', 'code' => queryOf($accept->json()['redirect'])['code'],
-        'redirect_uri' => JAPANESE_CALLBACK, 'client_id' => 'japanese-academy', 'code_verifier' => $verifier,
-    ]])->json();
+    $tokens = $browser
+        ->request('POST', '/api/oidc/token', [
+            'form' => [
+                'grant_type' => 'authorization_code',
+                'code' => queryOf($accept->json()['redirect'])['code'],
+                'redirect_uri' => JAPANESE_CALLBACK,
+                'client_id' => 'japanese-academy',
+                'code_verifier' => $verifier,
+            ],
+        ])
+        ->json();
     check(isset($tokens['refresh_token']), 'tokens');
 
-    iamDb()->prepare("DELETE FROM user_roles WHERE user_id = ? AND role_id IN (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'japanese-academy' AND r.name = 'EDITOR')")
+    iamDb()
+        ->prepare(
+            "DELETE FROM user_roles WHERE user_id = ? AND role_id IN (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'japanese-academy' AND r.name = 'EDITOR')",
+        )
         ->execute([$GLOBALS['playerId']]);
     same('invalid_grant', refreshWith($browser, $tokens['refresh_token'], 'japanese-academy')->json()['error'] ?? null, 'the role taken away stops the next refresh');
 
@@ -376,17 +431,31 @@ test('every first-party site is open to every account: one given no role there s
     $browser = new Browser('10.2.0.1');
     same(200, $browser->signIn('player@example.test', 'correct horse')->status, 'signed in');
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'japanese-academy', 'redirect_uri' => JAPANESE_CALLBACK,
-        'scope' => 'openid profile', 'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'japanese-academy',
+                'redirect_uri' => JAPANESE_CALLBACK,
+                'scope' => 'openid profile',
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     $code = queryOf($start->location())['code'] ?? null;
     check($code !== null, 'a signed-in browser gets its code straight away: ' . $start->location());
 
-    $tokens = $browser->request('POST', '/api/oidc/token', ['form' => [
-        'grant_type' => 'authorization_code', 'code' => $code, 'redirect_uri' => JAPANESE_CALLBACK,
-        'client_id' => 'japanese-academy', 'code_verifier' => $verifier,
-    ]]);
+    $tokens = $browser->request('POST', '/api/oidc/token', [
+        'form' => [
+            'grant_type' => 'authorization_code',
+            'code' => $code,
+            'redirect_uri' => JAPANESE_CALLBACK,
+            'client_id' => 'japanese-academy',
+            'code_verifier' => $verifier,
+        ],
+    ]);
     same(200, $tokens->status, 'code exchange: ' . $tokens->body);
     $claims = verifyLikeAnApp($browser, $tokens->json()['access_token'], 'japanese-academy');
     check($claims !== null, 'the access token verifies as the site verifies it');
@@ -399,7 +468,15 @@ test('two-factor: setup, enable, then every sign-in asks; a recovery code works 
     $browser->signIn('careful@example.test', 'correct horse');
 
     $secret = $browser->post('/api/account/2fa/setup')->json()['secret'];
-    check(!str_contains((string) iamDb()->query("SELECT totp_secret FROM users WHERE id = $userId")->fetchColumn(), $secret), 'the secret is stored encrypted');
+    check(
+        !str_contains(
+            (string) iamDb()
+                ->query("SELECT totp_secret FROM users WHERE id = $userId")
+                ->fetchColumn(),
+            $secret,
+        ),
+        'the secret is stored encrypted',
+    );
 
     $step = intdiv(time(), 30);
     // With the password: a session alone does not switch two-factor on (accountProof()).
@@ -476,21 +553,31 @@ test('a reset takes the account back: sessions, personal tokens and outside iden
     $intruder = new Browser('10.0.3.1');
     $intruder->signIn('retaken@example.test', 'correct horse');
     $pat = $intruder->post('/api/account/tokens', ['name' => 'left behind', 'client_id' => 'genshin', 'expires_in_days' => 30])->json()['token'] ?? '';
-    iamDb()->prepare("INSERT INTO user_identities (user_id, provider, subject, email) VALUES (?, 'google', 'the-intruders-google', 'intruder@example.test')")->execute([$userId]);
+    iamDb()
+        ->prepare("INSERT INTO user_identities (user_id, provider, subject, email) VALUES (?, 'google', 'the-intruders-google', 'intruder@example.test')")
+        ->execute([$userId]);
     same(200, refreshWith(new Browser(), $pat)->status, 'the personal token works before');
 
     $reset = (new Browser('10.0.3.2'))->post('/api/password/reset', ['token' => resetTokenFor('retaken@example.test', '10.0.3.2'), 'password' => 'the owners own now']);
     same(200, $reset->status, 'reset: ' . $reset->body);
 
     same('invalid_grant', refreshWith(new Browser(), $pat)->json()['error'] ?? null, 'the personal token is dead');
-    same(0, (int) iamDb()->query("SELECT count(*) FROM user_identities WHERE user_id = $userId")->fetchColumn(), 'the attached Google is gone');
+    same(
+        0,
+        (int) iamDb()
+            ->query("SELECT count(*) FROM user_identities WHERE user_id = $userId")
+            ->fetchColumn(),
+        'the attached Google is gone',
+    );
     same(401, $intruder->get('/api/account')->status, 'the session is over');
 });
 
 test('a reset with two-factor on asks for a code first, and spends nothing until it gets one', function () {
     $userId = makeUser('guarded', 'guarded@example.test');
     $secret = totpSecret();
-    iamDb()->prepare('UPDATE users SET totp_enabled = TRUE, totp_secret = ? WHERE id = ?')->execute([encryptSecret($secret), $userId]);
+    iamDb()
+        ->prepare('UPDATE users SET totp_enabled = TRUE, totp_secret = ? WHERE id = ?')
+        ->execute([encryptSecret($secret), $userId]);
     $token = resetTokenFor('guarded@example.test', '10.0.5.1');
     $browser = new Browser('10.0.5.2');
 
@@ -498,7 +585,11 @@ test('a reset with two-factor on asks for a code first, and spends nothing until
     same('totp_invalid', $browser->post('/api/password/reset', ['token' => $token, 'password' => 'a mailbox is not enough', 'totp' => '000000'])->code(), 'nor a wrong code');
     same(200, (new Browser('10.0.5.3'))->signIn('guarded@example.test', 'correct horse', ['totp' => totpCode($secret, intdiv(time(), 30))])->status, 'the old password still stands meanwhile');
 
-    same(200, $browser->post('/api/password/reset', ['token' => $token, 'password' => 'a mailbox is not enough', 'totp' => totpCode($secret, intdiv(time(), 30) + 1)])->status, 'the same link, with a code');
+    same(
+        200,
+        $browser->post('/api/password/reset', ['token' => $token, 'password' => 'a mailbox is not enough', 'totp' => totpCode($secret, intdiv(time(), 30) + 1)])->status,
+        'the same link, with a code',
+    );
     same(400, $browser->post('/api/password/reset', ['token' => $token, 'password' => 'again and again', 'totp' => totpCode($secret, intdiv(time(), 30) + 1)])->status, 'and then the link is spent');
 });
 
@@ -611,8 +702,7 @@ test('housekeeping sweeps dead requests, codes and old spent tokens, and nothing
     $tokens = signInToGenshin($browser, 'player@example.test');
 
     $application = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'genshin'")->fetchColumn();
-    $pdo->prepare("INSERT INTO auth_requests (id, application_id, expires_at) VALUES (?, ?, CURRENT_TIMESTAMP - INTERVAL '2 days')")
-        ->execute([str_repeat('d', 32), $application]);
+    $pdo->prepare("INSERT INTO auth_requests (id, application_id, expires_at) VALUES (?, ?, CURRENT_TIMESTAMP - INTERVAL '2 days')")->execute([str_repeat('d', 32), $application]);
     $pdo->exec("UPDATE refresh_tokens SET used_at = CURRENT_TIMESTAMP - INTERVAL '40 days' WHERE id = (SELECT min(id) FROM refresh_tokens)");
     $oldest = (int) $pdo->query('SELECT min(id) FROM refresh_tokens')->fetchColumn();
 

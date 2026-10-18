@@ -1,23 +1,23 @@
-import { provideHttpClient, withFetch, withInterceptors } from "@angular/common/http";
-import { ApplicationConfig, DOCUMENT, inject, provideAppInitializer, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from "@angular/core";
-import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from "@angular/router";
-import { provideAnotokiAdmin } from "@anotoki/lib/admin";
-import { provideAnotokiErrorReport } from "@anotoki/lib/error-report";
-import { provideAnotokiLegal } from "@anotoki/lib/legal";
-import { provideAnotokiMigrations, siteStatusInterceptor } from "@anotoki/lib/migrations";
-import { ThemeService, provideAnotokiShell } from "@anotoki/lib/shell";
-import { provideAnotokiTranslations } from "@anotoki/lib/translations";
-import { provideAnotokiUi } from "@anotoki/lib/ui/config";
-import { routes } from "./app.routes";
-import { iamAdminToolsConfig } from "./core/admin/admin-tools.config";
-import { SessionService } from "./core/auth/session.service";
-import { iamInterceptor } from "./core/http/iam.interceptor";
-import { IamTitleStrategy } from "./core/i18n/title.strategy";
-import { TranslationService } from "./core/i18n/translation.service";
-import { iamTranslationsConfig, startTranslations } from "./core/i18n/translations.config";
-import { iamShellConfig, iamUiConfig } from "./core/kit/kit.config";
-import { iamLegalConfig } from "./core/legal/legal.config";
-import { iamMigrationsConfig } from "./core/migrations/migrations.config";
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
+import { ApplicationConfig, DOCUMENT, inject, provideAppInitializer, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from '@angular/core';
+import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
+import { provideAnotokiAdmin } from '@anotoki/lib/admin';
+import { provideAnotokiErrorReport } from '@anotoki/lib/error-report';
+import { provideAnotokiLegal } from '@anotoki/lib/legal';
+import { provideAnotokiMigrations, siteStatusInterceptor } from '@anotoki/lib/migrations';
+import { ThemeService, provideAnotokiShell } from '@anotoki/lib/shell';
+import { provideAnotokiTranslations } from '@anotoki/lib/translations';
+import { provideAnotokiUi } from '@anotoki/lib/ui/config';
+import { routes } from './app.routes';
+import { iamAdminToolsConfig } from './core/admin/admin-tools.config';
+import { SessionService } from './core/auth/session.service';
+import { iamInterceptor } from './core/http/iam.interceptor';
+import { IamTitleStrategy } from './core/i18n/title.strategy';
+import { TranslationService } from './core/i18n/translation.service';
+import { iamTranslationsConfig, startTranslations } from './core/i18n/translations.config';
+import { iamShellConfig, iamUiConfig } from './core/kit/kit.config';
+import { iamLegalConfig } from './core/legal/legal.config';
+import { iamMigrationsConfig } from './core/migrations/migrations.config';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -34,7 +34,7 @@ export const appConfig: ApplicationConfig = {
     provideZonelessChangeDetection(),
     // Query parameters (`?request=`, `?next=`, `?token=`) and route parameters
     // arrive as component inputs, so pages read them as signals.
-    provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: "enabled" })),
+    provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'enabled' })),
     // The IAM's own interceptor outermost; the family's (@anotoki/lib) inside
     // it, nearest the server, where an answer still is the HttpErrorResponse
     // it reads: a 503 `not_set_up` (or `update_pending`) tells SiteStatus.
@@ -74,7 +74,7 @@ export const appConfig: ApplicationConfig = {
     // a site that starts and says so.
     provideAppInitializer(() => {
       inject(ThemeService);
-      return startTranslations(inject(SessionService), inject(TranslationService), inject(DOCUMENT).location?.pathname ?? "/");
+      return startTranslations(inject(SessionService), inject(TranslationService), inject(DOCUMENT).location?.pathname ?? '/');
     }),
   ],
 };

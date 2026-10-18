@@ -103,9 +103,7 @@ function settingValueRefusal(array $setting, string $value): ?string
 {
     return match ($setting['type']) {
         'boolean' => in_array($value, ['true', 'false'], true) ? null : "{$setting['name']} is a switch - expected 'true' or 'false'",
-        'choice' => in_array($value, array_map('trim', explode(',', (string) $setting['options'])), true)
-            ? null
-            : "{$setting['name']} must be one of: {$setting['options']}",
+        'choice' => in_array($value, array_map('trim', explode(',', (string) $setting['options'])), true) ? null : "{$setting['name']} must be one of: {$setting['options']}",
         default => strlen($value) > 10000 ? "{$setting['name']} is too long" : null,
     };
 }

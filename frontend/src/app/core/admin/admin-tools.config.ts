@@ -1,9 +1,9 @@
-import { inject } from "@angular/core";
-import { AdminFailure, AnotokiAdminConfig } from "@anotoki/lib/admin";
-import { SessionService } from "../auth/session.service";
-import { formatAppDate } from "../i18n/app-date.pipe";
-import { TranslationService } from "../i18n/translation.service";
-import { MIGRATIONS_ROUTE } from "../migrations/migrations.config";
+import { inject } from '@angular/core';
+import { AdminFailure, AnotokiAdminConfig } from '@anotoki/lib/admin';
+import { SessionService } from '../auth/session.service';
+import { formatAppDate } from '../i18n/app-date.pipe';
+import { TranslationService } from '../i18n/translation.service';
+import { MIGRATIONS_ROUTE } from '../migrations/migrations.config';
 
 /**
  * What only the admin panel says and does for the admin tools' pages - handed
@@ -52,10 +52,10 @@ export function iamAdminToolsConfig(): AnotokiAdminConfig {
   const i18n = inject(TranslationService);
   return {
     isAdmin: session.isAdmin,
-    siteName: "the IAM",
+    siteName: 'the IAM',
     migrationsRoute: MIGRATIONS_ROUTE,
-    personLink: (id) => ["/admin/users", id],
-    formatDate: (iso) => formatAppDate(iso, "datetime", i18n.locale(), session.user()?.preferences ?? null),
+    personLink: (id) => ['/admin/users', id],
+    formatDate: (iso) => formatAppDate(iso, 'datetime', i18n.locale(), session.user()?.preferences ?? null),
     failureText: (failure) => panel?.failureText(failure),
     signInAgain: () => panel?.signInAgain(),
     // Read as the Backups page is made - after the panel's routes handed it over.

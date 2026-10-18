@@ -23,7 +23,7 @@ function issueTrustedDevice(PDO $pdo, int $userId, Request $request): string
 
     $pdo->prepare(
         "INSERT INTO user_trusted_devices (user_id, token_hash, user_agent, ip, last_used_at, expires_at)
-              VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))"
+              VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))",
     )->execute([$userId, sha256($token), requestUserAgent($request), requestIp($request), TRUSTED_DEVICE_LIFETIME]);
 
     return $token;
@@ -38,7 +38,7 @@ function trustedDeviceAccepted(PDO $pdo, int $userId, mixed $token): bool
 
     $statement = $pdo->prepare(
         'SELECT id, last_used_at FROM user_trusted_devices
-          WHERE token_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP'
+          WHERE token_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
     );
     $statement->execute([sha256($token), $userId]);
     $device = $statement->fetch();
@@ -65,9 +65,7 @@ function revokeTrustedDevices(PDO $pdo, int $userId): int
 
 function trustedDeviceCount(PDO $pdo, int $userId): int
 {
-    $statement = $pdo->prepare(
-        'SELECT count(*) FROM user_trusted_devices WHERE user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP'
-    );
+    $statement = $pdo->prepare('SELECT count(*) FROM user_trusted_devices WHERE user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP');
     $statement->execute([$userId]);
 
     return (int) $statement->fetchColumn();

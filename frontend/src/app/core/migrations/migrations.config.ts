@@ -1,13 +1,13 @@
-import { Injector, inject } from "@angular/core";
-import { Router } from "@angular/router";
-import { AnotokiMigrationsConfig, SiteStatusWords } from "@anotoki/lib/migrations";
-import { TranslationService as LibraryTranslations, siteStatusWords } from "@anotoki/lib/translations";
-import { SessionService } from "../auth/session.service";
-import { formatAppDate } from "../i18n/app-date.pipe";
-import { TranslationService } from "../i18n/translation.service";
+import { Injector, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { AnotokiMigrationsConfig, SiteStatusWords } from '@anotoki/lib/migrations';
+import { TranslationService as LibraryTranslations, siteStatusWords } from '@anotoki/lib/translations';
+import { SessionService } from '../auth/session.service';
+import { formatAppDate } from '../i18n/app-date.pipe';
+import { TranslationService } from '../i18n/translation.service';
 
 /** The admin panel's Migrations page: the route that shows the module's page. */
-export const MIGRATIONS_ROUTE = "/admin/migrations";
+export const MIGRATIONS_ROUTE = '/admin/migrations';
 
 /**
  * How the IAM plugs into the anotoki family's migrations module
@@ -44,14 +44,14 @@ export function iamMigrationsConfig(): AnotokiMigrationsConfig {
   const injector = inject(Injector);
 
   return {
-    statusUrl: "/api/site-status",
-    apiBase: "/api/admin/migrations",
+    statusUrl: '/api/site-status',
+    apiBase: '/api/admin/migrations',
     migrationsRoute: MIGRATIONS_ROUTE,
     isAdmin: session.isAdmin,
     isSignedIn: session.signedIn,
     signIn: () => {
       const router = injector.get(Router);
-      return router.navigate(["/login"], { queryParams: { next: router.url } });
+      return router.navigate(['/login'], { queryParams: { next: router.url } });
     },
     language: i18n.effectiveLanguage,
     // A getter, read by the module's page whenever it draws its words: they
@@ -63,14 +63,14 @@ export function iamMigrationsConfig(): AnotokiMigrationsConfig {
     get words(): Record<string, Partial<SiteStatusWords>> {
       return siteStatusWords(library, {
         [i18n.effectiveLanguage()]: {
-          notSetUpTitle: i18n.t("notSetUp.title"),
-          notSetUpText: i18n.t("notSetUp.text"),
-          openSetup: i18n.t("notSetUp.open"),
-          tryAgain: i18n.t("notSetUp.check"),
+          notSetUpTitle: i18n.t('notSetUp.title'),
+          notSetUpText: i18n.t('notSetUp.text'),
+          openSetup: i18n.t('notSetUp.open'),
+          tryAgain: i18n.t('notSetUp.check'),
         },
       });
     },
-    formatDate: (iso) => formatAppDate(iso, "datetime", i18n.locale(), session.user()?.preferences ?? null),
+    formatDate: (iso) => formatAppDate(iso, 'datetime', i18n.locale(), session.user()?.preferences ?? null),
     onUpToDate: () => i18n.reload(),
   };
 }

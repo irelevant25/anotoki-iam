@@ -24,8 +24,11 @@ $database = throwawayDatabase(testEnvironment()['db']);
 // An old genshin accounts database with an admin and a player, to bring over.
 $legacy = makeLegacyDatabase();
 $legacyName = testEnvironment()['db'] . '_legacy';
-$legacy->prepare("INSERT INTO users (id, role, username, email, email_confirmed, password) VALUES
-    (3, 'ADMIN', 'owner', 'owner@example.test', TRUE, ?), (8, 'USER', 'player', 'player@example.test', TRUE, ?)")
+$legacy
+    ->prepare(
+        "INSERT INTO users (id, role, username, email, email_confirmed, password) VALUES
+    (3, 'ADMIN', 'owner', 'owner@example.test', TRUE, ?), (8, 'USER', 'player', 'player@example.test', TRUE, ?)",
+    )
     ->execute([password_hash('owner password', PASSWORD_DEFAULT), password_hash('player password', PASSWORD_DEFAULT)]);
 
 /** The form as a developer fills it in, over the prefilled values. */
@@ -127,7 +130,11 @@ test('"Test connection" answers in place: a login that works, one that does not,
         same("Connected to the server. The database \"{$GLOBALS['database']}\" does not exist yet - Save creates it.", $missing['message'], 'in the family\'s words');
     } else {
         same('bad', $missing['tone'], 'the server answers, but this user cannot make the database: ' . $missing['message']);
-        same("Connected to the server, but there is no database \"{$GLOBALS['database']}\" and this user may not create one. Make it in the hosting panel first.", $missing['message'], 'in the family\'s words');
+        same(
+            "Connected to the server, but there is no database \"{$GLOBALS['database']}\" and this user may not create one. Make it in the hosting panel first.",
+            $missing['message'],
+            'in the family\'s words',
+        );
     }
 
     $wrong = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_pass' => 'certainly not the password', 'db_user' => 'iam_test_nobody'])));
@@ -145,7 +152,11 @@ test('"Test connection" answers in place: a login that works, one that does not,
     ensureMigrationsTable($partial);
     applyMigration($partial, 'iam', $files[0]);
     $partialAnswer = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_name' => $empty])));
-    same(['ok' => true, 'tone' => 'good', 'message' => "Connected to the database \"{$empty}\": " . (count($files) - 1) . ' update(s) to apply - Save applies them.'], $partialAnswer, 'a database with updates to apply');
+    same(
+        ['ok' => true, 'tone' => 'good', 'message' => "Connected to the database \"{$empty}\": " . (count($files) - 1) . ' update(s) to apply - Save applies them.'],
+        $partialAnswer,
+        'a database with updates to apply',
+    );
     $partial = null;
 
     $old = setupJsonAnswer(setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_legacy'] + localForm($nonce)));
@@ -190,13 +201,17 @@ test('"Test connection" for a login that may not create a database, and for a da
     $admin->exec('REVOKE CONNECT ON DATABASE "' . $closed . '" FROM PUBLIC');
 
     $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
-    $as = static fn(string $name): array => setupJsonAnswer(setupRequest('POST', LOCAL_SERVER,
-        json: ['action' => 'test_database'] + localForm($nonce, ['db_user' => $login, 'db_pass' => $password, 'db_name' => $name])));
+    $as = static fn(string $name): array => setupJsonAnswer(
+        setupRequest('POST', LOCAL_SERVER, json: ['action' => 'test_database'] + localForm($nonce, ['db_user' => $login, 'db_pass' => $password, 'db_name' => $name])),
+    );
 
     $never = $GLOBALS['database'] . '_never';
     $missing = $as($never);
-    same(['ok' => false, 'tone' => 'bad', 'message' => "Connected to the server, but there is no database \"{$never}\" and this user may not create one. Make it in the hosting panel first."],
-        $missing, 'a database not there, and a login that may not make it');
+    same(
+        ['ok' => false, 'tone' => 'bad', 'message' => "Connected to the server, but there is no database \"{$never}\" and this user may not create one. Make it in the hosting panel first."],
+        $missing,
+        'a database not there, and a login that may not make it',
+    );
 
     $shut = $as($closed);
     $opening = "The server is there, but \"{$login}\" cannot open the database \"{$closed}\": ";
@@ -296,15 +311,27 @@ test('a new administrator instead, into a database of its own; Google comes and 
     $short = setupRequest('POST', LOCAL_SERVER, localForm($nonce, ['db_name' => $fresh, 'accounts' => 'fresh', 'email' => 'admin@localhost', 'password' => 'short', 'confirm' => 'short']));
     same(422, $short['status'], 'a short password is refused');
 
-    $answer = setupRequest('POST', LOCAL_SERVER, localForm($nonce, [
-        'db_name' => $fresh, 'accounts' => 'fresh', 'email' => 'admin@localhost', 'password' => 'a long enough one', 'confirm' => 'a long enough one',
-        'google_client_id' => '1234-abc.apps.googleusercontent.com',
-    ]));
+    $answer = setupRequest(
+        'POST',
+        LOCAL_SERVER,
+        localForm($nonce, [
+            'db_name' => $fresh,
+            'accounts' => 'fresh',
+            'email' => 'admin@localhost',
+            'password' => 'a long enough one',
+            'confirm' => 'a long enough one',
+            'google_client_id' => '1234-abc.apps.googleusercontent.com',
+        ]),
+    );
     same(200, $answer['status'], 'saved: ' . strip_tags($answer['body']));
     same(200, (new Browser())->signIn('admin@localhost', 'a long enough one')->status, 'the administrator signs in');
     $pdo = connectDatabase(testServer(), $fresh, false);
     $adminId = (int) $pdo->query("SELECT id FROM users WHERE email = 'admin@localhost'")->fetchColumn();
-    same(['build-analyzer', 'genshin', 'iam', 'japanese-academy', 'piano-academy', 'survey'], adminOf($pdo, $adminId), 'and holds ADMIN in the IAM and every site - the owner\'s rule for the setup\'s administrator');
+    same(
+        ['build-analyzer', 'genshin', 'iam', 'japanese-academy', 'piano-academy', 'survey'],
+        adminOf($pdo, $adminId),
+        'and holds ADMIN in the IAM and every site - the owner\'s rule for the setup\'s administrator',
+    );
     same(applicationsWithAdmin($pdo), adminOf($pdo, $adminId), 'which is every application that has one');
     $pdo = null;
     same('1234-abc.apps.googleusercontent.com', localConfig('google')['client_id'] ?? null, 'Google is on');
@@ -317,8 +344,11 @@ test('a new administrator instead, into a database of its own; Google comes and 
 
 test('a fresh database arrives with the sites\' development addresses, as in the port table', function () {
     $table = [
-        'genshin' => 'http://localhost:4200', 'japanese-academy' => 'http://localhost:4400', 'piano-academy' => 'http://localhost:4500',
-        'build-analyzer' => 'http://localhost:4600', 'survey' => 'http://localhost:4700',
+        'genshin' => 'http://localhost:4200',
+        'japanese-academy' => 'http://localhost:4400',
+        'piano-academy' => 'http://localhost:4500',
+        'build-analyzer' => 'http://localhost:4600',
+        'survey' => 'http://localhost:4700',
     ];
     $pdo = iamDb();
 
@@ -349,54 +379,59 @@ test('a fresh database arrives with the sites\' development addresses, as in the
     same(['ADMIN', 'EDITOR', 'MEMBER'], $roles->fetchAll(PDO::FETCH_COLUMN), 'the roles the survey site asks for, and the MEMBER every account holds - each may sign in');
 });
 
-test('a file the installer reads that does not start with <?php - no <?php line, a byte-order mark - is never shown, and nothing is saved over it until it is corrected; config/cloudflare.local.php it never touches', function () {
-    $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
-    $secretFile = IAM_CONFIG_DIR . '/secret.local.php';
-    $iamFile = IAM_CONFIG_DIR . '/iam.local.php';
-    $cloudflareFile = IAM_CONFIG_DIR . '/cloudflare.local.php';
-    $key = (string) file_get_contents($secretFile);
-    $hex = trim((string) localConfig('secret'));
-    $iam = (string) file_get_contents($iamFile);
-    $withoutPhp = "return ['public_url' => 'http://localhost:4300'];\n";
+test(
+    'a file the installer reads that does not start with <?php - no <?php line, a byte-order mark - is never shown, and nothing is saved over it until it is corrected; config/cloudflare.local.php it never touches',
+    function () {
+        $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
+        $secretFile = IAM_CONFIG_DIR . '/secret.local.php';
+        $iamFile = IAM_CONFIG_DIR . '/iam.local.php';
+        $cloudflareFile = IAM_CONFIG_DIR . '/cloudflare.local.php';
+        $key = (string) file_get_contents($secretFile);
+        $hex = trim((string) localConfig('secret'));
+        $iam = (string) file_get_contents($iamFile);
+        $withoutPhp = "return ['public_url' => 'http://localhost:4300'];\n";
 
-    // The origin secret, uploaded by hand: no save reads it or writes it.
-    $cloudflare = "<?php\n\nreturn ['origin_secret' => 'uploaded-by-hand-0123456789abcdefghijklmnop'];\n";
-    file_put_contents($cloudflareFile, $cloudflare);
+        // The origin secret, uploaded by hand: no save reads it or writes it.
+        $cloudflare = "<?php\n\nreturn ['origin_secret' => 'uploaded-by-hand-0123456789abcdefghijklmnop'];\n";
+        file_put_contents($cloudflareFile, $cloudflare);
 
-    file_put_contents($secretFile, "\xEF\xBB\xBF" . $key);
-    file_put_contents($iamFile, $withoutPhp);
-    forgetLocalConfig();
-    try {
-        ob_start();
-        $page = setupRequest('GET', LOCAL_SERVER);
-        $printed = (string) ob_get_clean();
-        same('', $printed, 'nothing of either is printed');
-        same(200, $page['status'], 'the form');
-        check(!str_contains($page['body'], $hex), 'the master key is not in the page');
-        check(str_contains($page['body'], 'config/secret.local.php does not start with &lt;?php') && str_contains($page['body'], 'config/iam.local.php does not start with &lt;?php'),
-            'the page names both files and their fault: ' . strip_tags($page['body']));
-
-        ob_start();
-        $answer = setupRequest('POST', LOCAL_SERVER, localForm(nonceFrom($page), ['db_pass' => '', 'accounts' => 'later']));
-        $printed = (string) ob_get_clean();
-        same('', $printed, 'nothing printed by the save either');
-        same(409, $answer['status'], 'the save is refused while they print');
-        check(!str_contains($answer['body'], $hex), 'nor is the key in its answer');
-        check("\xEF\xBB\xBF" . $key === (string) file_get_contents($secretFile), 'the key\'s file is not written over: no new master key in its place');
-        same($withoutPhp, (string) file_get_contents($iamFile), 'nor is the other');
-    } finally {
-        file_put_contents($secretFile, $key);
-        file_put_contents($iamFile, $iam);
+        file_put_contents($secretFile, "\xEF\xBB\xBF" . $key);
+        file_put_contents($iamFile, $withoutPhp);
         forgetLocalConfig();
-    }
+        try {
+            ob_start();
+            $page = setupRequest('GET', LOCAL_SERVER);
+            $printed = (string) ob_get_clean();
+            same('', $printed, 'nothing of either is printed');
+            same(200, $page['status'], 'the form');
+            check(!str_contains($page['body'], $hex), 'the master key is not in the page');
+            check(
+                str_contains($page['body'], 'config/secret.local.php does not start with &lt;?php') && str_contains($page['body'], 'config/iam.local.php does not start with &lt;?php'),
+                'the page names both files and their fault: ' . strip_tags($page['body']),
+            );
 
-    $saved = setupRequest('POST', LOCAL_SERVER, localForm($nonce, ['db_pass' => '', 'accounts' => 'later']));
-    same(200, $saved['status'], 'corrected, it saves: ' . strip_tags($saved['body']));
-    same($cloudflare, (string) file_get_contents($cloudflareFile), 'config/cloudflare.local.php is as it was uploaded');
-    check(trim((string) localConfig('secret')) === $hex, 'and the master key is the one it was');
-    unlink($cloudflareFile);
-    forgetLocalConfig();
-});
+            ob_start();
+            $answer = setupRequest('POST', LOCAL_SERVER, localForm(nonceFrom($page), ['db_pass' => '', 'accounts' => 'later']));
+            $printed = (string) ob_get_clean();
+            same('', $printed, 'nothing printed by the save either');
+            same(409, $answer['status'], 'the save is refused while they print');
+            check(!str_contains($answer['body'], $hex), 'nor is the key in its answer');
+            check("\xEF\xBB\xBF" . $key === (string) file_get_contents($secretFile), 'the key\'s file is not written over: no new master key in its place');
+            same($withoutPhp, (string) file_get_contents($iamFile), 'nor is the other');
+        } finally {
+            file_put_contents($secretFile, $key);
+            file_put_contents($iamFile, $iam);
+            forgetLocalConfig();
+        }
+
+        $saved = setupRequest('POST', LOCAL_SERVER, localForm($nonce, ['db_pass' => '', 'accounts' => 'later']));
+        same(200, $saved['status'], 'corrected, it saves: ' . strip_tags($saved['body']));
+        same($cloudflare, (string) file_get_contents($cloudflareFile), 'config/cloudflare.local.php is as it was uploaded');
+        check(trim((string) localConfig('secret')) === $hex, 'and the master key is the one it was');
+        unlink($cloudflareFile);
+        forgetLocalConfig();
+    },
+);
 
 test('a copy locked as a real host stays locked on this computer too', function () {
     file_put_contents(IAM_STORAGE_DIR . '/installed.lock', '{}');

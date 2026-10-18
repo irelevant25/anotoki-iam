@@ -66,10 +66,21 @@ function signInByCode(Browser $browser, string $email): TestResponse
 function startSignIn(Browser $browser, array $extra = []): array
 {
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query($extra + [
-        'response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK, 'scope' => 'openid profile email',
-        'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query(
+                $extra + [
+                    'response_type' => 'code',
+                    'client_id' => 'survey',
+                    'redirect_uri' => SURVEY_CALLBACK,
+                    'scope' => 'openid profile email',
+                    'state' => 's',
+                    'nonce' => 'n',
+                    'code_challenge' => $challenge,
+                    'code_challenge_method' => 'S256',
+                ],
+            ),
+    );
 
     return ['location' => $start->location(), 'verifier' => $verifier];
 }
@@ -136,7 +147,8 @@ function sessionOf(Browser $browser): array
 /** Makes a browser's sign-in as old as a session held a while: its auth_time `$minutes` ago. */
 function agedSession(Browser $browser, int $minutes): void
 {
-    iamDb()->prepare("UPDATE sessions SET auth_time = CURRENT_TIMESTAMP - (? * INTERVAL '1 minute') WHERE token_hash = ?")
+    iamDb()
+        ->prepare("UPDATE sessions SET auth_time = CURRENT_TIMESTAMP - (? * INTERVAL '1 minute') WHERE token_hash = ?")
         ->execute([$minutes, sha256((string) ($browser->cookies['anotoki_iam'] ?? ''))]);
 }
 
@@ -183,9 +195,9 @@ function dueWindow(int $askedAround): array
 /** Moves an account's deletion into the past, as thirty days would. */
 function makeDue(int $userId): void
 {
-    iamDb()->prepare(
-        "UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '30 days 1 minute', deletion_due_at = CURRENT_TIMESTAMP - INTERVAL '1 minute' WHERE id = ?"
-    )->execute([$userId]);
+    iamDb()
+        ->prepare("UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '30 days 1 minute', deletion_due_at = CURRENT_TIMESTAMP - INTERVAL '1 minute' WHERE id = ?")
+        ->execute([$userId]);
 }
 
 /** Housekeeping as the next request after an hour runs it. */
@@ -217,19 +229,30 @@ function googleToken(string $subject, string $email, string $name): string
         $pair = generateRsaKeyPair();
         $key = openssl_pkey_get_private($pair['private_pem']);
         @mkdir(iamStorageDir() . '/cache', 0700, true);
-        file_put_contents(iamStorageDir() . '/cache/google-jwks.json', json_encode([
-            'expires_at' => time() + 3600,
-            'keys' => ['deletion-test' => ['kty' => 'RSA', 'kid' => 'deletion-test', 'n' => $pair['n'], 'e' => $pair['e']]],
-        ]));
+        file_put_contents(
+            iamStorageDir() . '/cache/google-jwks.json',
+            json_encode([
+                'expires_at' => time() + 3600,
+                'keys' => ['deletion-test' => ['kty' => 'RSA', 'kid' => 'deletion-test', 'n' => $pair['n'], 'e' => $pair['e']]],
+            ]),
+        );
         writeTestConfig('google', ['client_id' => GOOGLE_TEST_CLIENT]);
         forgetLocalConfig();
     }
 
     $header = base64UrlEncode((string) json_encode(['alg' => 'RS256', 'kid' => 'deletion-test', 'typ' => 'JWT']));
-    $payload = base64UrlEncode((string) json_encode([
-        'iss' => 'https://accounts.google.com', 'aud' => GOOGLE_TEST_CLIENT, 'sub' => $subject, 'email' => $email,
-        'email_verified' => true, 'name' => $name, 'iat' => time(), 'exp' => time() + 600,
-    ]));
+    $payload = base64UrlEncode(
+        (string) json_encode([
+            'iss' => 'https://accounts.google.com',
+            'aud' => GOOGLE_TEST_CLIENT,
+            'sub' => $subject,
+            'email' => $email,
+            'email_verified' => true,
+            'name' => $name,
+            'iat' => time(),
+            'exp' => time() + 600,
+        ]),
+    );
     openssl_sign("{$header}.{$payload}", $signature, $key, OPENSSL_ALGO_SHA256);
 
     return "{$header}.{$payload}." . base64UrlEncode($signature);
@@ -239,10 +262,16 @@ function googleToken(string $subject, string $email, string $name): string
 function useIamDatabase(string $name): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -258,11 +287,14 @@ test('a fresh IAM has 016: the three columns and their check, the table of brows
     same(true, signInDevicesReady($pdo), 'and the browsers\' table');
     same(0, (int) $pdo->query('SELECT count(*) FROM users WHERE deletion_due_at IS NOT NULL OR anonymized_at IS NOT NULL')->fetchColumn(), 'nobody is being deleted');
 
-    foreach ([
-        "UPDATE users SET deletion_due_at = CURRENT_TIMESTAMP WHERE username = 'admin'" => 'due, never asked for',
-        "UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP WHERE username = 'admin'" => 'asked for, with no day',
-        "UPDATE users SET anonymized_at = CURRENT_TIMESTAMP WHERE username = 'admin'" => 'anonymized, never asked for',
-    ] as $sql => $what) {
+    foreach (
+        [
+            "UPDATE users SET deletion_due_at = CURRENT_TIMESTAMP WHERE username = 'admin'" => 'due, never asked for',
+            "UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP WHERE username = 'admin'" => 'asked for, with no day',
+            "UPDATE users SET anonymized_at = CURRENT_TIMESTAMP WHERE username = 'admin'" => 'anonymized, never asked for',
+        ]
+        as $sql => $what
+    ) {
         try {
             $pdo->exec($sql);
             check(false, "$what should be refused by the database");
@@ -284,23 +316,34 @@ test('an IAM through 015, as its owner left it: 016 applies, and a new applicati
     same([[DELETION_MIGRATION], null], [$result['applied'], $result['failed']], '016 applies, its gate passed (' . ($result['error'] ?? '') . ')');
     same(0, (int) $pdo->query('SELECT count(*) FROM users WHERE deletion_due_at IS NOT NULL OR anonymized_at IS NOT NULL')->fetchColumn(), 'nobody is being deleted');
     same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE client_id LIKE 'migration-016%'")->fetchColumn(), 'its probe left nothing behind');
-    same(['Zmazanie účtu', 'Your anotoki account is deleted'], [
-        $pdo->query("SELECT value FROM translations WHERE key_name = 'deletion.title' AND language_code = 'sk'")->fetchColumn(),
-        $pdo->query("SELECT value FROM translations WHERE key_name = 'mail.deleted.subject' AND language_code = 'en'")->fetchColumn(),
-    ], 'its words, in Slovak and English');
+    same(
+        ['Zmazanie účtu', 'Your anotoki account is deleted'],
+        [
+            $pdo->query("SELECT value FROM translations WHERE key_name = 'deletion.title' AND language_code = 'sk'")->fetchColumn(),
+            $pdo->query("SELECT value FROM translations WHERE key_name = 'mail.deleted.subject' AND language_code = 'en'")->fetchColumn(),
+        ],
+        'its words, in Slovak and English',
+    );
 
     // One of them anonymized, as housekeeping leaves it; then an application is made.
-    $pdo->prepare("UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP, deletion_due_at = CURRENT_TIMESTAMP, anonymized_at = CURRENT_TIMESTAMP,
-                                    password = NULL, password_login_enabled = FALSE, email_confirmed = FALSE WHERE id = ?")->execute([$ids['gone']]);
+    $pdo->prepare(
+        "UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP, deletion_due_at = CURRENT_TIMESTAMP, anonymized_at = CURRENT_TIMESTAMP,
+                                    password = NULL, password_login_enabled = FALSE, email_confirmed = FALSE WHERE id = ?",
+    )->execute([$ids['gone']]);
     $pdo->prepare('DELETE FROM user_roles WHERE user_id = ?')->execute([$ids['gone']]);
     $pdo->exec("INSERT INTO applications (client_id, name) VALUES ('later-site', 'Later')");
-    $members = $pdo->query(
-        "SELECT ur.user_id FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id
-          WHERE a.client_id = 'later-site' AND r.name = 'MEMBER' ORDER BY ur.user_id"
-    )->fetchAll(PDO::FETCH_COLUMN);
+    $members = $pdo
+        ->query(
+            "SELECT ur.user_id FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id
+          WHERE a.client_id = 'later-site' AND r.name = 'MEMBER' ORDER BY ur.user_id",
+        )
+        ->fetchAll(PDO::FETCH_COLUMN);
     same([$ids['owner'], $ids['reader']], array_map('intval', $members), 'MEMBER for the two accounts, nothing for the anonymized one');
-    same(['ADMIN', 'EDITOR', 'MEMBER'], $pdo->query("SELECT r.name FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'later-site' ORDER BY r.name")->fetchAll(PDO::FETCH_COLUMN),
-        'and the three roles, as 011 made them');
+    same(
+        ['ADMIN', 'EDITOR', 'MEMBER'],
+        $pdo->query("SELECT r.name FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'later-site' ORDER BY r.name")->fetchAll(PDO::FETCH_COLUMN),
+        'and the three roles, as 011 made them',
+    );
 });
 
 // ── Asking ───────────────────────────────────────────────────────────────────
@@ -314,8 +357,11 @@ test('asking needs the password where it is a way in: a wrong one, or none, is r
         same([422, 'wrong_password'], [$refused->status, $refused->code()], 'refused: ' . var_export($password, true));
     }
     same(null, userRow($id)['deletion_due_at'], 'nothing asked');
-    same(2, (int) iamDb()->query("SELECT count(*) FROM login_attempts WHERE email = 'careful@example.test' AND method = 'account_deletion' AND outcome = 'bad_password'")->fetchColumn(),
-        'each a failed attempt, as at the sign-in');
+    same(
+        2,
+        (int) iamDb()->query("SELECT count(*) FROM login_attempts WHERE email = 'careful@example.test' AND method = 'account_deletion' AND outcome = 'bad_password'")->fetchColumn(),
+        'each a failed attempt, as at the sign-in',
+    );
     same([], mailsTo('careful@example.test'), 'and nobody mailed');
     same(200, $browser->get('/api/account')->status, 'the session is fine - a 422, not a 401');
 });
@@ -331,17 +377,23 @@ test('the limiter: a stolen session cannot guess at the password here', function
 
 test('without a password, a sign-in of the last 15 minutes is the proof', function () {
     $id = makeUser('codeonly', 'codeonly@example.test');
-    iamDb()->prepare('UPDATE users SET password_login_enabled = FALSE WHERE id = ?')->execute([$id]);
+    iamDb()
+        ->prepare('UPDATE users SET password_login_enabled = FALSE WHERE id = ?')
+        ->execute([$id]);
     $browser = new Browser('10.16.2.1');
     same(200, signInByCode($browser, 'codeonly@example.test')->status, 'signed in with an emailed code');
 
-    iamDb()->prepare("UPDATE sessions SET auth_time = CURRENT_TIMESTAMP - INTERVAL '16 minutes' WHERE id = ?")->execute([(int) sessionOf($browser)['id']]);
+    iamDb()
+        ->prepare("UPDATE sessions SET auth_time = CURRENT_TIMESTAMP - INTERVAL '16 minutes' WHERE id = ?")
+        ->execute([(int) sessionOf($browser)['id']]);
     $stale = askDeletion($browser);
     same([403, 'reauthentication_required'], [$stale->status, $stale->code()], 'a sign-in 16 minutes old: ' . $stale->body);
     same(403, askDeletion($browser, PASSWORD)->status, 'and a password it does not sign in with changes nothing');
     same(null, userRow($id)['deletion_due_at'], 'nothing asked');
 
-    iamDb()->prepare("UPDATE sessions SET auth_time = CURRENT_TIMESTAMP - INTERVAL '14 minutes' WHERE id = ?")->execute([(int) sessionOf($browser)['id']]);
+    iamDb()
+        ->prepare("UPDATE sessions SET auth_time = CURRENT_TIMESTAMP - INTERVAL '14 minutes' WHERE id = ?")
+        ->execute([(int) sessionOf($browser)['id']]);
     $fresh = askDeletion($browser, null);
     same(200, $fresh->status, 'one 14 minutes old is enough: ' . $fresh->body);
     same('recent_sign_in', lastAuditAbout('account.deletion_requested', $id)['details']['proof'] ?? null, 'the log says how it was proved');
@@ -378,7 +430,11 @@ test('a session alone makes no proof: a password account connects no Google and 
     // The holder's own Google, to sign in afresh with whenever they like - then password sign-in off, then the deletion.
     $connect = $browser->post('/api/account/google', ['credential' => googleToken('google-holder', 'holder@example.test', 'Holder')]);
     same([422, 'wrong_password'], [$connect->status, $connect->code()], 'Google, without the password: refused at the first step: ' . $connect->body);
-    same([422, 'wrong_password'], [($r = $browser->post('/api/account/google', ['credential' => googleToken('google-holder', 'holder@example.test', 'Holder'), 'password' => 'a guess']))->status, $r->code()], 'or with a wrong one');
+    same(
+        [422, 'wrong_password'],
+        [($r = $browser->post('/api/account/google', ['credential' => googleToken('google-holder', 'holder@example.test', 'Holder'), 'password' => 'a guess']))->status, $r->code()],
+        'or with a wrong one',
+    );
     same(null, identityFor($pdo, $id, IDENTITY_GOOGLE), 'nothing connected');
     same(2, (int) $pdo->query("SELECT count(*) FROM login_attempts WHERE user_id = $id AND method = 'account_password' AND outcome = 'bad_password'")->fetchColumn(), 'both counted by the limiter');
 
@@ -393,9 +449,17 @@ test('a session alone makes no proof: a password account connects no Google and 
     same(200, ($r = $browser->put('/api/account/password/enabled', ['enabled' => false, 'password' => PASSWORD]))->status, 'switched off with the password: ' . $r->body);
     same('password', lastAuditAbout('account.password_login_off', $id)['details']['proof'] ?? null, 'audited with its proof');
     agedSession($browser, 16);
-    same([403, 'reauthentication_required'], [($r = $browser->put('/api/account/password/enabled', ['enabled' => true]))->status, $r->code()], 'switching it back on asks for a sign-in of the last 15 minutes');
+    same(
+        [403, 'reauthentication_required'],
+        [($r = $browser->put('/api/account/password/enabled', ['enabled' => true]))->status, $r->code()],
+        'switching it back on asks for a sign-in of the last 15 minutes',
+    );
     same([403, 'reauthentication_required'], [($r = askDeletion($browser))->status, $r->code()], 'as the deletion does now');
-    same(200, ($r = $browser->post('/api/login/google', ['credential' => googleToken('google-keeper', 'keeper@example.test', 'Keeper')]))->status, 'signed in again, with the owner\'s Google: ' . $r->body);
+    same(
+        200,
+        ($r = $browser->post('/api/login/google', ['credential' => googleToken('google-keeper', 'keeper@example.test', 'Keeper')]))->status,
+        'signed in again, with the owner\'s Google: ' . $r->body,
+    );
     same(200, ($r = $browser->put('/api/account/password/enabled', ['enabled' => true]))->status, 'and switched back on: ' . $r->body);
 });
 
@@ -407,8 +471,16 @@ test('a change of password counts every wrong current password like a sign-in: a
     for ($i = 0; $i < ATTEMPT_MAX_PER_EMAIL_IP; $i++) {
         same([422, 'wrong_password'], [($r = $browser->put('/api/account/password', ['current_password' => "guess $i", 'new_password' => 'something new']))->status, $r->code()], "guess $i");
     }
-    same(ATTEMPT_MAX_PER_EMAIL_IP, (int) $pdo->query("SELECT count(*) FROM login_attempts WHERE user_id = $id AND method = 'account_password' AND outcome = 'bad_password'")->fetchColumn(), 'each counted');
-    same([429, 'too_many_attempts'], [($r = $browser->put('/api/account/password', ['current_password' => PASSWORD, 'new_password' => 'something new']))->status, $r->code()], 'then not even the right one is tried');
+    same(
+        ATTEMPT_MAX_PER_EMAIL_IP,
+        (int) $pdo->query("SELECT count(*) FROM login_attempts WHERE user_id = $id AND method = 'account_password' AND outcome = 'bad_password'")->fetchColumn(),
+        'each counted',
+    );
+    same(
+        [429, 'too_many_attempts'],
+        [($r = $browser->put('/api/account/password', ['current_password' => PASSWORD, 'new_password' => 'something new']))->status, $r->code()],
+        'then not even the right one is tried',
+    );
     same([429, 'too_many_attempts'], [($r = askDeletion($browser))->status, $r->code()], 'nor the deletion\'s, which is the same password');
     check(password_verify(PASSWORD, (string) userRow($id)['password']), 'the password unchanged');
 });
@@ -432,7 +504,11 @@ test('a session alone does not switch two-factor on: the proof comes before the 
     same([false, 0], [asBool(userRow($id)['totp_enabled']), rowsOf('user_recovery_codes', $id)], 'two-factor still off, no recovery codes made');
     same(2, (int) $pdo->query("SELECT count(*) FROM login_attempts WHERE user_id = $id AND method = 'account_password' AND outcome = 'bad_password'")->fetchColumn(), 'both counted by the limiter');
 
-    same([400, 'totp_invalid'], [($r = $browser->post('/api/account/2fa/enable', ['code' => '000000', 'password' => PASSWORD]))->status, $r->code()], 'the owner\'s password with a wrong code: then the code is read');
+    same(
+        [400, 'totp_invalid'],
+        [($r = $browser->post('/api/account/2fa/enable', ['code' => '000000', 'password' => PASSWORD]))->status, $r->code()],
+        'the owner\'s password with a wrong code: then the code is read',
+    );
     $enabled = $browser->post('/api/account/2fa/enable', ['code' => $code, 'password' => PASSWORD]);
     same(200, $enabled->status, 'the owner, with the password and the code, from the same aged sign-in: ' . $enabled->code());
     same(10, count($enabled->json()['recovery_codes'] ?? []), 'on, and the recovery codes');
@@ -442,10 +518,14 @@ test('a session alone does not switch two-factor on: the proof comes before the 
     // asked at setup already, before a secret is made, so that nobody scans a
     // code that enable would then turn away.
     $google = new Browser('10.16.23.2');
-    same(201, ($r = $google->post('/api/login/google', ['credential' => googleToken('google-shield', 'shield@example.test', 'Shield'), 'language' => 'en']))->status, 'a Google-only account: ' . $r->body);
+    same(
+        201,
+        ($r = $google->post('/api/login/google', ['credential' => googleToken('google-shield', 'shield@example.test', 'Shield'), 'language' => 'en']))->status,
+        'a Google-only account: ' . $r->body,
+    );
     $googleId = (int) userByEmail($pdo, 'shield@example.test')['id'];
     agedSession($google, 16);
-    $attempts = fn () => (int) $pdo->query("SELECT count(*) FROM login_attempts WHERE user_id = $googleId")->fetchColumn();
+    $attempts = fn() => (int) $pdo->query("SELECT count(*) FROM login_attempts WHERE user_id = $googleId")->fetchColumn();
     $before = $attempts();
     same([403, 'reauthentication_required'], [($r = $google->post('/api/account/2fa/setup'))->status, $r->code()], 'setup from a sign-in 16 minutes old: ' . $r->body);
     same(null, userRow($googleId)['totp_secret'], 'no secret made');
@@ -459,7 +539,11 @@ test('a session alone does not switch two-factor on: the proof comes before the 
 
     // The sign-in grows old between the two steps: enable asks again.
     agedSession($google, 16);
-    same([403, 'reauthentication_required'], [($r = $google->post('/api/account/2fa/enable', ['code' => totpCode($googleSecret, intdiv(time(), 30))]))->status, $r->code()], 'enable from a sign-in 16 minutes old: ' . $r->body);
+    same(
+        [403, 'reauthentication_required'],
+        [($r = $google->post('/api/account/2fa/enable', ['code' => totpCode($googleSecret, intdiv(time(), 30))]))->status, $r->code()],
+        'enable from a sign-in 16 minutes old: ' . $r->body,
+    );
     same(false, asBool(userRow($googleId)['totp_enabled']), 'still off');
     agedSession($google, 1);
     same(200, ($r = $google->post('/api/account/2fa/enable', ['code' => totpCode($googleSecret, intdiv(time(), 30))]))->status, 'a minute after signing in: ' . $r->code());
@@ -490,22 +574,46 @@ test('asked for, the account is closed at once: every other session, every token
 
     same(200, $here->get('/api/account')->status, 'this session stays - it is where the deletion is cancelled');
     same([401, 'no_session'], [($r = $elsewhere->get('/api/account'))->status, $r->code()], 'every other one ends');
-    same('account_deletion', iamDb()->query("SELECT revoked_reason FROM sessions WHERE id = $elsewhereSession")->fetchColumn() ?: null, 'with a reason of its own');
+    same(
+        'account_deletion',
+        iamDb()
+            ->query("SELECT revoked_reason FROM sessions WHERE id = $elsewhereSession")
+            ->fetchColumn() ?:
+        null,
+        'with a reason of its own',
+    );
     foreach (['here' => $hereTokens, 'elsewhere' => $elsewhereTokens] as $where => $tokens) {
         same([400, 'invalid_grant'], [($r = refresh($tokens['refresh_token']))->status, $r->json()['error'] ?? null], "the refresh token from $where is refused");
         same(401, userinfo($tokens['access_token'])->status, "userinfo knows no holder of the access token from $where");
         same(401, savePreferences($tokens['access_token'])->status, "nor does a site's save of preferences ($where)");
     }
     same([400, 'invalid_grant'], [($r = refresh($personal->json()['token']))->status, $r->json()['error'] ?? null], 'the personal token is revoked');
-    same(0, (int) iamDb()->query("SELECT count(*) FROM refresh_tokens WHERE user_id = $id AND revoked_at IS NULL")->fetchColumn(), 'nothing left unrevoked');
+    same(
+        0,
+        (int) iamDb()
+            ->query("SELECT count(*) FROM refresh_tokens WHERE user_id = $id AND revoked_at IS NULL")
+            ->fetchColumn(),
+        'nothing left unrevoked',
+    );
 
     $mail = lastMailTo('leaver@example.test');
     same('Your anotoki account will be deleted', $mail['subject'] ?? null, 'the mail');
-    same("Hello leaver,\n\nYou asked for your anotoki account to be deleted, and it will be on " . gmdate('Y-m-d', $due)
-        . ". Until then it signs you in to no anotoki site. To keep it, sign in on your account page and cancel the deletion:\n\n"
-        . TEST_ISSUER . "/account\n\nIf you did not ask for this, somebody else has been signed in to your account: cancel the deletion there, then change your password.\n",
-        $mail['body'] ?? null, 'the day it goes, and the account page on a line of its own');
-    same('account_deletion_requested', iamDb()->query("SELECT kind FROM email_log WHERE user_id = $id ORDER BY id DESC LIMIT 1")->fetchColumn(), 'logged as its kind');
+    same(
+        "Hello leaver,\n\nYou asked for your anotoki account to be deleted, and it will be on " .
+            gmdate('Y-m-d', $due) .
+            ". Until then it signs you in to no anotoki site. To keep it, sign in on your account page and cancel the deletion:\n\n" .
+            TEST_ISSUER .
+            "/account\n\nIf you did not ask for this, somebody else has been signed in to your account: cancel the deletion there, then change your password.\n",
+        $mail['body'] ?? null,
+        'the day it goes, and the account page on a line of its own',
+    );
+    same(
+        'account_deletion_requested',
+        iamDb()
+            ->query("SELECT kind FROM email_log WHERE user_id = $id ORDER BY id DESC LIMIT 1")
+            ->fetchColumn(),
+        'logged as its kind',
+    );
     $audit = lastAuditAbout('account.deletion_requested', $id);
     same([$id, ['due' => $answer->json()['deletion_due_at'], 'proof' => 'password'], '10.16.3.1'], [(int) $audit['actor_id'], $audit['details'], $audit['ip']], 'and audited');
 });
@@ -517,8 +625,7 @@ test('meanwhile the IAM\'s own sign-in works by every way in, and nothing is iss
     $early = startSignIn($first);
     same(200, askDeletion($first)->status, 'asked');
 
-    same([400, 'invalid_grant'], [($r = exchange(queryOf($early['location'])['code'] ?? '', $early['verifier']))->status, $r->json()['error'] ?? null],
-        'a code given before is not exchanged after');
+    same([400, 'invalid_grant'], [($r = exchange(queryOf($early['location'])['code'] ?? '', $early['verifier']))->status, $r->json()['error'] ?? null], 'a code given before is not exchanged after');
 
     // Every way in to the IAM itself.
     $byPassword = signedIn('pending@example.test', '10.16.4.2');
@@ -531,7 +638,13 @@ test('meanwhile the IAM\'s own sign-in works by every way in, and nothing is iss
     // Nothing for a site: single sign-on lands on the IAM's own page.
     $sso = startSignIn($byPassword);
     same(TEST_ISSUER . '/error?code=account_deletion_pending', $sso['location'], 'single sign-on: the IAM\'s page, worded for the person - nothing goes to the site');
-    same(1, (int) iamDb()->query("SELECT count(*) FROM auth_codes WHERE user_id = $id")->fetchColumn(), 'no code but the one given before');
+    same(
+        1,
+        (int) iamDb()
+            ->query("SELECT count(*) FROM auth_codes WHERE user_id = $id")
+            ->fetchColumn(),
+        'no code but the one given before',
+    );
     same('interaction_required', queryOf(startSignIn($byPassword, ['prompt' => 'none'])['location'])['error'] ?? null, 'prompt=none shows no page: the site hears interaction_required');
 
     // Asked to sign in again: the page signs in, and accept refuses the same way.
@@ -545,7 +658,11 @@ test('meanwhile the IAM\'s own sign-in works by every way in, and nothing is iss
     same('access_denied', $back['error'] ?? null, 'going back tells the site access_denied');
     check(str_contains((string) ($back['error_description'] ?? ''), 'being deleted'), 'and why, for the person: ' . ($back['error_description'] ?? ''));
 
-    same([403, 'account_deletion_pending'], [($r = $byPassword->post('/api/account/tokens', ['name' => 'x', 'client_id' => 'survey', 'expires_in_days' => 7]))->status, $r->code()], 'no personal token either');
+    same(
+        [403, 'account_deletion_pending'],
+        [($r = $byPassword->post('/api/account/tokens', ['name' => 'x', 'client_id' => 'survey', 'expires_in_days' => 7]))->status, $r->code()],
+        'no personal token either',
+    );
     same([], array_values(array_filter(array_column($byPassword->get('/api/account/applications')->json()['applications'], 'can_use'))), 'no site can be used');
 });
 
@@ -554,7 +671,10 @@ test('an account on its way out is sent no news: left out of an announcement, an
     $stayingId = makeUser('staying', 'staying@example.test');
     $admin = admin();
     $draft = [
-        'template' => 'blank', 'client_id' => '', 'link' => '', 'sender' => 'noreply',
+        'template' => 'blank',
+        'client_id' => '',
+        'link' => '',
+        'sender' => 'noreply',
         'content' => ['en' => ['subject' => 'News', 'heading' => 'News', 'body' => 'Something new.', 'button' => '']],
         'audience' => ['everybody' => false, 'roles' => [], 'user_ids' => [$closingId, $stayingId]],
     ];
@@ -568,7 +688,13 @@ test('an account on its way out is sent no news: left out of an announcement, an
 
     $sent = $admin->post('/api/admin/announcements/' . $made->json()['id'] . '/send');
     same(['sent' => 1, 'skipped' => 1], array_intersect_key($sent->json()['counts'] ?? [], ['sent' => 0, 'skipped' => 0]), 'the one made already skips them as it goes');
-    same('skipped', iamDb()->query("SELECT status FROM announcement_recipients WHERE user_id = $closingId")->fetchColumn(), 'skipped');
+    same(
+        'skipped',
+        iamDb()
+            ->query("SELECT status FROM announcement_recipients WHERE user_id = $closingId")
+            ->fetchColumn(),
+        'skipped',
+    );
     same([], array_values(array_filter(mailsTo('closing@example.test'), static fn(array $mail): bool => $mail['subject'] === 'News')), 'nothing sent to them');
     same(1, count(array_filter(mailsTo('staying@example.test'), static fn(array $mail): bool => $mail['subject'] === 'News')), 'the other gets it');
 });
@@ -633,7 +759,10 @@ test('cancelled, the account is the person\'s again: the sites sign it in after 
     same($id, (int) lastAuditAbout('account.deletion_cancelled', $id)['actor_id'], 'audited');
     $mail = lastMailTo('changed@example.test');
     same('Your anotoki account will not be deleted', $mail['subject'] ?? null, 'the mail');
-    check(str_contains((string) ($mail['body'] ?? ''), "\n\n" . TEST_ISSUER . "/account\n\nIf you did not cancel it, somebody else"), 'the account page, and what to do if it was not them: ' . ($mail['body'] ?? ''));
+    check(
+        str_contains((string) ($mail['body'] ?? ''), "\n\n" . TEST_ISSUER . "/account\n\nIf you did not cancel it, somebody else"),
+        'the account page, and what to do if it was not them: ' . ($mail['body'] ?? ''),
+    );
 
     same([400, 'invalid_grant'], [($r = refresh($before['refresh_token']))->status, $r->json()['error'] ?? null], 'what the request revoked stays revoked');
     $after = intoSurvey($browser);
@@ -651,11 +780,15 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     $secret = totpSecret();
     foreach ([$goneId, $stayId] as $id) {
         grantRole($id, 'genshin', 'EDITOR');
-        $pdo->prepare("UPDATE users SET totp_secret = ?, totp_enabled = TRUE, totp_last_step = 1, language = 'sk', theme = 'dark', date_format = 'dmy_dot', time_format = '12' WHERE id = ?")
-            ->execute([encryptSecret($secret), $id]);
+        $pdo->prepare("UPDATE users SET totp_secret = ?, totp_enabled = TRUE, totp_last_step = 1, language = 'sk', theme = 'dark', date_format = 'dmy_dot', time_format = '12' WHERE id = ?")->execute([
+            encryptSecret($secret),
+            $id,
+        ]);
         generateRecoveryCodes($pdo, $id);
-        $pdo->prepare("INSERT INTO user_trusted_devices (user_id, token_hash, user_agent, ip, expires_at) VALUES (?, ?, 'Firefox', '10.16.8.9', CURRENT_TIMESTAMP + INTERVAL '30 days')")
-            ->execute([$id, sha256('remembered-' . $id)]);
+        $pdo->prepare("INSERT INTO user_trusted_devices (user_id, token_hash, user_agent, ip, expires_at) VALUES (?, ?, 'Firefox', '10.16.8.9', CURRENT_TIMESTAMP + INTERVAL '30 days')")->execute([
+            $id,
+            sha256('remembered-' . $id),
+        ]);
         attachIdentity($pdo, $id, IDENTITY_GOOGLE, 'google-' . $id, "google-$id@example.test");
     }
     $code = static fn(): string => totpCode($secret, intdiv(time(), 30));
@@ -667,7 +800,11 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     $browsers = [];
     foreach (['gone' => 'Gone@Example.test', 'stay' => 'stay@example.test'] as $name => $email) {
         $browser = new Browser($name === 'gone' ? '10.16.8.1' : '10.16.8.2');
-        $signedIn = $browser->post('/api/login/password', ['email' => $email, 'password' => PASSWORD, 'totp' => $code()], ['headers' => ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0) Firefox/130.0']]);
+        $signedIn = $browser->post(
+            '/api/login/password',
+            ['email' => $email, 'password' => PASSWORD, 'totp' => $code()],
+            ['headers' => ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0) Firefox/130.0']],
+        );
         same(200, $signedIn->status, "$name signs in: " . $signedIn->body);
         $browsers[$name] = $browser;
         intoSurvey($browser);
@@ -675,16 +812,38 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
         same(201, $browser->post('/api/account/tokens', ['name' => "$name's importer", 'client_id' => 'survey', 'expires_in_days' => 30])->status, "$name's personal token");
         same(200, (new Browser('10.16.8.3'))->post('/api/password/forgot', ['email' => $email])->status, "a reset for $name");
         same(401, (new Browser('10.16.8.4'))->signIn(strtolower($email), 'a wrong guess')->status, "a wrong guess at $name");
-        (new Browser('10.16.8.5'))->get('/api/oidc/authorize?' . http_build_query(['response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK,
-            'scope' => 'openid', 'state' => 's', 'nonce' => 'n', 'code_challenge' => pkce()[1], 'code_challenge_method' => 'S256', 'login_hint' => $email]));
+        (new Browser('10.16.8.5'))->get(
+            '/api/oidc/authorize?' .
+                http_build_query([
+                    'response_type' => 'code',
+                    'client_id' => 'survey',
+                    'redirect_uri' => SURVEY_CALLBACK,
+                    'scope' => 'openid',
+                    'state' => 's',
+                    'nonce' => 'n',
+                    'code_challenge' => pkce()[1],
+                    'code_challenge_method' => 'S256',
+                    'login_hint' => $email,
+                ]),
+        );
     }
     same(200, $browsers['gone']->put('/api/account/profile', ['username' => 'gone-renamed'])->status, 'a new name');
-    $announcement = (int) $pdo->query("INSERT INTO announcements (template, sender_address, sender_name, content, audience, created_by)
-        VALUES ('blank', 'noreply@localhost', 'anotoki', '{}', '{}', {$GLOBALS['adminId']}) RETURNING id")->fetchColumn();
-    $pdo->prepare("INSERT INTO announcement_recipients (announcement_id, user_id, email, language, status, sent_at) VALUES (?, ?, ?, 'sk', 'sent', CURRENT_TIMESTAMP)")
-        ->execute([$announcement, $goneId, 'Gone@Example.test']);
-    $pdo->prepare("INSERT INTO announcement_recipients (announcement_id, user_id, email, language, status, sent_at) VALUES (?, ?, ?, 'sk', 'sent', CURRENT_TIMESTAMP)")
-        ->execute([$announcement, $stayId, 'stay@example.test']);
+    $announcement = (int) $pdo
+        ->query(
+            "INSERT INTO announcements (template, sender_address, sender_name, content, audience, created_by)
+        VALUES ('blank', 'noreply@localhost', 'anotoki', '{}', '{}', {$GLOBALS['adminId']}) RETURNING id",
+        )
+        ->fetchColumn();
+    $pdo->prepare("INSERT INTO announcement_recipients (announcement_id, user_id, email, language, status, sent_at) VALUES (?, ?, ?, 'sk', 'sent', CURRENT_TIMESTAMP)")->execute([
+        $announcement,
+        $goneId,
+        'Gone@Example.test',
+    ]);
+    $pdo->prepare("INSERT INTO announcement_recipients (announcement_id, user_id, email, language, status, sent_at) VALUES (?, ?, ?, 'sk', 'sent', CURRENT_TIMESTAMP)")->execute([
+        $announcement,
+        $stayId,
+        'stay@example.test',
+    ]);
     $admin = admin();
     same(200, $admin->put("/api/admin/users/{$goneId}", ['force_password_change' => false])->status, 'an administrator\'s change');
 
@@ -692,10 +851,28 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     makeDue($goneId);
     $requested = userRow($goneId)['deletion_requested_at'];
 
-    $about = static fn(int $id): int => (int) iamDb()->query("SELECT count(*) FROM anotoki_audit_log WHERE actor_id = $id OR (target_type = 'user' AND target_id = '$id')")->fetchColumn();
+    $about = static fn(int $id): int => (int) iamDb()
+        ->query("SELECT count(*) FROM anotoki_audit_log WHERE actor_id = $id OR (target_type = 'user' AND target_id = '$id')")
+        ->fetchColumn();
     $eventsBefore = $about($goneId);
     $stayBefore = [];
-    foreach (['sessions', 'refresh_tokens', 'auth_codes', 'user_trusted_devices', 'user_sign_in_devices', 'user_tokens', 'user_recovery_codes', 'user_identities', 'user_roles', 'login_attempts', 'email_log', 'announcement_recipients'] as $table) {
+    foreach (
+        [
+            'sessions',
+            'refresh_tokens',
+            'auth_codes',
+            'user_trusted_devices',
+            'user_sign_in_devices',
+            'user_tokens',
+            'user_recovery_codes',
+            'user_identities',
+            'user_roles',
+            'login_attempts',
+            'email_log',
+            'announcement_recipients',
+        ]
+        as $table
+    ) {
         $stayBefore[$table] = rowsOf($table, $stayId);
         check($stayBefore[$table] > 0 || in_array($table, ['user_sign_in_devices'], true), "stay has $table rows to keep");
     }
@@ -708,18 +885,38 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     same($goneMailsBefore + 1, count($mails), 'one more mail to the address');
     $last = end($mails);
     same('Tvoj účet anotoki je zmazaný', $last['subject'], 'the "deleted" mail, in Slovak');
-    same("Ahoj gone-renamed,\n\nAko si požiadal, tvoj účet anotoki je zmazaný: jeho meno, adresa, heslo aj prihlásenia sú preč. Stránky anotoki si to, čo sa na nich vytvorilo, ponechajú bez mena.\n\n"
-        . "Toto je posledný e-mail, ktorý na túto adresu posielame. Ďakujeme, že si bol s nami.\n", $last['body'], 'its name and its address, before they went - and no link');
+    same(
+        "Ahoj gone-renamed,\n\nAko si požiadal, tvoj účet anotoki je zmazaný: jeho meno, adresa, heslo aj prihlásenia sú preč. Stránky anotoki si to, čo sa na nich vytvorilo, ponechajú bez mena.\n\n" .
+            "Toto je posledný e-mail, ktorý na túto adresu posielame. Ďakujeme, že si bol s nami.\n",
+        $last['body'],
+        'its name and its address, before they went - and no link',
+    );
 
     // The row: a placeholder.
     $row = userRow($goneId);
     $placeholder = [
-        'username' => "deleted-$goneId", 'email' => "deleted-$goneId@deleted.invalid", 'email_confirmed' => false, 'password' => null, 'password_login_enabled' => false,
-        'totp_secret' => null, 'totp_enabled' => false, 'totp_last_step' => null, 'force_password_change' => false, 'language' => 'en', 'theme' => 'auto',
-        'date_format' => null, 'time_format' => null, 'news_mail' => false, 'disabled' => true, 'last_login_at' => null,
+        'username' => "deleted-$goneId",
+        'email' => "deleted-$goneId@deleted.invalid",
+        'email_confirmed' => false,
+        'password' => null,
+        'password_login_enabled' => false,
+        'totp_secret' => null,
+        'totp_enabled' => false,
+        'totp_last_step' => null,
+        'force_password_change' => false,
+        'language' => 'en',
+        'theme' => 'auto',
+        'date_format' => null,
+        'time_format' => null,
+        'news_mail' => false,
+        'disabled' => true,
+        'last_login_at' => null,
     ];
     same($placeholder, array_map(static fn(string $column): mixed => $row[$column], array_combine(array_keys($placeholder), array_keys($placeholder))), 'nothing of the person in the row');
-    check($row['anonymized_at'] !== null && strtotime((string) $row['anonymized_at']) === strtotime(substr((string) $row['anonymized_at'], 0, 19) . 'Z'), 'anonymized, to the second: ' . $row['anonymized_at']);
+    check(
+        $row['anonymized_at'] !== null && strtotime((string) $row['anonymized_at']) === strtotime(substr((string) $row['anonymized_at'], 0, 19) . 'Z'),
+        'anonymized, to the second: ' . $row['anonymized_at'],
+    );
     same($requested, $row['deletion_requested_at'], 'when it was asked for stays');
 
     // Gone.
@@ -728,19 +925,39 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     }
     same(0, (int) $pdo->query("SELECT count(*) FROM login_attempts WHERE user_id = $goneId OR lower(email) = 'gone@example.test'")->fetchColumn(), 'no sign-in attempts of the account or the address');
     same(0, (int) $pdo->query("SELECT count(*) FROM email_log WHERE user_id = $goneId OR lower(recipient) = 'gone@example.test'")->fetchColumn(), 'no email log rows of the account or its address');
-    same(["deleted-$goneId@deleted.invalid", 'Tvoj účet anotoki je zmazaný', 'sent', null],
+    same(
+        ["deleted-$goneId@deleted.invalid", 'Tvoj účet anotoki je zmazaný', 'sent', null],
         array_values($pdo->query("SELECT recipient, subject, status, user_id FROM email_log WHERE kind = 'account_deleted' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_NUM)),
-        'the last mail is logged, sent after the commit, under the placeholder and no account');
+        'the last mail is logged, sent after the commit, under the placeholder and no account',
+    );
     same(0, (int) $pdo->query("SELECT count(*) FROM auth_requests WHERE lower(login_hint) = 'gone@example.test'")->fetchColumn(), 'no sign-in request with the address for a hint');
 
     // Scrubbed, the events kept.
     same($eventsBefore + 1, $about($goneId), 'every audit entry by or about the account kept, and account.anonymized added');
-    same(0, (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE ip IS NOT NULL AND (actor_id = $goneId OR (actor_id IS NULL AND target_type = 'user' AND target_id = '$goneId'))")->fetchColumn(), 'no IP of the person\'s');
+    same(
+        0,
+        (int) $pdo
+            ->query("SELECT count(*) FROM anotoki_audit_log WHERE ip IS NOT NULL AND (actor_id = $goneId OR (actor_id IS NULL AND target_type = 'user' AND target_id = '$goneId'))")
+            ->fetchColumn(),
+        'no IP of the person\'s',
+    );
     same('10.16.0.1', lastAuditAbout('user.updated', $goneId)['ip'], 'an administrator\'s IP on an administrator\'s change stays');
     same([], lastAuditAbout('account.username_changed', $goneId)['details'], 'the names in the change of name are gone');
-    same(['days' => 30], json_decode((string) $pdo->query("SELECT details FROM anotoki_audit_log WHERE action = 'account.token_created' AND actor_id = $goneId")->fetchColumn(), true), 'and the personal token\'s name');
-    same(['actor_id' => null, 'details' => ['requested_at' => isoTime((string) $requested)], 'ip' => null], lastAuditAbout('account.anonymized', $goneId), 'account.anonymized, by nobody, from nowhere');
-    same(["deleted-$goneId@deleted.invalid", 'sent'], array_values($pdo->query("SELECT email, status FROM announcement_recipients WHERE user_id = $goneId")->fetch(PDO::FETCH_NUM)), 'the announcement went - nobody knows where');
+    same(
+        ['days' => 30],
+        json_decode((string) $pdo->query("SELECT details FROM anotoki_audit_log WHERE action = 'account.token_created' AND actor_id = $goneId")->fetchColumn(), true),
+        'and the personal token\'s name',
+    );
+    same(
+        ['actor_id' => null, 'details' => ['requested_at' => isoTime((string) $requested)], 'ip' => null],
+        lastAuditAbout('account.anonymized', $goneId),
+        'account.anonymized, by nobody, from nowhere',
+    );
+    same(
+        ["deleted-$goneId@deleted.invalid", 'sent'],
+        array_values($pdo->query("SELECT email, status FROM announcement_recipients WHERE user_id = $goneId")->fetch(PDO::FETCH_NUM)),
+        'the announcement went - nobody knows where',
+    );
 
     // The other account: as it was.
     foreach ($stayBefore as $table => $count) {
@@ -751,23 +968,33 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     // The way it looks, and what can be done with it: nothing.
     same([401, 'no_session'], [($r = $browsers['gone']->get('/api/account'))->status, $r->code()], 'its browser is signed out');
     $shown = $admin->get("/api/admin/users/{$goneId}")->json();
-    same(["deleted-$goneId", true, [], [], null], [$shown['username'], $shown['disabled'], $shown['roles'], $shown['blocked_in'], $shown['deletion_due_at']], 'the admin panel: a placeholder, no roles, blocked nowhere');
+    same(
+        ["deleted-$goneId", true, [], [], null],
+        [$shown['username'], $shown['disabled'], $shown['roles'], $shown['blocked_in'], $shown['deletion_due_at']],
+        'the admin panel: a placeholder, no roles, blocked nowhere',
+    );
     same(isoTime((string) $row['anonymized_at']), $shown['anonymized_at'], 'and when it went');
-    foreach ([
-        ['PUT', "/api/admin/users/{$goneId}/enabled", ['enabled' => true]],
-        ['PUT', "/api/admin/users/{$goneId}/password", ['password' => 'a new life']],
-        ['PUT', "/api/admin/users/{$goneId}", ['email' => 'back@example.test']],
-        ['PUT', "/api/admin/users/{$goneId}/roles", ['roles' => [['client_id' => 'genshin', 'role' => 'MEMBER']]]],
-        ['DELETE', "/api/admin/users/{$goneId}/2fa", null],
-        ['POST', "/api/admin/users/{$goneId}/approve", []],
-    ] as [$method, $path, $body]) {
+    foreach (
+        [
+            ['PUT', "/api/admin/users/{$goneId}/enabled", ['enabled' => true]],
+            ['PUT', "/api/admin/users/{$goneId}/password", ['password' => 'a new life']],
+            ['PUT', "/api/admin/users/{$goneId}", ['email' => 'back@example.test']],
+            ['PUT', "/api/admin/users/{$goneId}/roles", ['roles' => [['client_id' => 'genshin', 'role' => 'MEMBER']]]],
+            ['DELETE', "/api/admin/users/{$goneId}/2fa", null],
+            ['POST', "/api/admin/users/{$goneId}/approve", []],
+        ]
+        as [$method, $path, $body]
+    ) {
         $refused = $admin->request($method, $path, $body === null ? [] : ['json' => $body]);
         same([409, 'account_anonymized'], [$refused->status, $refused->code()], "$method $path");
     }
     same([true, "deleted-$goneId"], [asBool(userRow($goneId)['disabled']), userRow($goneId)['username']], 'still nobody');
     same([401, 'invalid_credentials'], [($r = (new Browser('10.16.8.6'))->signIn('Gone@Example.test', PASSWORD))->status, $r->code()], 'the old address signs in to nothing');
-    same(201, ($r = (new Browser('10.16.8.7'))->post('/api/register', ['username' => 'gone again', 'email' => 'Gone@Example.test', 'password' => 'a long password', 'language' => 'en']))->status,
-        'and makes a new account: ' . $r->body);
+    same(
+        201,
+        ($r = (new Browser('10.16.8.7'))->post('/api/register', ['username' => 'gone again', 'email' => 'Gone@Example.test', 'password' => 'a long password', 'language' => 'en']))->status,
+        'and makes a new account: ' . $r->body,
+    );
     check((int) userByEmail($pdo, 'Gone@Example.test')['id'] !== $goneId, 'with an id of its own');
 
     same(0, anonymizeDueAccounts($pdo), 'and housekeeping has nothing more to do');
@@ -810,8 +1037,11 @@ test('housekeeping rides on ordinary traffic: the IAM\'s pages and the sites\' r
     @unlink(iamStorageDir() . '/cache/housekeeping.stamp');
     $list = (new Browser('10.16.10.8'))->get('/api/public/anonymized-accounts?' . http_build_query(['since' => gmdate('Y-m-d\TH:i:s\Z', time() - 3600)]));
     same(200, $list->status, 'a site reads the list: ' . $list->body);
-    same([(string) $ids['firstpage'], (string) $ids['ownpage'], (string) $ids['sitelist']], array_values(array_intersect(array_column($list->json()['accounts'], 'sub'),
-        [(string) $ids['firstpage'], (string) $ids['ownpage'], (string) $ids['sitelist']])), 'and finds all three, the one its own request deleted among them, in the order they went');
+    same(
+        [(string) $ids['firstpage'], (string) $ids['ownpage'], (string) $ids['sitelist']],
+        array_values(array_intersect(array_column($list->json()['accounts'], 'sub'), [(string) $ids['firstpage'], (string) $ids['ownpage'], (string) $ids['sitelist']])),
+        'and finds all three, the one its own request deleted among them, in the order they went',
+    );
     same(0, (int) $pdo->query('SELECT count(*) FROM users WHERE deletion_due_at <= CURRENT_TIMESTAMP AND anonymized_at IS NULL')->fetchColumn(), 'nothing due is left');
 });
 
@@ -824,7 +1054,8 @@ test('a sign-in on its way when its account went leaves nothing behind: its brow
 
     // What a sign-in does once its password was checked, a moment before: a
     // session, the attempt, then the browser noted.
-    $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', TEST_ISSUER . '/api/login/password', ['REMOTE_ADDR' => '10.16.13.2'])
+    $request = (new \Slim\Psr7\Factory\ServerRequestFactory())
+        ->createServerRequest('POST', TEST_ISSUER . '/api/login/password', ['REMOTE_ADDR' => '10.16.13.2'])
         ->withHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0) Firefox/130.0');
     openSession($pdo, $request, ['id' => $id], SESSION_METHOD_PASSWORD, false, true);
     recordLoginAttempt($pdo, $request, 'racer@example.test', $id, SESSION_METHOD_PASSWORD, 'ok');
@@ -843,14 +1074,17 @@ test('an anonymized row stays one: the database refuses a way in written back on
     makeDue($id);
     same(true, anonymizeAccount($pdo, $id), 'anonymized');
 
-    foreach ([
-        "UPDATE users SET password = 'x' WHERE id = $id" => 'a password',
-        "UPDATE users SET email_confirmed = TRUE WHERE id = $id" => 'a confirmed address',
-        "UPDATE users SET disabled = FALSE WHERE id = $id" => 'switched on',
-        "UPDATE users SET password_login_enabled = TRUE WHERE id = $id" => 'password sign-in',
-        "UPDATE users SET totp_enabled = TRUE WHERE id = $id" => 'two-factor',
-        "UPDATE users SET totp_secret = 'v1:x' WHERE id = $id" => 'a two-factor secret',
-    ] as $sql => $what) {
+    foreach (
+        [
+            "UPDATE users SET password = 'x' WHERE id = $id" => 'a password',
+            "UPDATE users SET email_confirmed = TRUE WHERE id = $id" => 'a confirmed address',
+            "UPDATE users SET disabled = FALSE WHERE id = $id" => 'switched on',
+            "UPDATE users SET password_login_enabled = TRUE WHERE id = $id" => 'password sign-in',
+            "UPDATE users SET totp_enabled = TRUE WHERE id = $id" => 'two-factor',
+            "UPDATE users SET totp_secret = 'v1:x' WHERE id = $id" => 'a two-factor secret',
+        ]
+        as $sql => $what
+    ) {
         try {
             $pdo->exec($sql);
             check(false, "$what on an anonymized row should be refused by the database");
@@ -874,8 +1108,16 @@ test('an anonymized row stays one: the database refuses a way in written back on
         $answer = (new Browser('10.16.18.2'))->post($path, ['token' => $token, 'password' => 'back from the dead']);
         same([400, 'invalid_token'], [$answer->status, $answer->code()], "$path: " . $answer->body);
     }
-    same([null, false, true, 0], [userRow($id)['password'], userRow($id)['email_confirmed'], userRow($id)['disabled'], (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE action = 'account.address_claimed' AND target_id = '$id'")->fetchColumn()],
-        'the placeholder as it was, nobody claimed it');
+    same(
+        [null, false, true, 0],
+        [
+            userRow($id)['password'],
+            userRow($id)['email_confirmed'],
+            userRow($id)['disabled'],
+            (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE action = 'account.address_claimed' AND target_id = '$id'")->fetchColumn(),
+        ],
+        'the placeholder as it was, nobody claimed it',
+    );
 });
 
 test('a reset link asked for while the account is being anonymized waits for it, reads the row again, and is issued for nobody', function () {
@@ -893,12 +1135,20 @@ test('a reset link asked for while the account is being anonymized waits for it,
     // route calls it - in a process of its own, so it can wait. It says only
     // whether a token was issued, never the token.
     $script = $environment['base'] . DIRECTORY_SEPARATOR . 'issue-during-anonymization.php';
-    file_put_contents($script, "<?php\n"
-        . 'foreach (["helpers.php", "crypto.php", "account_deletion.php", "one_time_token.php"] as $file) { require ' . var_export($api, true) . " . \$file; }\n"
-        . '$config = require ' . var_export($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php', true) . ";\n"
-        . '$pdo = new PDO("pgsql:host={$config[\'host\']};port={$config[\'port\']};dbname={$config[\'databases\'][\'iam\']}", $config[\'username\'], $config[\'password\'] ?? \'\', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);' . "\n"
-        . "\$pdo->exec(\"SET TIME ZONE 'UTC'; SET application_name = 'iam-token-race'\");\n"
-        . "echo issueOneTimeToken(\$pdo, $id, TOKEN_PASSWORD_RESET, 3600) === null ? 'none' : 'issued';\n");
+    file_put_contents(
+        $script,
+        "<?php\n" .
+            'foreach (["helpers.php", "crypto.php", "account_deletion.php", "one_time_token.php"] as $file) { require ' .
+            var_export($api, true) .
+            " . \$file; }\n" .
+            '$config = require ' .
+            var_export($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php', true) .
+            ";\n" .
+            '$pdo = new PDO("pgsql:host={$config[\'host\']};port={$config[\'port\']};dbname={$config[\'databases\'][\'iam\']}", $config[\'username\'], $config[\'password\'] ?? \'\', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);' .
+            "\n" .
+            "\$pdo->exec(\"SET TIME ZONE 'UTC'; SET application_name = 'iam-token-race'\");\n" .
+            "echo issueOneTimeToken(\$pdo, $id, TOKEN_PASSWORD_RESET, 3600) === null ? 'none' : 'issued';\n",
+    );
     $child = proc_open([PHP_BINARY, $script], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
     check(is_resource($child), 'the other request started');
 
@@ -911,12 +1161,17 @@ test('a reset link asked for while the account is being anonymized waits for it,
         }
         usleep(50000);
     }
-    same(1, (int) $pdo->query("SELECT count(*) FROM pg_stat_activity WHERE application_name = 'iam-token-race' AND wait_event_type = 'Lock'")->fetchColumn(),
-        'the insert waits for the anonymization holding the row');
-    $anonymizing->prepare(
-        "UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP, deletion_due_at = CURRENT_TIMESTAMP, anonymized_at = CURRENT_TIMESTAMP,
-                          password = NULL, password_login_enabled = FALSE, email_confirmed = FALSE, disabled = TRUE WHERE id = ?"
-    )->execute([$id]);
+    same(
+        1,
+        (int) $pdo->query("SELECT count(*) FROM pg_stat_activity WHERE application_name = 'iam-token-race' AND wait_event_type = 'Lock'")->fetchColumn(),
+        'the insert waits for the anonymization holding the row',
+    );
+    $anonymizing
+        ->prepare(
+            "UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP, deletion_due_at = CURRENT_TIMESTAMP, anonymized_at = CURRENT_TIMESTAMP,
+                          password = NULL, password_login_enabled = FALSE, email_confirmed = FALSE, disabled = TRUE WHERE id = ?",
+        )
+        ->execute([$id]);
     $anonymizing->commit();
 
     $answer = trim((string) stream_get_contents($pipes[1]));
@@ -937,11 +1192,18 @@ test('what requests on their way left of the person after the account went is sw
     $pdo->prepare("INSERT INTO user_tokens (user_id, purpose, token_hash, expires_at) VALUES (?, 'password_reset', ?, CURRENT_TIMESTAMP + INTERVAL '1 hour')")->execute([$id, sha256('leftover link')]);
     $pdo->prepare("INSERT INTO email_log (recipient, kind, subject, status, user_id) VALUES ('trail@example.test', 'password_reset', 'Set a new anotoki password', 'sent', ?)")->execute([$id]);
     attachIdentity($pdo, $id, IDENTITY_GOOGLE, 'google-trail', 'trail@example.test');
-    $pdo->prepare("INSERT INTO user_trusted_devices (user_id, token_hash, user_agent, ip, expires_at) VALUES (?, ?, 'Firefox', '10.16.19.2', CURRENT_TIMESTAMP + INTERVAL '30 days')")->execute([$id, sha256('leftover device')]);
+    $pdo->prepare("INSERT INTO user_trusted_devices (user_id, token_hash, user_agent, ip, expires_at) VALUES (?, ?, 'Firefox', '10.16.19.2', CURRENT_TIMESTAMP + INTERVAL '30 days')")->execute([
+        $id,
+        sha256('leftover device'),
+    ]);
     $pdo->prepare('INSERT INTO user_recovery_codes (user_id, code_hash) VALUES (?, ?)')->execute([$id, sha256('leftover code')]);
     grantRole($id, 'genshin', 'EDITOR');
-    $announcement = (int) $pdo->query("INSERT INTO announcements (template, sender_address, sender_name, content, audience, created_by)
-        VALUES ('blank', 'noreply@localhost', 'anotoki', '{}', '{}', {$GLOBALS['adminId']}) RETURNING id")->fetchColumn();
+    $announcement = (int) $pdo
+        ->query(
+            "INSERT INTO announcements (template, sender_address, sender_name, content, audience, created_by)
+        VALUES ('blank', 'noreply@localhost', 'anotoki', '{}', '{}', {$GLOBALS['adminId']}) RETURNING id",
+        )
+        ->fetchColumn();
     $pdo->prepare("INSERT INTO announcement_recipients (announcement_id, user_id, email, language, status) VALUES (?, ?, 'trail@example.test', 'en', 'skipped')")->execute([$announcement, $id]);
     audit(requestFrom('10.16.19.3'), $id, 'account.username_changed', 'user', $id, ['from' => 'trail', 'to' => 'Trail Again']);
     $pdo->exec("UPDATE users SET totp_last_step = 123 WHERE id = $id");
@@ -1071,8 +1333,21 @@ test('the public list: ids and times only, in order, from an inclusive since, 50
     same($bulk[509], $from51[0]['sub'] ?? null, 'a time at an offset (its + sent encoded) is the same instant as in UTC');
     same(0, count($reader->get('/api/public/anonymized-accounts?since=2999-01-01')->json()['accounts']), 'nothing after the future');
 
-    foreach (['yesterday', '2026-02-30', '2026-13-01T00:00:00Z', '2026-11-06T25:00:00Z', '2026-11-06T10:00:00 01:00', '1793876400',
-              '0000-01-01', '0000-06-01T00:00:00Z', '1969-12-31T23:59:59Z', '1970-01-01T00:30:00+01:00'] as $since) {
+    foreach (
+        [
+            'yesterday',
+            '2026-02-30',
+            '2026-13-01T00:00:00Z',
+            '2026-11-06T25:00:00Z',
+            '2026-11-06T10:00:00 01:00',
+            '1793876400',
+            '0000-01-01',
+            '0000-06-01T00:00:00Z',
+            '1969-12-31T23:59:59Z',
+            '1970-01-01T00:30:00+01:00',
+        ]
+        as $since
+    ) {
         same([400, 'invalid_request'], [($r = $reader->get('/api/public/anonymized-accounts?' . http_build_query(['since' => $since])))->status, $r->code()], "since=$since");
     }
     same(200, $reader->get('/api/public/anonymized-accounts?since=1970-01-01T00:00:00Z')->status, 'from the first second of 1970 on');

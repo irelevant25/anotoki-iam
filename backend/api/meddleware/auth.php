@@ -89,9 +89,7 @@ function requireSession(): callable
 
         touchSession(iamDb(), $signIn['session']);
 
-        $response = $handler->handle(
-            $request->withAttribute('user', $signIn['user'])->withAttribute('session', $signIn['session'])
-        );
+        $response = $handler->handle($request->withAttribute('user', $signIn['user'])->withAttribute('session', $signIn['session']));
 
         // The sign-in hint, unless the handler decided about it itself (asking
         // for the deletion clears it, cancelling it sets a new one, ending this
@@ -162,8 +160,9 @@ function requireSignInRules(): callable
         $route = \Slim\Routing\RouteContext::fromRequest($request)->getRoute();
         $pattern = $route !== null ? $route->getPattern() : '';
 
-        $unready = (preg_match('#^/api/admin/applications(/|$)#', $pattern) && !signInRulesReady(iamDb()))
-            || (preg_match('#^/api/admin/(approvals|users/[^/]+/(approve|decline))$#', $pattern) && !accountApprovalReady(iamDb()));
+        $unready =
+            (preg_match('#^/api/admin/applications(/|$)#', $pattern) && !signInRulesReady(iamDb())) ||
+            (preg_match('#^/api/admin/(approvals|users/[^/]+/(approve|decline))$#', $pattern) && !accountApprovalReady(iamDb()));
 
         if ($unready) {
             $refusal = signInRulesUnavailable();

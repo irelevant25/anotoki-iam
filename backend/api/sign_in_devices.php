@@ -196,8 +196,11 @@ function noteSignInDevice(PDO $pdo, Request $request, Response $response, array 
                     $mail = (int) $recent->fetchColumn() < SIGN_IN_DEVICE_MAILS_PER_HOUR;
                 }
 
-                $pdo->prepare('INSERT INTO user_sign_in_devices (user_id, token_hash, user_agent, mailed_at) VALUES (?, ?, ?, ' . ($mail ? 'CURRENT_TIMESTAMP' : 'NULL') . ')')
-                    ->execute([$userId, $hash, $label]);
+                $pdo->prepare('INSERT INTO user_sign_in_devices (user_id, token_hash, user_agent, mailed_at) VALUES (?, ?, ?, ' . ($mail ? 'CURRENT_TIMESTAMP' : 'NULL') . ')')->execute([
+                    $userId,
+                    $hash,
+                    $label,
+                ]);
             }
 
             $pdo->commit();

@@ -40,7 +40,9 @@ function twoFactorAccount(string $name): array
 {
     $id = makeUser($name, "{$name}@example.test", PASSWORD);
     $secret = totpSecret();
-    iamDb()->prepare('UPDATE users SET totp_enabled = TRUE, totp_secret = ? WHERE id = ?')->execute([encryptSecret($secret), $id]);
+    iamDb()
+        ->prepare('UPDATE users SET totp_enabled = TRUE, totp_secret = ? WHERE id = ?')
+        ->execute([encryptSecret($secret), $id]);
 
     return [$id, $secret, generateRecoveryCodes(iamDb(), $id)];
 }
@@ -61,7 +63,9 @@ function wrongCode(string $secret, int $seed = 0): string
 /** The account's code now, as its app shows it - with what was accepted before forgotten, so it is good once more. */
 function rightCode(int $userId, string $secret): string
 {
-    iamDb()->prepare('UPDATE users SET totp_last_step = NULL WHERE id = ?')->execute([$userId]);
+    iamDb()
+        ->prepare('UPDATE users SET totp_last_step = NULL WHERE id = ?')
+        ->execute([$userId]);
 
     return totpCode($secret, intdiv(time(), 30));
 }
@@ -176,19 +180,30 @@ function googleToken(string $subject, string $email): string
         $pair = generateRsaKeyPair();
         $key = openssl_pkey_get_private($pair['private_pem']);
         @mkdir(iamStorageDir() . '/cache', 0700, true);
-        file_put_contents(iamStorageDir() . '/cache/google-jwks.json', json_encode([
-            'expires_at' => time() + 3600,
-            'keys' => ['pause-test' => ['kty' => 'RSA', 'kid' => 'pause-test', 'n' => $pair['n'], 'e' => $pair['e']]],
-        ]));
+        file_put_contents(
+            iamStorageDir() . '/cache/google-jwks.json',
+            json_encode([
+                'expires_at' => time() + 3600,
+                'keys' => ['pause-test' => ['kty' => 'RSA', 'kid' => 'pause-test', 'n' => $pair['n'], 'e' => $pair['e']]],
+            ]),
+        );
         writeTestConfig('google', ['client_id' => GOOGLE_TEST_CLIENT]);
         forgetLocalConfig();
     }
 
     $header = base64UrlEncode((string) json_encode(['alg' => 'RS256', 'kid' => 'pause-test', 'typ' => 'JWT']));
-    $payload = base64UrlEncode((string) json_encode([
-        'iss' => 'https://accounts.google.com', 'aud' => GOOGLE_TEST_CLIENT, 'sub' => $subject, 'email' => $email,
-        'email_verified' => true, 'name' => $subject, 'iat' => time(), 'exp' => time() + 600,
-    ]));
+    $payload = base64UrlEncode(
+        (string) json_encode([
+            'iss' => 'https://accounts.google.com',
+            'aud' => GOOGLE_TEST_CLIENT,
+            'sub' => $subject,
+            'email' => $email,
+            'email_verified' => true,
+            'name' => $subject,
+            'iat' => time(),
+            'exp' => time() + 600,
+        ]),
+    );
     openssl_sign("{$header}.{$payload}", $signature, $key, OPENSSL_ALGO_SHA256);
 
     return "{$header}.{$payload}." . base64UrlEncode($signature);
@@ -203,7 +218,9 @@ function besides(string $code, int $step): string
 /** The newest session of an account: [its method, whether two factors]. */
 function newestSession(int $userId): array
 {
-    $row = iamDb()->query("SELECT method, mfa FROM sessions WHERE user_id = {$userId} ORDER BY id DESC LIMIT 1")->fetch();
+    $row = iamDb()
+        ->query("SELECT method, mfa FROM sessions WHERE user_id = {$userId} ORDER BY id DESC LIMIT 1")
+        ->fetch();
 
     return [$row['method'] ?? null, asBool($row['mfa'] ?? false)];
 }
@@ -223,10 +240,19 @@ function amrOfSignIn(string $ip, string $email, array $signIn): array
 {
     $browser = new Browser($ip);
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'genshin', 'redirect_uri' => GENSHIN_CALLBACK, 'scope' => 'openid profile email',
-        'state' => bin2hex(random_bytes(8)), 'nonce' => bin2hex(random_bytes(8)), 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'genshin',
+                'redirect_uri' => GENSHIN_CALLBACK,
+                'scope' => 'openid profile email',
+                'state' => bin2hex(random_bytes(8)),
+                'nonce' => bin2hex(random_bytes(8)),
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     $request = queryOf($start->location())['request'] ?? null;
     check(is_string($request), 'authorize sends the browser to the sign-in page: ' . $start->location());
 
@@ -236,14 +262,19 @@ function amrOfSignIn(string $ip, string $email, array $signIn): array
     same(200, $accept->status, 'accepted: ' . $accept->body);
 
     $tokens = $browser->request('POST', '/api/oidc/token', [
-        'form' => ['grant_type' => 'authorization_code', 'code' => queryOf((string) ($accept->json()['redirect'] ?? ''))['code'] ?? '',
-            'redirect_uri' => GENSHIN_CALLBACK, 'client_id' => 'genshin', 'code_verifier' => $verifier],
+        'form' => [
+            'grant_type' => 'authorization_code',
+            'code' => queryOf((string) ($accept->json()['redirect'] ?? ''))['code'] ?? '',
+            'redirect_uri' => GENSHIN_CALLBACK,
+            'client_id' => 'genshin',
+            'code_verifier' => $verifier,
+        ],
         'headers' => ['Origin' => GENSHIN_ORIGIN],
     ]);
     same(200, $tokens->status, 'the code exchanged: ' . $tokens->body);
     $claims = json_decode(base64UrlDecode(explode('.', (string) ($tokens->json()['id_token'] ?? ''))[1] ?? ''), true);
 
-    return is_array($claims) ? ($claims['amr'] ?? []) : [];
+    return is_array($claims) ? $claims['amr'] ?? [] : [];
 }
 
 /**
@@ -257,17 +288,37 @@ function emailCodeGuessScript(string $email): string
 {
     $environment = testEnvironment();
     $script = $environment['base'] . DIRECTORY_SEPARATOR . 'email-code-guess-' . md5($email) . '.php';
-    file_put_contents($script, "<?php\n"
-        . "define('IAM_CONFIG_DIR', " . var_export($environment['config'], true) . ");\n"
-        . "define('IAM_STORAGE_DIR', " . var_export($environment['storage'], true) . ");\n"
-        . "define('IAM_NO_RUN', true);\n"
-        . 'require ' . var_export(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'index.php', true) . ";\n"
-        . "iamDb()->exec(\"SET application_name = 'iam-email-code-guess'\");\n"
-        . '$body = (new Slim\Psr7\Factory\StreamFactory())->createStream((string) json_encode(["email" => ' . var_export($email, true) . ', "password" => ' . var_export(PASSWORD, true) . ', "email_code" => $argv[2]]));' . "\n"
-        . '$request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest("POST", ' . var_export(TEST_ISSUER . '/api/login/password', true) . ', ["REMOTE_ADDR" => $argv[1]])' . "\n"
-        . '    ->withHeader("Content-Type", "application/json")->withHeader("X-IAM-Request", "1")->withBody($body);' . "\n"
-        . '$response = buildIamApp()->handle($request);' . "\n"
-        . 'echo $response->getStatusCode(), " ", json_decode((string) $response->getBody(), true)["code"] ?? "";' . "\n");
+    file_put_contents(
+        $script,
+        "<?php\n" .
+            "define('IAM_CONFIG_DIR', " .
+            var_export($environment['config'], true) .
+            ");\n" .
+            "define('IAM_STORAGE_DIR', " .
+            var_export($environment['storage'], true) .
+            ");\n" .
+            "define('IAM_NO_RUN', true);\n" .
+            'require ' .
+            var_export(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'index.php', true) .
+            ";\n" .
+            "iamDb()->exec(\"SET application_name = 'iam-email-code-guess'\");\n" .
+            '$body = (new Slim\Psr7\Factory\StreamFactory())->createStream((string) json_encode(["email" => ' .
+            var_export($email, true) .
+            ', "password" => ' .
+            var_export(PASSWORD, true) .
+            ', "email_code" => $argv[2]]));' .
+            "\n" .
+            '$request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest("POST", ' .
+            var_export(TEST_ISSUER . '/api/login/password', true) .
+            ', ["REMOTE_ADDR" => $argv[1]])' .
+            "\n" .
+            '    ->withHeader("Content-Type", "application/json")->withHeader("X-IAM-Request", "1")->withBody($body);' .
+            "\n" .
+            '$response = buildIamApp()->handle($request);' .
+            "\n" .
+            'echo $response->getStatusCode(), " ", json_decode((string) $response->getBody(), true)["code"] ?? "";' .
+            "\n",
+    );
 
     return $script;
 }
@@ -332,10 +383,16 @@ function guessAnswer(array $guess): array
 function useIamDatabase(string $name): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -349,11 +406,18 @@ test('a fresh IAM has 019: the two columns, nobody paused or counted from, and t
     same(0, (int) iamDb()->query('SELECT count(*) FROM users WHERE totp_paused_until IS NOT NULL OR totp_count_from IS NOT NULL')->fetchColumn(), 'nobody paused');
     check(in_array(PAUSE_MIGRATION, appliedMigrations(iamDb()), true), 'recorded as applied');
 
-    $words = iamDb()->query("SELECT key_name, language_code FROM translations WHERE key_name LIKE 'login.paused.%' OR key_name LIKE 'mail.authenticatorPaused.%'
-                                OR key_name IN ('error.authenticatorPaused', 'sessions.method.password_email')")->fetchAll(PDO::FETCH_NUM);
+    $words = iamDb()
+        ->query(
+            "SELECT key_name, language_code FROM translations WHERE key_name LIKE 'login.paused.%' OR key_name LIKE 'mail.authenticatorPaused.%'
+                                OR key_name IN ('error.authenticatorPaused', 'sessions.method.password_email')",
+        )
+        ->fetchAll(PDO::FETCH_NUM);
     same(26, count($words), 'thirteen keys, each in English and Slovak');
-    same('Pošli mi kód e-mailom', iamDb()->query("SELECT value FROM translations WHERE key_name = 'login.paused.sendCode' AND language_code = 'sk'")->fetchColumn(),
-        'the Slovak button in the form of the sign-in page\'s other one ("Radšej mi pošli kód e-mailom") - informal ("ty") since 021, which reworded both (informal-code-buttons.test.php)');
+    same(
+        'Pošli mi kód e-mailom',
+        iamDb()->query("SELECT value FROM translations WHERE key_name = 'login.paused.sendCode' AND language_code = 'sk'")->fetchColumn(),
+        'the Slovak button in the form of the sign-in page\'s other one ("Radšej mi pošli kód e-mailom") - informal ("ty") since 021, which reworded both (informal-code-buttons.test.php)',
+    );
     same(MAIL_FALLBACK['mail.authenticatorPaused.subject'], mailWords('en')['mail.authenticatorPaused.subject'], 'the mail\'s English is the code\'s');
     same('Nesprávne kódy k tvojmu účtu anotoki', mailWords('sk')['mail.authenticatorPaused.subject'], 'and its Slovak');
 });
@@ -369,11 +433,23 @@ test('the attack: five wrong codes after the right password, from five addresses
 
     $sixth = passwordSignIn('10.19.1.100', 'guessed@example.test', ['totp' => totpCode($secret, intdiv(time(), 30))]);
     same([403, 'authenticator_paused'], [$sixth->status, $sixth->code()], 'the sixth - the right code, from yet another address: refused');
-    same(null, iamDb()->query("SELECT totp_last_step FROM users WHERE id = $id")->fetchColumn(), 'unchecked: the right code was not spent');
+    same(
+        null,
+        iamDb()
+            ->query("SELECT totp_last_step FROM users WHERE id = $id")
+            ->fetchColumn(),
+        'unchecked: the right code was not spent',
+    );
     same([403, 'authenticator_paused'], [($r = passwordSignIn('10.19.1.101', 'guessed@example.test'))->status, $r->code()], 'the step itself answers that it is paused');
 
     same(['bad_totp', 'bad_totp', 'bad_totp', 'bad_totp', 'bad_totp', 'totp_paused', 'totp_paused'], outcomesOf($id), 'five wrong codes counted, the rest refused unchecked');
-    same(7, (int) iamDb()->query("SELECT count(DISTINCT ip) FROM login_attempts WHERE user_id = $id")->fetchColumn(), 'from seven addresses: the per-address limiter never saw more than one each');
+    same(
+        7,
+        (int) iamDb()
+            ->query("SELECT count(DISTINCT ip) FROM login_attempts WHERE user_id = $id")
+            ->fetchColumn(),
+        'from seven addresses: the per-address limiter never saw more than one each',
+    );
 
     $entry = iamDb()->query("SELECT actor_id, target_id, details FROM anotoki_audit_log WHERE action = 'account.authenticator_paused' ORDER BY id DESC LIMIT 1")->fetch();
     check($entry !== false, 'the audit log keeps the pause');
@@ -398,15 +474,21 @@ test('every way in that takes an authenticator code adds to the one count, and i
     same('totp_invalid', (new Browser('10.19.2.6'))->post('/api/password/reset', ['token' => $token, 'password' => 'a new password', 'totp' => wrongCode($secret, 3)])->code(), '3: a password reset');
     same([400, 'totp_invalid'], [($r = $page->post('/api/account/2fa/disable', ['code' => wrongCode($secret, 4)]))->status, $r->code()], '4: the account page, turning two-factor off');
     same(null, pausedUntilOf($id), 'four: not yet');
-    same([403, 'authenticator_paused'], [($r = $page->post('/api/account/2fa/recovery', ['code' => wrongCode($secret, 5)]))->status, $r->code()],
-        '5: the account page\'s new recovery codes - the fifth, by the fifth way: paused');
+    same(
+        [403, 'authenticator_paused'],
+        [($r = $page->post('/api/account/2fa/recovery', ['code' => wrongCode($secret, 5)]))->status, $r->code()],
+        '5: the account page\'s new recovery codes - the fifth, by the fifth way: paused',
+    );
     check(pausedUntilOf($id) !== null, 'the account is paused');
     same(5, count(array_filter(outcomesOf($id), static fn(string $outcome): bool => $outcome === 'bad_totp')), 'five wrong codes, one count');
 
     // During the pause, every way in refuses an authenticator code unchecked.
     $right = rightCode($id, $secret);
-    same(['authenticator_paused', false], [($r = (new Browser('10.19.2.7'))->post('/api/login/code/verify', ['email' => $email, 'code' => $code, 'totp' => $right]))->code(), $r->json()['email_code'] ?? null],
-        'the emailed code\'s sign-in - which asks for the mailbox alone, so no code by email stands in there');
+    same(
+        ['authenticator_paused', false],
+        [($r = (new Browser('10.19.2.7'))->post('/api/login/code/verify', ['email' => $email, 'code' => $code, 'totp' => $right]))->code(), $r->json()['email_code'] ?? null],
+        'the emailed code\'s sign-in - which asks for the mailbox alone, so no code by email stands in there',
+    );
     same('authenticator_paused', (new Browser('10.19.2.8'))->post('/api/login/google', ['credential' => googleToken('everyway-google', $email), 'totp' => $right])->code(), 'Google');
     same('authenticator_paused', (new Browser('10.19.2.9'))->post('/api/password/reset', ['token' => $token, 'password' => 'a new password', 'totp' => $right])->code(), 'a password reset');
     same([403, 'authenticator_paused'], [($r = $page->post('/api/account/2fa/disable', ['code' => $right]))->status, $r->code()], 'the account page: turning two-factor off');
@@ -415,7 +497,11 @@ test('every way in that takes an authenticator code adds to the one count, and i
     check(asBool($pdo->query("SELECT totp_enabled FROM users WHERE id = $id")->fetchColumn()), 'two-factor still on');
 
     // A recovery code is no six digits to guess: the reset takes one, as ever.
-    same(200, (new Browser('10.19.2.10'))->post('/api/password/reset', ['token' => $token, 'password' => 'a new password', 'totp' => $recovery[0]])->status, 'a recovery code still works, on the reset too');
+    same(
+        200,
+        (new Browser('10.19.2.10'))->post('/api/password/reset', ['token' => $token, 'password' => 'a new password', 'totp' => $recovery[0]])->status,
+        'a recovery code still works, on the reset too',
+    );
 });
 
 test('during the pause a code by email signs in - after the right password, never without it: the password alone, or the mailbox alone, gets no further', function () {
@@ -425,58 +511,74 @@ test('during the pause a code by email signs in - after the right password, neve
 
     $code = mailedCode($email, '10.19.3.20');
     // The mailbox alone: the emailed code's own sign-in asks for the authenticator, and is paused with it.
-    same(['authenticator_paused', false], [($r = (new Browser('10.19.3.21'))->post('/api/login/code/verify', ['email' => $email, 'code' => $code]))->code(), $r->json()['email_code'] ?? null],
-        'the mailbox alone: paused, and no code by email offered there');
+    same(
+        ['authenticator_paused', false],
+        [($r = (new Browser('10.19.3.21'))->post('/api/login/code/verify', ['email' => $email, 'code' => $code]))->code(), $r->json()['email_code'] ?? null],
+        'the mailbox alone: paused, and no code by email offered there',
+    );
     // The mailed code with a wrong password: the password comes first.
-    same([401, 'invalid_credentials'], [($r = passwordSignIn('10.19.3.22', $email, ['email_code' => $code], 'not the password'))->status, $r->code()], 'the mailed code with a wrong password: refused');
+    same(
+        [401, 'invalid_credentials'],
+        [($r = passwordSignIn('10.19.3.22', $email, ['email_code' => $code], 'not the password'))->status, $r->code()],
+        'the mailed code with a wrong password: refused',
+    );
     same(0, attemptsEnded($id, 'bad_email_code'), 'and no code by email tried');
 
     // The owner: the password, and the code from the mailbox.
     $signedIn = (new Browser('10.19.3.42'))->post('/api/login/password', ['email' => $email, 'password' => PASSWORD, 'email_code' => $code, 'remember_device' => true]);
     same(200, $signedIn->status, 'the password and the mailed code: signed in - ' . $signedIn->body);
     check(array_key_exists('device_token', $signedIn->json()) && $signedIn->json()['device_token'] === null, 'no browser remembered: the mailbox stood in for the authenticator');
-    same(0, (int) iamDb()->query("SELECT count(*) FROM user_trusted_devices WHERE user_id = $id")->fetchColumn(), 'none kept');
+    same(
+        0,
+        (int) iamDb()
+            ->query("SELECT count(*) FROM user_trusted_devices WHERE user_id = $id")
+            ->fetchColumn(),
+        'none kept',
+    );
     same(['password_email', true], newestSession($id), 'a session of its own method, of two factors: the password and the mailbox');
     same([400, 'invalid_code'], [($r = passwordSignIn('10.19.3.43', $email, ['email_code' => $code]))->status, $r->code()], 'the code is spent');
     check(pausedUntilOf($id) !== null && strtotime((string) pausedUntilOf($id)) > time(), 'the pause runs on: the sign-in started the count again, the codes stay paused');
     same('authenticator_paused', passwordSignIn('10.19.3.44', $email, ['totp' => rightCode($id, $secret)])->code(), 'the authenticator still refused unchecked meanwhile');
 });
 
-test('the attack: codes by email guessed with the password are counted for the account as the authenticator\'s are - five wrong in a pause, and every one is refused unchecked until it ends, one mailed since and the right one too', function () {
-    [$id, $secret, $recovery] = twoFactorAccount('mailguessed');
-    $email = 'mailguessed@example.test';
-    same('authenticator_paused', pauseByGuessing($email, $secret, '10.19.11')->code(), 'paused');
-    $code = mailedCode($email, '10.19.11.20');
+test(
+    'the attack: codes by email guessed with the password are counted for the account as the authenticator\'s are - five wrong in a pause, and every one is refused unchecked until it ends, one mailed since and the right one too',
+    function () {
+        [$id, $secret, $recovery] = twoFactorAccount('mailguessed');
+        $email = 'mailguessed@example.test';
+        same('authenticator_paused', pauseByGuessing($email, $secret, '10.19.11')->code(), 'paused');
+        $code = mailedCode($email, '10.19.11.20');
 
-    // The password alone, guessing at the mailed code, from an address of its own each time.
-    for ($guess = 1; $guess < AUTHENTICATOR_PAUSE_AFTER; $guess++) {
-        same([400, 'invalid_code'], [($r = passwordSignIn("10.19.11.3{$guess}", $email, ['email_code' => besides($code, $guess)]))->status, $r->code()], "a wrong code by email ({$guess})");
-    }
-    $fifth = passwordSignIn('10.19.11.39', $email, ['email_code' => besides($code, 9)]);
-    same([403, 'authenticator_paused', false], [$fifth->status, $fifth->code(), $fifth->json()['email_code'] ?? null], 'the fifth: paused, and no code by email stands in any more');
-    check(is_string($fifth->json()['paused_until'] ?? null), 'saying until when');
+        // The password alone, guessing at the mailed code, from an address of its own each time.
+        for ($guess = 1; $guess < AUTHENTICATOR_PAUSE_AFTER; $guess++) {
+            same([400, 'invalid_code'], [($r = passwordSignIn("10.19.11.3{$guess}", $email, ['email_code' => besides($code, $guess)]))->status, $r->code()], "a wrong code by email ({$guess})");
+        }
+        $fifth = passwordSignIn('10.19.11.39', $email, ['email_code' => besides($code, 9)]);
+        same([403, 'authenticator_paused', false], [$fifth->status, $fifth->code(), $fifth->json()['email_code'] ?? null], 'the fifth: paused, and no code by email stands in any more');
+        check(is_string($fifth->json()['paused_until'] ?? null), 'saying until when');
 
-    // New codes asked for: the right one is refused all the same, and not even tried.
-    $fresh = mailedCode($email, '10.19.11.40');
-    $answer = passwordSignIn('10.19.11.41', $email, ['email_code' => $fresh]);
-    same([403, 'authenticator_paused', false], [$answer->status, $answer->code(), $answer->json()['email_code'] ?? null], 'a code mailed since - the right one - refused');
-    $token = iamDb()->prepare("SELECT attempts, consumed_at FROM user_tokens WHERE user_id = ? AND purpose = 'login_code' AND token_hash = ?");
-    $token->execute([$id, loginCodeHash($id, $fresh)]);
-    same(['attempts' => 0, 'consumed_at' => null], $token->fetch(), 'unchecked: not tried, not spent');
-    same([403, 'authenticator_paused', false], [($r = passwordSignIn('10.19.11.42', $email))->status, $r->code(), $r->json()['email_code'] ?? null], 'the step itself offers no code by email now');
-    same([AUTHENTICATOR_PAUSE_AFTER, 1], [attemptsEnded($id, 'bad_email_code'), attemptsEnded($id, 'email_code_paused')], 'five wrong ones counted, the one after them refused unchecked');
+        // New codes asked for: the right one is refused all the same, and not even tried.
+        $fresh = mailedCode($email, '10.19.11.40');
+        $answer = passwordSignIn('10.19.11.41', $email, ['email_code' => $fresh]);
+        same([403, 'authenticator_paused', false], [$answer->status, $answer->code(), $answer->json()['email_code'] ?? null], 'a code mailed since - the right one - refused');
+        $token = iamDb()->prepare("SELECT attempts, consumed_at FROM user_tokens WHERE user_id = ? AND purpose = 'login_code' AND token_hash = ?");
+        $token->execute([$id, loginCodeHash($id, $fresh)]);
+        same(['attempts' => 0, 'consumed_at' => null], $token->fetch(), 'unchecked: not tried, not spent');
+        same([403, 'authenticator_paused', false], [($r = passwordSignIn('10.19.11.42', $email))->status, $r->code(), $r->json()['email_code'] ?? null], 'the step itself offers no code by email now');
+        same([AUTHENTICATOR_PAUSE_AFTER, 1], [attemptsEnded($id, 'bad_email_code'), attemptsEnded($id, 'email_code_paused')], 'five wrong ones counted, the one after them refused unchecked');
 
-    // A recovery code is no six digits to guess: it still signs in.
-    same(200, passwordSignIn('10.19.11.43', $email, ['totp' => $recovery[0]])->status, 'a recovery code still works');
-    same('authenticator_paused', passwordSignIn('10.19.11.44', $email, ['email_code' => $fresh])->code(), 'and a sign-in completed meanwhile gives the guesser no new tries');
+        // A recovery code is no six digits to guess: it still signs in.
+        same(200, passwordSignIn('10.19.11.43', $email, ['totp' => $recovery[0]])->status, 'a recovery code still works');
+        same('authenticator_paused', passwordSignIn('10.19.11.44', $email, ['email_code' => $fresh])->code(), 'and a sign-in completed meanwhile gives the guesser no new tries');
 
-    // The pause's end: the authenticator again; a new pause, five new codes by email.
-    fifteenMinutesPass($id);
-    same(200, passwordSignIn('10.19.11.50', $email, ['totp' => rightCode($id, $secret)])->status, 'the pause over: the authenticator signs in');
-    same('authenticator_paused', pauseByGuessing($email, $secret, '10.19.21')->code(), 'paused again');
-    same(true, passwordSignIn('10.19.11.51', $email)->json()['email_code'] ?? null, 'a code by email offered again');
-    same(200, passwordSignIn('10.19.11.52', $email, ['email_code' => mailedCode($email, '10.19.11.53')])->status, 'and it stands in');
-});
+        // The pause's end: the authenticator again; a new pause, five new codes by email.
+        fifteenMinutesPass($id);
+        same(200, passwordSignIn('10.19.11.50', $email, ['totp' => rightCode($id, $secret)])->status, 'the pause over: the authenticator signs in');
+        same('authenticator_paused', pauseByGuessing($email, $secret, '10.19.21')->code(), 'paused again');
+        same(true, passwordSignIn('10.19.11.51', $email)->json()['email_code'] ?? null, 'a code by email offered again');
+        same(200, passwordSignIn('10.19.11.52', $email, ['email_code' => mailedCode($email, '10.19.11.53')])->status, 'and it stands in');
+    },
+);
 
 test('the attack: a burst of codes by email sent at once is checked one at a time under the hold on the account\'s row - five wrong ones at most, the rest refused unchecked', function () {
     [$id, $secret] = twoFactorAccount('burst');
@@ -511,63 +613,77 @@ test('the attack: a burst of codes by email sent at once is checked one at a tim
         $errors .= $said;
     }
     sort($answers);
-    same(array_merge(array_fill(0, AUTHENTICATOR_PAUSE_AFTER - 1, '400 invalid_code'), array_fill(0, $burst - AUTHENTICATOR_PAUSE_AFTER + 1, '403 authenticator_paused')), $answers,
-        'four said wrong, the fifth and the rest paused ' . $errors);
-    same([AUTHENTICATOR_PAUSE_AFTER, $burst - AUTHENTICATOR_PAUSE_AFTER], [attemptsEnded($id, 'bad_email_code'), attemptsEnded($id, 'email_code_paused')],
-        'five checked, however many came at once - the rest refused unchecked');
+    same(
+        array_merge(array_fill(0, AUTHENTICATOR_PAUSE_AFTER - 1, '400 invalid_code'), array_fill(0, $burst - AUTHENTICATOR_PAUSE_AFTER + 1, '403 authenticator_paused')),
+        $answers,
+        'four said wrong, the fifth and the rest paused ' . $errors,
+    );
+    same(
+        [AUTHENTICATOR_PAUSE_AFTER, $burst - AUTHENTICATOR_PAUSE_AFTER],
+        [attemptsEnded($id, 'bad_email_code'), attemptsEnded($id, 'email_code_paused')],
+        'five checked, however many came at once - the rest refused unchecked',
+    );
 });
 
-test('the attack, timed: a guess by email sent while the fifth wrong code is being checked waits at the account\'s row, and is refused with the pause - no code by email tried, none counted', function () {
-    [$id] = twoFactorAccount('timed');
-    $email = 'timed@example.test';
-    $code = mailedCode($email, '10.19.18.1');
+test(
+    'the attack, timed: a guess by email sent while the fifth wrong code is being checked waits at the account\'s row, and is refused with the pause - no code by email tried, none counted',
+    function () {
+        [$id] = twoFactorAccount('timed');
+        $email = 'timed@example.test';
+        $code = mailedCode($email, '10.19.18.1');
 
-    // The fifth wrong authenticator code's check, holding the account's row, its pause not begun yet.
-    $pausing = connectDatabase(testServer(), testEnvironment()['db'], false);
-    $pausing->beginTransaction();
-    $pausing->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE')->execute([$id]);
+        // The fifth wrong authenticator code's check, holding the account's row, its pause not begun yet.
+        $pausing = connectDatabase(testServer(), testEnvironment()['db'], false);
+        $pausing->beginTransaction();
+        $pausing->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE')->execute([$id]);
 
-    // Meanwhile a guess with the password and a code by email: no pause to read yet, so the authenticator's step, waiting for the row.
-    $guess = startGuess(emailCodeGuessScript($email), '10.19.18.2', besides($code, 1));
-    try {
-        same(1, guessesWaiting(1), 'the guess waits at the account\'s row');
-        $pausing->prepare("UPDATE users SET totp_paused_until = CURRENT_TIMESTAMP + (? * INTERVAL '1 second'), totp_count_from = CURRENT_TIMESTAMP WHERE id = ?")
-            ->execute([AUTHENTICATOR_PAUSE_SECONDS, $id]);
-    } finally {
-        $pausing->commit();
-        $pausing = null;
-    }
+        // Meanwhile a guess with the password and a code by email: no pause to read yet, so the authenticator's step, waiting for the row.
+        $guess = startGuess(emailCodeGuessScript($email), '10.19.18.2', besides($code, 1));
+        try {
+            same(1, guessesWaiting(1), 'the guess waits at the account\'s row');
+            $pausing
+                ->prepare("UPDATE users SET totp_paused_until = CURRENT_TIMESTAMP + (? * INTERVAL '1 second'), totp_count_from = CURRENT_TIMESTAMP WHERE id = ?")
+                ->execute([AUTHENTICATOR_PAUSE_SECONDS, $id]);
+        } finally {
+            $pausing->commit();
+            $pausing = null;
+        }
 
-    [$answer, $errors] = guessAnswer($guess);
-    same('403 authenticator_paused', $answer, 'refused with the pause ' . $errors);
-    $tried = iamDb()->prepare("SELECT attempts FROM user_tokens WHERE user_id = ? AND purpose = 'login_code' AND token_hash = ?");
-    $tried->execute([$id, loginCodeHash($id, $code)]);
-    same([0, 0], [attemptsEnded($id, 'bad_email_code'), (int) $tried->fetchColumn()], 'no code by email tried, so nothing to count');
-});
+        [$answer, $errors] = guessAnswer($guess);
+        same('403 authenticator_paused', $answer, 'refused with the pause ' . $errors);
+        $tried = iamDb()->prepare("SELECT attempts FROM user_tokens WHERE user_id = ? AND purpose = 'login_code' AND token_hash = ?");
+        $tried->execute([$id, loginCodeHash($id, $code)]);
+        same([0, 0], [attemptsEnded($id, 'bad_email_code'), (int) $tried->fetchColumn()], 'no code by email tried, so nothing to count');
+    },
+);
 
-test('the attack, timed to the moment: a check by email whose transaction began before the pause did, and read the row once it had begun, starts afresh - so its wrong code is counted in the pause, five still the most', function () {
-    [$id] = twoFactorAccount('raced');
-    $email = 'raced@example.test';
-    $code = mailedCode($email, '10.19.19.1');
-    $server = testServer();
-    $pdo = new HookAfterBeginPdo("pgsql:host={$server['host']};port={$server['port']};dbname=" . testEnvironment()['db'], (string) $server['username'], (string) $server['password']);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $pdo->exec("SET TIME ZONE 'UTC'");
+test(
+    'the attack, timed to the moment: a check by email whose transaction began before the pause did, and read the row once it had begun, starts afresh - so its wrong code is counted in the pause, five still the most',
+    function () {
+        [$id] = twoFactorAccount('raced');
+        $email = 'raced@example.test';
+        $code = mailedCode($email, '10.19.19.1');
+        $server = testServer();
+        $pdo = new HookAfterBeginPdo("pgsql:host={$server['host']};port={$server['port']};dbname=" . testEnvironment()['db'], (string) $server['username'], (string) $server['password']);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        $pdo->exec("SET TIME ZONE 'UTC'");
 
-    // Right after the check's BEGIN, the fifth wrong authenticator code begins the pause, in a transaction of its own.
-    $pdo->afterBegin = static function () use ($id): void {
-        usleep(2000);
-        iamDb()->prepare("UPDATE users SET totp_paused_until = CURRENT_TIMESTAMP + (? * INTERVAL '1 second'), totp_count_from = CURRENT_TIMESTAMP WHERE id = ?")
-            ->execute([AUTHENTICATOR_PAUSE_SECONDS, $id]);
-    };
-    $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', TEST_ISSUER . '/api/login/password', ['REMOTE_ADDR' => '10.19.19.2']);
+        // Right after the check's BEGIN, the fifth wrong authenticator code begins the pause, in a transaction of its own.
+        $pdo->afterBegin = static function () use ($id): void {
+            usleep(2000);
+            iamDb()
+                ->prepare("UPDATE users SET totp_paused_until = CURRENT_TIMESTAMP + (? * INTERVAL '1 second'), totp_count_from = CURRENT_TIMESTAMP WHERE id = ?")
+                ->execute([AUTHENTICATOR_PAUSE_SECONDS, $id]);
+        };
+        $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', TEST_ISSUER . '/api/login/password', ['REMOTE_ADDR' => '10.19.19.2']);
 
-    $result = pausedEmailCodeCheck($pdo, $request, userById(iamDb(), $id), besides($code, 1));
-    same([false, 'invalid_code'], [$result['passed'] ?? null, $result['code'] ?? null], 'checked in the pause: a wrong code');
-    same([1, 1], [attemptsEnded($id, 'bad_email_code'), wrongEmailCodesThisPause(iamDb(), $id)], 'and counted in it - kept at the pause\'s time or later, never before it');
-    $pdo = null;
-});
+        $result = pausedEmailCodeCheck($pdo, $request, userById(iamDb(), $id), besides($code, 1));
+        same([false, 'invalid_code'], [$result['passed'] ?? null, $result['code'] ?? null], 'checked in the pause: a wrong code');
+        same([1, 1], [attemptsEnded($id, 'bad_email_code'), wrongEmailCodesThisPause(iamDb(), $id)], 'and counted in it - kept at the pause\'s time or later, never before it');
+        $pdo = null;
+    },
+);
 
 test('a sign-in finished with a code by email is a session of its own method, and its ID token says the mailbox stood in: amr pwd, email, mfa - never otp, which is the authenticator\'s', function () {
     [$id, $secret] = twoFactorAccount('amr');
@@ -587,7 +703,13 @@ test('outside a pause a code by email stands in for nothing: the authenticator i
     $code = mailedCode($email, '10.19.4.1');
 
     same([403, 'totp_required'], [($r = passwordSignIn('10.19.4.2', $email, ['email_code' => $code]))->status, $r->code()], 'the password and a mailed code: the authenticator is asked for');
-    same(1, (int) iamDb()->query("SELECT count(*) FROM user_tokens WHERE user_id = $id AND purpose = 'login_code' AND consumed_at IS NULL")->fetchColumn(), 'the mailed code not spent');
+    same(
+        1,
+        (int) iamDb()
+            ->query("SELECT count(*) FROM user_tokens WHERE user_id = $id AND purpose = 'login_code' AND consumed_at IS NULL")
+            ->fetchColumn(),
+        'the mailed code not spent',
+    );
     same(200, passwordSignIn('10.19.4.3', $email, ['totp' => rightCode($id, $secret)])->status, 'the authenticator signs in');
 });
 
@@ -619,8 +741,11 @@ test('the account\'s owner is mailed once a pause - when, from which browser, wh
     same([], pausedMails($email), 'four wrong codes: no mail');
 
     $before = time();
-    $fifth = (new Browser('10.19.6.99'))->post('/api/login/password', ['email' => $email, 'password' => PASSWORD, 'totp' => wrongCode($secret, 99)],
-        ['headers' => ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0']]);
+    $fifth = (new Browser('10.19.6.99'))->post(
+        '/api/login/password',
+        ['email' => $email, 'password' => PASSWORD, 'totp' => wrongCode($secret, 99)],
+        ['headers' => ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0']],
+    );
     $after = time();
     same('authenticator_paused', $fifth->code(), 'the fifth');
     // More during the pause: nothing more is mailed.
@@ -633,11 +758,26 @@ test('the account\'s owner is mailed once a pause - when, from which browser, wh
     preg_match('/^    (\d{4}-\d\d-\d\d \d\d:\d\d) UTC$/m', $mails[0]['body'], $when);
     $at = strtotime(($when[1] ?? '') . ' UTC');
     check($at !== false && $at >= $before - 60 && $at <= $after, 'when the fifth came, in UTC and saying so: ' . $mails[0]['body']);
-    same("Hello told,\n\n" . MAIL_FALLBACK['mail.authenticatorPaused.intro'] . "\n\n    {$when[1]} UTC\n    Firefox · Windows\n\n"
-        . MAIL_FALLBACK['mail.authenticatorPaused.ignore'] . "\n\n" . TEST_ISSUER . "/account/security\n", $mails[0]['body'],
-        'what happened, the time and the browser on lines of their own, what to do, and the account page\'s security');
-    same(['authenticator_paused', PAUSED_SUBJECT, 'sent'], array_values(iamDb()->query("SELECT kind, subject, status FROM email_log WHERE user_id = $id ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_NUM)),
-        'logged as its kind, with its subject');
+    same(
+        "Hello told,\n\n" .
+            MAIL_FALLBACK['mail.authenticatorPaused.intro'] .
+            "\n\n    {$when[1]} UTC\n    Firefox · Windows\n\n" .
+            MAIL_FALLBACK['mail.authenticatorPaused.ignore'] .
+            "\n\n" .
+            TEST_ISSUER .
+            "/account/security\n",
+        $mails[0]['body'],
+        'what happened, the time and the browser on lines of their own, what to do, and the account page\'s security',
+    );
+    same(
+        ['authenticator_paused', PAUSED_SUBJECT, 'sent'],
+        array_values(
+            iamDb()
+                ->query("SELECT kind, subject, status FROM email_log WHERE user_id = $id ORDER BY id DESC LIMIT 1")
+                ->fetch(PDO::FETCH_NUM),
+        ),
+        'logged as its kind, with its subject',
+    );
 
     // Its end, and five wrong codes again: a new pause, a new mail.
     fifteenMinutesPass($id);
@@ -684,22 +824,28 @@ test('a right code before the fifth starts the count again - a recovery code too
     same('authenticator_paused', passwordSignIn('10.19.7.40', $email, ['totp' => wrongCode($secret, 40)])->code(), 'the fifth in a row: paused');
 });
 
-test('during the pause a recovery code still works - fifty bits, no guess - and so does a remembered browser; a wrong recovery code is said wrong; six digits, however written, are never checked', function () {
-    [$id, $secret, $recovery] = twoFactorAccount('recovering');
-    $email = 'recovering@example.test';
-    $device = passwordSignIn('10.19.8.200', $email, ['totp' => rightCode($id, $secret), 'remember_device' => true])->json()['device_token'] ?? null;
-    check(is_string($device), 'a remembered browser');
-    same('authenticator_paused', pauseByGuessing($email, $secret, '10.19.8')->code(), 'paused');
+test(
+    'during the pause a recovery code still works - fifty bits, no guess - and so does a remembered browser; a wrong recovery code is said wrong; six digits, however written, are never checked',
+    function () {
+        [$id, $secret, $recovery] = twoFactorAccount('recovering');
+        $email = 'recovering@example.test';
+        $device = passwordSignIn('10.19.8.200', $email, ['totp' => rightCode($id, $secret), 'remember_device' => true])->json()['device_token'] ?? null;
+        check(is_string($device), 'a remembered browser');
+        same('authenticator_paused', pauseByGuessing($email, $secret, '10.19.8')->code(), 'paused');
 
-    same([403, 'totp_invalid'], [($r = passwordSignIn('10.19.8.20', $email, ['totp' => 'ABCDE-FGHIJ']))->status, $r->code()], 'a wrong recovery code: said wrong');
-    same(200, passwordSignIn('10.19.8.21', $email, ['totp' => $recovery[3]])->status, 'a recovery code: signed in');
-    same(200, passwordSignIn('10.19.8.22', $email, ['device_token' => $device])->status, 'a remembered browser: signed in');
-    same([403, 'authenticator_paused'], [($r = passwordSignIn('10.19.8.23', $email, ['totp' => '123 456']))->status, $r->code()], 'six digits with a space: unchecked');
-    same([403, 'authenticator_paused'], [($r = passwordSignIn('10.19.8.24', $email, ['totp' => rightCode($id, $secret)]))->status, $r->code()], 'the right code: unchecked');
-    same(['bad_recovery', 'totp_paused', 'totp_paused'], array_values(array_filter(outcomesOf($id), static fn(string $outcome): bool => in_array($outcome, ['bad_recovery', 'totp_paused'], true))),
-        'kept as what they were - and none of them towards the next pause');
-    same(5, count(array_filter(outcomesOf($id), static fn(string $outcome): bool => $outcome === 'bad_totp')), 'the five that paused it, no more');
-});
+        same([403, 'totp_invalid'], [($r = passwordSignIn('10.19.8.20', $email, ['totp' => 'ABCDE-FGHIJ']))->status, $r->code()], 'a wrong recovery code: said wrong');
+        same(200, passwordSignIn('10.19.8.21', $email, ['totp' => $recovery[3]])->status, 'a recovery code: signed in');
+        same(200, passwordSignIn('10.19.8.22', $email, ['device_token' => $device])->status, 'a remembered browser: signed in');
+        same([403, 'authenticator_paused'], [($r = passwordSignIn('10.19.8.23', $email, ['totp' => '123 456']))->status, $r->code()], 'six digits with a space: unchecked');
+        same([403, 'authenticator_paused'], [($r = passwordSignIn('10.19.8.24', $email, ['totp' => rightCode($id, $secret)]))->status, $r->code()], 'the right code: unchecked');
+        same(
+            ['bad_recovery', 'totp_paused', 'totp_paused'],
+            array_values(array_filter(outcomesOf($id), static fn(string $outcome): bool => in_array($outcome, ['bad_recovery', 'totp_paused'], true))),
+            'kept as what they were - and none of them towards the next pause',
+        );
+        same(5, count(array_filter(outcomesOf($id), static fn(string $outcome): bool => $outcome === 'bad_totp')), 'the five that paused it, no more');
+    },
+);
 
 test('the account page: a code refused unchecked during the pause; a recovery code turns two-factor off, and a new secret switched on clears the pause', function () {
     [$id, $secret, $recovery] = twoFactorAccount('reenabled');
@@ -708,7 +854,11 @@ test('the account page: a code refused unchecked during the pause; a recovery co
     same(200, $page->post('/api/login/password', ['email' => $email, 'password' => PASSWORD, 'totp' => rightCode($id, $secret)])->status, 'signed in');
     same('authenticator_paused', pauseByGuessing($email, $secret, '10.19.10')->code(), 'paused by guesses from elsewhere');
 
-    same([403, 'authenticator_paused'], [($r = $page->post('/api/account/2fa/disable', ['code' => rightCode($id, $secret)]))->status, $r->code()], 'turning it off with the app\'s code: refused unchecked');
+    same(
+        [403, 'authenticator_paused'],
+        [($r = $page->post('/api/account/2fa/disable', ['code' => rightCode($id, $secret)]))->status, $r->code()],
+        'turning it off with the app\'s code: refused unchecked',
+    );
     check(isset($r->json()['paused_until']), 'saying until when');
     same(200, $page->post('/api/account/2fa/disable', ['code' => $recovery[0]])->status, 'with a recovery code: off');
 

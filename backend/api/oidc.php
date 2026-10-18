@@ -61,7 +61,7 @@ function createAuthRequest(PDO $pdo, array $application, array $fields, string $
     $pdo->prepare(
         "INSERT INTO auth_requests (id, kind, application_id, redirect_uri, scope, state, nonce, code_challenge,
                                     code_challenge_method, prompt, login_hint, max_age, ui_locales, expires_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))"
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))",
     )->execute([
         $id,
         $kind,
@@ -89,9 +89,7 @@ function liveAuthRequest(PDO $pdo, string $id, string $kind = 'login'): ?array
         return null;
     }
 
-    $statement = $pdo->prepare(
-        'SELECT * FROM auth_requests WHERE id = ? AND kind = ? AND completed_at IS NULL AND expires_at > CURRENT_TIMESTAMP'
-    );
+    $statement = $pdo->prepare('SELECT * FROM auth_requests WHERE id = ? AND kind = ? AND completed_at IS NULL AND expires_at > CURRENT_TIMESTAMP');
     $statement->execute([$id, $kind]);
     $request = $statement->fetch();
 
@@ -166,7 +164,7 @@ function issueAuthorizationCode(PDO $pdo, array $request, array $user, array $se
     $pdo->prepare(
         "INSERT INTO auth_codes (code_hash, application_id, user_id, session_id, redirect_uri, scope, nonce,
                                  code_challenge, code_challenge_method, expires_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))"
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))",
     )->execute([
         sha256($code),
         (int) $request['application_id'],
@@ -220,8 +218,7 @@ function redeemAuthorizationCode(PDO $pdo, string $code, array $application, str
     if ($row['code_challenge'] !== null) {
         // RFC 7636: base64url(SHA-256(verifier)), and the verifier itself is
         // 43 to 128 characters of the unreserved set.
-        if (!preg_match('/^[A-Za-z0-9\-._~]{43,128}$/', $verifier)
-            || !hash_equals((string) $row['code_challenge'], base64UrlEncode(hash('sha256', $verifier, true)))) {
+        if (!preg_match('/^[A-Za-z0-9\-._~]{43,128}$/', $verifier) || !hash_equals((string) $row['code_challenge'], base64UrlEncode(hash('sha256', $verifier, true)))) {
             return 'code_verifier does not match the challenge';
         }
     } else {
@@ -253,7 +250,7 @@ function issueRefreshToken(PDO $pdo, string $kind, string $familyId, int $applic
     $insert = $pdo->prepare(
         "INSERT INTO refresh_tokens (token_hash, kind, family_id, application_id, user_id, session_id, scope, name, expires_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))
-           RETURNING id"
+           RETURNING id",
     );
     $insert->execute([sha256($token), $kind, $familyId, $applicationId, $userId, $sessionId, $scope, $name, max(1, $expiresInSeconds)]);
 
@@ -268,9 +265,7 @@ function secondsUntilSessionEnds(array $session): int
 
 function revokeTokenFamily(PDO $pdo, string $familyId, string $reason): void
 {
-    $pdo->prepare(
-        'UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE family_id = ? AND revoked_at IS NULL'
-    )->execute([$reason, $familyId]);
+    $pdo->prepare('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE family_id = ? AND revoked_at IS NULL')->execute([$reason, $familyId]);
 }
 
 /**
@@ -349,8 +344,14 @@ function exchangeRefreshToken(PDO $pdo, string $token, array $application): arra
     }
 
     $next = issueRefreshToken(
-        $pdo, 'rotating', (string) $row['family_id'], (int) $application['id'], (int) $user['id'],
-        (int) $session['id'], (string) $row['scope'], secondsUntilSessionEnds($session)
+        $pdo,
+        'rotating',
+        (string) $row['family_id'],
+        (int) $application['id'],
+        (int) $user['id'],
+        (int) $session['id'],
+        (string) $row['scope'],
+        secondsUntilSessionEnds($session),
     );
 
     $pdo->prepare('UPDATE refresh_tokens SET replaced_by = ? WHERE id = ? AND replaced_by IS NULL')->execute([$next['id'], (int) $row['id']]);
@@ -373,8 +374,7 @@ function revokeRefreshToken(PDO $pdo, string $token, array $application): void
     if ($row['kind'] === 'rotating') {
         revokeTokenFamily($pdo, (string) $row['family_id'], 'revoked');
     } else {
-        $pdo->prepare("UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'revoked' WHERE id = ? AND revoked_at IS NULL")
-            ->execute([(int) $row['id']]);
+        $pdo->prepare("UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'revoked' WHERE id = ? AND revoked_at IS NULL")->execute([(int) $row['id']]);
     }
 }
 

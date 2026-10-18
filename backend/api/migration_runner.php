@@ -156,12 +156,9 @@ function iamSiteState(): SiteState
  */
 function ensureDatabase(array $config, string $name): bool
 {
-    $server = new PDO(
-        "pgsql:host={$config['host']};port={$config['port']};dbname=postgres;connect_timeout=5",
-        (string) $config['username'],
-        (string) ($config['password'] ?? ''),
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
+    $server = new PDO("pgsql:host={$config['host']};port={$config['port']};dbname=postgres;connect_timeout=5", (string) $config['username'], (string) ($config['password'] ?? ''), [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    ]);
 
     $exists = (int) $server->query('SELECT count(*) FROM pg_catalog.pg_database WHERE datname = ' . $server->quote($name))->fetchColumn();
 
@@ -200,15 +197,13 @@ function createFirstAdmin(PDO $pdo, string $email, ?string $password = null, ?st
 
     $pdo->beginTransaction();
     try {
-        $insert = $pdo->prepare(
-            'INSERT INTO users (username, email, password, email_confirmed, force_password_change) VALUES (?, ?, ?, TRUE, ?) RETURNING id'
-        );
+        $insert = $pdo->prepare('INSERT INTO users (username, email, password, email_confirmed, force_password_change) VALUES (?, ?, ?, TRUE, ?) RETURNING id');
         $insert->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $generated ? 'true' : 'false']);
         $userId = (int) $insert->fetchColumn();
 
         $pdo->prepare(
             "INSERT INTO user_roles (user_id, role_id)
-             SELECT ?, r.id FROM application_roles r WHERE r.name = 'ADMIN'"
+             SELECT ?, r.id FROM application_roles r WHERE r.name = 'ADMIN'",
         )->execute([$userId]);
 
         $pdo->commit();

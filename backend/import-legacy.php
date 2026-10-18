@@ -39,11 +39,13 @@ require_once __DIR__ . '/api/legacy_import.php';
 requireSetUpOnCli();
 
 $options = getopt('', ['from:', 'dry-run', 'site:']);
-$from = trim((string) ($options['from'] ?? databaseConfig()['databases']['legacy'] ?? ''));
+$from = trim((string) ($options['from'] ?? (databaseConfig()['databases']['legacy'] ?? '')));
 
 if ($from === '') {
-    fwrite(STDERR, "usage: php import-legacy.php --from=<old users database> [--dry-run] [--site=genshin]\n"
-        . "(or name it as 'legacy' under 'databases' in config/database.local.php - setup.php does)\n");
+    fwrite(
+        STDERR,
+        "usage: php import-legacy.php --from=<old users database> [--dry-run] [--site=genshin]\n" . "(or name it as 'legacy' under 'databases' in config/database.local.php - setup.php does)\n",
+    );
     exit(1);
 }
 
@@ -59,7 +61,7 @@ try {
     exit(1);
 }
 
-echo ($summary['dry_run'] ? "Dry run - nothing was written.\n" : "Imported.\n");
+echo $summary['dry_run'] ? "Dry run - nothing was written.\n" : "Imported.\n";
 printf("  accounts        %d\n", $summary['accounts']);
 printf("  Google links    %d\n", $summary['identities']);
 printf("  recovery codes  %d\n", $summary['recovery_codes']);

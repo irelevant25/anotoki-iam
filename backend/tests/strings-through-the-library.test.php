@@ -76,21 +76,91 @@ const MOVED_KEYS = [
  * that adds keys adds them here - this test holds 017 and the library's set.
  */
 const LATER_PAGE_KEYS = [
-    'error.authenticatorPaused', 'login.paused.title', 'login.paused.text', 'login.paused.emailLead', 'login.paused.sendCode', 'login.paused.codeSent', 'login.paused.passwordFirst',
-    'login.paused.emailSpent', 'sessions.method.password_email',
-    'legal.termsPageTitle', 'legal.privacyPageTitle', 'legal.contactPageTitle', 'legal.about', 'legal.termsWhatTitle', 'legal.account.name', 'legal.account.what',
-    'legal.account.why', 'legal.account.kept', 'legal.twoFactor.name', 'legal.twoFactor.what', 'legal.twoFactor.why', 'legal.twoFactor.kept',
-    'legal.google.name', 'legal.google.what', 'legal.google.why', 'legal.google.kept', 'legal.sessions.name', 'legal.sessions.what',
-    'legal.sessions.why', 'legal.sessions.kept', 'legal.attempts.name', 'legal.attempts.what', 'legal.attempts.why', 'legal.attempts.kept',
-    'legal.remembered.name', 'legal.remembered.what', 'legal.remembered.why', 'legal.remembered.kept', 'legal.browsers.name', 'legal.browsers.what',
-    'legal.browsers.why', 'legal.browsers.kept', 'legal.sites.name', 'legal.sites.what', 'legal.sites.why', 'legal.sites.kept', 'legal.mails.name',
-    'legal.mails.what', 'legal.mails.why', 'legal.mails.kept', 'legal.news.name', 'legal.news.what', 'legal.news.why', 'legal.news.kept',
-    'legal.approvals.name', 'legal.approvals.what', 'legal.approvals.why', 'legal.approvals.kept', 'legal.deletion.name', 'legal.deletion.what',
-    'legal.deletion.why', 'legal.deletion.kept', 'legal.audit.what', 'legal.audit.why', 'legal.audit.kept', 'legal.backups.what', 'legal.backups.why',
-    'legal.backups.kept', 'legal.storage.session.purpose', 'legal.storage.session.kept', 'legal.storage.device.purpose', 'legal.storage.device.kept',
-    'legal.storage.remembered.purpose', 'legal.storage.remembered.kept', 'legal.storage.tabLanguage.purpose', 'legal.storage.drafts.purpose',
-    'legal.storage.untilTabClosed', 'legal.google.role', 'legal.mail.role',
-    'google.signIn', 'google.signUp', 'google.continue', 'google.frame', 'google.ready', 'google.failed',
+    'error.authenticatorPaused',
+    'login.paused.title',
+    'login.paused.text',
+    'login.paused.emailLead',
+    'login.paused.sendCode',
+    'login.paused.codeSent',
+    'login.paused.passwordFirst',
+    'login.paused.emailSpent',
+    'sessions.method.password_email',
+    'legal.termsPageTitle',
+    'legal.privacyPageTitle',
+    'legal.contactPageTitle',
+    'legal.about',
+    'legal.termsWhatTitle',
+    'legal.account.name',
+    'legal.account.what',
+    'legal.account.why',
+    'legal.account.kept',
+    'legal.twoFactor.name',
+    'legal.twoFactor.what',
+    'legal.twoFactor.why',
+    'legal.twoFactor.kept',
+    'legal.google.name',
+    'legal.google.what',
+    'legal.google.why',
+    'legal.google.kept',
+    'legal.sessions.name',
+    'legal.sessions.what',
+    'legal.sessions.why',
+    'legal.sessions.kept',
+    'legal.attempts.name',
+    'legal.attempts.what',
+    'legal.attempts.why',
+    'legal.attempts.kept',
+    'legal.remembered.name',
+    'legal.remembered.what',
+    'legal.remembered.why',
+    'legal.remembered.kept',
+    'legal.browsers.name',
+    'legal.browsers.what',
+    'legal.browsers.why',
+    'legal.browsers.kept',
+    'legal.sites.name',
+    'legal.sites.what',
+    'legal.sites.why',
+    'legal.sites.kept',
+    'legal.mails.name',
+    'legal.mails.what',
+    'legal.mails.why',
+    'legal.mails.kept',
+    'legal.news.name',
+    'legal.news.what',
+    'legal.news.why',
+    'legal.news.kept',
+    'legal.approvals.name',
+    'legal.approvals.what',
+    'legal.approvals.why',
+    'legal.approvals.kept',
+    'legal.deletion.name',
+    'legal.deletion.what',
+    'legal.deletion.why',
+    'legal.deletion.kept',
+    'legal.audit.what',
+    'legal.audit.why',
+    'legal.audit.kept',
+    'legal.backups.what',
+    'legal.backups.why',
+    'legal.backups.kept',
+    'legal.storage.session.purpose',
+    'legal.storage.session.kept',
+    'legal.storage.device.purpose',
+    'legal.storage.device.kept',
+    'legal.storage.remembered.purpose',
+    'legal.storage.remembered.kept',
+    'legal.storage.tabLanguage.purpose',
+    'legal.storage.drafts.purpose',
+    'legal.storage.untilTabClosed',
+    'legal.google.role',
+    'legal.mail.role',
+    'google.signIn',
+    'google.signUp',
+    'google.continue',
+    'google.frame',
+    'google.ready',
+    'google.failed',
 ];
 const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticatorPaused.greeting', 'mail.authenticatorPaused.intro', 'mail.authenticatorPaused.ignore'];
 
@@ -124,10 +194,16 @@ const PASSWORD = 'correct horse';
 function useDatabase(string $name): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -222,7 +298,11 @@ function sameButRenamedAndLibrary(array $before, array $after, string $code): vo
         same(LATER_PAGE_KEYS, array_values(array_intersect(LATER_PAGE_KEYS, array_keys($after[$map]))), "$code $map: the later files' own keys, as their files have them");
         same(sorted(libraryKeysOf002()), sorted(array_keys($added)), "$code $map: and nothing else but the library's other keys");
         $words = $map === 'english' || $code === 'en' ? 'en' : $code;
-        same(array_map(static fn(string $key): string => LibraryWords::all()[$key][$words], libraryKeysOf002()), array_map(static fn(string $key): string => $added[$key], libraryKeysOf002()), "$code $map: in the library's words");
+        same(
+            array_map(static fn(string $key): string => LibraryWords::all()[$key][$words], libraryKeysOf002()),
+            array_map(static fn(string $key): string => $added[$key], libraryKeysOf002()),
+            "$code $map: in the library's words",
+        );
     }
 }
 
@@ -237,10 +317,19 @@ function sorted(array $list): array
 function signInToTheSite(Browser $browser, string $email): TestResponse
 {
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'genshin', 'redirect_uri' => SITE_CALLBACK, 'scope' => 'openid profile email',
-        'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'genshin',
+                'redirect_uri' => SITE_CALLBACK,
+                'scope' => 'openid profile email',
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     $request = queryOf($start->location())['request'] ?? null;
     check($request !== null, 'authorize sends an anonymous browser to the sign-in page: ' . $start->location());
     same(200, $browser->signIn($email, PASSWORD)->status, 'the sign-in');
@@ -249,8 +338,11 @@ function signInToTheSite(Browser $browser, string $email): TestResponse
 
     return $browser->request('POST', '/api/oidc/token', [
         'form' => [
-            'grant_type' => 'authorization_code', 'code' => queryOf($accept->json()['redirect'])['code'] ?? '',
-            'redirect_uri' => SITE_CALLBACK, 'client_id' => 'genshin', 'code_verifier' => $verifier,
+            'grant_type' => 'authorization_code',
+            'code' => queryOf($accept->json()['redirect'])['code'] ?? '',
+            'redirect_uri' => SITE_CALLBACK,
+            'client_id' => 'genshin',
+            'code_verifier' => $verifier,
         ],
         'headers' => ['Origin' => SITE_ORIGIN],
     ]);
@@ -260,20 +352,31 @@ function signInToTheSite(Browser $browser, string $email): TestResponse
 
 test('a fresh IAM has run 017 and then the library\'s set: the four keys under their new names, the library\'s words beside the IAM\'s', function () {
     $pdo = iamDb();
-    same(['anotoki_admin', 'iam', 'anotoki_translations'], array_map(static fn($set): string => $set->name, iamMigrationSets()), 'the library\'s translations set after the IAM\'s (its admin set before them) - the API, the installer and the command line all apply through iamMigrator()');
+    same(
+        ['anotoki_admin', 'iam', 'anotoki_translations'],
+        array_map(static fn($set): string => $set->name, iamMigrationSets()),
+        'the library\'s translations set after the IAM\'s (its admin set before them) - the API, the installer and the command line all apply through iamMigrator()',
+    );
     $applied = appliedMigrations($pdo);
     same(libraryFiles(), array_slice($applied, -count(libraryFiles())), 'the library\'s translations set, the last applied');
     check(array_search(LIBRARY_MIGRATION, $applied, true) < array_search(libraryFiles()[0], $applied, true), '017 before it');
-    same(libraryFiles(), $pdo->query("SELECT filename FROM migrations WHERE filename LIKE 'anotoki_translations/%' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN), 'recorded in the IAM\'s own table as set/name, which needs no folder column');
+    same(
+        libraryFiles(),
+        $pdo->query("SELECT filename FROM migrations WHERE filename LIKE 'anotoki_translations/%' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN),
+        'recorded in the IAM\'s own table as set/name, which needs no folder column',
+    );
     same(false, snapshotLeft($pdo), '017\'s snapshot of the moved strings is gone with the file');
 
     $strings = stringsOf($pdo);
-    foreach ([
-        'anotoki.language.label' => ['Language', 'Jazyk'],
-        'anotoki.language.button' => ['Language: {name} ({code})', 'Jazyk: {name} ({code})'],
-        'sessions.method.unknown' => ['Other', 'Iné'],
-        'sessions.ended.unknown' => ['Ended', 'Ukončené'],
-    ] as $key => $words) {
+    foreach (
+        [
+            'anotoki.language.label' => ['Language', 'Jazyk'],
+            'anotoki.language.button' => ['Language: {name} ({code})', 'Jazyk: {name} ({code})'],
+            'sessions.method.unknown' => ['Other', 'Iné'],
+            'sessions.ended.unknown' => ['Ended', 'Ukončené'],
+        ]
+        as $key => $words
+    ) {
         same($words, [$strings["$key en"][0] ?? null, $strings["$key sk"][0] ?? null], "$key in English and Slovak, the words the IAM always had");
     }
     $keys = keysOf($pdo);
@@ -288,7 +391,17 @@ test('a fresh IAM has run 017 and then the library\'s set: the four keys under t
     // No key of the IAM's ends in a plural form's name: the family's scan would take it for one.
     same([], array_values(array_filter(array_keys($keys), static fn(string $key): bool => preg_match('/\.(zero|one|two|few|many|other)$/D', $key) === 1)), 'no key ending in a plural form');
     // What carried the renamed keys' strings: the foreign key, cascading when a key is renamed.
-    same(['c', 'c'], array_values($pdo->query("SELECT confupdtype::text AS updated, confdeltype::text AS deleted FROM pg_constraint WHERE contype = 'f' AND conrelid = 'translations'::regclass AND confrelid = 'translation_keys'::regclass")->fetch()), 'translations.key_name follows translation_keys.name on update, and goes with it on delete');
+    same(
+        ['c', 'c'],
+        array_values(
+            $pdo
+                ->query(
+                    "SELECT confupdtype::text AS updated, confdeltype::text AS deleted FROM pg_constraint WHERE contype = 'f' AND conrelid = 'translations'::regclass AND confrelid = 'translation_keys'::regclass",
+                )
+                ->fetch(),
+        ),
+        'translations.key_name follows translation_keys.name on update, and goes with it on delete',
+    );
 });
 
 test('an IAM built through 016, as its owner left it: 017 moves every string exactly - word, writer, time, blank - and the bundles change by nothing else', function () {
@@ -310,7 +423,11 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
     useDatabase($main . '_installed');
     try {
         $bundles = ['en' => bundle('en'), 'sk' => bundle('sk')];
-        same(['Jazyk stránky: {name} ({code})', 'Language'], [$bundles['sk']['values']['lang.button'] ?? null, $bundles['sk']['values']['lang.label'] ?? null], 'before: the owner\'s words, and English where Slovak was blanked');
+        same(
+            ['Jazyk stránky: {name} ({code})', 'Language'],
+            [$bundles['sk']['values']['lang.button'] ?? null, $bundles['sk']['values']['lang.label'] ?? null],
+            'before: the owner\'s words, and English where Slovak was blanked',
+        );
 
         $result = applyPendingMigrations($pdo);
         same([pendingAfter016(), null], [$result['applied'], $result['failed']], '017 and the library\'s set applied, every gate passed (' . ($result['error'] ?? '') . ')');
@@ -325,7 +442,11 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
         }
         $added = array_diff_key($after, $expected, array_flip(laterCells()), LATER_REWORDED);
         same(laterCells(), array_values(array_intersect(laterCells(), array_keys($after))), 'the later files\' own keys, in English and Slovak');
-        same(sorted(array_merge(...array_map(static fn(string $key): array => ["$key en", "$key sk"], libraryKeysOf002()))), sorted(array_keys($added)), 'and nothing else but the library\'s other keys, in English and Slovak');
+        same(
+            sorted(array_merge(...array_map(static fn(string $key): array => ["$key en", "$key sk"], libraryKeysOf002()))),
+            sorted(array_keys($added)),
+            'and nothing else but the library\'s other keys, in English and Slovak',
+        );
         foreach ($added as $cell => [$value, $by]) {
             [$key, $code] = explode(' ', $cell);
             same([LibraryWords::all()[$key][$code], null], [$value, $by], "$cell: the library's words, written by nobody");
@@ -345,20 +466,30 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
                 same($key, $keysAfter[$name] ?? null, "$name as it was");
             }
         }
-        same([$keys['sessions.method.other'], $keys['sessions.ended.other']], [$keysAfter['sessions.method.unknown'] ?? null, $keysAfter['sessions.ended.unknown'] ?? null], 'the renamed keys, their descriptions and when they were made');
+        same(
+            [$keys['sessions.method.other'], $keys['sessions.ended.other']],
+            [$keysAfter['sessions.method.unknown'] ?? null, $keysAfter['sessions.ended.unknown'] ?? null],
+            'the renamed keys, their descriptions and when they were made',
+        );
         foreach (LibraryWords::keys() as $name) {
             same(LibraryWords::all()[$name]['description'], $keysAfter[$name][0] ?? null, "$name: the library's description");
         }
-        same(count($keys) - 2 + count(LibraryWords::keys()) + count(LATER_PAGE_KEYS) + count(LATER_MAIL_KEYS), count($keysAfter), 'two keys gone, every key of the library\'s there - and the later files\' own');
+        same(
+            count($keys) - 2 + count(LibraryWords::keys()) + count(LATER_PAGE_KEYS) + count(LATER_MAIL_KEYS),
+            count($keysAfter),
+            'two keys gone, every key of the library\'s there - and the later files\' own',
+        );
 
         // The bundles the pages read: before and after differ by the four names and the library's words, nothing else.
         foreach (['en', 'sk'] as $code) {
             sameButRenamedAndLibrary($bundles[$code], bundle($code), $code);
         }
         $slovak = bundle('sk');
-        same(['Jazyk stránky: {name} ({code})', 'Language', 'Ended', 'Some other way'], [
-            $slovak['values']['anotoki.language.button'], $slovak['values']['anotoki.language.label'], $slovak['values']['sessions.ended.unknown'], $slovak['english']['sessions.method.unknown'],
-        ], 'what a Slovak page reads: the owner\'s words, English where the owner blanked it');
+        same(
+            ['Jazyk stránky: {name} ({code})', 'Language', 'Ended', 'Some other way'],
+            [$slovak['values']['anotoki.language.button'], $slovak['values']['anotoki.language.label'], $slovak['values']['sessions.ended.unknown'], $slovak['english']['sessions.method.unknown']],
+            'what a Slovak page reads: the owner\'s words, English where the owner blanked it',
+        );
     } finally {
         useDatabase($main);
     }
@@ -436,10 +567,20 @@ test('the window: built through 016, the new code, nothing applied - the sign-in
         $admin = new Browser('10.31.0.7');
         same(200, $admin->signIn('admin@example.test', PASSWORD)->status, 'the administrator signs in to press Apply');
         $languages = $admin->get('/api/admin/languages')->json()['languages'] ?? [];
-        same([['en', count(array_filter(array_keys($seeded), static fn(string $cell): bool => str_ends_with($cell, ' en'))), 2], ['sk', count(array_filter(array_keys($seeded), static fn(string $cell): bool => str_ends_with($cell, ' sk'))), 1]],
-            array_map(static fn(array $language): array => [$language['code'], $language['strings'], $language['accounts']], $languages), 'the languages, with their strings and accounts (the newcomer\'s Slovak among them)');
+        same(
+            [
+                ['en', count(array_filter(array_keys($seeded), static fn(string $cell): bool => str_ends_with($cell, ' en'))), 2],
+                ['sk', count(array_filter(array_keys($seeded), static fn(string $cell): bool => str_ends_with($cell, ' sk'))), 1],
+            ],
+            array_map(static fn(array $language): array => [$language['code'], $language['strings'], $language['accounts']], $languages),
+            'the languages, with their strings and accounts (the newcomer\'s Slovak among them)',
+        );
         same(200, $admin->put('/api/admin/translations', ['values' => ['common.save' => ['sk' => 'Ulož']]])->status, 'a rewording, saved while the update waits');
-        same(['lang.label', 'sessions.method.other'], array_values(array_intersect(['lang.label', 'sessions.method.other'], array_column($admin->get('/api/admin/translations')->json()['keys'] ?? [], 'name'))), 'the grid has the keys as they are');
+        same(
+            ['lang.label', 'sessions.method.other'],
+            array_values(array_intersect(['lang.label', 'sessions.method.other'], array_column($admin->get('/api/admin/translations')->json()['keys'] ?? [], 'name'))),
+            'the grid has the keys as they are',
+        );
 
         $pending = $admin->get('/api/admin/migrations')->json()['pending'] ?? [];
         same(pendingAfter016(), migrationNames($pending), 'what Apply will bring: 017, then the library\'s set');
@@ -451,10 +592,17 @@ test('the window: built through 016, the new code, nothing applied - the sign-in
 
         // From the next request on: the four keys under their new names, the library's words beside them, the owner's save kept.
         $slovak = bundle('sk');
-        same(['Jazyk', 'Jazyk: {name} ({code})', 'Iné', 'Ukončené', 'Ulož'], [
-            $slovak['values']['anotoki.language.label'] ?? null, $slovak['values']['anotoki.language.button'] ?? null,
-            $slovak['values']['sessions.method.unknown'] ?? null, $slovak['values']['sessions.ended.unknown'] ?? null, $slovak['values']['common.save'] ?? null,
-        ], 'the moved and renamed keys, and the rewording saved in the window');
+        same(
+            ['Jazyk', 'Jazyk: {name} ({code})', 'Iné', 'Ukončené', 'Ulož'],
+            [
+                $slovak['values']['anotoki.language.label'] ?? null,
+                $slovak['values']['anotoki.language.button'] ?? null,
+                $slovak['values']['sessions.method.unknown'] ?? null,
+                $slovak['values']['sessions.ended.unknown'] ?? null,
+                $slovak['values']['common.save'] ?? null,
+            ],
+            'the moved and renamed keys, and the rewording saved in the window',
+        );
         check(!isset($slovak['values']['lang.label']) && !isset($slovak['values']['sessions.method.other']), 'under their old names no more');
         same(LibraryWords::all()['anotoki.siteStatus.updatingTitle']['sk'], $slovak['values']['anotoki.siteStatus.updatingTitle'] ?? null, 'and the library\'s own words');
         same(['state' => 'ready', 'installed' => false], $visitor->get('/api/site-status')->json(), 'up to date');

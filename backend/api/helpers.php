@@ -21,9 +21,7 @@ function respondJson(Response $response, mixed $data, int $status = 200): Respon
 {
     $response->getBody()->write((string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
-    return $response
-        ->withStatus($status)
-        ->withHeader('Content-Type', 'application/json');
+    return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
 }
 
 /** A refusal in the one shape the frontend reads: a sentence and a code. */

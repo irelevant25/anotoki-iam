@@ -77,10 +77,14 @@ const ANONYMIZATION_LOCK = 4260919;
  */
 function accountDeletionReady(PDO $pdo): bool
 {
-    return asBool($pdo->query(
-        "SELECT (SELECT count(*) FROM pg_attribute WHERE attrelid = to_regclass('users') AND NOT attisdropped
-                   AND attname IN ('deletion_requested_at', 'deletion_due_at', 'anonymized_at')) = 3"
-    )->fetchColumn());
+    return asBool(
+        $pdo
+            ->query(
+                "SELECT (SELECT count(*) FROM pg_attribute WHERE attrelid = to_regclass('users') AND NOT attisdropped
+                   AND attname IN ('deletion_requested_at', 'deletion_due_at', 'anonymized_at')) = 3",
+            )
+            ->fetchColumn(),
+    );
 }
 
 /** The answer of what needs 016 while it is pending. */
@@ -131,7 +135,11 @@ function liveAccountSql(PDO $pdo): string
 function anonymizedRefusal(array $user): ?array
 {
     return accountAnonymized($user)
-        ? ['status' => 409, 'code' => 'account_anonymized', 'error' => 'This account was deleted on ' . substr((string) isoTime($user['anonymized_at']), 0, 10) . ': its id stays reserved, and nothing about it changes any more']
+        ? [
+            'status' => 409,
+            'code' => 'account_anonymized',
+            'error' => 'This account was deleted on ' . substr((string) isoTime($user['anonymized_at']), 0, 10) . ': its id stays reserved, and nothing about it changes any more',
+        ]
         : null;
 }
 
@@ -162,7 +170,11 @@ function requestAccountDeletion(PDO $pdo, Request $request, array $user, int $ke
         $asked = $pdo->prepare(
             "UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP, deletion_due_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 day')
               WHERE id = ? AND deletion_due_at IS NULL AND anonymized_at IS NULL AND NOT disabled
-          RETURNING deletion_due_at, " . recordTimeSql('deletion_requested_at') . ' AS record_at, ' . recordTimeSql('deletion_due_at') . ' AS record_due'
+          RETURNING deletion_due_at, " .
+                recordTimeSql('deletion_requested_at') .
+                ' AS record_at, ' .
+                recordTimeSql('deletion_due_at') .
+                ' AS record_due',
         );
         $asked->execute([ACCOUNT_DELETION_DAYS, $userId]);
         $row = $asked->fetch();
@@ -174,8 +186,7 @@ function requestAccountDeletion(PDO $pdo, Request $request, array $user, int $ke
         $due = (string) $row['deletion_due_at'];
 
         revokeSessionsFor($pdo, $userId, SESSION_REVOKED_DELETION, $keepSessionId);
-        $pdo->prepare('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE user_id = ? AND revoked_at IS NULL')
-            ->execute([SESSION_REVOKED_DELETION, $userId]);
+        $pdo->prepare('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE user_id = ? AND revoked_at IS NULL')->execute([SESSION_REVOKED_DELETION, $userId]);
         audit($request, $userId, 'account.deletion_requested', 'user', $userId, ['due' => isoTime($due), 'proof' => $proof]);
 
         $pdo->commit();
@@ -209,7 +220,9 @@ function cancelAccountDeletion(PDO $pdo, Request $request, int $userId): bool
         $cancelled = $pdo->prepare(
             'UPDATE users SET deletion_requested_at = NULL, deletion_due_at = NULL
               WHERE id = ? AND deletion_due_at IS NOT NULL AND anonymized_at IS NULL
-          RETURNING ' . recordTimeSql('CURRENT_TIMESTAMP') . ' AS record_at'
+          RETURNING ' .
+                recordTimeSql('CURRENT_TIMESTAMP') .
+                ' AS record_at',
         );
         $cancelled->execute([$userId]);
         $at = $cancelled->fetchColumn();
@@ -246,9 +259,7 @@ function anonymizeDueAccounts(PDO $pdo): int
         return 0;
     }
 
-    $due = $pdo->prepare(
-        'SELECT id FROM users WHERE deletion_due_at <= CURRENT_TIMESTAMP AND anonymized_at IS NULL ORDER BY deletion_due_at, id LIMIT ?'
-    );
+    $due = $pdo->prepare('SELECT id FROM users WHERE deletion_due_at <= CURRENT_TIMESTAMP AND anonymized_at IS NULL ORDER BY deletion_due_at, id LIMIT ?');
     $due->execute([ACCOUNT_DELETION_BATCH]);
 
     $done = 0;
@@ -296,17 +307,17 @@ function anonymizedLeftovers(PDO $pdo): void
     }
     $pdo->exec(
         'UPDATE announcement_recipients r SET email = u.email
-           FROM users u WHERE u.id = r.user_id AND u.anonymized_at IS NOT NULL AND r.email <> u.email'
+           FROM users u WHERE u.id = r.user_id AND u.anonymized_at IS NOT NULL AND r.email <> u.email',
     );
     scrubAuditLog($pdo, array_map('intval', $pdo->query($anonymized)->fetchAll(PDO::FETCH_COLUMN)));
     $pdo->exec(
         'UPDATE users SET last_login_at = NULL, totp_last_step = NULL
-          WHERE anonymized_at IS NOT NULL AND (last_login_at IS NOT NULL OR totp_last_step IS NOT NULL)'
+          WHERE anonymized_at IS NOT NULL AND (last_login_at IS NOT NULL OR totp_last_step IS NOT NULL)',
     );
     if (authenticatorPauseReady($pdo)) {
         $pdo->exec(
             'UPDATE users SET totp_paused_until = NULL, totp_count_from = NULL
-              WHERE anonymized_at IS NOT NULL AND (totp_paused_until IS NOT NULL OR totp_count_from IS NOT NULL)'
+              WHERE anonymized_at IS NOT NULL AND (totp_paused_until IS NOT NULL OR totp_count_from IS NOT NULL)',
         );
     }
 }
@@ -346,7 +357,7 @@ function scrubAuditLog(PDO $pdo, array $ids): void
         iamAuditLog($pdo)->scrubPeople($ids);
         $pdo->prepare(
             "UPDATE anotoki_audit_log SET details = details - 'name'
-              WHERE actor_id = ANY (CAST(? AS bigint[])) AND action = 'account.token_created' AND jsonb_typeof(details) = 'object' AND jsonb_exists(details, 'name')"
+              WHERE actor_id = ANY (CAST(? AS bigint[])) AND action = 'account.token_created' AND jsonb_typeof(details) = 'object' AND jsonb_exists(details, 'name')",
         )->execute([$idArray]);
     }
 
@@ -358,16 +369,16 @@ function scrubAuditLog(PDO $pdo, array $ids): void
         $pdo->prepare(
             "UPDATE {$table} SET ip = NULL
               WHERE ip IS NOT NULL
-                AND (actor_id = ANY (CAST(? AS int[])) OR (actor_id IS NULL AND target_type = 'user' AND target_id = ANY (CAST(? AS text[]))))"
+                AND (actor_id = ANY (CAST(? AS int[])) OR (actor_id IS NULL AND target_type = 'user' AND target_id = ANY (CAST(? AS text[]))))",
         )->execute([$idArray, $idArray]);
         $pdo->prepare(
             "UPDATE {$table} SET details = details - $person
               WHERE target_type = 'user' AND target_id = ANY (CAST(? AS text[]))
-                AND jsonb_typeof(details) = 'object' AND jsonb_exists_any(details, $person)"
+                AND jsonb_typeof(details) = 'object' AND jsonb_exists_any(details, $person)",
         )->execute([$idArray]);
         $pdo->prepare(
             "UPDATE {$table} SET details = details - 'name'
-              WHERE actor_id = ANY (CAST(? AS int[])) AND action = 'account.token_created' AND jsonb_typeof(details) = 'object' AND jsonb_exists(details, 'name')"
+              WHERE actor_id = ANY (CAST(? AS int[])) AND action = 'account.token_created' AND jsonb_typeof(details) = 'object' AND jsonb_exists(details, 'name')",
         )->execute([$idArray]);
     }
 }
@@ -468,17 +479,20 @@ function anonymizeAccount(PDO $pdo, int $userId, bool $replay = false, ?string $
         $email = (string) $user['email'];
         $farewell = asBool($user['email_confirmed']) && !$replay ? accountDeletedMessage($user) : null;
 
-        foreach ([
-            'DELETE FROM auth_codes WHERE user_id = ?',
-            'DELETE FROM refresh_tokens WHERE user_id = ?',
-            'DELETE FROM sessions WHERE user_id = ?',
-            'DELETE FROM user_trusted_devices WHERE user_id = ?',
-            'DELETE FROM user_sign_in_devices WHERE user_id = ?',
-            'DELETE FROM user_tokens WHERE user_id = ?',
-            'DELETE FROM user_recovery_codes WHERE user_id = ?',
-            'DELETE FROM user_identities WHERE user_id = ?',
-            'DELETE FROM user_roles WHERE user_id = ?',
-        ] as $sql) {
+        foreach (
+            [
+                'DELETE FROM auth_codes WHERE user_id = ?',
+                'DELETE FROM refresh_tokens WHERE user_id = ?',
+                'DELETE FROM sessions WHERE user_id = ?',
+                'DELETE FROM user_trusted_devices WHERE user_id = ?',
+                'DELETE FROM user_sign_in_devices WHERE user_id = ?',
+                'DELETE FROM user_tokens WHERE user_id = ?',
+                'DELETE FROM user_recovery_codes WHERE user_id = ?',
+                'DELETE FROM user_identities WHERE user_id = ?',
+                'DELETE FROM user_roles WHERE user_id = ?',
+            ]
+            as $sql
+        ) {
             $pdo->prepare($sql)->execute([$userId]);
         }
         $pdo->prepare('DELETE FROM login_attempts WHERE user_id = ? OR lower(email) = lower(?)')->execute([$userId, $email]);
@@ -506,7 +520,9 @@ function anonymizeAccount(PDO $pdo, int $userId, bool $replay = false, ?string $
                     disabled = TRUE, last_login_at = NULL, anonymized_at = date_trunc('second', clock_timestamp()),
                     deletion_requested_at = COALESCE(deletion_requested_at, CURRENT_TIMESTAMP), deletion_due_at = COALESCE(deletion_due_at, CURRENT_TIMESTAMP)
               WHERE id = ?
-          RETURNING " . recordTimeSql('anonymized_at') . ' AS record_at'
+          RETURNING " .
+                recordTimeSql('anonymized_at') .
+                ' AS record_at',
         );
         $done->execute([$username, $address, $userId]);
         $at = (string) $done->fetchColumn();
@@ -581,14 +597,10 @@ function anonymizedAccountsPage(PDO $pdo, ?DateTimeImmutable $since, ?int $after
     }
 
     $from = ($since ?? new DateTimeImmutable('@0'))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.uP');
-    $where = $after === null
-        ? 'anonymized_at >= ?::timestamptz'
-        : '(anonymized_at > ?::timestamptz OR (anonymized_at = ?::timestamptz AND id > ?))';
+    $where = $after === null ? 'anonymized_at >= ?::timestamptz' : '(anonymized_at > ?::timestamptz OR (anonymized_at = ?::timestamptz AND id > ?))';
     $parameters = $after === null ? [$from] : [$from, $from, $after];
 
-    $statement = $pdo->prepare(
-        "SELECT id, anonymized_at FROM users WHERE anonymized_at IS NOT NULL AND $where ORDER BY anonymized_at, id LIMIT " . (ANONYMIZED_PAGE + 1)
-    );
+    $statement = $pdo->prepare("SELECT id, anonymized_at FROM users WHERE anonymized_at IS NOT NULL AND $where ORDER BY anonymized_at, id LIMIT " . (ANONYMIZED_PAGE + 1));
     $statement->execute($parameters);
     $rows = $statement->fetchAll();
 
@@ -681,7 +693,11 @@ function recordAccountDeletionEvent(string $event, int $userId, string $at, arra
             throw new RuntimeException('it cannot be added to');
         }
     } catch (\Throwable $e) {
-        $failure = new RuntimeException("The account deletion record (storage/records/account-deletions.jsonl) is missing an event: {$event} of account {$userId} at {$at} is in the database alone - " . $e->getMessage() . '.', 0, $e);
+        $failure = new RuntimeException(
+            "The account deletion record (storage/records/account-deletions.jsonl) is missing an event: {$event} of account {$userId} at {$at} is in the database alone - " . $e->getMessage() . '.',
+            0,
+            $e,
+        );
         try {
             if (function_exists('iamRecordError')) {
                 iamRecordError($failure);
@@ -718,12 +734,16 @@ function readAccountDeletionRecord(string $file): array
                 continue;
             }
             $event = json_decode($line, true);
-            $valid = is_array($event)
-                && in_array($event['event'] ?? null, ACCOUNT_DELETION_EVENTS, true)
-                && is_int($event['user_id'] ?? null) && $event['user_id'] > 0 && $event['user_id'] <= 2147483647
-                && is_string($event['at'] ?? null) && anonymizedSince($event['at']) !== null
-                && ($event['event'] !== 'requested' || (is_string($event['due'] ?? null) && anonymizedSince($event['due']) !== null))
-                && (!isset($event['requested_at']) || (is_string($event['requested_at']) && anonymizedSince($event['requested_at']) !== null));
+            $valid =
+                is_array($event) &&
+                in_array($event['event'] ?? null, ACCOUNT_DELETION_EVENTS, true) &&
+                is_int($event['user_id'] ?? null) &&
+                $event['user_id'] > 0 &&
+                $event['user_id'] <= 2147483647 &&
+                is_string($event['at'] ?? null) &&
+                anonymizedSince($event['at']) !== null &&
+                ($event['event'] !== 'requested' || (is_string($event['due'] ?? null) && anonymizedSince($event['due']) !== null)) &&
+                (!isset($event['requested_at']) || (is_string($event['requested_at']) && anonymizedSince($event['requested_at']) !== null));
             if (!$valid) {
                 $unreadable++;
                 continue;
@@ -740,9 +760,7 @@ function readAccountDeletionRecord(string $file): array
 /** One event as the command line prints it: when, what, which account - ids and times only. */
 function accountDeletionEventLine(array $event): string
 {
-    return sprintf('%s  %-10s  #%d', $event['at'], $event['event'], $event['user_id'])
-        . (isset($event['due']) ? '  due ' . $event['due'] : '')
-        . (!empty($event['replayed']) ? '  (replayed)' : '');
+    return sprintf('%s  %-10s  #%d', $event['at'], $event['event'], $event['user_id']) . (isset($event['due']) ? '  due ' . $event['due'] : '') . (!empty($event['replayed']) ? '  (replayed)' : '');
 }
 
 /**
@@ -776,8 +794,13 @@ function replayAccountDeletions(PDO $pdo, array $events, DateTimeImmutable $sinc
 {
     $pending = iamMigrator($pdo)->status()['pending'];
     if ($pending !== []) {
-        return ['refused' => count($pending) . ' database update(s) wait (' . implode(', ', array_map(static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']), $pending))
-            . "). Apply them first - php migration.php: the record is replayed onto the IAM's schema as it is now."];
+        return [
+            'refused' =>
+                count($pending) .
+                ' database update(s) wait (' .
+                implode(', ', array_map(static fn(array $file): string => iamMigrationLabel($file['set'], $file['name']), $pending)) .
+                "). Apply them first - php migration.php: the record is replayed onto the IAM's schema as it is now.",
+        ];
     }
 
     $from = $since->setTimezone(new DateTimeZone('UTC'))->modify('-' . ACCOUNT_DELETION_REPLAY_MARGIN . ' seconds');
@@ -818,29 +841,55 @@ function replayAccountDeletions(PDO $pdo, array $events, DateTimeImmutable $sinc
     $administrators = liveAdministratorsAfterReplay($pdo, $becomes);
 
     $would = $dryRun ? 'would be ' : '';
-    $summary = sprintf(
-        'Asked again: %d, cancelled again: %d, deleted again: %d, already so: %d, not in this database: %d. Ended%s: %d session(s), %d refresh and personal token(s), %d remembered browser(s), %d mailed link(s) and code(s).',
-        $counts['requested'], $counts['cancelled'], $counts['anonymized'], $counts['already'], $counts['missing'],
-        $dryRun ? ' (would be)' : '', $ended['sessions'], $ended['tokens'], $ended['devices'], $ended['mailed']
-    ) . ($kept !== null ? " Account ids up to #{$kept} {$would}kept from being issued again." : '')
-        . " Live administrators of the IAM afterwards: {$administrators}.";
+    $summary =
+        sprintf(
+            'Asked again: %d, cancelled again: %d, deleted again: %d, already so: %d, not in this database: %d. Ended%s: %d session(s), %d refresh and personal token(s), %d remembered browser(s), %d mailed link(s) and code(s).',
+            $counts['requested'],
+            $counts['cancelled'],
+            $counts['anonymized'],
+            $counts['already'],
+            $counts['missing'],
+            $dryRun ? ' (would be)' : '',
+            $ended['sessions'],
+            $ended['tokens'],
+            $ended['devices'],
+            $ended['mailed'],
+        ) .
+        ($kept !== null ? " Account ids up to #{$kept} {$would}kept from being issued again." : '') .
+        " Live administrators of the IAM afterwards: {$administrators}.";
 
-    $warning = $administrators > 0 ? null
-        : 'WARNING: ' . ($dryRun ? 'the replay would leave' : 'the replay leaves') . ' the restored IAM with no live administrator - nobody holding the IAM\'s ADMIN who is'
-            . ' switched on, not deleted and not waiting for a deletion (an administrator made after the backup is not in it; the record knows deletions, not roles).'
-            . ' An administrator whose deletion was asked again can sign in and cancel it; otherwise give a live account the IAM\'s ADMIN in the database by hand'
-            . ' (docs/operations.md, "When the database is lost") before the IAM goes live again.';
+    $warning =
+        $administrators > 0
+            ? null
+            : 'WARNING: ' .
+                ($dryRun ? 'the replay would leave' : 'the replay leaves') .
+                ' the restored IAM with no live administrator - nobody holding the IAM\'s ADMIN who is' .
+                ' switched on, not deleted and not waiting for a deletion (an administrator made after the backup is not in it; the record knows deletions, not roles).' .
+                ' An administrator whose deletion was asked again can sign in and cancel it; otherwise give a live account the IAM\'s ADMIN in the database by hand' .
+                ' (docs/operations.md, "When the database is lost") before the IAM goes live again.';
 
     // In the audit log when it changed anything: a second run, which changes nothing, leaves nothing.
     $changed = $counts['requested'] + $counts['cancelled'] + $counts['anonymized'] + array_sum($ended) > 0 || $kept !== null;
     if (!$dryRun && $changed) {
-        audit(null, null, 'account.deletions_replayed', null, null, ['since' => $since->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z')] + $counts
-            + ['ended' => $ended, 'administrators' => $administrators]);
+        audit(
+            null,
+            null,
+            'account.deletions_replayed',
+            null,
+            null,
+            ['since' => $since->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z')] + $counts + ['ended' => $ended, 'administrators' => $administrators],
+        );
     }
 
     return [
-        'from' => $from->format('Y-m-d\TH:i:s\Z'), 'lines' => $lines, 'summary' => $summary, 'counts' => $counts, 'ended' => $ended, 'kept' => $kept,
-        'administrators' => $administrators, 'warning' => $warning,
+        'from' => $from->format('Y-m-d\TH:i:s\Z'),
+        'lines' => $lines,
+        'summary' => $summary,
+        'counts' => $counts,
+        'ended' => $ended,
+        'kept' => $kept,
+        'administrators' => $administrators,
+        'warning' => $warning,
     ];
 }
 
@@ -873,7 +922,7 @@ function liveAdministratorsAfterReplay(PDO $pdo, array $becomes): int
            JOIN application_roles r ON r.id = ur.role_id
            JOIN applications a ON a.id = r.application_id
            JOIN users u ON u.id = ur.user_id AND u.disabled = FALSE
-          WHERE a.client_id = ? AND r.name = 'ADMIN'"
+          WHERE a.client_id = ? AND r.name = 'ADMIN'",
     );
     $rows->execute([IAM_CLIENT_ID]);
 
@@ -919,8 +968,11 @@ function replayAccountDeletionEvent(PDO $pdo, array $event, bool $dryRun, array 
             return 'already so';
         }
         if (!$dryRun) {
-            $pdo->prepare('UPDATE users SET deletion_requested_at = CAST(? AS timestamptz), deletion_due_at = CAST(? AS timestamptz) WHERE id = ? AND anonymized_at IS NULL')
-                ->execute([$requestedAt, $event['due'], $userId]);
+            $pdo->prepare('UPDATE users SET deletion_requested_at = CAST(? AS timestamptz), deletion_due_at = CAST(? AS timestamptz) WHERE id = ? AND anonymized_at IS NULL')->execute([
+                $requestedAt,
+                $event['due'],
+                $userId,
+            ]);
             recordAccountDeletionEvent('requested', $userId, recordNow($pdo), ['due' => $event['due'], 'requested_at' => $requestedAt, 'replayed' => true], $recordFile);
             audit(null, null, 'account.deletion_requested', 'user', $userId, ['due' => isoTime($event['due']), 'replayed' => true]);
         }
@@ -1000,7 +1052,11 @@ function keepAccountIdsPast(PDO $pdo, int $highest, bool $dryRun): ?int
 function endEverySignIn(PDO $pdo, bool $dryRun): array
 {
     $parts = [
-        'sessions' => ['sessions', 'revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND absolute_expires_at > CURRENT_TIMESTAMP', 'revoked_at = CURRENT_TIMESTAMP, revoked_reason = ' . $pdo->quote(SESSION_REVOKED_ADMIN)],
+        'sessions' => [
+            'sessions',
+            'revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND absolute_expires_at > CURRENT_TIMESTAMP',
+            'revoked_at = CURRENT_TIMESTAMP, revoked_reason = ' . $pdo->quote(SESSION_REVOKED_ADMIN),
+        ],
         'tokens' => ['refresh_tokens', 'revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP', 'revoked_at = CURRENT_TIMESTAMP, revoked_reason = ' . $pdo->quote(SESSION_REVOKED_ADMIN)],
         'devices' => ['user_trusted_devices', 'revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP', 'revoked_at = CURRENT_TIMESTAMP'],
         'mailed' => ['user_tokens', 'consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP', 'consumed_at = CURRENT_TIMESTAMP'],
@@ -1012,9 +1068,7 @@ function endEverySignIn(PDO $pdo, bool $dryRun): array
     }
     try {
         foreach ($parts as $name => [$table, $live, $end]) {
-            $ended[$name] = $dryRun
-                ? (int) $pdo->query("SELECT count(*) FROM {$table} WHERE {$live}")->fetchColumn()
-                : $pdo->exec("UPDATE {$table} SET {$end} WHERE {$live}");
+            $ended[$name] = $dryRun ? (int) $pdo->query("SELECT count(*) FROM {$table} WHERE {$live}")->fetchColumn() : $pdo->exec("UPDATE {$table} SET {$end} WHERE {$live}");
         }
         if (!$dryRun) {
             $pdo->commit();
@@ -1049,9 +1103,8 @@ function accountDeletionsCommand(array $arguments, $out, $err): int
         return null;
     };
     $flag = static fn(string $name): bool => in_array("--{$name}", $arguments, true);
-    $usage = "Usage:\n"
-        . "  php account-deletions.php --list [--since=<time>] [--record=<file>]\n"
-        . "  php account-deletions.php --replay --since=<the backup's time> [--record=<file>] [--dry-run]\n";
+    $usage =
+        "Usage:\n" . "  php account-deletions.php --list [--since=<time>] [--record=<file>]\n" . "  php account-deletions.php --replay --since=<the backup's time> [--record=<file>] [--dry-run]\n";
 
     if ($flag('help')) {
         fwrite($out, $usage);

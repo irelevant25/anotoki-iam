@@ -111,19 +111,30 @@ function googleToken(string $subject, string $email, string $name): string
         $pair = generateRsaKeyPair();
         $key = openssl_pkey_get_private($pair['private_pem']);
         @mkdir(iamStorageDir() . '/cache', 0700, true);
-        file_put_contents(iamStorageDir() . '/cache/google-jwks.json', json_encode([
-            'expires_at' => time() + 3600,
-            'keys' => ['sign-in-mail-test' => ['kty' => 'RSA', 'kid' => 'sign-in-mail-test', 'n' => $pair['n'], 'e' => $pair['e']]],
-        ]));
+        file_put_contents(
+            iamStorageDir() . '/cache/google-jwks.json',
+            json_encode([
+                'expires_at' => time() + 3600,
+                'keys' => ['sign-in-mail-test' => ['kty' => 'RSA', 'kid' => 'sign-in-mail-test', 'n' => $pair['n'], 'e' => $pair['e']]],
+            ]),
+        );
         writeTestConfig('google', ['client_id' => GOOGLE_TEST_CLIENT]);
         forgetLocalConfig();
     }
 
     $header = base64UrlEncode((string) json_encode(['alg' => 'RS256', 'kid' => 'sign-in-mail-test', 'typ' => 'JWT']));
-    $payload = base64UrlEncode((string) json_encode([
-        'iss' => 'https://accounts.google.com', 'aud' => GOOGLE_TEST_CLIENT, 'sub' => $subject, 'email' => $email,
-        'email_verified' => true, 'name' => $name, 'iat' => time(), 'exp' => time() + 600,
-    ]));
+    $payload = base64UrlEncode(
+        (string) json_encode([
+            'iss' => 'https://accounts.google.com',
+            'aud' => GOOGLE_TEST_CLIENT,
+            'sub' => $subject,
+            'email' => $email,
+            'email_verified' => true,
+            'name' => $name,
+            'iat' => time(),
+            'exp' => time() + 600,
+        ]),
+    );
     openssl_sign("{$header}.{$payload}", $signature, $key, OPENSSL_ALGO_SHA256);
 
     return "{$header}.{$payload}." . base64UrlEncode($signature);
@@ -146,10 +157,16 @@ function mailWorks(): void
 function useIamDatabase(string $name): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -186,12 +203,24 @@ test('a second browser is mailed about, once - when, which, and where to see eve
     preg_match('/^    (\d{4}-\d\d-\d\d \d\d:\d\d) UTC$/m', $mails[0]['body'], $when);
     $at = strtotime(($when[1] ?? '') . ' UTC');
     check($at !== false && $at >= $before - 60 && $at <= $after, 'when, in UTC and saying so: ' . ($when[0] ?? $mails[0]['body']));
-    same("Hello second,\n\nYour anotoki account was just signed in to from a browser or device it has not been used on before:\n\n"
-        . "    {$when[1]} UTC\n    Safari · iPhone\n\n"
-        . "If it was you, there is nothing to do. If it was not, change your password now, and end that sign-in on the page that shows every place your account is signed in:\n\n"
-        . TEST_ISSUER . "/account/sessions\n", $mails[0]['body'], 'the time and the browser on lines of their own, then the page of every sign-in');
-    same(['new_sign_in', NEW_SIGN_IN, 'sent'], array_values(iamDb()->query("SELECT kind, subject, status FROM email_log WHERE user_id = $id ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_NUM)),
-        'logged as its kind, with its subject');
+    same(
+        "Hello second,\n\nYour anotoki account was just signed in to from a browser or device it has not been used on before:\n\n" .
+            "    {$when[1]} UTC\n    Safari · iPhone\n\n" .
+            "If it was you, there is nothing to do. If it was not, change your password now, and end that sign-in on the page that shows every place your account is signed in:\n\n" .
+            TEST_ISSUER .
+            "/account/sessions\n",
+        $mails[0]['body'],
+        'the time and the browser on lines of their own, then the page of every sign-in',
+    );
+    same(
+        ['new_sign_in', NEW_SIGN_IN, 'sent'],
+        array_values(
+            iamDb()
+                ->query("SELECT kind, subject, status FROM email_log WHERE user_id = $id ORDER BY id DESC LIMIT 1")
+                ->fetch(PDO::FETCH_NUM),
+        ),
+        'logged as its kind, with its subject',
+    );
 
     same(200, signInFrom($phone, 'second@example.test', SAFARI_IPHONE)->status, 'the phone again');
     same(200, signInFrom($laptop, 'second@example.test')->status, 'the laptop again');
@@ -205,12 +234,18 @@ test('every way in counts, and only past two-factor: an emailed code, Google; a 
 
     same(200, signInByCode(new Browser('10.17.3.2'), 'ways@example.test')->status, 'an emailed code from another');
     same(1, count(newSignInMails('ways@example.test')), 'mailed');
-    same(200, ($r = (new Browser('10.17.3.3'))->post('/api/login/google', ['credential' => googleToken('google-ways', 'ways@example.test', 'Ways')], ['headers' => ['User-Agent' => SAFARI_IPHONE]]))->status, 'Google from a third: ' . $r->body);
+    same(
+        200,
+        ($r = (new Browser('10.17.3.3'))->post('/api/login/google', ['credential' => googleToken('google-ways', 'ways@example.test', 'Ways')], ['headers' => ['User-Agent' => SAFARI_IPHONE]]))->status,
+        'Google from a third: ' . $r->body,
+    );
     same(2, count(newSignInMails('ways@example.test')), 'mailed');
 
     $guardedId = makeUser('guarded', 'guarded@example.test');
     $secret = totpSecret();
-    iamDb()->prepare('UPDATE users SET totp_secret = ?, totp_enabled = TRUE WHERE id = ?')->execute([encryptSecret($secret), $guardedId]);
+    iamDb()
+        ->prepare('UPDATE users SET totp_secret = ?, totp_enabled = TRUE WHERE id = ?')
+        ->execute([encryptSecret($secret), $guardedId]);
     same(200, signInFrom(new Browser('10.17.3.4'), 'guarded@example.test', FIREFOX_WINDOWS, ['totp' => totpCode($secret, intdiv(time(), 30))])->status, 'a first browser, with its code');
     $stranger = new Browser('10.17.3.5');
     same([403, 'totp_required'], [($r = signInFrom($stranger, 'guarded@example.test'))->status, $r->code()], 'another browser, the password right, the code not given');
@@ -233,10 +268,20 @@ test('a site\'s single sign-on and its refreshes are no sign-in: nothing is mail
     $known = devicesOf($id);
 
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK, 'scope' => 'openid profile email',
-        'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]), ['headers' => ['User-Agent' => SAFARI_IPHONE]]);
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'survey',
+                'redirect_uri' => SURVEY_CALLBACK,
+                'scope' => 'openid profile email',
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+        ['headers' => ['User-Agent' => SAFARI_IPHONE]],
+    );
     $code = queryOf($start->location())['code'] ?? '';
     check($code !== '', 'single sign-on: a code at once');
     $tokens = $browser->request('POST', '/api/oidc/token', [
@@ -272,20 +317,34 @@ test('a mail that cannot be sent stops no sign-in', function () {
     } finally {
         mailWorks();
     }
-    same(['new_sign_in', 'failed'], array_values(iamDb()->query("SELECT kind, status FROM email_log WHERE user_id = $id ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_NUM)), 'the mail that did not go, logged');
+    same(
+        ['new_sign_in', 'failed'],
+        array_values(
+            iamDb()
+                ->query("SELECT kind, status FROM email_log WHERE user_id = $id ORDER BY id DESC LIMIT 1")
+                ->fetch(PDO::FETCH_NUM),
+        ),
+        'the mail that did not go, logged',
+    );
     same(2, count(devicesOf($id)), 'the browser noted all the same');
 });
 
 test('the cookie is no credential: it opens nothing, and skips no second factor', function () {
     $id = makeUser('cookie', 'cookie@example.test');
     $secret = totpSecret();
-    iamDb()->prepare('UPDATE users SET totp_secret = ?, totp_enabled = TRUE WHERE id = ?')->execute([encryptSecret($secret), $id]);
+    iamDb()
+        ->prepare('UPDATE users SET totp_secret = ?, totp_enabled = TRUE WHERE id = ?')
+        ->execute([encryptSecret($secret), $id]);
     $browser = new Browser('10.17.6.1');
     $first = signInFrom($browser, 'cookie@example.test', FIREFOX_WINDOWS, ['totp' => totpCode($secret, intdiv(time(), 30))]);
     same(200, $first->status, 'signed in');
 
     $line = deviceCookieLine($first);
-    same(1, preg_match('/^anotoki_iam_device=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=34560000$/D', $line), 'HttpOnly, SameSite=Lax, everywhere, 400 days - and not Secure over plain http: ' . $line);
+    same(
+        1,
+        preg_match('/^anotoki_iam_device=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=34560000$/D', $line),
+        'HttpOnly, SameSite=Lax, everywhere, 400 days - and not Secure over plain http: ' . $line,
+    );
 
     $thief = new Browser('10.17.6.2');
     $thief->cookies[DEVICE_COOKIE] = $browser->cookies[DEVICE_COOKIE];
@@ -319,7 +378,11 @@ test('what a browser says of itself is never written into the mail: only names f
     makeUser('agents', 'agents@example.test');
     same(200, signInFrom(new Browser('10.17.8.1'), 'agents@example.test')->status, 'a first browser');
 
-    same(200, signInFrom(new Browser('10.17.8.2'), 'agents@example.test', 'Mozilla/5.0 (Windows NT 10.0) Firefox/130.0 - urgent: verify at https://evil.example/now or www.evil.example')->status, 'a user agent with a link in it');
+    same(
+        200,
+        signInFrom(new Browser('10.17.8.2'), 'agents@example.test', 'Mozilla/5.0 (Windows NT 10.0) Firefox/130.0 - urgent: verify at https://evil.example/now or www.evil.example')->status,
+        'a user agent with a link in it',
+    );
     $mail = newSignInMails('agents@example.test')[0]['body'] ?? '';
     check(str_contains($mail, "\n    Firefox · Windows\n"), 'the browser by name: ' . $mail);
     check(!str_contains($mail, 'evil') && !str_contains($mail, 'urgent'), 'and nothing else of what it said');
@@ -353,10 +416,18 @@ test('the five are counted by the browsers mailed about this hour - taken under 
     same(1, count(newSignInMails('counted@example.test')), 'mailed, and taken');
     same(200, signInFrom(new Browser('10.17.12.3'), 'counted@example.test', SAFARI_IPHONE)->status, 'another: the sixth');
     same(1, count(newSignInMails('counted@example.test')), 'not mailed - one mail in the email log, five taken this hour');
-    same([5, 2], [
-        (int) iamDb()->query("SELECT count(*) FROM user_sign_in_devices WHERE user_id = $id AND mailed_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'")->fetchColumn(),
-        (int) iamDb()->query("SELECT count(*) FROM user_sign_in_devices WHERE user_id = $id AND mailed_at IS NULL")->fetchColumn(),
-    ], 'five taken this hour; the first browser and the sixth noted with none');
+    same(
+        [5, 2],
+        [
+            (int) iamDb()
+                ->query("SELECT count(*) FROM user_sign_in_devices WHERE user_id = $id AND mailed_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'")
+                ->fetchColumn(),
+            (int) iamDb()
+                ->query("SELECT count(*) FROM user_sign_in_devices WHERE user_id = $id AND mailed_at IS NULL")
+                ->fetchColumn(),
+        ],
+        'five taken this hour; the first browser and the sixth noted with none',
+    );
 });
 
 test('a reset forgets the browsers: one of whoever held the account is mailed about again', function () {
@@ -373,7 +444,11 @@ test('a reset forgets the browsers: one of whoever held the account is mailed ab
     same([[signInDeviceHash($id, $owner->cookies[DEVICE_COOKIE]), 'Firefox · Windows']], devicesOf($id), 'only the browser that took the account back is known');
     same(1, count(newSignInMails('reset@example.test')), 'noted as the first, in silence');
 
-    same(200, $holders->post('/api/login/password', ['email' => 'reset@example.test', 'password' => 'a new password'], ['headers' => ['User-Agent' => FIREFOX_WINDOWS]])->status, 'the old browser, with the new password');
+    same(
+        200,
+        $holders->post('/api/login/password', ['email' => 'reset@example.test', 'password' => 'a new password'], ['headers' => ['User-Agent' => FIREFOX_WINDOWS]])->status,
+        'the old browser, with the new password',
+    );
     same(2, count(newSignInMails('reset@example.test')), 'is mailed about again');
 });
 
@@ -399,7 +474,11 @@ test('with 016 pending signing in works as before and sets no cookie; Apply brin
         $admin = new Browser('10.17.10.3');
         same(200, signInFrom($admin, 'admin@example.test')->status, 'the admin signs in');
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, '016_account_deletion_and_new_sign_in_mail.sql', null], [$applied->status, $applied->json()['applied'][0]['name'] ?? null, $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same(
+            [200, '016_account_deletion_and_new_sign_in_mail.sql', null],
+            [$applied->status, $applied->json()['applied'][0]['name'] ?? null, $applied->json()['failed'] ?? null],
+            'Apply pending: ' . $applied->body,
+        );
 
         same(200, signInFrom($browser, 'early@example.test')->status, 'signed in again, in the same process');
         same([1, 0], [count(devicesOf($id)), count(newSignInMails('early@example.test'))], 'the first browser after 016: noted in silence');

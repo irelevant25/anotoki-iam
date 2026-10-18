@@ -45,10 +45,16 @@ define('NEWEST_FILE', str_contains(NEWEST, '/') ? explode('/', NEWEST, 2) : ['ia
 function useIamDatabase(string $name, bool $reachable = true): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -70,10 +76,19 @@ function signedIn(string $email, string $ip): Browser
 function intoSurvey(Browser $browser): TestResponse
 {
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK, 'scope' => 'openid profile email',
-        'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'survey',
+                'redirect_uri' => SURVEY_CALLBACK,
+                'scope' => 'openid profile email',
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     $code = queryOf($start->location())['code'] ?? null;
     check($code !== null, 'a code straight away: ' . $start->location());
 
@@ -93,11 +108,20 @@ function appliesAudited(): int
 function runCli(string $configDir, string $arguments = ''): array
 {
     $wrapper = testEnvironment()['base'] . DIRECTORY_SEPARATOR . 'migration-cli.php';
-    file_put_contents($wrapper, "<?php\n\n"
-        // As the tests do: configuration and storage of the run's own, never this machine's.
-        . 'define(\'IAM_CONFIG_DIR\', ' . var_export($configDir, true) . ");\n"
-        . 'define(\'IAM_STORAGE_DIR\', ' . var_export(testEnvironment()['storage'], true) . ");\n"
-        . 'require ' . var_export(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'migration.php', true) . ";\n");
+    file_put_contents(
+        $wrapper,
+        "<?php\n\n" .
+            // As the tests do: configuration and storage of the run's own, never this machine's.
+            'define(\'IAM_CONFIG_DIR\', ' .
+            var_export($configDir, true) .
+            ");\n" .
+            'define(\'IAM_STORAGE_DIR\', ' .
+            var_export(testEnvironment()['storage'], true) .
+            ");\n" .
+            'require ' .
+            var_export(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'migration.php', true) .
+            ";\n",
+    );
 
     exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($wrapper) . ($arguments === '' ? '' : ' ' . $arguments) . ' 2>&1', $lines, $status);
 
@@ -114,10 +138,16 @@ function cliConfiguration(string $name): string
     foreach (['secret', 'iam', 'mail'] as $file) {
         copy($environment['config'] . DIRECTORY_SEPARATOR . "{$file}.local.php", $directory . DIRECTORY_SEPARATOR . "{$file}.local.php");
     }
-    file_put_contents($directory . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $directory . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
 
     return $directory;
 }
@@ -226,9 +256,22 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
         same(200, $file->status, 'a file');
         same(['set' => 'iam', 'name' => '001_initial_schema.sql', 'sql' => file_get_contents(dirname(__DIR__) . '/migrations/iam/001_initial_schema.sql')], $file->json(), 'its SQL, as it is on disk');
         $library = $admin->get('/api/admin/migrations/file?' . http_build_query(['set' => 'anotoki_translations', 'name' => '001_languages_and_strings.sql']));
-        same([200, file_get_contents(dirname(__DIR__) . '/vendor/anotoki/lib/php/migrations/translations/001_languages_and_strings.sql')], [$library->status, $library->json()['sql'] ?? null], 'and a file of the library\'s set, from vendor/anotoki/lib');
-        foreach ([['set' => 'iam', 'name' => '../../config/database.local.php'], ['set' => 'iam', 'name' => '..\\..\\config\\secret.local.php'], ['set' => 'iam', 'name' => 'nothing.sql'],
-                  ['set' => 'genshin', 'name' => '001_initial_schema.sql'], ['name' => '001_initial_schema.sql'], []] as $query) {
+        same(
+            [200, file_get_contents(dirname(__DIR__) . '/vendor/anotoki/lib/php/migrations/translations/001_languages_and_strings.sql')],
+            [$library->status, $library->json()['sql'] ?? null],
+            'and a file of the library\'s set, from vendor/anotoki/lib',
+        );
+        foreach (
+            [
+                ['set' => 'iam', 'name' => '../../config/database.local.php'],
+                ['set' => 'iam', 'name' => '..\\..\\config\\secret.local.php'],
+                ['set' => 'iam', 'name' => 'nothing.sql'],
+                ['set' => 'genshin', 'name' => '001_initial_schema.sql'],
+                ['name' => '001_initial_schema.sql'],
+                [],
+            ]
+            as $query
+        ) {
             same([404, 'not_found'], [($r = $admin->get('/api/admin/migrations/file?' . http_build_query($query)))->status, $r->code()], 'no such file: ' . json_encode($query));
         }
 
@@ -254,13 +297,29 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
         $note = (string) ($applied->json()['note'] ?? '');
         same(['applied' => [['set' => NEWEST_FILE[0], 'name' => NEWEST_FILE[1]]], 'failed' => null, 'error' => null], array_diff_key($applied->json(), ['note' => 0]), 'the newest applied');
         // The database as it was, backed up before anything ran - and named in the answer.
-        check(preg_match('/^A backup of the database as it was is (\d{8}-\d{6}Z-before-migration-[0-9a-f]{32})\.$/', $note, $made) === 1, 'Apply backed the database up first, and says which: ' . $note);
+        check(
+            preg_match('/^A backup of the database as it was is (\d{8}-\d{6}Z-before-migration-[0-9a-f]{32})\.$/', $note, $made) === 1,
+            'Apply backed the database up first, and says which: ' . $note,
+        );
         $backup = iamBackups()->get($made[1]);
         same([false, 'before-migration', true], [in_array($made[1], $backupsBefore, true), $backup['kind'] ?? null, $backup['encrypted'] ?? null], 'a new backup, of its kind, encrypted');
-        same(['backup.created', null], array_values(iamDb()->query("SELECT action, actor_id FROM anotoki_audit_log WHERE target_type = 'backup' AND target_id = " . iamDb()->quote($made[1]))->fetch(PDO::FETCH_NUM) ?: []), 'recorded, by nobody: the Apply made it');
+        same(
+            ['backup.created', null],
+            array_values(
+                iamDb()
+                    ->query("SELECT action, actor_id FROM anotoki_audit_log WHERE target_type = 'backup' AND target_id = " . iamDb()->quote($made[1]))
+                    ->fetch(PDO::FETCH_NUM) ?:
+                [],
+            ),
+            'recorded, by nobody: the Apply made it',
+        );
         same([], pendingMigrations(iamDb()), 'nothing pending');
         $entry = iamDb()->query("SELECT actor_id, details FROM anotoki_audit_log WHERE action = 'migrations.applied' ORDER BY id DESC LIMIT 1")->fetch();
-        same([$audited + 1, (int) iamDb()->query("SELECT id FROM users WHERE email = 'admin@example.test'")->fetchColumn()], [appliesAudited(), (int) $entry['actor_id']], 'audited, by the administrator');
+        same(
+            [$audited + 1, (int) iamDb()->query("SELECT id FROM users WHERE email = 'admin@example.test'")->fetchColumn()],
+            [appliesAudited(), (int) $entry['actor_id']],
+            'audited, by the administrator',
+        );
         $details = (array) json_decode((string) $entry['details'], true);
         ksort($details);
         same(['applied' => [NEWEST], 'error' => null, 'failed' => null], $details, 'with what it applied, as the audit log always had it - a library set\'s file as set/name');
@@ -276,8 +335,13 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
 
 test('a failed Apply is kept for good as its error\'s first line - no row\'s values, no address, no path on the server (the 0.6.0 review)', function () {
     // PostgreSQL's whole message: its DETAIL quotes the row that collided.
-    $collision = "SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint \"users_email_key\"\nDETAIL:  Key (email)=(someone@example.test) already exists.\nCONTEXT:  SQL statement \"UPDATE users SET email = lower(email)\"";
-    same('SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint "users_email_key"', iamMigrationErrorForAudit($collision), 'the first line, and nothing of the row');
+    $collision =
+        "SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint \"users_email_key\"\nDETAIL:  Key (email)=(someone@example.test) already exists.\nCONTEXT:  SQL statement \"UPDATE users SET email = lower(email)\"";
+    same(
+        'SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint "users_email_key"',
+        iamMigrationErrorForAudit($collision),
+        'the first line, and nothing of the row',
+    );
 
     // A value of a row echoed at the end of the first line itself.
     $echoed = iamMigrationErrorForAudit('SQLSTATE[22P02]: Invalid text representation: 7 ERROR:  invalid input syntax for type uuid: "Someone Private"');
@@ -292,7 +356,11 @@ test('a failed Apply is kept for good as its error\'s first line - no row\'s val
     check(!str_contains($windows, 'someone') && str_contains($windows, '{path}') && str_contains($windows, 'must be of type PDO'), 'a Windows path goes: ' . $windows);
     $unix = iamMigrationErrorForAudit('file_put_contents(/home/someone/www/iam/storage/backups/x.tmp): Failed to open stream: Permission denied');
     check(!str_contains($unix, 'someone') && str_contains($unix, '{path}') && str_contains($unix, 'Permission denied'), 'a Unix path goes: ' . $unix);
-    same('ERROR:  see https://www.postgresql.org/docs/current/errcodes-appendix.html', iamMigrationErrorForAudit('ERROR:  see https://www.postgresql.org/docs/current/errcodes-appendix.html'), 'a URL is no path');
+    same(
+        'ERROR:  see https://www.postgresql.org/docs/current/errcodes-appendix.html',
+        iamMigrationErrorForAudit('ERROR:  see https://www.postgresql.org/docs/current/errcodes-appendix.html'),
+        'a URL is no path',
+    );
 
     // Nothing to keep, and a long one cut.
     same([null, ''], [iamMigrationErrorForAudit(null), iamMigrationErrorForAudit('')], 'no error, nothing');
@@ -306,16 +374,22 @@ test('a failed Apply is kept for good as its error\'s first line - no row\'s val
     check(!str_contains($separator, 'Jane') && !str_contains($separator, 'Elm'), 'a value with U+2028 in it goes whole: ' . $separator);
     // ... a message that is not UTF-8 ...
     $bytes = iamMigrationErrorForAudit("ERROR:  bad \xff\xfe value\nDETAIL:  Key (email)=(someone@example.test) already exists.\nSTATEMENT:  UPDATE users SET email = 'x'");
-    check(!str_contains($bytes, 'someone') && !str_contains($bytes, 'DETAIL') && !str_contains($bytes, 'UPDATE users') && mb_check_encoding($bytes, 'UTF-8'), 'not UTF-8: still its first line alone, as UTF-8: ' . $bytes);
+    check(
+        !str_contains($bytes, 'someone') && !str_contains($bytes, 'DETAIL') && !str_contains($bytes, 'UPDATE users') && mb_check_encoding($bytes, 'UTF-8'),
+        'not UTF-8: still its first line alone, as UTF-8: ' . $bytes,
+    );
     // ... and the path forms the first rules let through.
-    foreach ([
-        'could not open file:///home/someone/iam/x.sql for reading',
-        'phar:///home/someone/iam/lib.phar/x.php failed',
-        'stream:/home/someone/x was refused',
-        'could not read \\\\fileserver\\someone\\iam\\x.sql',
-        'called in C:\\Users\\Jane Someone\\iam\\backend\\x.php on line 12',
-        'cannot write /home/Jane Someone/www/iam/storage/x.tmp now',
-    ] as $message) {
+    foreach (
+        [
+            'could not open file:///home/someone/iam/x.sql for reading',
+            'phar:///home/someone/iam/lib.phar/x.php failed',
+            'stream:/home/someone/x was refused',
+            'could not read \\\\fileserver\\someone\\iam\\x.sql',
+            'called in C:\\Users\\Jane Someone\\iam\\backend\\x.php on line 12',
+            'cannot write /home/Jane Someone/www/iam/storage/x.tmp now',
+        ]
+        as $message
+    ) {
         $kept = iamMigrationErrorForAudit($message);
         check(!str_contains($kept, 'someone') && !str_contains($kept, 'Someone') && str_contains($kept, '{path}'), "no path: {$message} -> {$kept}");
     }
@@ -332,13 +406,16 @@ test('a failed Apply through the Migrations page: the answer has the whole error
         grantRole($adminId, 'iam', 'ADMIN');
         // Whatever the newest file is, its record in the bookkeeping table fails, as a statement would that collides
         // with a row: PostgreSQL's DETAIL quotes the row, and the message names a path on the server.
-        iamDb()->exec(<<<'SQL'
+        iamDb()->exec(
+            <<<'SQL'
             CREATE FUNCTION iam_test_fail_the_record() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
                 RAISE EXCEPTION 'could not record the file: see /home/someone/www/iam/storage/x.log'
                     USING DETAIL = 'Key (email)=(someone@example.test) already exists.';
             END $$
-            SQL);
+            SQL
+            ,
+        );
         iamDb()->exec('CREATE TRIGGER iam_test_fail_the_record BEFORE INSERT ON migrations FOR EACH ROW EXECUTE FUNCTION iam_test_fail_the_record()');
 
         $admin = signedIn('admin@example.test', '10.18.4.3');
@@ -381,7 +458,11 @@ test('the command line builds a database from nothing, says what it has, dry-run
     $pdo = connectDatabase(testServer(), $fresh, false);
     same([[], migrationFiles()], [pendingMigrations($pdo), appliedMigrations($pdo)], 'every migration applied, in order');
     same($count, (int) $pdo->query('SELECT count(*) FROM migrations')->fetchColumn(), 'each recorded once, in the table as it always was');
-    same(['applied_at', 'filename', 'id'], $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'migrations' ORDER BY column_name")->fetchAll(PDO::FETCH_COLUMN), 'its columns');
+    same(
+        ['applied_at', 'filename', 'id'],
+        $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'migrations' ORDER BY column_name")->fetchAll(PDO::FETCH_COLUMN),
+        'its columns',
+    );
     $pdo = null;
 
     [$status, $out] = runCli($config, '--status');
@@ -397,7 +478,7 @@ test('the command line builds a database from nothing, says what it has, dry-run
     $config = cliConfiguration($behind);
 
     [$status, $out] = runCli($config, '--status');
-    check($status === 0 && str_contains($out, NEWEST . '   pending') && str_contains($out, ($count - 1) . ' applied, 1 pending'), '--status names what waits: ' . $out);
+    check($status === 0 && str_contains($out, NEWEST . '   pending') && str_contains($out, $count - 1 . ' applied, 1 pending'), '--status names what waits: ' . $out);
     [$status, $out] = runCli($config, '--dry-run');
     check($status === 0 && str_contains($out, 'would apply ' . NEWEST), '--dry-run says what it would apply: ' . $out);
     $pdo = connectDatabase(testServer(), $behind, false);

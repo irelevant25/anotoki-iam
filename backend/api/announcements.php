@@ -108,12 +108,16 @@ function announcementReachable(PDO $pdo): string
  */
 function announcementsReady(PDO $pdo): bool
 {
-    return asBool($pdo->query(
-        "SELECT to_regclass('public.announcements') IS NOT NULL
+    return asBool(
+        $pdo
+            ->query(
+                "SELECT to_regclass('public.announcements') IS NOT NULL
             AND to_regclass('public.announcement_recipients') IS NOT NULL
             AND to_regclass('public.mail_senders') IS NOT NULL
-            AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'news_mail' AND NOT attisdropped)"
-    )->fetchColumn());
+            AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'news_mail' AND NOT attisdropped)",
+            )
+            ->fetchColumn(),
+    );
 }
 
 /**
@@ -398,10 +402,12 @@ function announcementSenders(PDO $pdo): array
         $senders[] = ['id' => MAIL_SENDER_NOREPLY, 'address' => $sender['from'], 'name' => $sender['from_name'], 'added' => false, 'created_at' => null, 'created_by' => null];
     }
 
-    $rows = $pdo->query(
-        'SELECT s.id, s.address, s.name, s.created_at, u.username AS created_by
-           FROM mail_senders s LEFT JOIN users u ON u.id = s.created_by ORDER BY lower(s.address), s.id'
-    )->fetchAll();
+    $rows = $pdo
+        ->query(
+            'SELECT s.id, s.address, s.name, s.created_at, u.username AS created_by
+           FROM mail_senders s LEFT JOIN users u ON u.id = s.created_by ORDER BY lower(s.address), s.id',
+        )
+        ->fetchAll();
     foreach ($rows as $row) {
         $senders[] = [
             'id' => (string) $row['id'],
@@ -448,7 +454,11 @@ function mailSenderAdd(PDO $pdo, mixed $address, mixed $name, int $actorId): arr
     $domain = substr($address, strrpos($address, '@') + 1);
     $domains = mailDomains();
     if (!in_array($domain, $domains, true)) {
-        return translationRefusal(422, 'foreign_domain', 'Mail can come only from the domain the IAM sends from (' . implode(', ', $domains) . '): the host sends as its own mailboxes, and a mail from anywhere else is taken for a forgery');
+        return translationRefusal(
+            422,
+            'foreign_domain',
+            'Mail can come only from the domain the IAM sends from (' . implode(', ', $domains) . '): the host sends as its own mailboxes, and a mail from anywhere else is taken for a forgery',
+        );
     }
     if ($name === '' || textLength($name) > MAIL_SENDER_NAME_MAX || preg_match('/^[\p{L}\p{M}\p{N} .\'&!?+_-]+$/u', $name) !== 1) {
         return translationRefusal(422, 'invalid_name', 'The name is up to ' . MAIL_SENDER_NAME_MAX . ' characters of letters, digits, spaces and . \' & ! ? + _ -');
@@ -604,9 +614,13 @@ function announcementDraft(PDO $pdo, array $body, ?string $language = null): arr
         $needed = $link === null ? ['subject', 'heading', 'body'] : ['subject', 'heading', 'body', 'button'];
         foreach ($needed as $part) {
             if ($version[$part] === '') {
-                return $invalid('incomplete_version', $code === TRANSLATION_FALLBACK
-                    ? "The English version needs its $part: everybody whose language has no version of its own gets it"
-                    : "The $name version needs its $part too - or clear the $name version, and $name readers get the English one", ['language' => $code]);
+                return $invalid(
+                    'incomplete_version',
+                    $code === TRANSLATION_FALLBACK
+                        ? "The English version needs its $part: everybody whose language has no version of its own gets it"
+                        : "The $name version needs its $part too - or clear the $name version, and $name readers get the English one",
+                    ['language' => $code],
+                );
             }
         }
 
@@ -636,8 +650,10 @@ function announcementDraft(PDO $pdo, array $body, ?string $language = null): arr
     }
 
     // The order the languages are offered in, English first.
-    uksort($versions, static fn(string $a, string $b): int => ($a === TRANSLATION_FALLBACK ? -1 : array_search($a, $offered, true))
-        <=> ($b === TRANSLATION_FALLBACK ? -1 : array_search($b, $offered, true)));
+    uksort(
+        $versions,
+        static fn(string $a, string $b): int => ($a === TRANSLATION_FALLBACK ? -1 : array_search($a, $offered, true)) <=> ($b === TRANSLATION_FALLBACK ? -1 : array_search($b, $offered, true)),
+    );
 
     return ['template' => $template, 'application' => $application, 'link' => $link, 'sender' => $sender, 'content' => $versions];
 }
@@ -724,8 +740,11 @@ function announcementAudienceMatch(array $audience): array
     $parts = [];
     $params = [];
     if ($audience['roles'] !== []) {
-        $parts[] = 'EXISTS (SELECT 1 FROM user_roles aur JOIN application_roles ar ON ar.id = aur.role_id JOIN applications aa ON aa.id = ar.application_id
-                             WHERE aur.user_id = u.id AND (aa.client_id, ar.name) IN (' . implode(', ', array_fill(0, count($audience['roles']), '(?, ?)')) . '))';
+        $parts[] =
+            'EXISTS (SELECT 1 FROM user_roles aur JOIN application_roles ar ON ar.id = aur.role_id JOIN applications aa ON aa.id = ar.application_id
+                             WHERE aur.user_id = u.id AND (aa.client_id, ar.name) IN (' .
+            implode(', ', array_fill(0, count($audience['roles']), '(?, ?)')) .
+            '))';
         foreach ($audience['roles'] as $grant) {
             array_push($params, $grant['client_id'], $grant['role']);
         }
@@ -760,7 +779,7 @@ function announcementAudienceCount(PDO $pdo, array $audience): array
                 count(*) FILTER (WHERE NOT u.disabled AND NOT ($deleting) AND NOT u.email_confirmed) AS unconfirmed,
                 count(*) FILTER (WHERE NOT u.disabled AND NOT ($deleting) AND u.email_confirmed AND NOT u.approved) AS waiting,
                 count(*) FILTER (WHERE NOT u.disabled AND NOT ($deleting) AND u.email_confirmed AND u.approved AND NOT u.news_mail) AS news_off
-           FROM users u WHERE $match"
+           FROM users u WHERE $match",
     );
     $counts->execute($params);
     $row = $counts->fetch();
@@ -807,7 +826,7 @@ function announcementCreate(PDO $pdo, array $draft, array $audience, int $actorI
     try {
         $insert = $pdo->prepare(
             'INSERT INTO announcements (template, application_id, application_name, sender_address, sender_name, link, content, audience, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
         );
         $insert->execute([
             $draft['template'],
@@ -824,8 +843,11 @@ function announcementCreate(PDO $pdo, array $draft, array $audience, int $actorI
 
         $recipients = $pdo->prepare(
             "INSERT INTO announcement_recipients (announcement_id, user_id, email, language)
-             SELECT ?::int, u.id, u.email, CASE WHEN u.language IN (" . implode(', ', array_fill(0, count($versions), '?')) . ") THEN u.language ELSE 'en' END
-               FROM users u WHERE $match AND " . announcementReachable($pdo)
+             SELECT ?::int, u.id, u.email, CASE WHEN u.language IN (" .
+                implode(', ', array_fill(0, count($versions), '?')) .
+                ") THEN u.language ELSE 'en' END
+               FROM users u WHERE $match AND " .
+                announcementReachable($pdo),
         );
         $recipients->execute([$id, ...$versions, ...$params]);
         $count = $recipients->rowCount();
@@ -938,10 +960,13 @@ function announcementDetail(PDO $pdo, int $id): ?array
         'content' => announcementContent((string) $row['content']),
         'audience' => [
             'everybody' => asBool($audience['everybody'] ?? false),
-            'roles' => array_map(static fn(mixed $grant): array => [
-                'client_id' => (string) (is_array($grant) ? ($grant['client_id'] ?? '') : ''),
-                'role' => (string) (is_array($grant) ? ($grant['role'] ?? '') : ''),
-            ], array_values((array) ($audience['roles'] ?? []))),
+            'roles' => array_map(
+                static fn(mixed $grant): array => [
+                    'client_id' => (string) (is_array($grant) ? $grant['client_id'] ?? '' : ''),
+                    'role' => (string) (is_array($grant) ? $grant['role'] ?? '' : ''),
+                ],
+                array_values((array) ($audience['roles'] ?? [])),
+            ),
             'users' => $people,
         ],
     ];
@@ -979,7 +1004,8 @@ function announcementRecipients(PDO $pdo, int $id, array $query): array
     $rows = $pdo->prepare(
         "SELECT r.user_id, u.username, r.email, r.language, r.status, r.sent_at
            FROM announcement_recipients r JOIN users u ON u.id = r.user_id
-         $sql ORDER BY lower(u.username), r.user_id LIMIT $size OFFSET " . (($page - 1) * $size)
+         $sql ORDER BY lower(u.username), r.user_id LIMIT $size OFFSET " .
+            ($page - 1) * $size,
     );
     $rows->execute($params);
 
@@ -1042,10 +1068,7 @@ function newsUnsubscribeUrl(int $userId): string
 /** A body's paragraphs: split at an empty line, each trimmed, the empty ones gone. */
 function announcementParagraphs(string $body): array
 {
-    return array_values(array_filter(
-        array_map('trim', preg_split('/\n[ \t]*(?:\n[ \t]*)+/', $body) ?: []),
-        static fn(string $paragraph): bool => $paragraph !== ''
-    ));
+    return array_values(array_filter(array_map('trim', preg_split('/\n[ \t]*(?:\n[ \t]*)+/', $body) ?: []), static fn(string $paragraph): bool => $paragraph !== ''));
 }
 
 /**
@@ -1068,9 +1091,19 @@ function announcementMessage(array $version, ?string $link, ?string $project, st
     $stop = (string) ($words['mail.news.stop'] ?? MAIL_FALLBACK['mail.news.stop']);
     $button = $link !== null && $version['button'] !== '';
 
-    $text = $version['heading'] . "\n\n" . implode("\n\n", $paragraphs) . "\n\n"
-        . ($button ? $version['button'] . ":\n" . $link . "\n\n" : '')
-        . "-- \n" . $footer . "\n" . $stop . ":\n" . $unsubscribeUrl . "\n";
+    $text =
+        $version['heading'] .
+        "\n\n" .
+        implode("\n\n", $paragraphs) .
+        "\n\n" .
+        ($button ? $version['button'] . ":\n" . $link . "\n\n" : '') .
+        "-- \n" .
+        $footer .
+        "\n" .
+        $stop .
+        ":\n" .
+        $unsubscribeUrl .
+        "\n";
 
     $font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
     $body = '';
@@ -1078,10 +1111,16 @@ function announcementMessage(array $version, ?string $link, ?string $project, st
         $body .= '<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#33405a;">' . nl2br($e($paragraph), false) . "</p>\n";
     }
     if ($button) {
-        $body .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;"><tr>'
-            . '<td style="border-radius:8px;background-color:#1f5fbf;">'
-            . '<a href="' . $e((string) $link) . '" style="display:inline-block;padding:12px 24px;font-family:' . $font . ';font-size:16px;font-weight:600;line-height:1.25;color:#ffffff;text-decoration:none;border-radius:8px;">'
-            . $e($version['button']) . "</a></td></tr></table>\n";
+        $body .=
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;"><tr>' .
+            '<td style="border-radius:8px;background-color:#1f5fbf;">' .
+            '<a href="' .
+            $e((string) $link) .
+            '" style="display:inline-block;padding:12px 24px;font-family:' .
+            $font .
+            ';font-size:16px;font-weight:600;line-height:1.25;color:#ffffff;text-decoration:none;border-radius:8px;">' .
+            $e($version['button']) .
+            "</a></td></tr></table>\n";
     }
 
     // The first words of the text, which a mailbox shows beside the subject.
@@ -1096,37 +1135,37 @@ function announcementMessage(array $version, ?string $link, ?string $project, st
     $stop = $e($stop);
 
     $html = <<<HTML
-        <!DOCTYPE html>
-        <html lang="{$lang}">
-        <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="color-scheme" content="light">
-        <meta name="supported-color-schemes" content="light">
-        <title>{$subject}</title>
-        </head>
-        <body style="margin:0;padding:0;background-color:#f3f6fb;">
-        <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">{$preview}</div>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f6fb;">
-        <tr><td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
-        <tr><td style="padding:0 4px 16px;font-family:{$font};font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f1b33;">
-        <img src="{$logo}" width="28" height="23" alt="" style="vertical-align:middle;border:0;margin-right:8px;">anotoki{$site}
-        </td></tr>
-        <tr><td style="background-color:#ffffff;border:1px solid #dde4ef;border-radius:12px;padding:32px 28px;font-family:{$font};color:#0f1b33;">
-        <h1 style="margin:0 0 16px;font-size:24px;line-height:1.3;font-weight:700;color:#0f1b33;">{$heading}</h1>
-        {$body}</td></tr>
-        <tr><td style="padding:20px 4px 0;font-family:{$font};font-size:13px;line-height:1.5;color:#5b6880;">
-        {$footer}<br>
-        <a href="{$unsubscribe}" style="color:#5b6880;text-decoration:underline;">{$stop}</a>
-        </td></tr>
-        </table>
-        </td></tr>
-        </table>
-        </body>
-        </html>
+    <!DOCTYPE html>
+    <html lang="{$lang}">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <title>{$subject}</title>
+    </head>
+    <body style="margin:0;padding:0;background-color:#f3f6fb;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">{$preview}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f6fb;">
+    <tr><td align="center" style="padding:32px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+    <tr><td style="padding:0 4px 16px;font-family:{$font};font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#0f1b33;">
+    <img src="{$logo}" width="28" height="23" alt="" style="vertical-align:middle;border:0;margin-right:8px;">anotoki{$site}
+    </td></tr>
+    <tr><td style="background-color:#ffffff;border:1px solid #dde4ef;border-radius:12px;padding:32px 28px;font-family:{$font};color:#0f1b33;">
+    <h1 style="margin:0 0 16px;font-size:24px;line-height:1.3;font-weight:700;color:#0f1b33;">{$heading}</h1>
+    {$body}</td></tr>
+    <tr><td style="padding:20px 4px 0;font-family:{$font};font-size:13px;line-height:1.5;color:#5b6880;">
+    {$footer}<br>
+    <a href="{$unsubscribe}" style="color:#5b6880;text-decoration:underline;">{$stop}</a>
+    </td></tr>
+    </table>
+    </td></tr>
+    </table>
+    </body>
+    </html>
 
-        HTML;
+    HTML;
 
     return ['subject' => $version['subject'], 'text' => $text, 'html' => $html];
 }
@@ -1141,14 +1180,7 @@ function announcementDraftMessage(array $draft, string $language, string $unsubs
 {
     $version = isset($draft['content'][$language]) ? $language : TRANSLATION_FALLBACK;
 
-    return announcementMessage(
-        $draft['content'][$version],
-        $draft['link'],
-        $draft['application']['name'] ?? null,
-        $version,
-        mailWords($version),
-        $unsubscribeUrl
-    ) + ['language' => $version];
+    return announcementMessage($draft['content'][$version], $draft['link'], $draft['application']['name'] ?? null, $version, mailWords($version), $unsubscribeUrl) + ['language' => $version];
 }
 
 /**
@@ -1181,7 +1213,7 @@ function announcementSendTest(array $draft, string $language, array $actor): boo
         (int) $actor['id'],
         ['from' => $draft['sender']['address'], 'from_name' => $draft['sender']['name']],
         $message['html'],
-        ['List-Unsubscribe' => '<' . newsUnsubscribeUrl((int) $actor['id']) . '>']
+        ['List-Unsubscribe' => '<' . newsUnsubscribeUrl((int) $actor['id']) . '>'],
     );
 }
 
@@ -1236,10 +1268,12 @@ function announcementSendBatch(PDO $pdo, int $id): array
 
     $status = $pdo->prepare('SELECT status FROM announcements WHERE id = ? FOR SHARE');
     $next = $pdo->prepare(
-        "SELECT r.user_id, r.language, u.email, (" . announcementReachable($pdo) . ") AS reachable
+        'SELECT r.user_id, r.language, u.email, (' .
+            announcementReachable($pdo) .
+            ") AS reachable
            FROM announcement_recipients r JOIN users u ON u.id = r.user_id
           WHERE r.announcement_id = ? AND r.status = 'pending'
-          ORDER BY r.user_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED"
+          ORDER BY r.user_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED",
     );
     $mark = $pdo->prepare('UPDATE announcement_recipients SET status = ?, email = ?, sent_at = CURRENT_TIMESTAMP WHERE announcement_id = ? AND user_id = ?');
 
@@ -1289,7 +1323,7 @@ function announcementSendBatch(PDO $pdo, int $id): array
 
     $pdo->prepare(
         "UPDATE announcements SET status = 'sent', finished_at = CURRENT_TIMESTAMP
-          WHERE id = ? AND status = 'sending' AND NOT EXISTS (SELECT 1 FROM announcement_recipients WHERE announcement_id = ? AND status = 'pending')"
+          WHERE id = ? AND status = 'sending' AND NOT EXISTS (SELECT 1 FROM announcement_recipients WHERE announcement_id = ? AND status = 'pending')",
     )->execute([$id, $id]);
 
     return $done;
@@ -1323,15 +1357,15 @@ function announcementHourlyRoom(PDO $pdo): ?array
         return null;
     }
 
-    $hour = $pdo->query(
-        "SELECT count(*) AS sent, EXTRACT(EPOCH FROM (min(created_at) + INTERVAL '1 hour' - CURRENT_TIMESTAMP)) AS wait
-           FROM email_log WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'"
-    )->fetch();
+    $hour = $pdo
+        ->query(
+            "SELECT count(*) AS sent, EXTRACT(EPOCH FROM (min(created_at) + INTERVAL '1 hour' - CURRENT_TIMESTAMP)) AS wait
+           FROM email_log WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'",
+        )
+        ->fetch();
     $room = max(1, (int) floor($limit * ANNOUNCEMENT_HOURLY_SHARE)) - (int) $hour['sent'];
 
-    return $room > 0
-        ? ['room' => $room, 'wait' => 0]
-        : ['room' => 0, 'wait' => max(5, min(3600, (int) ceil((float) $hour['wait'])))];
+    return $room > 0 ? ['room' => $room, 'wait' => 0] : ['room' => 0, 'wait' => max(5, min(3600, (int) ceil((float) $hour['wait'])))];
 }
 
 /**

@@ -38,7 +38,10 @@ const GOOGLE_WORDS = [
     'google.continue' => ['Continue with Google', 'Pokračovať cez Google'],
     'google.frame' => ['Google’s own button', 'Tlačidlo od Googlu'],
     'google.ready' => ['Google’s own button is ready: press it to choose your Google account.', 'Tlačidlo od Googlu je pripravené: stlač ho a vyber si účet Google.'],
-    'google.failed' => ['Google could not be reached: this browser may be blocking it, or you are offline.', 'Nepodarilo sa spojiť s Googlom: tento prehliadač ho možno blokuje alebo nie si pripojený k internetu.'],
+    'google.failed' => [
+        'Google could not be reached: this browser may be blocking it, or you are offline.',
+        'Nepodarilo sa spojiť s Googlom: tento prehliadač ho možno blokuje alebo nie si pripojený k internetu.',
+    ],
 ];
 /** The Privacy page's sentence about Google: what 020 wrote, and what 022 makes of it - English, Slovak. */
 const ROLE_BEFORE = [
@@ -92,31 +95,38 @@ function buildThrough021(string $suffix): PDO
     return $pdo;
 }
 
-test('a fresh IAM has run 022: the six keys of the IAM\'s own Google button, each described, in English and an informal Slovak - and the Privacy page says Google is contacted only on a press', function () {
-    $pdo = iamDb();
-    check(in_array(GOOGLE_MIGRATION, appliedMigrations($pdo), true), '022 recorded');
-    foreach (GOOGLE_WORDS as $key => [$english, $slovak]) {
-        [$description, $en, $sk] = keyStrings($pdo, $key);
-        check(trim((string) $description) !== '', "$key: described");
-        same([[$english, null], [$slovak, null]], [$en, $sk], "$key: its English (en.ts's) and its Slovak, by nobody");
-        check(preg_match('/\b(?:Vás|Váš|Vaša|Vaše|Vám|Vami|stlačte|vyberte)\b/u', $slovak) !== 1, "$key: the Slovak says ty, never Vy");
-    }
+test(
+    'a fresh IAM has run 022: the six keys of the IAM\'s own Google button, each described, in English and an informal Slovak - and the Privacy page says Google is contacted only on a press',
+    function () {
+        $pdo = iamDb();
+        check(in_array(GOOGLE_MIGRATION, appliedMigrations($pdo), true), '022 recorded');
+        foreach (GOOGLE_WORDS as $key => [$english, $slovak]) {
+            [$description, $en, $sk] = keyStrings($pdo, $key);
+            check(trim((string) $description) !== '', "$key: described");
+            same([[$english, null], [$slovak, null]], [$en, $sk], "$key: its English (en.ts's) and its Slovak, by nobody");
+            check(preg_match('/\b(?:Vás|Váš|Vaša|Vaše|Vám|Vami|stlačte|vyberte)\b/u', $slovak) !== 1, "$key: the Slovak says ty, never Vy");
+        }
 
-    [$description, $en, $sk] = keyStrings($pdo, 'legal.google.role');
-    same([[ROLE_AFTER[0], null], [ROLE_AFTER[1], null]], [$en, $sk], 'the Privacy page\'s sentence about Google: only a press loads anything from Google, by nobody');
-    check(str_contains((string) $description, 'nothing is loaded from Google until somebody presses'), 'and its key described so: ' . $description);
-    foreach (ROLE_AFTER as $text) {
-        // Where a link goes is the code's: an administrator rewords strings, never addresses (the 0.6.0 review).
-        check(preg_match('~https?:|://|www\.|@~i', $text) !== 1 && !str_contains($text, '{'), 'no address and no placeholder in it: ' . $text);
-    }
-    $before = $pdo->prepare('SELECT count(*) FROM translations WHERE value IN (?, ?)');
-    $before->execute(ROLE_BEFORE);
-    same(0, (int) $before->fetchColumn(), 'and 020\'s sentence is nowhere');
-});
+        [$description, $en, $sk] = keyStrings($pdo, 'legal.google.role');
+        same([[ROLE_AFTER[0], null], [ROLE_AFTER[1], null]], [$en, $sk], 'the Privacy page\'s sentence about Google: only a press loads anything from Google, by nobody');
+        check(str_contains((string) $description, 'nothing is loaded from Google until somebody presses'), 'and its key described so: ' . $description);
+        foreach (ROLE_AFTER as $text) {
+            // Where a link goes is the code's: an administrator rewords strings, never addresses (the 0.6.0 review).
+            check(preg_match('~https?:|://|www\.|@~i', $text) !== 1 && !str_contains($text, '{'), 'no address and no placeholder in it: ' . $text);
+        }
+        $before = $pdo->prepare('SELECT count(*) FROM translations WHERE value IN (?, ?)');
+        $before->execute(ROLE_BEFORE);
+        same(0, (int) $before->fetchColumn(), 'and 020\'s sentence is nowhere');
+    },
+);
 
 test('an IAM built through 021 as the files left it: 022 adds its keys and rewords the Privacy page\'s sentence and its description, by nobody - as on a fresh IAM', function () {
     $pdo = buildThrough021('_before_google');
-    same(array_fill(0, count(GOOGLE_WORDS), [null, null, null]), array_values(array_map(static fn(string $key): array => keyStrings($pdo, $key), array_keys(GOOGLE_WORDS))), 'no key of the button before it');
+    same(
+        array_fill(0, count(GOOGLE_WORDS), [null, null, null]),
+        array_values(array_map(static fn(string $key): array => keyStrings($pdo, $key), array_keys(GOOGLE_WORDS))),
+        'no key of the button before it',
+    );
 
     $result = applyMigrationsThrough($pdo, GOOGLE_MIGRATION);
     same([[GOOGLE_MIGRATION], null], [$result['applied'], $result['failed']], '022 applied, its gate passed (' . ($result['error'] ?? '') . ')');

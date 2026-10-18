@@ -1,11 +1,11 @@
-import { inject } from "@angular/core";
-import { AnotokiTranslationsConfig, TranslationsAdminConfig } from "@anotoki/lib/translations";
-import { firstValueFrom } from "rxjs";
-import { AccountApi } from "../api/account.api";
-import { isLegalPage, isSessionArea } from "../auth/next-path";
-import { SessionService } from "../auth/session.service";
-import { en } from "./en";
-import { TranslationService } from "./translation.service";
+import { inject } from '@angular/core';
+import { AnotokiTranslationsConfig, TranslationsAdminConfig } from '@anotoki/lib/translations';
+import { firstValueFrom } from 'rxjs';
+import { AccountApi } from '../api/account.api';
+import { isLegalPage, isSessionArea } from '../auth/next-path';
+import { SessionService } from '../auth/session.service';
+import { en } from './en';
+import { TranslationService } from './translation.service';
 
 /**
  * Where the IAM kept the language, its words and the admin panel's drafts
@@ -14,11 +14,11 @@ import { TranslationService } from "./translation.service";
  */
 export const LANGUAGE_STORAGE = {
   /** This device's choice (localStorage), and this tab's `?lang=` (sessionStorage): one name, two lifetimes. */
-  language: "anotoki-iam:lang",
+  language: 'anotoki-iam:lang',
   /** The last bundle (localStorage): a returning reader starts in their own language while the fresh one is on its way. */
-  cache: "anotoki-iam:lang-cache",
+  cache: 'anotoki-iam:lang-cache',
   /** What is typed on the Translations and Languages pages and not saved yet - this tab's (sessionStorage). */
-  drafts: "anotoki-iam:localization-drafts",
+  drafts: 'anotoki-iam:localization-drafts',
 } as const;
 
 /**
@@ -105,7 +105,7 @@ export function useAdminPages(config: TranslationsAdminConfig): void {
  */
 export async function startTranslations(session: SessionService, i18n: TranslationService, path: string): Promise<void> {
   // `/` is the account area too: it redirects there.
-  if (path === "/" || isSessionArea(path) || isLegalPage(path)) {
+  if (path === '/' || isSessionArea(path) || isLegalPage(path)) {
     try {
       await firstValueFrom(session.ensure());
     } catch {

@@ -281,8 +281,12 @@ function signInHintCookieName(): ?string
         return null;
     }
 
-    if (is_string($name) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $name) === 1 && preg_match('/^__(host|secure)-/i', $name) !== 1
-        && !in_array($name, [sessionCookieName(), sessionCookieBaseName(), signInDeviceCookieName()], true)) {
+    if (
+        is_string($name) &&
+        preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $name) === 1 &&
+        preg_match('/^__(host|secure)-/i', $name) !== 1 &&
+        !in_array($name, [sessionCookieName(), sessionCookieBaseName(), signInDeviceCookieName()], true)
+    ) {
         return $name;
     }
 
@@ -354,10 +358,11 @@ function signInHintDomainNamed(): ?string
 
     // A leading dot is how a Domain used to be written; browsers drop it.
     $domain = is_string($configured) ? ltrim(strtolower(trim($configured)), '.') : '';
-    $fits = preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/D', $domain) === 1
-        && filter_var($domain, FILTER_VALIDATE_IP) === false
-        && !signInHintLoopback($domain)
-        && ($host === $domain || str_ends_with($host, '.' . $domain));
+    $fits =
+        preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/D', $domain) === 1 &&
+        filter_var($domain, FILTER_VALIDATE_IP) === false &&
+        !signInHintLoopback($domain) &&
+        ($host === $domain || str_ends_with($host, '.' . $domain));
 
     if (!$fits) {
         signInHintMisconfigured('config/iam.local.php: hint_cookie_domain is not a domain the issuer\'s host is under, so the sign-in hint is host-only');
@@ -378,10 +383,12 @@ function signInHintDomainNamed(): ?string
 function signInHintSitesUnder(string $domain): bool
 {
     try {
-        $uris = iamDb()->query(
-            "SELECT u.uri FROM application_redirect_uris u JOIN applications a ON a.id = u.application_id
-              WHERE u.kind = 'login' AND a.enabled AND NOT a.system"
-        )->fetchAll(PDO::FETCH_COLUMN);
+        $uris = iamDb()
+            ->query(
+                "SELECT u.uri FROM application_redirect_uris u JOIN applications a ON a.id = u.application_id
+              WHERE u.kind = 'login' AND a.enabled AND NOT a.system",
+            )
+            ->fetchAll(PDO::FETCH_COLUMN);
     } catch (\Throwable $e) {
         error_log('[sign-in hint] could not read the applications\' addresses: ' . $e->getMessage());
 
@@ -442,8 +449,7 @@ function signInHintMisconfigured(string $why): void
  */
 function signInHintAllowed(?array $user): bool
 {
-    return $user !== null && !asBool($user['disabled'] ?? false) && !accountAwaitsApproval($user)
-        && !accountDeletionPending($user) && !accountAnonymized($user);
+    return $user !== null && !asBool($user['disabled'] ?? false) && !accountAwaitsApproval($user) && !accountDeletionPending($user) && !accountAnonymized($user);
 }
 
 /**
@@ -527,7 +533,7 @@ function withoutSignInHint(Response $response): Response
 function signInHintSent(Request $request): bool
 {
     $name = signInHintCookieName();
-    $value = $name === null ? null : ($request->getCookieParams()[$name] ?? null);
+    $value = $name === null ? null : $request->getCookieParams()[$name] ?? null;
 
     return is_string($value) && preg_match(SIGN_IN_HINT_SHAPE, $value) === 1;
 }
@@ -560,12 +566,9 @@ function openSession(PDO $pdo, Request $request, array $user, string $method, bo
         "INSERT INTO sessions (user_id, token_hash, sid, method, mfa, remember, ip, user_agent, last_seen_at, expires_at, absolute_expires_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP,
                       CURRENT_TIMESTAMP + (? * INTERVAL '1 second'), CURRENT_TIMESTAMP + (? * INTERVAL '1 second'))
-           RETURNING *"
+           RETURNING *",
     );
-    $insert->execute([
-        (int) $user['id'], sha256($secret), randomHex(16), $method, pgBool($mfa), pgBool($remember),
-        requestIp($request), requestUserAgent($request), $idle, $absolute,
-    ]);
+    $insert->execute([(int) $user['id'], sha256($secret), randomHex(16), $method, pgBool($mfa), pgBool($remember), requestIp($request), requestUserAgent($request), $idle, $absolute]);
 
     $pdo->prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([(int) $user['id']]);
 
@@ -584,7 +587,7 @@ function sessionFromRequest(PDO $pdo, Request $request): ?array
     $statement = $pdo->prepare(
         'SELECT * FROM sessions
           WHERE token_hash = ? AND revoked_at IS NULL
-            AND expires_at > CURRENT_TIMESTAMP AND absolute_expires_at > CURRENT_TIMESTAMP'
+            AND expires_at > CURRENT_TIMESTAMP AND absolute_expires_at > CURRENT_TIMESTAMP',
     );
     $statement->execute([sha256($secret)]);
 
@@ -602,10 +605,7 @@ function sessionById(PDO $pdo, int $id): ?array
 /** Whether a session row is still good. */
 function sessionLive(?array $session): bool
 {
-    return $session !== null
-        && $session['revoked_at'] === null
-        && strtotime((string) $session['expires_at']) > time()
-        && strtotime((string) $session['absolute_expires_at']) > time();
+    return $session !== null && $session['revoked_at'] === null && strtotime((string) $session['expires_at']) > time() && strtotime((string) $session['absolute_expires_at']) > time();
 }
 
 /**
@@ -630,7 +630,7 @@ function touchSession(PDO $pdo, array $session): void
         "UPDATE sessions
             SET last_seen_at = CURRENT_TIMESTAMP,
                 expires_at = LEAST(CURRENT_TIMESTAMP + (? * INTERVAL '1 second'), absolute_expires_at)
-          WHERE id = ?"
+          WHERE id = ?",
     )->execute([$idle, (int) $session['id']]);
 }
 
@@ -643,14 +643,12 @@ function touchSession(PDO $pdo, array $session): void
  */
 function revokeSession(PDO $pdo, int $sessionId, string $reason): bool
 {
-    $statement = $pdo->prepare(
-        'UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE id = ? AND revoked_at IS NULL'
-    );
+    $statement = $pdo->prepare('UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE id = ? AND revoked_at IS NULL');
     $statement->execute([$reason, $sessionId]);
 
     $pdo->prepare(
         "UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ?
-          WHERE session_id = ? AND kind = 'rotating' AND revoked_at IS NULL"
+          WHERE session_id = ? AND kind = 'rotating' AND revoked_at IS NULL",
     )->execute([$reason, $sessionId]);
 
     return $statement->rowCount() === 1;
@@ -668,14 +666,14 @@ function revokeSessionsFor(PDO $pdo, int $userId, string $reason, ?int $exceptSe
 
     $statement = $pdo->prepare(
         "UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ?
-          WHERE user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP{$except}"
+          WHERE user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP{$except}",
     );
     $statement->execute([$reason, $userId]);
 
     $tokenExcept = $exceptSessionId === null ? '' : ' AND (session_id IS NULL OR session_id <> ' . (int) $exceptSessionId . ')';
     $pdo->prepare(
         "UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ?
-          WHERE user_id = ? AND kind = 'rotating' AND revoked_at IS NULL{$tokenExcept}"
+          WHERE user_id = ? AND kind = 'rotating' AND revoked_at IS NULL{$tokenExcept}",
     )->execute([$reason, $userId]);
 
     return $statement->rowCount();
@@ -691,7 +689,7 @@ function revokePersonalTokens(PDO $pdo, int $userId, string $reason): int
 {
     $statement = $pdo->prepare(
         "UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ?
-          WHERE user_id = ? AND kind = 'personal' AND revoked_at IS NULL"
+          WHERE user_id = ? AND kind = 'personal' AND revoked_at IS NULL",
     );
     $statement->execute([$reason, $userId]);
 
@@ -709,7 +707,7 @@ function sessionsFor(PDO $pdo, int $userId, int $limit = 50): array
            FROM sessions s
           WHERE s.user_id = ?
           ORDER BY s.created_at DESC
-          LIMIT ?"
+          LIMIT ?",
     );
     $statement->execute([$userId, $limit]);
 
@@ -797,8 +795,13 @@ function limiterSource(Request $request): ?string
 
 function recordLoginAttempt(PDO $pdo, Request $request, string $email, ?int $userId, string $method, string $outcome): void
 {
-    $pdo->prepare('INSERT INTO login_attempts (email, user_id, ip, method, outcome) VALUES (?, ?, ?, ?, ?)')
-        ->execute([substr(strtolower($email), 0, 255), $userId, limiterSource($request), $method, $outcome]);
+    $pdo->prepare('INSERT INTO login_attempts (email, user_id, ip, method, outcome) VALUES (?, ?, ?, ?, ?)')->execute([
+        substr(strtolower($email), 0, 255),
+        $userId,
+        limiterSource($request),
+        $method,
+        $outcome,
+    ]);
 }
 
 /**
@@ -816,23 +819,19 @@ function loginAttemptsExceeded(PDO $pdo, Request $request, string $email): bool
         return false;
     }
 
-    $window = "CURRENT_TIMESTAMP - (" . ATTEMPT_WINDOW . " * INTERVAL '1 second')";
+    $window = 'CURRENT_TIMESTAMP - (' . ATTEMPT_WINDOW . " * INTERVAL '1 second')";
 
     // Requests that send mail are recorded as 'sent' and count here too, which
     // is what stops the resend and reset buttons being a way to spray mail at
     // somebody's address.
-    $perPair = $pdo->prepare(
-        "SELECT count(*) FROM login_attempts WHERE email = ? AND ip = ? AND outcome <> 'ok' AND created_at > $window"
-    );
+    $perPair = $pdo->prepare("SELECT count(*) FROM login_attempts WHERE email = ? AND ip = ? AND outcome <> 'ok' AND created_at > $window");
     $perPair->execute([strtolower($email), $ip]);
 
     if ((int) $perPair->fetchColumn() >= ATTEMPT_MAX_PER_EMAIL_IP) {
         return true;
     }
 
-    $perIp = $pdo->prepare(
-        "SELECT count(*) FROM login_attempts WHERE ip = ? AND outcome <> 'ok' AND created_at > $window"
-    );
+    $perIp = $pdo->prepare("SELECT count(*) FROM login_attempts WHERE ip = ? AND outcome <> 'ok' AND created_at > $window");
     $perIp->execute([$ip]);
 
     return (int) $perIp->fetchColumn() >= ATTEMPT_MAX_PER_IP;
@@ -846,7 +845,7 @@ function failedAttemptsSinceLastLogin(PDO $pdo, int $userId): int
           WHERE user_id = ? AND outcome NOT IN ('ok', 'sent')
             AND created_at > COALESCE(
                 (SELECT max(created_at) FROM login_attempts WHERE user_id = ? AND outcome = 'ok'),
-                TIMESTAMPTZ 'epoch')"
+                TIMESTAMPTZ 'epoch')",
     );
     $statement->execute([$userId, $userId]);
 

@@ -97,7 +97,7 @@ function iamAuditLog(?PDO $pdo = null): AuditLog
         'actorIds' => static fn(string $name): array => auditActorIds($pdo ?? iamDb(), $name),
     ]);
 
-    return $pdo === null ? $log = $made : $made;
+    return $pdo === null ? ($log = $made) : $made;
 }
 
 /** Where an audit entry waits while the library's table is not there yet (018 pending). */

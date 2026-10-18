@@ -56,10 +56,14 @@ const AUTHENTICATOR_PAUSE_SECONDS = 900;
  */
 function authenticatorPauseReady(PDO $pdo): bool
 {
-    return asBool($pdo->query(
-        "SELECT (SELECT count(*) FROM pg_attribute WHERE attrelid = to_regclass('users') AND NOT attisdropped
-                   AND attname IN ('totp_paused_until', 'totp_count_from')) = 2"
-    )->fetchColumn());
+    return asBool(
+        $pdo
+            ->query(
+                "SELECT (SELECT count(*) FROM pg_attribute WHERE attrelid = to_regclass('users') AND NOT attisdropped
+                   AND attname IN ('totp_paused_until', 'totp_count_from')) = 2",
+            )
+            ->fetchColumn(),
+    );
 }
 
 /**
@@ -152,7 +156,7 @@ function authenticatorCheck(PDO $pdo, Request $request, array $user, mixed $code
         $wrong = $pdo->prepare(
             "SELECT count(*) FROM login_attempts
               WHERE user_id = ? AND outcome = 'bad_totp'
-                AND created_at > GREATEST({$window}, COALESCE((SELECT totp_count_from FROM users WHERE id = ?), '-infinity'::timestamptz))"
+                AND created_at > GREATEST({$window}, COALESCE((SELECT totp_count_from FROM users WHERE id = ?), '-infinity'::timestamptz))",
         );
         $wrong->execute([$userId, $userId]);
 
@@ -164,8 +168,10 @@ function authenticatorCheck(PDO $pdo, Request $request, array $user, mixed $code
 
         // The fifth: the pause begins, and the count starts again from it.
         $paused = $pdo->prepare(
-            'UPDATE users SET totp_paused_until = CURRENT_TIMESTAMP + (' . AUTHENTICATOR_PAUSE_SECONDS . " * INTERVAL '1 second'), totp_count_from = CURRENT_TIMESTAMP
-              WHERE id = ? RETURNING totp_paused_until"
+            'UPDATE users SET totp_paused_until = CURRENT_TIMESTAMP + (' .
+                AUTHENTICATOR_PAUSE_SECONDS .
+                " * INTERVAL '1 second'), totp_count_from = CURRENT_TIMESTAMP
+              WHERE id = ? RETURNING totp_paused_until",
         );
         $paused->execute([$userId]);
         $began = (string) $paused->fetchColumn();
@@ -213,8 +219,7 @@ function authenticatorWhilePaused(PDO $pdo, Request $request, array $user, strin
 
     recordLoginAttempt($pdo, $request, (string) $user['email'], $userId, $method, 'totp_paused');
 
-    return authenticatorRefusal('authenticator_paused', $until)
-        + ['email_code_spent' => wrongEmailCodesThisPause($pdo, $userId) >= AUTHENTICATOR_PAUSE_AFTER];
+    return authenticatorRefusal('authenticator_paused', $until) + ['email_code_spent' => wrongEmailCodesThisPause($pdo, $userId) >= AUTHENTICATOR_PAUSE_AFTER];
 }
 
 /**
@@ -254,8 +259,10 @@ function pausedEmailCodeCheck(PDO $pdo, Request $request, array $user, string $c
         try {
             // The account's row, held to the commit, as authenticatorCheck() holds it.
             $row = $pdo->prepare(
-                'SELECT totp_paused_until, CURRENT_TIMESTAMP < totp_paused_until - (' . AUTHENTICATOR_PAUSE_SECONDS . " * INTERVAL '1 second') AS began_before_it
-                   FROM users WHERE id = ? AND totp_paused_until > CURRENT_TIMESTAMP FOR UPDATE"
+                'SELECT totp_paused_until, CURRENT_TIMESTAMP < totp_paused_until - (' .
+                    AUTHENTICATOR_PAUSE_SECONDS .
+                    " * INTERVAL '1 second') AS began_before_it
+                   FROM users WHERE id = ? AND totp_paused_until > CURRENT_TIMESTAMP FOR UPDATE",
             );
             $row->execute([$userId]);
             $state = $row->fetch();
@@ -295,9 +302,7 @@ function pausedEmailCodeCheck(PDO $pdo, Request $request, array $user, string $c
             $pdo->commit();
 
             // The fifth wrong one says at once that the mailbox stands in no more.
-            return $spent
-                ? pausedEmailCodeRefusal($until)
-                : ['passed' => false, 'status' => 400, 'code' => 'invalid_code', 'error' => 'That code is not valid', 'extra' => []];
+            return $spent ? pausedEmailCodeRefusal($until) : ['passed' => false, 'status' => 400, 'code' => 'invalid_code', 'error' => 'That code is not valid', 'extra' => []];
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -333,7 +338,9 @@ function wrongEmailCodesThisPause(PDO $pdo, int $userId): int
     $statement = $pdo->prepare(
         "SELECT count(*) FROM login_attempts
           WHERE user_id = ? AND outcome = 'bad_email_code'
-            AND created_at >= (SELECT totp_paused_until - (" . AUTHENTICATOR_PAUSE_SECONDS . " * INTERVAL '1 second') FROM users WHERE id = ?)"
+            AND created_at >= (SELECT totp_paused_until - (" .
+            AUTHENTICATOR_PAUSE_SECONDS .
+            " * INTERVAL '1 second') FROM users WHERE id = ?)",
     );
     $statement->execute([$userId, $userId]);
 

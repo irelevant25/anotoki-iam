@@ -55,9 +55,7 @@ if (!$user) {
 
 // An account deleted at its owner's request (migration 016) is never let back
 // in: its id is the `sub` whose data every site has made nobody's.
-$hasDeletion = (bool) $pdo->query(
-    "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'anonymized_at' AND NOT attisdropped)"
-)->fetchColumn();
+$hasDeletion = (bool) $pdo->query("SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('users') AND attname = 'anonymized_at' AND NOT attisdropped)")->fetchColumn();
 if ($hasDeletion) {
     $anonymized = $pdo->prepare('SELECT anonymized_at FROM users WHERE id = ?');
     $anonymized->execute([$user['id']]);
@@ -76,10 +74,12 @@ $password = $given ?? bin2hex(random_bytes(6));
 $forceChange = $given === null;
 
 // The flags are literals, not input; only the hash and the id are bound.
-$sql = 'UPDATE users SET password = ?, password_login_enabled = TRUE, email_confirmed = TRUE, disabled = FALSE, '
-    . 'force_password_change = ' . ($forceChange ? 'TRUE' : 'FALSE')
-    . ($clearTwoFactor ? ', totp_enabled = FALSE, totp_secret = NULL' : '')
-    . ' WHERE id = ?';
+$sql =
+    'UPDATE users SET password = ?, password_login_enabled = TRUE, email_confirmed = TRUE, disabled = FALSE, ' .
+    'force_password_change = ' .
+    ($forceChange ? 'TRUE' : 'FALSE') .
+    ($clearTwoFactor ? ', totp_enabled = FALSE, totp_secret = NULL' : '') .
+    ' WHERE id = ?';
 $pdo->prepare($sql)->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
 
 if ($clearTwoFactor) {

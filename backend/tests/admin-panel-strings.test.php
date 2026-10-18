@@ -62,10 +62,14 @@ test('an IAM from before 009, as its owner left it: 006\'s words reworded, the o
 
     $result = applyPendingMigrations($pdo, 'iam');
     same([ADMIN_PANEL_MIGRATION, null], [$result['applied'][0] ?? null, $result['failed']], '009 applied, its gate passed (' . ($result['error'] ?? '') . ')');
-    same([
-        'overview.adminTitle' => ['Administration', 'Administrátorský panel'],
-        'shell.admin' => ['Admin panel', null],
-    ], adminPanelStrings($pdo), 'only 006\'s words reworded; the owner\'s English and the blank Slovak stay');
+    same(
+        [
+            'overview.adminTitle' => ['Administration', 'Administrátorský panel'],
+            'shell.admin' => ['Admin panel', null],
+        ],
+        adminPanelStrings($pdo),
+        'only 006\'s words reworded; the owner\'s English and the blank Slovak stay',
+    );
     same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE value IN ('Admin console', 'Administrácia')")->fetchColumn(), 'and 006\'s words are nowhere');
 });
 

@@ -49,10 +49,7 @@ function copyTree(string $src, string $dst, ?callable $skip = null): void
 {
     global $stats;
     $src = rtrim(str_replace('\\', '/', $src), '/');
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($src, FilesystemIterator::SKIP_DOTS | FilesystemIterator::UNIX_PATHS),
-        RecursiveIteratorIterator::SELF_FIRST
-    );
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($src, FilesystemIterator::SKIP_DOTS | FilesystemIterator::UNIX_PATHS), RecursiveIteratorIterator::SELF_FIRST);
 
     foreach ($iterator as $path => $info) {
         $relative = substr(str_replace('\\', '/', $path), strlen($src) + 1);

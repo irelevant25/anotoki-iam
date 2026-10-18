@@ -1,19 +1,19 @@
-import { inject } from "@angular/core";
-import { AnotokiShellConfig } from "@anotoki/lib/shell";
-import { AnotokiUiConfig } from "@anotoki/lib/ui/config";
-import { firstValueFrom } from "rxjs";
-import { AccountApi } from "../api/account.api";
-import { SessionService } from "../auth/session.service";
-import { TranslationService } from "../i18n/translation.service";
-import { IAM_ICONS } from "./icons";
-import { iamKitWord } from "./kit-words";
+import { inject } from '@angular/core';
+import { AnotokiShellConfig } from '@anotoki/lib/shell';
+import { AnotokiUiConfig } from '@anotoki/lib/ui/config';
+import { firstValueFrom } from 'rxjs';
+import { AccountApi } from '../api/account.api';
+import { SessionService } from '../auth/session.service';
+import { TranslationService } from '../i18n/translation.service';
+import { IAM_ICONS } from './icons';
+import { iamKitWord } from './kit-words';
 
 /**
  * Shared with the theme boot script's `data-storage-key` (src/index.html), which
  * applies the same choice before the app has loaded - the IAM's key since
  * before the family's kit, so nobody's stored theme is lost.
  */
-export const THEME_STORAGE_KEY = "anotoki-iam:theme";
+export const THEME_STORAGE_KEY = 'anotoki-iam:theme';
 
 /**
  * How the IAM plugs into the anotoki family's UI kit (@anotoki/lib/ui and its

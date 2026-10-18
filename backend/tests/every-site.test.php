@@ -69,7 +69,7 @@ function grantsOf(PDO $pdo, int $userId): array
 {
     $statement = $pdo->prepare(
         "SELECT a.client_id || ' ' || r.name FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id
-          WHERE ur.user_id = ? ORDER BY 1"
+          WHERE ur.user_id = ? ORDER BY 1",
     );
     $statement->execute([$userId]);
 
@@ -111,7 +111,7 @@ function grantIn(PDO $pdo, int $userId, string $clientId, string $role): void
 {
     $pdo->prepare(
         'INSERT INTO user_roles (user_id, role_id)
-         SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = ? AND r.name = ?'
+         SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = ? AND r.name = ?',
     )->execute([$userId, $clientId, $role]);
 }
 
@@ -142,9 +142,11 @@ test('the first administrator - setup.php\'s, create-admin.php\'s - holds ADMIN 
     same(['build-analyzer', 'genshin', 'iam', 'japanese-academy', 'piano-academy', 'survey'], adminOf(iamDb(), $id), 'ADMIN in the IAM and every first-party site');
     same(applicationsWithAdmin(iamDb()), adminOf(iamDb(), $id), 'which is every application that has one');
     $everyApplication = iamDb()->query('SELECT client_id FROM applications ORDER BY client_id')->fetchAll(PDO::FETCH_COLUMN);
-    same(array_map(static fn(string $clientId): string => "{$clientId} MEMBER", $everyApplication),
+    same(
+        array_map(static fn(string $clientId): string => "{$clientId} MEMBER", $everyApplication),
         array_values(array_filter(grantsOf(iamDb(), $id), static fn(string $grant): bool => !str_ends_with($grant, ' ADMIN'))),
-        'and beyond ADMIN only the MEMBER every account holds in every application (010)');
+        'and beyond ADMIN only the MEMBER every account holds in every application (010)',
+    );
 
     $browser = new Browser();
     same(200, $browser->signIn('first@example.test', 'a long enough one')->status, 'it signs in');
@@ -172,27 +174,39 @@ test('an IAM from before 007, as its owner left it: MEMBER goes with its grants,
     $pdo->exec("DELETE FROM application_roles
                  WHERE name = 'EDITOR' AND application_id = (SELECT id FROM applications WHERE client_id = 'survey')");
     $pdo->exec("DELETE FROM applications WHERE client_id = 'build-analyzer'");
-    $notes = (int) $pdo->query("INSERT INTO applications (client_id, name, home_url, type, access, show_on_landing, sort_order, system)
-                                VALUES ('notes', 'Notes', 'https://notes.example.test', 'public', 'members', FALSE, 60, FALSE) RETURNING id")->fetchColumn();
-    $pdo->prepare("INSERT INTO application_roles (application_id, name, description) VALUES (?, 'ADMIN', 'Runs the notes'), (?, 'READER', 'Reads them')")
-        ->execute([$notes, $notes]);
+    $notes = (int) $pdo
+        ->query(
+            "INSERT INTO applications (client_id, name, home_url, type, access, show_on_landing, sort_order, system)
+                                VALUES ('notes', 'Notes', 'https://notes.example.test', 'public', 'members', FALSE, 60, FALSE) RETURNING id",
+        )
+        ->fetchColumn();
+    $pdo->prepare("INSERT INTO application_roles (application_id, name, description) VALUES (?, 'ADMIN', 'Runs the notes'), (?, 'READER', 'Reads them')")->execute([$notes, $notes]);
 
-    same(['genshin' => 'everyone', 'iam' => 'members', 'japanese-academy' => 'members', 'notes' => 'members', 'piano-academy' => 'members', 'survey' => 'everyone'],
-        accessIn($pdo), 'before: the academies are for members');
+    same(
+        ['genshin' => 'everyone', 'iam' => 'members', 'japanese-academy' => 'members', 'notes' => 'members', 'piano-academy' => 'members', 'survey' => 'everyone'],
+        accessIn($pdo),
+        'before: the academies are for members',
+    );
     same(['piano-academy MEMBER'], grantsOf($pdo, $pianist), 'and the pianist was invited to one');
 
     $result = applyMigrationsThrough($pdo, EVERY_SITE_MIGRATION);
     same([[EVERY_SITE_MIGRATION], null], [$result['applied'], $result['failed']], '007 applied, and its gate passed (' . ($result['error'] ?? '') . ')');
 
-    same(['genshin' => 'everyone', 'iam' => 'members', 'japanese-academy' => 'everyone', 'notes' => 'members', 'piano-academy' => 'everyone', 'survey' => 'everyone'],
-        accessIn($pdo), 'every first-party site is open to every account; the IAM and the owner\'s own application are as they were');
+    same(
+        ['genshin' => 'everyone', 'iam' => 'members', 'japanese-academy' => 'everyone', 'notes' => 'members', 'piano-academy' => 'everyone', 'survey' => 'everyone'],
+        accessIn($pdo),
+        'every first-party site is open to every account; the IAM and the owner\'s own application are as they were',
+    );
     same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE client_id = 'build-analyzer'")->fetchColumn(), 'the site deleted by hand stays deleted');
 
     same([], grantsOf($pdo, $pianist), 'MEMBER went, and the pianist\'s grant of it with it');
     same(0, (int) $pdo->query("SELECT count(*) FROM application_roles WHERE name = 'MEMBER'")->fetchColumn(), 'no MEMBER role anywhere');
 
-    same(['ADMIN' => 'Runs the whole academy', 'EDITOR' => EVERY_SITE_ROLE_WORDS['japanese-academy']['EDITOR']], rolesIn($pdo, 'japanese-academy'),
-        'the ADMIN reworded in the admin panel keeps its words; EDITOR is added');
+    same(
+        ['ADMIN' => 'Runs the whole academy', 'EDITOR' => EVERY_SITE_ROLE_WORDS['japanese-academy']['EDITOR']],
+        rolesIn($pdo, 'japanese-academy'),
+        'the ADMIN reworded in the admin panel keeps its words; EDITOR is added',
+    );
     same(EVERY_SITE_ROLE_WORDS['piano-academy'], rolesIn($pdo, 'piano-academy'), 'an ADMIN still in 002\'s words takes the split\'s');
     same(EVERY_SITE_ROLE_WORDS['genshin'], rolesIn($pdo, 'genshin'), 'genshin keeps its roles and words');
     same(EVERY_SITE_ROLE_WORDS['survey'], rolesIn($pdo, 'survey'), 'and so does the survey - its EDITOR, deleted by hand, back in its words');

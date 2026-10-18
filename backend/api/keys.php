@@ -40,8 +40,8 @@ function activeSigningKey(bool $reload = false): array
     $privatePem = decryptSecret($row['private_key']);
     if ($privatePem === null) {
         throw new RuntimeException(
-            'The active signing key cannot be decrypted - config/secret.local.php is not the key it was made with. '
-            . 'Restore that file, or rotate the key from the database (everybody will have to sign in again).'
+            'The active signing key cannot be decrypted - config/secret.local.php is not the key it was made with. ' .
+                'Restore that file, or rotate the key from the database (everybody will have to sign in again).',
         );
     }
 
@@ -62,7 +62,7 @@ function createFirstSigningKey(): array
 
     $pdo->prepare(
         "INSERT INTO signing_keys (kid, public_n, public_e, private_key, status) VALUES (?, ?, ?, ?, 'active')
-         ON CONFLICT (status) WHERE status = 'active' DO NOTHING"
+         ON CONFLICT (status) WHERE status = 'active' DO NOTHING",
     )->execute([newKid(), $details['n'], $details['e'], encryptSecret($details['private_pem'])]);
 
     return $pdo->query("SELECT * FROM signing_keys WHERE status = 'active'")->fetch();
@@ -82,9 +82,7 @@ function rotateSigningKey(): array
     $pdo->beginTransaction();
     try {
         $pdo->exec("UPDATE signing_keys SET status = 'retired', retired_at = CURRENT_TIMESTAMP WHERE status = 'active'");
-        $insert = $pdo->prepare(
-            "INSERT INTO signing_keys (kid, public_n, public_e, private_key, status) VALUES (?, ?, ?, ?, 'active') RETURNING kid"
-        );
+        $insert = $pdo->prepare("INSERT INTO signing_keys (kid, public_n, public_e, private_key, status) VALUES (?, ?, ?, ?, 'active') RETURNING kid");
         $insert->execute([newKid(), $details['n'], $details['e'], encryptSecret($details['private_pem'])]);
         $kid = (string) $insert->fetchColumn();
         $pdo->commit();
@@ -152,7 +150,7 @@ function signingKeyByKid(string $kid): ?array
 
     $statement = iamDb()->prepare(
         "SELECT kid, public_n, public_e FROM signing_keys
-          WHERE kid = ? AND (status = 'active' OR retired_at > CURRENT_TIMESTAMP - (? * INTERVAL '1 second'))"
+          WHERE kid = ? AND (status = 'active' OR retired_at > CURRENT_TIMESTAMP - (? * INTERVAL '1 second'))",
     );
     $statement->execute([$kid, KEY_RETIRED_GRACE]);
     $row = $statement->fetch();
@@ -168,18 +166,23 @@ function publishedKeys(): array
     $statement = iamDb()->prepare(
         "SELECT kid, public_n, public_e FROM signing_keys
           WHERE status = 'active' OR retired_at > CURRENT_TIMESTAMP - (? * INTERVAL '1 second')
-          ORDER BY created_at DESC"
+          ORDER BY created_at DESC",
     );
     $statement->execute([KEY_RETIRED_GRACE]);
 
-    return ['keys' => array_map(static fn(array $row): array => [
-        'kty' => 'RSA',
-        'use' => 'sig',
-        'alg' => 'RS256',
-        'kid' => $row['kid'],
-        'n' => $row['public_n'],
-        'e' => $row['public_e'],
-    ], $statement->fetchAll())];
+    return [
+        'keys' => array_map(
+            static fn(array $row): array => [
+                'kty' => 'RSA',
+                'use' => 'sig',
+                'alg' => 'RS256',
+                'kid' => $row['kid'],
+                'n' => $row['public_n'],
+                'e' => $row['public_e'],
+            ],
+            $statement->fetchAll(),
+        ),
+    ];
 }
 
 // A JWK's modulus and exponent back into the PEM openssl reads - the same DER
@@ -202,7 +205,7 @@ function derInteger(string $bytes): string
     if ($bytes === '') {
         $bytes = "\x00";
     }
-    if (ord($bytes[0]) > 0x7F) {
+    if (ord($bytes[0]) > 0x7f) {
         $bytes = "\x00" . $bytes;
     }
 

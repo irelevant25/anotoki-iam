@@ -29,7 +29,7 @@ function outstandingTokenCount(PDO $pdo, int $userId, string $purpose): int
 {
     $statement = $pdo->prepare(
         'SELECT count(*) FROM user_tokens
-          WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP'
+          WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
     );
     $statement->execute([$userId, $purpose]);
 
@@ -73,7 +73,7 @@ function issueOneTimeToken(PDO $pdo, int $userId, string $purpose, int $lifetime
     $insert = $pdo->prepare(
         "INSERT INTO user_tokens (user_id, purpose, token_hash, context, expires_at)
          SELECT ?, ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
-          WHERE " . tokenAccountSql($pdo)
+          WHERE " . tokenAccountSql($pdo),
     );
     $insert->execute([$userId, $purpose, sha256($token), $context === null ? null : json_encode($context), $lifetimeSeconds, $userId]);
 
@@ -93,12 +93,10 @@ function findOneTimeToken(PDO $pdo, string $token, string $purpose): ?array
         return null;
     }
 
-    $live = accountDeletionReady($pdo)
-        ? ' AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = user_tokens.user_id AND u.anonymized_at IS NOT NULL)'
-        : '';
+    $live = accountDeletionReady($pdo) ? ' AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = user_tokens.user_id AND u.anonymized_at IS NOT NULL)' : '';
     $statement = $pdo->prepare(
         'SELECT * FROM user_tokens
-          WHERE token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP' . $live
+          WHERE token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP' . $live,
     );
     $statement->execute([sha256($token), $purpose]);
 
@@ -121,9 +119,7 @@ function consumeOneTimeToken(PDO $pdo, int $tokenId): bool
 /** Spends every live token of a purpose for one account. */
 function revokeOneTimeTokens(PDO $pdo, int $userId, string $purpose): void
 {
-    $pdo->prepare(
-        'UPDATE user_tokens SET consumed_at = CURRENT_TIMESTAMP WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL'
-    )->execute([$userId, $purpose]);
+    $pdo->prepare('UPDATE user_tokens SET consumed_at = CURRENT_TIMESTAMP WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL')->execute([$userId, $purpose]);
 }
 
 function tokenContext(array $token): array
@@ -155,7 +151,7 @@ function issueLoginCode(PDO $pdo, int $userId, int $lifetimeSeconds): ?string
     $insert = $pdo->prepare(
         "INSERT INTO user_tokens (user_id, purpose, token_hash, expires_at)
          SELECT ?, ?, ?, CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
-          WHERE " . tokenAccountSql($pdo)
+          WHERE " . tokenAccountSql($pdo),
     );
     $insert->execute([$userId, TOKEN_LOGIN_CODE, loginCodeHash($userId, $code), $lifetimeSeconds, $userId]);
 
@@ -178,7 +174,7 @@ function findLoginCode(PDO $pdo, int $userId, string $code): ?array
     $statement = $pdo->prepare(
         'SELECT * FROM user_tokens
           WHERE user_id = ? AND purpose = ? AND token_hash = ?
-            AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND attempts < ?'
+            AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP AND attempts < ?',
     );
     $statement->execute([$userId, TOKEN_LOGIN_CODE, loginCodeHash($userId, $code), TOKEN_MAX_ATTEMPTS]);
 
@@ -188,12 +184,12 @@ function findLoginCode(PDO $pdo, int $userId, string $code): ?array
 
     $pdo->prepare(
         'UPDATE user_tokens SET attempts = attempts + 1
-          WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP'
+          WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
     )->execute([$userId, TOKEN_LOGIN_CODE]);
 
     $pdo->prepare(
         'UPDATE user_tokens SET consumed_at = CURRENT_TIMESTAMP
-          WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND attempts >= ?'
+          WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND attempts >= ?',
     )->execute([$userId, TOKEN_LOGIN_CODE, TOKEN_MAX_ATTEMPTS]);
 
     return null;

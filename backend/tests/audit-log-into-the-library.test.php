@@ -41,10 +41,16 @@ const SITE_ORIGIN = 'http://localhost:4200';
 function useDatabase(string $name): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -64,11 +70,17 @@ function buildIamAsInstalled(string $suffix): PDO
 
     $own = (new Migrator($pdo, [iamMigrationSet()], ['ready' => static fn(MigrationSet $set, string $file): bool => strcmp($file, '018') < 0]))->apply();
     same(null, $own['failed'], 'the IAM\'s files through 017: ' . ($own['error'] ?? ''));
-    $words = (new Migrator($pdo, [TranslationsSchema::migrationSet()], ['ready' => static fn(MigrationSet $set, string $file): bool
-        => in_array($file, ['001_languages_and_strings.sql', '002_library_words.sql'], true)]))->apply();
+    $words = (new Migrator(
+        $pdo,
+        [TranslationsSchema::migrationSet()],
+        ['ready' => static fn(MigrationSet $set, string $file): bool => in_array($file, ['001_languages_and_strings.sql', '002_library_words.sql'], true)],
+    ))->apply();
     same(null, $words['failed'], 'the library\'s translations set\'s 001 and 002: ' . ($words['error'] ?? ''));
-    same(['017_strings_through_the_library.sql', 'anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'],
-        array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -3), 'as an installed IAM records them');
+    same(
+        ['017_strings_through_the_library.sql', 'anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'],
+        array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -3),
+        'as an installed IAM records them',
+    );
 
     return $pdo;
 }
@@ -87,16 +99,19 @@ function writeHistory(PDO $pdo): array
     $owner = (int) $pdo->query("INSERT INTO users (username, email, email_confirmed) VALUES ('owner', 'owner@example.test', TRUE) RETURNING id")->fetchColumn();
     $person = (int) $pdo->query("INSERT INTO users (username, email, email_confirmed) VALUES ('person', 'person@example.test', TRUE) RETURNING id")->fetchColumn();
     $insert = $pdo->prepare('INSERT INTO audit_log (id, created_at, actor_id, action, target_type, target_id, details, ip) VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?)');
-    foreach ([
-        [1, '2026-09-27 10:15:00+00', null, 'legacy.imported', null, null, '{"accounts": 41, "identities": 3}', null],
-        [2, '2026-09-28 08:00:00.123456+00', $owner, 'user.roles_set', 'user', (string) $person, '{"before": [{"client_id": "genshin", "role": "MEMBER"}], "after": []}', '203.0.113.9'],
-        [5, '2026-10-01 12:34:56.5+00', $person, 'account.username_changed', 'user', (string) $person, '{"from": "Jožko", "to": "Jožko 🎹"}', '2001:db8::1'],
-        [6, '2026-10-02 00:00:00+00', $owner, 'user.updated', 'user', (string) $person, '["username", "email"]', '203.0.113.9'],
-        [7, '2026-10-03 07:07:07+00', $owner, 'settings.changed', 'settings', null, '{"registration_approval": "true", "nested": {"a": [1, 2, {"b": null}]}}', '203.0.113.9'],
-        [9, '2026-10-04 09:09:09+00', null, 'user.password_reset_cli', 'user', (string) $person, '{"clear_2fa": false}', null],
-        [10, '2026-10-05 10:10:10+00', $owner, 'keys.rotated', 'key', str_repeat('k', 64), null, '198.51.100.7'],
-        [1000, '2026-10-10 23:59:59.999999+00', $person, 'account.token_created', 'refresh_token', '17', '{"name": "Môj skript", "days": 30}', '2001:db8::1'],
-    ] as $row) {
+    foreach (
+        [
+            [1, '2026-09-27 10:15:00+00', null, 'legacy.imported', null, null, '{"accounts": 41, "identities": 3}', null],
+            [2, '2026-09-28 08:00:00.123456+00', $owner, 'user.roles_set', 'user', (string) $person, '{"before": [{"client_id": "genshin", "role": "MEMBER"}], "after": []}', '203.0.113.9'],
+            [5, '2026-10-01 12:34:56.5+00', $person, 'account.username_changed', 'user', (string) $person, '{"from": "Jožko", "to": "Jožko 🎹"}', '2001:db8::1'],
+            [6, '2026-10-02 00:00:00+00', $owner, 'user.updated', 'user', (string) $person, '["username", "email"]', '203.0.113.9'],
+            [7, '2026-10-03 07:07:07+00', $owner, 'settings.changed', 'settings', null, '{"registration_approval": "true", "nested": {"a": [1, 2, {"b": null}]}}', '203.0.113.9'],
+            [9, '2026-10-04 09:09:09+00', null, 'user.password_reset_cli', 'user', (string) $person, '{"clear_2fa": false}', null],
+            [10, '2026-10-05 10:10:10+00', $owner, 'keys.rotated', 'key', str_repeat('k', 64), null, '198.51.100.7'],
+            [1000, '2026-10-10 23:59:59.999999+00', $person, 'account.token_created', 'refresh_token', '17', '{"name": "Môj skript", "days": 30}', '2001:db8::1'],
+        ]
+        as $row
+    ) {
         $insert->execute($row);
     }
     $pdo->exec("SELECT setval(pg_get_serial_sequence('audit_log', 'id'), 1000)");
@@ -131,10 +146,19 @@ function waitingActions(): array
 function signInToTheSite(Browser $browser, string $email): TestResponse
 {
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'genshin', 'redirect_uri' => SITE_CALLBACK, 'scope' => 'openid profile email',
-        'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'genshin',
+                'redirect_uri' => SITE_CALLBACK,
+                'scope' => 'openid profile email',
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     $request = queryOf($start->location())['request'] ?? null;
     check($request !== null, 'authorize sends an anonymous browser to the sign-in page: ' . $start->location());
     same(200, $browser->signIn($email, PASSWORD)->status, 'the sign-in');
@@ -143,8 +167,11 @@ function signInToTheSite(Browser $browser, string $email): TestResponse
 
     return $browser->request('POST', '/api/oidc/token', [
         'form' => [
-            'grant_type' => 'authorization_code', 'code' => queryOf($accept->json()['redirect'])['code'] ?? '',
-            'redirect_uri' => SITE_CALLBACK, 'client_id' => 'genshin', 'code_verifier' => $verifier,
+            'grant_type' => 'authorization_code',
+            'code' => queryOf($accept->json()['redirect'])['code'] ?? '',
+            'redirect_uri' => SITE_CALLBACK,
+            'client_id' => 'genshin',
+            'code_verifier' => $verifier,
         ],
         'headers' => ['Origin' => SITE_ORIGIN],
     ]);
@@ -154,25 +181,43 @@ function signInToTheSite(Browser $browser, string $email): TestResponse
 
 test('a fresh IAM: the library\'s admin set first, 018 after 017, every entry in the library\'s table - and the old one kept, empty, under its new name', function () {
     $pdo = iamDb();
-    same(['anotoki_admin', 'iam', 'anotoki_translations'], array_map(static fn(MigrationSet $set): string => $set->name, iamMigrationSets()), 'the family\'s order: the admin set, the IAM\'s, the translations set');
+    same(
+        ['anotoki_admin', 'iam', 'anotoki_translations'],
+        array_map(static fn(MigrationSet $set): string => $set->name, iamMigrationSets()),
+        'the family\'s order: the admin set, the IAM\'s, the translations set',
+    );
     $applied = appliedMigrations($pdo);
     same(ADMIN_SET_FILES, array_slice($applied, 0, 2), 'the library\'s admin set the first applied');
     same(array_search('017_strings_through_the_library.sql', $applied, true) + 1, array_search(AUDIT_MIGRATION, $applied, true), '018 right after 017');
-    same(ADMIN_SET_FILES, $pdo->query("SELECT filename FROM migrations WHERE filename LIKE 'anotoki_admin/%' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN), 'recorded as set/name in the IAM\'s own table');
+    same(
+        ADMIN_SET_FILES,
+        $pdo->query("SELECT filename FROM migrations WHERE filename LIKE 'anotoki_admin/%' ORDER BY id")->fetchAll(PDO::FETCH_COLUMN),
+        'recorded as set/name in the IAM\'s own table',
+    );
 
-    same([false, true, true], [tableThere($pdo, 'audit_log'), tableThere($pdo, 'audit_log_before_018'), tableThere($pdo, 'anotoki_audit_log')], 'the old name gone, kept under the new one; the library\'s table there');
+    same(
+        [false, true, true],
+        [tableThere($pdo, 'audit_log'), tableThere($pdo, 'audit_log_before_018'), tableThere($pdo, 'anotoki_audit_log')],
+        'the old name gone, kept under the new one; the library\'s table there',
+    );
     same(0, (int) $pdo->query('SELECT count(*) FROM audit_log_before_018')->fetchColumn(), 'nothing in the kept table of a fresh IAM');
     same(true, auditMovedToLibrary($pdo), 'so audit() writes into the library\'s table');
 
     $id = makeUser('fresh', 'fresh@example.test');
     $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', TEST_ISSUER . '/api/account', ['REMOTE_ADDR' => '192.0.2.44']);
     audit($request, $id, 'account.username_changed', 'user', $id, ['from' => 'a', 'to' => 'b']);
-    $row = $pdo->query("SELECT actor_id, action, target_type, target_id, details, ip, actor_session, scope_type, scope_id, created_at > CURRENT_TIMESTAMP - INTERVAL '1 minute' AS recent FROM anotoki_audit_log ORDER BY id DESC LIMIT 1")->fetch();
+    $row = $pdo
+        ->query(
+            "SELECT actor_id, action, target_type, target_id, details, ip, actor_session, scope_type, scope_id, created_at > CURRENT_TIMESTAMP - INTERVAL '1 minute' AS recent FROM anotoki_audit_log ORDER BY id DESC LIMIT 1",
+        )
+        ->fetch();
     $details = (array) json_decode((string) $row['details'], true);
     ksort($details);
-    same([$id, 'account.username_changed', 'user', (string) $id, ['from' => 'a', 'to' => 'b'], '192.0.2.44', null, null, null, true],
+    same(
+        [$id, 'account.username_changed', 'user', (string) $id, ['from' => 'a', 'to' => 'b'], '192.0.2.44', null, null, null, true],
         [(int) $row['actor_id'], $row['action'], $row['target_type'], $row['target_id'], $details, $row['ip'], $row['actor_session'], $row['scope_type'], $row['scope_id'], asBool($row['recent'])],
-        'what it always kept: who, what, to what, the details, the address, the time - and nothing the IAM never wrote');
+        'what it always kept: who, what, to what, the details, the address, the time - and nothing the IAM never wrote',
+    );
     same([], waitingActions(), 'nothing waits in the file');
 });
 
@@ -183,15 +228,26 @@ test('an installed IAM with a history: 018 moves every entry exactly, its id kep
     // 018 and every file of the IAM's after it (019, the authenticator's pause, ...): what waited on an IAM
     // built through 017 when 018 came, and what has come since.
     $iam = migrationFiles('iam');
-    same([...ADMIN_SET_FILES, ...array_slice($iam, (int) array_search(AUDIT_MIGRATION, $iam, true)), ...array_slice(array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_translations/'))), 2)],
-        pendingMigrations($pdo), 'what an upload brings an installed IAM: the library\'s admin set, 018 and the IAM\'s files after it, the translations set\'s new files');
+    same(
+        [
+            ...ADMIN_SET_FILES,
+            ...array_slice($iam, (int) array_search(AUDIT_MIGRATION, $iam, true)),
+            ...array_slice(array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_translations/'))), 2),
+        ],
+        pendingMigrations($pdo),
+        'what an upload brings an installed IAM: the library\'s admin set, 018 and the IAM\'s files after it, the translations set\'s new files',
+    );
 
     $result = applyPendingMigrations($pdo);
     same([[], null], [pendingMigrations($pdo), $result['failed']], 'every file applied, every gate passed (' . ($result['error'] ?? '') . ')');
     same(AUDIT_MIGRATION, $result['applied'][2] ?? null, '018 after the admin set');
 
     same($history, entriesOf($pdo, 'anotoki_audit_log'), 'every entry in the library\'s table exactly as it was: id, time, who, what, to what, details, address');
-    same(0, (int) $pdo->query('SELECT count(*) FROM anotoki_audit_log WHERE actor_session IS NOT NULL OR scope_type IS NOT NULL OR scope_id IS NOT NULL')->fetchColumn(), 'and nothing the IAM never wrote');
+    same(
+        0,
+        (int) $pdo->query('SELECT count(*) FROM anotoki_audit_log WHERE actor_session IS NOT NULL OR scope_type IS NOT NULL OR scope_id IS NOT NULL')->fetchColumn(),
+        'and nothing the IAM never wrote',
+    );
     same([false, $history], [tableThere($pdo, 'audit_log'), entriesOf($pdo, 'audit_log_before_018')], 'the old table kept, as it was, under its new name');
 
     // The next entry: numbered after the highest, written where the app now writes.
@@ -298,11 +354,16 @@ test('the window: an installed IAM, the new code, nothing applied - every way in
         same([201, true], [$made->status, $made->json()['backup']['encrypted'] ?? null], 'a backup, made by hand while the update waits: ' . substr($made->body, 0, 300));
 
         // An account deleted in the window: the old table is what the anonymization scrubs then.
-        $pdo->prepare("INSERT INTO audit_log (id, actor_id, action, target_type, target_id, details, ip) VALUES (3000, ?, 'account.username_changed', 'user', ?, '{\"from\": \"x\", \"to\": \"y\"}', '192.0.2.99')")
-            ->execute([$personId, (string) $personId]);
+        $pdo->prepare(
+            "INSERT INTO audit_log (id, actor_id, action, target_type, target_id, details, ip) VALUES (3000, ?, 'account.username_changed', 'user', ?, '{\"from\": \"x\", \"to\": \"y\"}', '192.0.2.99')",
+        )->execute([$personId, (string) $personId]);
         $pdo->prepare("UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '31 days', deletion_due_at = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = ?")->execute([$personId]);
         same(1, anonymizeDueAccounts($pdo), 'the account due is deleted while 018 waits');
-        same([null, []], [($r = $pdo->query('SELECT ip, details FROM audit_log WHERE id = 3000')->fetch())['ip'], json_decode((string) $r['details'], true)], 'its entries in the old table scrubbed by the IAM\'s rules');
+        same(
+            [null, []],
+            [($r = $pdo->query('SELECT ip, details FROM audit_log WHERE id = 3000')->fetch())['ip'], json_decode((string) $r['details'], true)],
+            'its entries in the old table scrubbed by the IAM\'s rules',
+        );
         $history = entriesOf($pdo, 'audit_log');
         $waitingBefore = waitingActions();
         check(in_array('account.anonymized', $waitingBefore, true), 'and its account.anonymized waits with the rest');
@@ -312,17 +373,27 @@ test('the window: an installed IAM, the new code, nothing applied - every way in
         same([...ADMIN_SET_FILES, AUDIT_MIGRATION], array_slice($pending, 0, 3), 'what Apply will bring: the admin set, 018, ...');
         $applied = $admin->post('/api/admin/migrations/apply');
         same([200, $pending, null], [$applied->status, migrationNames($applied->json()['applied'] ?? []), $applied->json()['failed'] ?? null], 'Apply: ' . $applied->body);
-        check(preg_match('/^A backup of the database as it was is (\S+-before-migration-[0-9a-f]{32})\.$/', (string) ($applied->json()['note'] ?? ''), $backup) === 1, 'made first: ' . ($applied->json()['note'] ?? ''));
+        check(
+            preg_match('/^A backup of the database as it was is (\S+-before-migration-[0-9a-f]{32})\.$/', (string) ($applied->json()['note'] ?? ''), $backup) === 1,
+            'made first: ' . ($applied->json()['note'] ?? ''),
+        );
         same('before-migration', iamBackups()->get($backup[1])['kind'] ?? null, 'and there on the Backups page');
 
         $moved = entriesOf($pdo, 'anotoki_audit_log');
         same($history, array_slice($moved, 0, count($history)), 'the history moved with its ids, the scrub included');
         $after = array_slice($moved, count($history));
-        same([...$waitingBefore, 'backup.created', 'migrations.applied'], array_column($after, 'action'),
-            'then the entries that waited, in the order they came - the backup before the update the last of them, made before any file ran - and the Apply\'s own');
+        same(
+            [...$waitingBefore, 'backup.created', 'migrations.applied'],
+            array_column($after, 'action'),
+            'then the entries that waited, in the order they came - the backup before the update the last of them, made before any file ran - and the Apply\'s own',
+        );
         same([null, $backup[1]], [$after[count($waitingBefore)]['actor_id'], $after[count($waitingBefore)]['target_id']], 'that backup made by nobody: the Apply made it');
         $applyTime = $pdo->query("SELECT created_at FROM anotoki_audit_log WHERE action = 'migrations.applied' ORDER BY id DESC LIMIT 1")->fetchColumn();
-        same(count($waitingBefore) + 1, (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE id > 3000 AND action <> 'migrations.applied' AND created_at < " . $pdo->quote((string) $applyTime))->fetchColumn(), 'each with the time it was recorded, before the Apply');
+        same(
+            count($waitingBefore) + 1,
+            (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE id > 3000 AND action <> 'migrations.applied' AND created_at < " . $pdo->quote((string) $applyTime))->fetchColumn(),
+            'each with the time it was recorded, before the Apply',
+        );
         same('10.41.0.7', $pdo->query("SELECT ip FROM anotoki_audit_log WHERE action = 'user.updated' ORDER BY id DESC LIMIT 1")->fetchColumn(), 'with its address');
         // The person deleted while 018 waited: their own entry that waited with them is scrubbed as it goes in, not an hour later.
         $theirs = $pdo->query("SELECT ip, details FROM anotoki_audit_log WHERE action = 'account.username_changed' AND actor_id = {$personId} AND id > 3000")->fetch();
@@ -395,7 +466,7 @@ test('an entry written while others still wait: audit() takes them in through th
 
         return $statement->fetchAll();
     };
-    $count = static fn(string $action): int => (int) $pdo->query("SELECT count(*) FROM anotoki_audit_log WHERE action = " . $pdo->quote($action))->fetchColumn();
+    $count = static fn(string $action): int => (int) $pdo->query('SELECT count(*) FROM anotoki_audit_log WHERE action = ' . $pdo->quote($action))->fetchColumn();
 
     // Inside a transaction of the caller's: the waiting entry stays where it is, the new one is written.
     $wait('inside');

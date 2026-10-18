@@ -86,13 +86,10 @@ function totpCode(string $secret, int $counter): string
     }
 
     $hash = hash_hmac('sha1', pack('J', $counter), $key, true);
-    $offset = ord($hash[19]) & 0x0F;
-    $binary = ((ord($hash[$offset]) & 0x7F) << 24)
-        | (ord($hash[$offset + 1]) << 16)
-        | (ord($hash[$offset + 2]) << 8)
-        | ord($hash[$offset + 3]);
+    $offset = ord($hash[19]) & 0x0f;
+    $binary = ((ord($hash[$offset]) & 0x7f) << 24) | (ord($hash[$offset + 1]) << 16) | (ord($hash[$offset + 2]) << 8) | ord($hash[$offset + 3]);
 
-    return str_pad((string) ($binary % (10 ** TOTP_DIGITS)), TOTP_DIGITS, '0', STR_PAD_LEFT);
+    return str_pad((string) ($binary % 10 ** TOTP_DIGITS), TOTP_DIGITS, '0', STR_PAD_LEFT);
 }
 
 /**
@@ -135,9 +132,7 @@ function totpVerify(string $secret, string $code, ?int $now = null): bool
  */
 function totpSpendStep(PDO $pdo, int $userId, int $step): bool
 {
-    $statement = $pdo->prepare(
-        'UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)' . liveAccountSql($pdo)
-    );
+    $statement = $pdo->prepare('UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)' . liveAccountSql($pdo));
     $statement->execute([$step, $userId, $step]);
 
     return $statement->rowCount() === 1;
@@ -157,13 +152,18 @@ function totpCodeAccepted(PDO $pdo, array $user, string $code): bool
 
 function totpUri(string $secret, string $account): string
 {
-    return 'otpauth://totp/' . rawurlencode(TOTP_ISSUER) . ':' . rawurlencode($account) . '?' . http_build_query([
-        'secret' => $secret,
-        'issuer' => TOTP_ISSUER,
-        'algorithm' => 'SHA1',
-        'digits' => TOTP_DIGITS,
-        'period' => TOTP_STEP,
-    ]);
+    return 'otpauth://totp/' .
+        rawurlencode(TOTP_ISSUER) .
+        ':' .
+        rawurlencode($account) .
+        '?' .
+        http_build_query([
+            'secret' => $secret,
+            'issuer' => TOTP_ISSUER,
+            'algorithm' => 'SHA1',
+            'digits' => TOTP_DIGITS,
+            'period' => TOTP_STEP,
+        ]);
 }
 
 /**
@@ -196,9 +196,7 @@ function consumeRecoveryCode(PDO $pdo, int $userId, string $code): bool
         return false;
     }
 
-    $statement = $pdo->prepare(
-        'UPDATE user_recovery_codes SET used_at = CURRENT_TIMESTAMP WHERE user_id = ? AND code_hash = ? AND used_at IS NULL'
-    );
+    $statement = $pdo->prepare('UPDATE user_recovery_codes SET used_at = CURRENT_TIMESTAMP WHERE user_id = ? AND code_hash = ? AND used_at IS NULL');
     $statement->execute([$userId, sha256($normalised)]);
 
     return $statement->rowCount() === 1;

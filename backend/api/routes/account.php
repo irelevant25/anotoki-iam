@@ -62,7 +62,6 @@ function proofRefusal(Response $response, array $proof): ?Response
 }
 
 $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) {
-
     $group->get('', function (Request $request, Response $response) {
         return respondJson($response, accountPayload(iamDb(), me($request)));
     });
@@ -214,9 +213,7 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         $set->execute([password_hash($password, PASSWORD_DEFAULT), (int) $user['id']]);
         if ($set->rowCount() === 0) {
             // Set by another request a moment ago, or the account went.
-            return userById($pdo, (int) $user['id'])['password'] ?? null
-                ? respondError($response, 409, 'password_already_set', 'This account already has a password')
-                : accountGone($response);
+            return userById($pdo, (int) $user['id'])['password'] ?? null ? respondError($response, 409, 'password_already_set', 'This account already has a password') : accountGone($response);
         }
         audit($request, (int) $user['id'], 'account.password_set', 'user', $user['id'], ['proof' => $proof['proof']]);
 
@@ -523,7 +520,7 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
                     (SELECT max(rt.last_used_at) FROM refresh_tokens rt WHERE rt.user_id = ? AND rt.application_id = a.id) AS last_used_at
                FROM applications a
               WHERE a.system = FALSE
-              ORDER BY a.sort_order, a.name"
+              ORDER BY a.sort_order, a.name",
         );
         $statement->execute([(int) $user['id'], (int) $user['id']]);
 
@@ -580,10 +577,7 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
         }
 
-        $issued = issueRefreshToken(
-            $pdo, 'personal', randomHex(16), (int) $application['id'], (int) $user['id'], null,
-            'openid profile email', $days * 86400, $name
-        );
+        $issued = issueRefreshToken($pdo, 'personal', randomHex(16), (int) $application['id'], (int) $user['id'], null, 'openid profile email', $days * 86400, $name);
         audit($request, (int) $user['id'], 'account.token_created', 'application', $application['client_id'], ['name' => $name, 'days' => $days]);
 
         $entry = array_values(array_filter(personalTokensOf($pdo, (int) $user['id']), static fn(array $t): bool => $t['id'] === $issued['id']))[0] ?? null;
@@ -594,7 +588,7 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
     $group->delete('/tokens/{id:[0-9]+}', function (Request $request, Response $response, array $args) {
         $statement = iamDb()->prepare(
             "UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'revoked'
-              WHERE id = ? AND user_id = ? AND kind = 'personal' AND revoked_at IS NULL"
+              WHERE id = ? AND user_id = ? AND kind = 'personal' AND revoked_at IS NULL",
         );
         $statement->execute([(int) $args['id'], (int) me($request)['id']]);
 
@@ -707,7 +701,7 @@ function personalTokensOf(PDO $pdo, int $userId): array
         "SELECT rt.id, rt.name, a.client_id, a.name AS application_name, rt.created_at, rt.expires_at, rt.last_used_at, rt.revoked_at
            FROM refresh_tokens rt JOIN applications a ON a.id = rt.application_id
           WHERE rt.user_id = ? AND rt.kind = 'personal'
-          ORDER BY rt.created_at DESC"
+          ORDER BY rt.created_at DESC",
     );
     $statement->execute([$userId]);
 

@@ -51,10 +51,19 @@ function accountApproval(Browser $admin, bool $on): void
 function startSignIn(Browser $browser): array
 {
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK, 'scope' => 'openid profile email',
-        'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'survey',
+                'redirect_uri' => SURVEY_CALLBACK,
+                'scope' => 'openid profile email',
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
 
     return ['location' => $start->location(), 'verifier' => $verifier];
 }
@@ -77,8 +86,10 @@ function intoSurvey(Browser $browser): array
 /** Registers with the form, from a site's sign-in request when there is one. */
 function register(Browser $browser, string $username, ?string $request = null, string $language = 'en'): TestResponse
 {
-    return $browser->post('/api/register', ['username' => $username, 'email' => "{$username}@example.test", 'password' => 'a long password', 'language' => $language]
-        + ($request !== null ? ['request' => $request] : []));
+    return $browser->post(
+        '/api/register',
+        ['username' => $username, 'email' => "{$username}@example.test", 'password' => 'a long password', 'language' => $language] + ($request !== null ? ['request' => $request] : []),
+    );
 }
 
 /** The token of the newest link of a kind mailed to an address: confirm-email or reset-password. */
@@ -143,19 +154,30 @@ function googleToken(string $subject, string $email, string $name): string
         $pair = generateRsaKeyPair();
         $key = openssl_pkey_get_private($pair['private_pem']);
         @mkdir(iamStorageDir() . '/cache', 0700, true);
-        file_put_contents(iamStorageDir() . '/cache/google-jwks.json', json_encode([
-            'expires_at' => time() + 3600,
-            'keys' => ['approvals-test' => ['kty' => 'RSA', 'kid' => 'approvals-test', 'n' => $pair['n'], 'e' => $pair['e']]],
-        ]));
+        file_put_contents(
+            iamStorageDir() . '/cache/google-jwks.json',
+            json_encode([
+                'expires_at' => time() + 3600,
+                'keys' => ['approvals-test' => ['kty' => 'RSA', 'kid' => 'approvals-test', 'n' => $pair['n'], 'e' => $pair['e']]],
+            ]),
+        );
         writeTestConfig('google', ['client_id' => GOOGLE_TEST_CLIENT]);
         forgetLocalConfig();
     }
 
     $header = base64UrlEncode((string) json_encode(['alg' => 'RS256', 'kid' => 'approvals-test', 'typ' => 'JWT']));
-    $payload = base64UrlEncode((string) json_encode([
-        'iss' => 'https://accounts.google.com', 'aud' => GOOGLE_TEST_CLIENT, 'sub' => $subject, 'email' => $email,
-        'email_verified' => true, 'name' => $name, 'iat' => time(), 'exp' => time() + 600,
-    ]));
+    $payload = base64UrlEncode(
+        (string) json_encode([
+            'iss' => 'https://accounts.google.com',
+            'aud' => GOOGLE_TEST_CLIENT,
+            'sub' => $subject,
+            'email' => $email,
+            'email_verified' => true,
+            'name' => $name,
+            'iat' => time(),
+            'exp' => time() + 600,
+        ]),
+    );
     openssl_sign("{$header}.{$payload}", $signature, $key, OPENSSL_ALGO_SHA256);
 
     return "{$header}.{$payload}." . base64UrlEncode($signature);
@@ -165,10 +187,16 @@ function googleToken(string $subject, string $email, string $name): string
 function useIamDatabase(string $name): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -180,8 +208,11 @@ function useIamDatabase(string $name): void
 test('a fresh IAM has 012: the switch, off, and every account approved', function () {
     $pdo = iamDb();
     check(in_array(APPROVAL_MIGRATION, appliedMigrations($pdo), true), '012 recorded');
-    same(['access', 'boolean', 'false'], array_values($pdo->query("SELECT group_name, type, value FROM settings WHERE name = 'registration_approval'")->fetch(PDO::FETCH_NUM) ?: []),
-        'Settings -> New accounts need approval, among the switches of who gets in, off');
+    same(
+        ['access', 'boolean', 'false'],
+        array_values($pdo->query("SELECT group_name, type, value FROM settings WHERE name = 'registration_approval'")->fetch(PDO::FETCH_NUM) ?: []),
+        'Settings -> New accounts need approval, among the switches of who gets in, off',
+    );
     same(false, registrationApprovalRequired(), 'and read as off');
     same(true, accountApprovalReady($pdo), 'the column is there');
     same(0, (int) $pdo->query('SELECT count(*) FROM users WHERE NOT approved')->fetchColumn(), 'every account approved - those the tests make by hand too');
@@ -202,10 +233,14 @@ test('an IAM through 011, as its owner left it: 012 has nobody wait', function (
 
     same(0, (int) $pdo->query('SELECT count(*) FROM users WHERE NOT approved')->fetchColumn(), 'every account there was is approved - the unconfirmed one and the switched-off one too');
     same('false', $pdo->query("SELECT value FROM settings WHERE name = 'registration_approval'")->fetchColumn(), 'the switch is off');
-    same(['Waiting for approval', 'Čaká sa na schválenie'], [
-        $pdo->query("SELECT value FROM translations WHERE key_name = 'login.pending.title' AND language_code = 'en'")->fetchColumn(),
-        $pdo->query("SELECT value FROM translations WHERE key_name = 'login.pending.title' AND language_code = 'sk'")->fetchColumn(),
-    ], 'its words, in English and Slovak');
+    same(
+        ['Waiting for approval', 'Čaká sa na schválenie'],
+        [
+            $pdo->query("SELECT value FROM translations WHERE key_name = 'login.pending.title' AND language_code = 'en'")->fetchColumn(),
+            $pdo->query("SELECT value FROM translations WHERE key_name = 'login.pending.title' AND language_code = 'sk'")->fetchColumn(),
+        ],
+        'its words, in English and Slovak',
+    );
     same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name = 'common.save' AND language_code = 'sk'")->fetchColumn(), 'and the string the owner blanked stays blank');
 });
 
@@ -248,15 +283,21 @@ test('a new account waits on every way in until an administrator approves it, an
     same(false, $admin->get("/api/admin/users/{$id}")->json()['approved'] ?? null, 'the panel\'s row says it waits');
 
     $declined = $admin->post("/api/admin/users/{$id}/decline");
-    same([200, true, false, false], [$declined->status, $declined->json()['account']['disabled'] ?? null, $declined->json()['account']['approved'] ?? null, $declined->json()['mailed'] ?? null],
-        'declined: switched off, still not approved, nobody mailed: ' . $declined->body);
+    same(
+        [200, true, false, false],
+        [$declined->status, $declined->json()['account']['disabled'] ?? null, $declined->json()['account']['approved'] ?? null, $declined->json()['mailed'] ?? null],
+        'declined: switched off, still not approved, nobody mailed: ' . $declined->body,
+    );
     same(1, auditCount('user.declined', $id), 'logged');
     same([], waitingIn($admin), 'off the list');
     same(0, $admin->get('/api/admin/stats')->json()['awaiting_approval'] ?? null, 'and the count');
     same([403, 'account_disabled'], [($r = $browser->signIn('waiter@example.test', 'another long one'))->status, $r->code()], 'switched off is what it hears');
     same([409, 'not_waiting', 'waiter is switched off already'], [($r = $admin->post("/api/admin/users/{$id}/decline"))->status, $r->code(), $r->json()['error'] ?? null], 'declined once is enough');
-    same([409, 'not_waiting', 'waiter is switched off - switch the account on first, and it waits for approval again'],
-        [($r = $admin->post("/api/admin/users/{$id}/approve"))->status, $r->code(), $r->json()['error'] ?? null], 'nor approved while declined: nobody is mailed "approved" while switched off');
+    same(
+        [409, 'not_waiting', 'waiter is switched off - switch the account on first, and it waits for approval again'],
+        [($r = $admin->post("/api/admin/users/{$id}/approve"))->status, $r->code(), $r->json()['error'] ?? null],
+        'nor approved while declined: nobody is mailed "approved" while switched off',
+    );
 
     same(200, $admin->put("/api/admin/users/{$id}/enabled", ['enabled' => true])->status, 'switched on again');
     same(['waiter'], waitingIn($admin), 'it waits again');
@@ -265,8 +306,11 @@ test('a new account waits on every way in until an administrator approves it, an
     same([200, true, true], [$approved->status, $approved->json()['account']['approved'] ?? null, $approved->json()['mailed'] ?? null], 'approved, and mailed: ' . $approved->body);
     $mail = lastMailTo('waiter@example.test');
     same('Your anotoki account is approved', $mail['subject'] ?? null, 'the mail');
-    same("Hello waiter,\n\nAn administrator has approved your anotoki account. You can sign in now, the same way you signed up:\n\n" . TEST_ISSUER . "/login\n", $mail['body'] ?? null,
-        'greeting, intro, and the sign-in page on a line of its own - nothing else');
+    same(
+        "Hello waiter,\n\nAn administrator has approved your anotoki account. You can sign in now, the same way you signed up:\n\n" . TEST_ISSUER . "/login\n",
+        $mail['body'] ?? null,
+        'greeting, intro, and the sign-in page on a line of its own - nothing else',
+    );
     same(1, auditCount('user.approved', $id), 'logged');
     same([409, 'not_waiting'], [($r = $admin->post("/api/admin/users/{$id}/approve"))->status, $r->code()], 'approved once is enough');
 
@@ -325,7 +369,11 @@ test('signing up with Google: made, waiting, no session - and Google again says 
     same(['via' => 'google', 'waits' => true], lastAuditOf('account.created'), 'logged');
     same(['Gwen'], waitingIn($admin), 'listed');
 
-    same([403, 'approval_pending'], [($r = $browser->post('/api/login/google', ['credential' => googleToken('google-sub-1', 'gwen@example.test', 'Gwen')]))->status, $r->code()], 'Google again: still waiting');
+    same(
+        [403, 'approval_pending'],
+        [($r = $browser->post('/api/login/google', ['credential' => googleToken('google-sub-1', 'gwen@example.test', 'Gwen')]))->status, $r->code()],
+        'Google again: still waiting',
+    );
 
     same(true, $admin->post("/api/admin/users/{$id}/approve")->json()['mailed'] ?? null, 'approved; Google confirmed the address, so it is mailed');
     $in = $browser->post('/api/login/google', ['credential' => googleToken('google-sub-1', 'gwen@example.test', 'Gwen')]);
@@ -341,8 +389,11 @@ test('Google vouching for the address of an account that waits, never confirmed:
     $answer = $browser->post('/api/login/google', ['credential' => googleToken('google-sub-2', 'gina@example.test', 'Gina')]);
     same([403, 'approval_pending'], [$answer->status, $answer->code()], 'still waiting: ' . $answer->body);
     same([], $browser->cookies, 'no session');
-    same([true, false, null], [asBool(userRow($id)['email_confirmed']), asBool(userRow($id)['approved']), userRow($id)['password']],
-        'the address is confirmed by Google; whatever the registrant set is gone (rule 13); it waits');
+    same(
+        [true, false, null],
+        [asBool(userRow($id)['email_confirmed']), asBool(userRow($id)['approved']), userRow($id)['password']],
+        'the address is confirmed by Google; whatever the registrant set is gone (rule 13); it waits',
+    );
     same('google', identityFor(iamDb(), $id, IDENTITY_GOOGLE)['provider'] ?? null, 'and Google is attached');
 
     same(true, $admin->post("/api/admin/users/{$id}/approve")->json()['mailed'] ?? null, 'approved, and mailed to the address Google vouched for');
@@ -358,7 +409,11 @@ test('an address nobody has confirmed is never declined: its owner takes the acc
     $refused = $admin->post("/api/admin/users/{$id}/decline");
     same([409, 'not_confirmed'], [$refused->status, $refused->code()], 'declining it is refused: ' . $refused->body);
     same(false, asBool(userRow($id)['disabled']), 'it is not switched off');
-    same([403, 'email_not_confirmed'], [($r = (new Browser('10.12.10.1'))->signIn('squatter@example.test', 'a long password'))->status, $r->code()], 'and its registrant cannot sign in with it anyway');
+    same(
+        [403, 'email_not_confirmed'],
+        [($r = (new Browser('10.12.10.1'))->signIn('squatter@example.test', 'a long password'))->status, $r->code()],
+        'and its registrant cannot sign in with it anyway',
+    );
 
     // The address's owner takes it back with a reset link from their own mailbox.
     $owner = new Browser('10.12.10.2');
@@ -457,21 +512,26 @@ test('an account that waits holds nothing it could use: should one hold a sessio
     $personal = $browser->post('/api/account/tokens', ['name' => 'script', 'client_id' => 'survey', 'expires_in_days' => 30]);
     same(201, $personal->status, 'and makes a personal token: ' . $personal->body);
 
-    iamDb()->prepare('UPDATE users SET approved = FALSE WHERE id = ?')->execute([$GLOBALS['memberId']]);
+    iamDb()
+        ->prepare('UPDATE users SET approved = FALSE WHERE id = ?')
+        ->execute([$GLOBALS['memberId']]);
     try {
         $start = startSignIn($browser);
         check(isset($browser->cookies['anotoki_iam']) && !isset(queryOf($start['location'])['code']), 'no code from single sign-on, the session cookie sent: ' . $start['location']);
         same([401, 'no_session'], [($r = $browser->post('/api/login/request/' . (queryOf($start['location'])['request'] ?? '') . '/accept'))->status, $r->code()], 'nor from the sign-in page');
         same([401, 'no_session'], [($r = $browser->get('/api/account'))->status, $r->code()], 'the account page: its session lets it in no more');
         $refresh = (new Browser())->request('POST', '/api/oidc/token', [
-            'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'], 'client_id' => 'survey'], 'headers' => ['Origin' => SURVEY_FRONTEND],
+            'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'], 'client_id' => 'survey'],
+            'headers' => ['Origin' => SURVEY_FRONTEND],
         ]);
         same([400, 'invalid_grant'], [$refresh->status, $refresh->json()['error'] ?? null], 'the refresh token is refused');
         $script = (new Browser())->request('POST', '/api/oidc/token', ['form' => ['grant_type' => 'refresh_token', 'refresh_token' => $personal->json()['token'], 'client_id' => 'survey']]);
         same([400, 'invalid_grant'], [$script->status, $script->json()['error'] ?? null], 'and so is the personal token');
         same(401, (new Browser())->get('/api/oidc/userinfo', ['headers' => ['Authorization' => 'Bearer ' . $tokens['access_token']]])->status, 'and userinfo says the access token is no good');
     } finally {
-        iamDb()->prepare('UPDATE users SET approved = TRUE WHERE id = ?')->execute([$GLOBALS['memberId']]);
+        iamDb()
+            ->prepare('UPDATE users SET approved = TRUE WHERE id = ?')
+            ->execute([$GLOBALS['memberId']]);
     }
 });
 
@@ -537,11 +597,18 @@ test('with 012 pending signing up and signing in work as before, so do the panel
         same([200, [true]], [$users->status, array_values(array_unique(array_column($users->json(), 'approved')))], 'the users pages: everybody approved');
         same(200, $admin->get('/api/admin/applications')->status, 'the application pages answer as they did');
         same(0, $admin->get('/api/admin/stats')->json()['awaiting_approval'] ?? null, 'the dashboard counts nobody');
-        same([422, 'unknown_setting'], [($r = $admin->put('/api/admin/settings', ['settings' => [['name' => 'registration_approval', 'value' => 'true']]]))->status, $r->code()],
-            'there is no switch to turn on yet');
+        same(
+            [422, 'unknown_setting'],
+            [($r = $admin->put('/api/admin/settings', ['settings' => [['name' => 'registration_approval', 'value' => 'true']]]))->status, $r->code()],
+            'there is no switch to turn on yet',
+        );
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [APPROVAL_MIGRATION], null], [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 1), $applied->json()['failed'] ?? null], 'Apply pending, 012 first: ' . $applied->body);
+        same(
+            [200, [APPROVAL_MIGRATION], null],
+            [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 1), $applied->json()['failed'] ?? null],
+            'Apply pending, 012 first: ' . $applied->body,
+        );
         same(true, accountApprovalReady($pdo), 'from the next request on, in the same process');
         same([200, []], [($r = $admin->get('/api/admin/approvals'))->status, $r->json()['accounts'] ?? null], 'the approvals answer, nobody waiting');
         same(true, asBool(userRow(userIdOf('windowed'))['approved']), 'the account made in the window is approved');

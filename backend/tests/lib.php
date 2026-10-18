@@ -60,8 +60,7 @@ function testServer(): array
         $config = is_file($file) ? (static fn(string $path): mixed => require $path)($file) : null;
 
         if (!is_array($config) || !isset($config['host'], $config['username'])) {
-            fwrite(STDERR, "The tests make throwaway databases on this machine's PostgreSQL and find it in config/database.local.php.\n"
-                . "Run setup.php first (DEV.md).\n");
+            fwrite(STDERR, "The tests make throwaway databases on this machine's PostgreSQL and find it in config/database.local.php.\n" . "Run setup.php first (DEV.md).\n");
             exit(1);
         }
 
@@ -98,10 +97,16 @@ function writeTestConfiguration(): void
 {
     $environment = testEnvironment();
 
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($environment['db']), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($environment['db']), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     writeTestConfig('secret', bin2hex(random_bytes(32)));
     writeTestConfig('iam', ['public_url' => TEST_ISSUER]);
     writeTestConfig('mail', [
@@ -200,15 +205,13 @@ function test(string $name, callable $body): void
     } catch (\Throwable $e) {
         $GLOBALS['testFailures']++;
         echo "FAIL  {$name}\n      {$e->getMessage()}\n";
-        if (!$e instanceof AssertionFailed) {
+        if (!($e instanceof AssertionFailed)) {
             echo '      at ' . $e->getFile() . ':' . $e->getLine() . "\n";
         }
     }
 }
 
-final class AssertionFailed extends RuntimeException
-{
-}
+final class AssertionFailed extends RuntimeException {}
 
 function check(bool $condition, string $message): void
 {
@@ -235,9 +238,7 @@ function finishTests(): never
 
 final class TestResponse
 {
-    public function __construct(public int $status, public array $headers, public string $body)
-    {
-    }
+    public function __construct(public int $status, public array $headers, public string $body) {}
 
     public function json(): mixed
     {
@@ -261,7 +262,7 @@ final class TestResponse
 
     public function code(): ?string
     {
-        return $this->json()['code'] ?? $this->json()['error'] ?? null;
+        return $this->json()['code'] ?? ($this->json()['error'] ?? null);
     }
 }
 
@@ -273,9 +274,7 @@ final class Browser
 {
     public array $cookies = [];
 
-    public function __construct(public string $ip = '127.0.0.1')
-    {
-    }
+    public function __construct(public string $ip = '127.0.0.1') {}
 
     /**
      * The request this browser sends, built as production builds it: the jar
@@ -372,19 +371,19 @@ function makeUser(string $username, string $email, string $password = 'correct h
 
 function grantRole(int $userId, string $clientId, string $role): void
 {
-    iamDb()->prepare(
-        'INSERT INTO user_roles (user_id, role_id)
+    iamDb()
+        ->prepare(
+            'INSERT INTO user_roles (user_id, role_id)
          SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = ? AND r.name = ?
-         ON CONFLICT DO NOTHING'
-    )->execute([$userId, $clientId, $role]);
+         ON CONFLICT DO NOTHING',
+        )
+        ->execute([$userId, $clientId, $role]);
 }
 
 /** The client ids of every application that has an ADMIN role, in order. */
 function applicationsWithAdmin(PDO $pdo): array
 {
-    return $pdo->query(
-        "SELECT a.client_id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE r.name = 'ADMIN' ORDER BY a.client_id"
-    )->fetchAll(PDO::FETCH_COLUMN);
+    return $pdo->query("SELECT a.client_id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE r.name = 'ADMIN' ORDER BY a.client_id")->fetchAll(PDO::FETCH_COLUMN);
 }
 
 /** The client ids of the applications whose ADMIN this account holds, in order. */
@@ -392,7 +391,7 @@ function adminOf(PDO $pdo, int $userId): array
 {
     $statement = $pdo->prepare(
         "SELECT a.client_id FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id
-          WHERE ur.user_id = ? AND r.name = 'ADMIN' ORDER BY a.client_id"
+          WHERE ur.user_id = ? AND r.name = 'ADMIN' ORDER BY a.client_id",
     );
     $statement->execute([$userId]);
 
@@ -495,11 +494,13 @@ function applyMigrationsThrough(PDO $pdo, string $lastFile): array
         throw new LogicException("There is no migration {$lastFile}");
     }
 
-    $migrator = iamMigrator($pdo, ['ready' => static function (MigrationSet $set, string $name) use ($order, $last): bool {
-        $at = array_search(iamMigrationLabel($set->name, $name), $order, true);
+    $migrator = iamMigrator($pdo, [
+        'ready' => static function (MigrationSet $set, string $name) use ($order, $last): bool {
+            $at = array_search(iamMigrationLabel($set->name, $name), $order, true);
 
-        return $at !== false && $at <= $last;
-    }]);
+            return $at !== false && $at <= $last;
+        },
+    ]);
 
     return migrationResult($migrator->apply());
 }
@@ -553,7 +554,8 @@ function makeLegacyDatabase(string $suffix = '_legacy'): PDO
     ensureDatabase(testServer(), $name);
 
     $pdo = legacyConnect(testServer(), $name);
-    $pdo->exec(<<<SQL
+    $pdo->exec(
+        <<<SQL
         CREATE TABLE users (
             id SERIAL PRIMARY KEY, role VARCHAR(50) NOT NULL DEFAULT 'USER', username VARCHAR(100) NOT NULL UNIQUE,
             email VARCHAR(255) NOT NULL UNIQUE, email_confirmed BOOLEAN NOT NULL DEFAULT FALSE, password VARCHAR(255),
@@ -568,7 +570,9 @@ function makeLegacyDatabase(string $suffix = '_legacy'): PDO
         CREATE TABLE user_sessions (id SERIAL PRIMARY KEY, user_id INT NOT NULL, token_id CHAR(32) NOT NULL, method VARCHAR(16) NOT NULL, ip VARCHAR(45), user_agent VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_seen_at TIMESTAMP, expires_at TIMESTAMP NOT NULL, revoked_at TIMESTAMP, revoked_reason VARCHAR(32));
         CREATE TABLE user_login_attempts (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, user_id INT, ip VARCHAR(45), method VARCHAR(16) NOT NULL, outcome VARCHAR(24) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE email_log (id SERIAL PRIMARY KEY, recipient VARCHAR(320) NOT NULL, kind VARCHAR(64) NOT NULL, subject VARCHAR(255), status VARCHAR(16) NOT NULL, error TEXT, user_id INT, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP);
-        SQL);
+        SQL
+        ,
+    );
 
     return $pdo;
 }

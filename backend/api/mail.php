@@ -64,8 +64,18 @@ const MAIL_KIND_AUTHENTICATOR_PAUSED = 'authenticator_paused';
  * Kinds whose subject holds nothing secret. Default-deny: the sign-in code is in
  * its message's subject, so an unlisted kind is logged with no subject at all.
  */
-const MAIL_SUBJECT_SAFE_KINDS = [MAIL_KIND_CONFIRMATION, MAIL_KIND_PASSWORD_RESET, MAIL_KIND_ACCOUNT_APPROVED, MAIL_KIND_ANNOUNCEMENT, MAIL_KIND_ANNOUNCEMENT_TEST,
-    MAIL_KIND_DELETION_REQUESTED, MAIL_KIND_DELETION_CANCELLED, MAIL_KIND_ACCOUNT_DELETED, MAIL_KIND_NEW_SIGN_IN, MAIL_KIND_AUTHENTICATOR_PAUSED];
+const MAIL_SUBJECT_SAFE_KINDS = [
+    MAIL_KIND_CONFIRMATION,
+    MAIL_KIND_PASSWORD_RESET,
+    MAIL_KIND_ACCOUNT_APPROVED,
+    MAIL_KIND_ANNOUNCEMENT,
+    MAIL_KIND_ANNOUNCEMENT_TEST,
+    MAIL_KIND_DELETION_REQUESTED,
+    MAIL_KIND_DELETION_CANCELLED,
+    MAIL_KIND_ACCOUNT_DELETED,
+    MAIL_KIND_NEW_SIGN_IN,
+    MAIL_KIND_AUTHENTICATOR_PAUSED,
+];
 
 const MAIL_SENDER_NOREPLY = 'noreply';
 const MAIL_SENDER_SUPPORT = 'support';
@@ -190,7 +200,8 @@ const MAIL_FALLBACK = [
     'mail.news.stop' => 'Stop the news from anotoki sites',
     'mail.deletionRequested.subject' => 'Your anotoki account will be deleted',
     'mail.deletionRequested.greeting' => 'Hello {username},',
-    'mail.deletionRequested.intro' => 'You asked for your anotoki account to be deleted, and it will be on {date}. Until then it signs you in to no anotoki site. To keep it, sign in on your account page and cancel the deletion:',
+    'mail.deletionRequested.intro' =>
+        'You asked for your anotoki account to be deleted, and it will be on {date}. Until then it signs you in to no anotoki site. To keep it, sign in on your account page and cancel the deletion:',
     'mail.deletionRequested.ignore' => 'If you did not ask for this, somebody else has been signed in to your account: cancel the deletion there, then change your password.',
     'mail.deletionCancelled.subject' => 'Your anotoki account will not be deleted',
     'mail.deletionCancelled.greeting' => 'Hello {username},',
@@ -198,7 +209,8 @@ const MAIL_FALLBACK = [
     'mail.deletionCancelled.ignore' => 'If you did not cancel it, somebody else has been signed in to your account: change your password, and ask for the deletion again if you still want it.',
     'mail.deleted.subject' => 'Your anotoki account is deleted',
     'mail.deleted.greeting' => 'Hello {username},',
-    'mail.deleted.intro' => 'As you asked, your anotoki account is deleted: its name, its address, its password and its sign-ins are gone. The anotoki sites keep what was made on them, under no name.',
+    'mail.deleted.intro' =>
+        'As you asked, your anotoki account is deleted: its name, its address, its password and its sign-ins are gone. The anotoki sites keep what was made on them, under no name.',
     'mail.deleted.closing' => 'This is the last email we send to this address. Thank you for having been with us.',
     'mail.newSignIn.subject' => 'New sign-in to your anotoki account',
     'mail.newSignIn.greeting' => 'Hello {username},',
@@ -206,8 +218,10 @@ const MAIL_FALLBACK = [
     'mail.newSignIn.ignore' => 'If it was you, there is nothing to do. If it was not, change your password now, and end that sign-in on the page that shows every place your account is signed in:',
     'mail.authenticatorPaused.subject' => 'Wrong codes for your anotoki account',
     'mail.authenticatorPaused.greeting' => 'Hello {username},',
-    'mail.authenticatorPaused.intro' => 'Somebody got past the first step of signing in to your anotoki account - your password, a code we emailed you, or Google - and then typed five wrong codes from your authenticator app. So its codes are paused for 15 minutes. The fifth try:',
-    'mail.authenticatorPaused.ignore' => 'If it was you, there is nothing to do: sign in after the pause, or with a code we email you. If it was not, somebody knows your password or can get into your email: change your password now on your account page:',
+    'mail.authenticatorPaused.intro' =>
+        'Somebody got past the first step of signing in to your anotoki account - your password, a code we emailed you, or Google - and then typed five wrong codes from your authenticator app. So its codes are paused for 15 minutes. The fifth try:',
+    'mail.authenticatorPaused.ignore' =>
+        'If it was you, there is nothing to do: sign in after the pause, or with a code we email you. If it was not, somebody knows your password or can get into your email: change your password now on your account page:',
 ];
 
 /**
@@ -228,9 +242,7 @@ function mailSender(string|array $sender): array
     $from = (string) ($config['from'] ?? 'noreply@localhost');
     $name = (string) ($config['from_name'] ?? '');
 
-    return is_array($entry)
-        ? ['from' => (string) ($entry['from'] ?? $from), 'from_name' => (string) ($entry['from_name'] ?? $name)]
-        : ['from' => $from, 'from_name' => $name];
+    return is_array($entry) ? ['from' => (string) ($entry['from'] ?? $from), 'from_name' => (string) ($entry['from_name'] ?? $name)] : ['from' => $from, 'from_name' => $name];
 }
 
 /**
@@ -279,7 +291,7 @@ function mailWords(string $language): array
         $statement = $pdo->prepare(
             "SELECT t.key_name, t.language_code, t.value
                FROM translations t JOIN languages l ON l.code = t.language_code
-              WHERE t.key_name LIKE 'mail.%' AND (t.language_code = 'en' OR (t.language_code = ? AND l.enabled))"
+              WHERE t.key_name LIKE 'mail.%' AND (t.language_code = 'en' OR (t.language_code = ? AND l.enabled))",
         );
         $statement->execute([$language]);
 
@@ -334,10 +346,8 @@ function mailFill(string $key, string $text, array $values): string
 
     $filled = preg_replace_callback(
         '/\{([A-Za-z][A-Za-z0-9_]*)\}/',
-        static fn(array $match): string => in_array($match[1], $allowed, true) && array_key_exists($match[1], $values)
-            ? (string) $values[$match[1]]
-            : $match[0],
-        $text
+        static fn(array $match): string => in_array($match[1], $allowed, true) && array_key_exists($match[1], $values) ? (string) $values[$match[1]] : $match[0],
+        $text,
     );
 
     return $filled ?? $text;
@@ -382,12 +392,15 @@ function mailMessage(string $mail, array $words, string $line, array $values, ar
  */
 function mailDate(array $user, int $timestamp): string
 {
-    return gmdate(match ($user['date_format'] ?? null) {
-        'dmy_dot' => 'j.n.Y',
-        'dmy_slash' => 'd/m/Y',
-        'mdy_slash' => 'm/d/Y',
-        default => 'Y-m-d',
-    }, $timestamp);
+    return gmdate(
+        match ($user['date_format'] ?? null) {
+            'dmy_dot' => 'j.n.Y',
+            'dmy_slash' => 'd/m/Y',
+            'mdy_slash' => 'm/d/Y',
+            default => 'Y-m-d',
+        },
+        $timestamp,
+    );
 }
 
 /** A moment, in UTC and saying so: the account's date, then its clock (24 hours unless it chose 12). */
@@ -411,8 +424,17 @@ function mailTime(array $user, int $timestamp): string
  * @param string|array{from: string, from_name?: string} $sender
  * @param array<string, string> $headers
  */
-function sendMail(string $to, string $subject, string $body, string $kind, ?int $userId = null, string|array $sender = MAIL_SENDER_NOREPLY, ?string $html = null, array $headers = [], ?string $loggedAs = null): bool
-{
+function sendMail(
+    string $to,
+    string $subject,
+    string $body,
+    string $kind,
+    ?int $userId = null,
+    string|array $sender = MAIL_SENDER_NOREPLY,
+    ?string $html = null,
+    array $headers = [],
+    ?string $loggedAs = null,
+): bool {
     // One line, and not a long one - here, whatever was checked when the words
     // were saved: a subject is a header, a line break in a header starts the
     // next one ("Bcc: ..."), and a string can also reach the database without
@@ -422,11 +444,7 @@ function sendMail(string $to, string $subject, string $body, string $kind, ?int 
     $resolved = mailSender($sender);
     $from = $resolved['from_name'] === '' ? $resolved['from'] : mailEncodeHeader($resolved['from_name']) . ' <' . $resolved['from'] . '>';
 
-    $lines = [
-        'From: ' . $from,
-        'Reply-To: ' . $resolved['from'],
-        'MIME-Version: 1.0',
-    ];
+    $lines = ['From: ' . $from, 'Reply-To: ' . $resolved['from'], 'MIME-Version: 1.0'];
 
     if ($html === null) {
         $lines[] = 'Content-Type: text/plain; charset=UTF-8';
@@ -435,8 +453,8 @@ function sendMail(string $to, string $subject, string $body, string $kind, ?int 
     } else {
         $boundary = 'anotoki-' . bin2hex(random_bytes(12));
         $lines[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
-        $part = static fn(string $type, string $text): string => "--{$boundary}\nContent-Type: {$type}; charset=UTF-8\nContent-Transfer-Encoding: base64\n\n"
-            . chunk_split(base64_encode($text), 76, "\n");
+        $part = static fn(string $type, string $text): string => "--{$boundary}\nContent-Type: {$type}; charset=UTF-8\nContent-Transfer-Encoding: base64\n\n" .
+            chunk_split(base64_encode($text), 76, "\n");
         $content = $part('text/plain', $body) . $part('text/html', $html) . "--{$boundary}--\n";
     }
 
@@ -444,9 +462,7 @@ function sendMail(string $to, string $subject, string $body, string $kind, ?int 
         $lines[] = $name . ': ' . preg_replace('/[\r\n]+/', ' ', $value);
     }
 
-    $ok = (mailConfig()['driver'] ?? '') === 'mail'
-        ? @mail($to, mailEncodeHeader($subject), $content, implode("\n", $lines))
-        : mailToFile($to, $subject, $content, $lines);
+    $ok = (mailConfig()['driver'] ?? '') === 'mail' ? @mail($to, mailEncodeHeader($subject), $content, implode("\n", $lines)) : mailToFile($to, $subject, $content, $lines);
 
     // Inside somebody's transaction - an announcement marks each of its mails
     // in one - a failed insert must not end it: the mail has gone, and the row
@@ -459,8 +475,13 @@ function sendMail(string $to, string $subject, string $body, string $kind, ?int 
             $pdo->exec('SAVEPOINT email_log');
         }
         try {
-            $pdo->prepare('INSERT INTO email_log (recipient, kind, subject, status, user_id) VALUES (?, ?, ?, ?, ?)')
-                ->execute([$loggedAs ?? $to, $kind, in_array($kind, MAIL_SUBJECT_SAFE_KINDS, true) ? $subject : null, $ok ? 'sent' : 'failed', $userId]);
+            $pdo->prepare('INSERT INTO email_log (recipient, kind, subject, status, user_id) VALUES (?, ?, ?, ?, ?)')->execute([
+                $loggedAs ?? $to,
+                $kind,
+                in_array($kind, MAIL_SUBJECT_SAFE_KINDS, true) ? $subject : null,
+                $ok ? 'sent' : 'failed',
+                $userId,
+            ]);
         } catch (\Throwable $e) {
             if ($nested) {
                 $pdo->exec('ROLLBACK TO SAVEPOINT email_log');
@@ -548,10 +569,16 @@ function sendAccountApprovedMail(array $user): bool
  */
 function sendAccountDeletionRequestedMail(array $user, int $due): bool
 {
-    $text = mailMessage('deletionRequested', mailWordsFor($user), iamPageUrl('/account'), [
-        'username' => $user['username'],
-        'date' => mailDate($user, $due),
-    ], ['ignore']);
+    $text = mailMessage(
+        'deletionRequested',
+        mailWordsFor($user),
+        iamPageUrl('/account'),
+        [
+            'username' => $user['username'],
+            'date' => mailDate($user, $due),
+        ],
+        ['ignore'],
+    );
 
     return sendMail($user['email'], $text['subject'], $text['body'], MAIL_KIND_DELETION_REQUESTED, $user['id'] ?? null, MAIL_SENDER_SUPPORT);
 }

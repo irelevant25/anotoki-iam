@@ -94,8 +94,7 @@ $app->get('/.well-known/openid-configuration', function (Request $request, Respo
         'revocation_endpoint_auth_methods_supported' => ['none'],
         'code_challenge_methods_supported' => ['S256'],
         'scopes_supported' => OIDC_SCOPES,
-        'claims_supported' => ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'sid', 'amr',
-            'preferred_username', 'email', 'email_verified', 'locale', 'preferences', 'roles'],
+        'claims_supported' => ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'sid', 'amr', 'preferred_username', 'email', 'email_verified', 'locale', 'preferences', 'roles'],
         'prompt_values_supported' => ['none', 'login', 'create'],
         'ui_locales_supported' => languageCodes(),
         'authorization_response_iss_parameter_supported' => true,
@@ -144,8 +143,7 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
         strlen(field($query, 'nonce')) > 512 => ['invalid_request', 'nonce is too long'],
         !in_array('openid', explode(' ', $scope), true) => ['invalid_scope', 'The scope must include openid'],
         $challenge === '' => ['invalid_request', 'A public client must send a PKCE code_challenge'],
-        $challenge !== '' && ($challengeMethod !== 'S256' || !preg_match('/^[A-Za-z0-9_-]{43}$/', $challenge))
-            => ['invalid_request', 'code_challenge must be an S256 challenge'],
+        $challenge !== '' && ($challengeMethod !== 'S256' || !preg_match('/^[A-Za-z0-9_-]{43}$/', $challenge)) => ['invalid_request', 'code_challenge must be an S256 challenge'],
         array_diff($prompts, ['none', 'login', 'create', 'consent']) !== [] => ['invalid_request', 'Unknown prompt value'],
         in_array('none', $prompts, true) && count($prompts) > 1 => ['invalid_request', 'prompt=none cannot be combined'],
         $maxAge !== '' && !ctype_digit($maxAge) => ['invalid_request', 'max_age must be a number of seconds'],
@@ -198,8 +196,7 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
     // cookie under the session cookie's old bare name expired - on https it
     // is never read, so it signs nobody in here, planted beside a hint or not.
     $dropHint = signInHintSent($request) && ($signIn === null || !signInHintAllowed($signIn['user']));
-    $answer = static fn(Response $given): Response
-        => withoutOldSessionCookie($request, $dropHint ? withoutSignInHint($given) : $given);
+    $answer = static fn(Response $given): Response => withoutOldSessionCookie($request, $dropHint ? withoutSignInHint($given) : $given);
 
     // Single sign-on: already signed in here, and nothing about this request
     // needs a page. Straight back with a code.
@@ -287,10 +284,7 @@ $app->post('/api/oidc/token', function (Request $request, Response $response) {
         }
 
         $family = randomHex(16);
-        $refresh = issueRefreshToken(
-            $pdo, 'rotating', $family, (int) $application['id'], (int) $user['id'], (int) $session['id'],
-            (string) $row['scope'], secondsUntilSessionEnds($session)
-        );
+        $refresh = issueRefreshToken($pdo, 'rotating', $family, (int) $application['id'], (int) $user['id'], (int) $session['id'], (string) $row['scope'], secondsUntilSessionEnds($session));
         $pdo->prepare('UPDATE auth_codes SET family_id = ? WHERE id = ?')->execute([$family, (int) $row['id']]);
 
         return respondJson($response, tokenResponse($application, $user, $session, (string) $row['scope'], $refresh['token'], $row['nonce']))
@@ -336,7 +330,7 @@ function accessTokenHolder(PDO $pdo, Request $request): ?array
     $token = strncasecmp($header, 'Bearer ', 7) === 0 ? trim(substr($header, 7)) : '';
     $claims = $token === '' ? null : verifyAccessTokenHere($pdo, $token);
     $user = $claims === null ? null : userById($pdo, (int) $claims['sub']);
-    $application = $claims === null ? null : applicationByClientId((string) ($claims['client_id'] ?? $claims['aud'] ?? ''));
+    $application = $claims === null ? null : applicationByClientId((string) ($claims['client_id'] ?? ($claims['aud'] ?? '')));
 
     // An account waiting for approval is never issued a token; one that holds
     // one anyway is refused here as it is everywhere else. So is one whose
@@ -351,8 +345,7 @@ function accessTokenHolder(PDO $pdo, Request $request): ?array
 
 function invalidAccessToken(Response $response): Response
 {
-    return oauthError($response, 401, 'invalid_token', 'The access token is not valid')
-        ->withHeader('WWW-Authenticate', 'Bearer error="invalid_token"');
+    return oauthError($response, 401, 'invalid_token', 'The access token is not valid')->withHeader('WWW-Authenticate', 'Bearer error="invalid_token"');
 }
 
 $userinfo = function (Request $request, Response $response) {
@@ -362,9 +355,11 @@ $userinfo = function (Request $request, Response $response) {
         return invalidAccessToken($response);
     }
 
-    return respondJson($response, ['sub' => (string) $holder['user']['id']]
-        + profileClaims($holder['user'], (string) ($holder['claims']['scope'] ?? ''))
-        + ['roles' => userRolesIn((int) $holder['user']['id'], (int) $holder['application']['id'])]);
+    return respondJson(
+        $response,
+        ['sub' => (string) $holder['user']['id']] +
+            profileClaims($holder['user'], (string) ($holder['claims']['scope'] ?? '')) + ['roles' => userRolesIn((int) $holder['user']['id'], (int) $holder['application']['id'])],
+    );
 };
 
 $app->get('/api/oidc/userinfo', $userinfo);
@@ -413,8 +408,10 @@ $app->post('/api/oidc/preferences', function (Request $request, Response $respon
         return oauthError($response, 403, 'access_denied', $refusal['error']);
     }
     if (!in_array('profile', explode(' ', (string) ($holder['claims']['scope'] ?? '')), true)) {
-        return oauthError($response, 403, 'insufficient_scope', 'The access token does not carry the profile scope')
-            ->withHeader('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="profile"');
+        return oauthError($response, 403, 'insufficient_scope', 'The access token does not carry the profile scope')->withHeader(
+            'WWW-Authenticate',
+            'Bearer error="insufficient_scope", scope="profile"',
+        );
     }
     if (!preferencesReady($pdo)) {
         return oauthError($response, 503, 'temporarily_unavailable', 'The preferences are not in the database yet');
@@ -485,9 +482,7 @@ $app->get('/api/oidc/logout', function (Request $request, Response $response) {
     }
 
     // The application proved which sign-in it means: end it without asking.
-    $proven = $hint !== null
-        && hash_equals((string) $signIn['session']['sid'], (string) ($hint['sid'] ?? ''))
-        && (string) ($hint['sub'] ?? '') === (string) $signIn['user']['id'];
+    $proven = $hint !== null && hash_equals((string) $signIn['session']['sid'], (string) ($hint['sid'] ?? '')) && (string) ($hint['sub'] ?? '') === (string) $signIn['user']['id'];
 
     if ($proven) {
         revokeSession($pdo, (int) $signIn['session']['id'], SESSION_REVOKED_SIGNOUT);
@@ -496,10 +491,15 @@ $app->get('/api/oidc/logout', function (Request $request, Response $response) {
 
     // Otherwise a link on somebody else's page could sign people out: ask.
     $owner = $application ?? applicationByClientId(IAM_CLIENT_ID);
-    $id = createAuthRequest($pdo, $owner, [
-        'redirect_uri' => $postLogout !== '' ? $postLogout : null,
-        'state' => field($query, 'state') ?: null,
-    ], 'logout');
+    $id = createAuthRequest(
+        $pdo,
+        $owner,
+        [
+            'redirect_uri' => $postLogout !== '' ? $postLogout : null,
+            'state' => field($query, 'state') ?: null,
+        ],
+        'logout',
+    );
 
     return redirectTo($response, iamPageUrl('/logout', ['request' => $id]));
 });
@@ -531,11 +531,13 @@ $app->post('/api/oidc/revoke', function (Request $request, Response $response) {
 // is not read, and a new application goes last). The anotoki.eu landing page
 // keeps its own list; only its auditor compares with this one.
 $app->get('/api/applications', function (Request $request, Response $response) {
-    $rows = iamDb()->query(
-        'SELECT client_id, name, description, home_url, logo_url FROM applications
+    $rows = iamDb()
+        ->query(
+            'SELECT client_id, name, description, home_url, logo_url FROM applications
           WHERE enabled = TRUE AND system = FALSE
-          ORDER BY sort_order, name'
-    )->fetchAll();
+          ORDER BY sort_order, name',
+        )
+        ->fetchAll();
 
     return respondJson($response, $rows)->withHeader('Cache-Control', 'public, max-age=300');
 });
@@ -612,6 +614,5 @@ $app->get('/api/public/anonymized-accounts', function (Request $request, Respons
 
     iamHousekeeping();
 
-    return respondJson($response, anonymizedAccountsPage(iamDb(), $since, $afterText === '' ? null : (int) $afterText))
-        ->withHeader('Cache-Control', 'public, max-age=60');
+    return respondJson($response, anonymizedAccountsPage(iamDb(), $since, $afterText === '' ? null : (int) $afterText))->withHeader('Cache-Control', 'public, max-age=60');
 });

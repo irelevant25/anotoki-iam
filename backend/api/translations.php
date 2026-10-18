@@ -148,9 +148,7 @@ const TRANSLATION_DICTIONARY_FILE = 'core/i18n/en.ts';
 final class IamMailRules implements KeyRules
 {
     /** @param array<string, list<string>> $placeholders  MAIL_KEYS: each mail key's placeholders */
-    public function __construct(private readonly array $placeholders)
-    {
-    }
+    public function __construct(private readonly array $placeholders) {}
 
     public function placeholders(string $key): ?array
     {
@@ -169,7 +167,11 @@ final class IamMailRules implements KeyRules
         }
         // Refused, not dropped, as a line break is: what the panel showed is what goes out.
         if (preg_match(TRANSLATION_MAIL_TURNING, $text) === 1) {
-            return Refusal::invalid('invalid_value', "The $languageName string of \"$key\" has a character that turns the direction of the text, or a control character: a mail program would show its words in another order than the panel checks them in", $about);
+            return Refusal::invalid(
+                'invalid_value',
+                "The $languageName string of \"$key\" has a character that turns the direction of the text, or a control character: a mail program would show its words in another order than the panel checks them in",
+                $about,
+            );
         }
         $max = str_ends_with($key, '.subject') ? TRANSLATION_MAIL_SUBJECT_MAX : TRANSLATION_MAIL_VALUE_MAX;
         if (Text::length($text) > $max) {
@@ -189,10 +191,10 @@ final class IamMailRules implements KeyRules
             return Refusal::invalid(
                 'invalid_value',
                 $named > 1
-                    ? "The $languageName string of \"$key\" is too long for one line of a mail: it has {username} $named times, and room for the longest name there can be is kept for each - "
-                        . ($room > 0 ? "which leaves $room bytes, and it has " . strlen($text) : 'which leaves none')
+                    ? "The $languageName string of \"$key\" is too long for one line of a mail: it has {username} $named times, and room for the longest name there can be is kept for each - " .
+                        ($room > 0 ? "which leaves $room bytes, and it has " . strlen($text) : 'which leaves none')
                     : "The $languageName string of \"$key\" is too long for one line of a mail: at most $room bytes, and its letters take more than one each - it has " . strlen($text),
-                $about
+                $about,
             );
         }
 
@@ -213,7 +215,11 @@ final class IamMailRules implements KeyRules
         }
         $unknown = array_values(array_diff($used, $placeholders));
         if ($unknown !== []) {
-            return Refusal::invalid('unknown_placeholder', "The $languageName string of \"$key\" cannot use {{$unknown[0]}}: the IAM has no value for it there", $about + ['placeholder' => $unknown[0]]);
+            return Refusal::invalid(
+                'unknown_placeholder',
+                "The $languageName string of \"$key\" cannot use {{$unknown[0]}}: the IAM has no value for it there",
+                $about + ['placeholder' => $unknown[0]],
+            );
         }
         if (preg_match(TRANSLATION_MAIL_ADDRESS, $text) === 1) {
             return Refusal::invalid('address_in_mail', "The $languageName string of \"$key\" reads as if it had an address in it. A mail's only link is the one the IAM puts in.", $about);
@@ -336,12 +342,19 @@ function auditTranslations(?\Psr\Http\Message\ServerRequestInterface $request, ?
     unset($details[TRANSLATION_SERVER_NAMESPACE]);
     audit($request, $actorId, $action, $type, $id, $details + ['mail_changed' => count($mails)]);
     foreach ($mails as $cell) {
-        audit($request, $actorId, 'translations.mail_changed', 'translation', is_string($cell['key'] ?? null) ? $cell['key'] : null, [
-            'language' => $cell['language'] ?? null,
-            'old' => $cell['old'] ?? null,
-            'new' => $cell['new'] ?? null,
-            'part_of' => $action,
-        ] + (isset($details['via']) ? ['via' => $details['via']] : []));
+        audit(
+            $request,
+            $actorId,
+            'translations.mail_changed',
+            'translation',
+            is_string($cell['key'] ?? null) ? $cell['key'] : null,
+            [
+                'language' => $cell['language'] ?? null,
+                'old' => $cell['old'] ?? null,
+                'new' => $cell['new'] ?? null,
+                'part_of' => $action,
+            ] + (isset($details['via']) ? ['via' => $details['via']] : []),
+        );
     }
 }
 
@@ -370,11 +383,5 @@ function iamFrontendSources(): string
  */
 function iamKeyScanner(?string $root = null): KeyScanner
 {
-    return new KeyScanner(
-        $root ?? iamFrontendSources(),
-        exclude: [TRANSLATION_DICTIONARY_FILE],
-        ignoreNamespaces: [TRANSLATION_SERVER_NAMESPACE],
-        pipes: ['t' => 'one'],
-        innerHtml: 'anywhere',
-    );
+    return new KeyScanner($root ?? iamFrontendSources(), exclude: [TRANSLATION_DICTIONARY_FILE], ignoreNamespaces: [TRANSLATION_SERVER_NAMESPACE], pipes: ['t' => 'one'], innerHtml: 'anywhere');
 }

@@ -58,8 +58,12 @@ function asInstalledOnARealHost(PDO $pdo): void
     $pdo->exec("UPDATE applications SET home_url = NULL WHERE client_id NOT IN ('iam') AND home_url ~* '^https?://(localhost|127\\.0\\.0\\.1|\\[::1\\])'");
 
     $genshin = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'genshin'")->fetchColumn();
-    $pdo->prepare("INSERT INTO application_redirect_uris (application_id, kind, uri) VALUES (?, 'login', ?), (?, 'logout', ?)")
-        ->execute([$genshin, 'https://genshin.example.test/auth/callback', $genshin, 'https://genshin.example.test/']);
+    $pdo->prepare("INSERT INTO application_redirect_uris (application_id, kind, uri) VALUES (?, 'login', ?), (?, 'logout', ?)")->execute([
+        $genshin,
+        'https://genshin.example.test/auth/callback',
+        $genshin,
+        'https://genshin.example.test/',
+    ]);
     $pdo->prepare('INSERT INTO application_origins (application_id, origin) VALUES (?, ?)')->execute([$genshin, 'https://genshin.example.test']);
     $pdo->prepare('UPDATE applications SET home_url = ? WHERE id = ?')->execute(['https://genshin.example.test', $genshin]);
 }
@@ -76,7 +80,7 @@ function grantIn(PDO $pdo, int $userId, string $clientId, string $role): void
 {
     $pdo->prepare(
         'INSERT INTO user_roles (user_id, role_id)
-         SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = ? AND r.name = ?'
+         SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = ? AND r.name = ?',
     )->execute([$userId, $clientId, $role]);
 }
 
@@ -163,7 +167,9 @@ function checkADevelopmentIam(string $suffix, string $iamHome): void
     same([$owner, $second], $survey['admins'], 'both IAM administrators hold survey ADMIN, and nobody else - not another site\'s ADMIN either');
     same([], $survey['editors'], 'EDITOR is nobody\'s until it is given');
 
-    $ordinaryRoles = $pdo->prepare("SELECT count(*) FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND ur.user_id = ?");
+    $ordinaryRoles = $pdo->prepare(
+        "SELECT count(*) FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND ur.user_id = ?",
+    );
     $ordinaryRoles->execute([$ordinary]);
     same(0, (int) $ordinaryRoles->fetchColumn(), 'the ordinary account holds no survey role');
 }
@@ -268,8 +274,12 @@ test('a development IAM that made `survey` by hand gets what is missing beside w
                              VALUES ('survey', 'Survey, by hand', 'http://localhost:4799', 'public', 'everyone', FALSE, 7, FALSE) RETURNING id");
     $insert->execute();
     $id = (int) $insert->fetchColumn();
-    $pdo->prepare("INSERT INTO application_redirect_uris (application_id, kind, uri) VALUES (?, 'login', ?), (?, 'login', ?)")
-        ->execute([$id, SURVEY_CALLBACK, $id, 'http://localhost:4799/auth/callback']);
+    $pdo->prepare("INSERT INTO application_redirect_uris (application_id, kind, uri) VALUES (?, 'login', ?), (?, 'login', ?)")->execute([
+        $id,
+        SURVEY_CALLBACK,
+        $id,
+        'http://localhost:4799/auth/callback',
+    ]);
     $pdo->prepare('INSERT INTO application_origins (application_id, origin) VALUES (?, ?), (?, ?)')->execute([$id, SURVEY_FRONTEND, $id, 'http://localhost:4799']);
     $pdo->prepare("INSERT INTO application_roles (application_id, name, description) VALUES (?, 'EDITOR', 'Writes')")->execute([$id]);
     grantIn($pdo, $writer, 'survey', 'EDITOR');
@@ -302,8 +312,12 @@ test('a live IAM that made `survey` by hand keeps it as it is through 005, only 
                              VALUES ('survey', 'Our surveys', 'Made by hand', 'https://survey.example.test', 'public', 'members', FALSE, 7, FALSE) RETURNING id");
     $insert->execute();
     $id = (int) $insert->fetchColumn();
-    $pdo->prepare("INSERT INTO application_redirect_uris (application_id, kind, uri) VALUES (?, 'login', ?), (?, 'logout', ?)")
-        ->execute([$id, 'https://survey.example.test/auth/callback', $id, 'https://survey.example.test/']);
+    $pdo->prepare("INSERT INTO application_redirect_uris (application_id, kind, uri) VALUES (?, 'login', ?), (?, 'logout', ?)")->execute([
+        $id,
+        'https://survey.example.test/auth/callback',
+        $id,
+        'https://survey.example.test/',
+    ]);
     $pdo->prepare('INSERT INTO application_origins (application_id, origin) VALUES (?, ?)')->execute([$id, 'https://survey.example.test']);
     $pdo->prepare("INSERT INTO application_roles (application_id, name, description) VALUES (?, 'ADMIN', 'The owner')")->execute([$id]);
     grantIn($pdo, $owner, 'survey', 'ADMIN');
@@ -323,7 +337,11 @@ test('a live IAM that made `survey` by hand keeps it as it is through 005, only 
     same(['https://survey.example.test/'], $survey['logout'], 'its landing after sign-out');
     same(['https://survey.example.test'], $survey['origins'], 'its origin');
     same(['ADMIN', 'EDITOR'], $survey['roles'], 'EDITOR is added to the ADMIN it had');
-    same('The owner', $pdo->query("SELECT r.description FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND r.name = 'ADMIN'")->fetchColumn(), 'and the ADMIN it had is left as it was');
+    same(
+        'The owner',
+        $pdo->query("SELECT r.description FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND r.name = 'ADMIN'")->fetchColumn(),
+        'and the ADMIN it had is left as it was',
+    );
     same([$owner, $second], $survey['admins'], 'the owner held it already and the other administrator is given it: each once');
     same([], $survey['editors'], 'nobody holds EDITOR');
 
@@ -335,7 +353,11 @@ test('a live IAM that made `survey` by hand keeps it as it is through 005, only 
     same('everyone', $survey['access'], '007 opens it to every account');
     same(['Our surveys', 'Made by hand', 'https://survey.example.test'], [$survey['name'], $survey['description'], $survey['home_url']], 'and keeps its name, description and home');
     same(['ADMIN', 'EDITOR'], $survey['roles'], 'and its two roles');
-    same('The owner', $pdo->query("SELECT r.description FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND r.name = 'ADMIN'")->fetchColumn(), 'whose words are kept: 007 rewords no survey role');
+    same(
+        'The owner',
+        $pdo->query("SELECT r.description FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = 'survey' AND r.name = 'ADMIN'")->fetchColumn(),
+        'whose words are kept: 007 rewords no survey role',
+    );
     same([$owner, $second], $survey['admins'], 'each administrator still holds survey ADMIN once');
 
     // And the rest: 010 gives it MEMBER, which both accounts hold, and keeps
@@ -347,9 +369,16 @@ test('a live IAM that made `survey` by hand keeps it as it is through 005, only 
     same(['ADMIN', 'EDITOR', 'MEMBER'], $survey['roles'], '010 adds MEMBER');
     same([$owner, $second], $survey['members'], 'which every account holds');
     same(true, asBool($pdo->query("SELECT login_required FROM applications WHERE client_id = 'survey'")->fetchColumn()), 'and the survey site requires signing in');
-    same(['ADMIN', 'EDITOR', 'MEMBER'], $pdo->query("SELECT r.name FROM application_roles r JOIN applications a ON a.id = r.application_id
-                                                      WHERE a.client_id = 'survey' AND r.may_sign_in ORDER BY r.name")->fetchAll(PDO::FETCH_COLUMN),
-        'with every role allowed to sign in');
+    same(
+        ['ADMIN', 'EDITOR', 'MEMBER'],
+        $pdo
+            ->query(
+                "SELECT r.name FROM application_roles r JOIN applications a ON a.id = r.application_id
+                                                      WHERE a.client_id = 'survey' AND r.may_sign_in ORDER BY r.name",
+            )
+            ->fetchAll(PDO::FETCH_COLUMN),
+        'with every role allowed to sign in',
+    );
     same([$owner, $second], $survey['admins'], 'each administrator still holds survey ADMIN once');
 });
 
@@ -364,10 +393,19 @@ function signInToSurvey(Browser $browser, string $email): array
 {
     [$verifier, $challenge] = pkce();
     $state = bin2hex(random_bytes(8));
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK, 'scope' => 'openid profile email',
-        'state' => $state, 'nonce' => bin2hex(random_bytes(8)), 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'survey',
+                'redirect_uri' => SURVEY_CALLBACK,
+                'scope' => 'openid profile email',
+                'state' => $state,
+                'nonce' => bin2hex(random_bytes(8)),
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     $request = queryOf($start->location())['request'] ?? null;
     check($request !== null, 'authorize should send an anonymous browser to the login page, sent to ' . $start->location());
 
@@ -416,10 +454,19 @@ test('the survey site\'s origin is answered at the token endpoint; a redirect UR
 
     [, $challenge] = pkce();
     foreach (['http://localhost:4700/auth/callbacks', 'http://localhost:4701/auth/callback', 'http://localhost:4700/auth/callbac'] as $wrong) {
-        $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-            'response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => $wrong, 'scope' => 'openid',
-            'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-        ]));
+        $start = $browser->get(
+            '/api/oidc/authorize?' .
+                http_build_query([
+                    'response_type' => 'code',
+                    'client_id' => 'survey',
+                    'redirect_uri' => $wrong,
+                    'scope' => 'openid',
+                    'state' => 's',
+                    'nonce' => 'n',
+                    'code_challenge' => $challenge,
+                    'code_challenge_method' => 'S256',
+                ]),
+        );
         check(str_contains($start->location(), '/error?code=invalid_redirect_uri'), "{$wrong} is refused, sent to " . $start->location());
         check(!str_starts_with($start->location(), $wrong), 'and never redirected to');
     }

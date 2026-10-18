@@ -54,8 +54,11 @@ test('a fresh IAM has run 021: both buttons ask in the informal Slovak, their En
     check(in_array(INFORMAL_MIGRATION, appliedMigrations(iamDb()), true), '021 recorded');
     same(array_map(static fn(string $text): array => [$text, null], INFORMAL_BUTTONS), buttonStrings(iamDb(), 'sk'), 'the Slovak, "ty"');
     same(array_map(static fn(string $text): array => [$text, null], ENGLISH_BUTTONS), buttonStrings(iamDb(), 'en'), 'the English untouched (en.ts has the same)');
-    same([], iamDb()->query("SELECT key_name FROM translations WHERE language_code = 'sk' AND key_name NOT LIKE 'anotoki.%' AND value ~* 'pošlite'")->fetchAll(PDO::FETCH_COLUMN),
-        'the formal plural is in none of the IAM\'s own Slovak strings');
+    same(
+        [],
+        iamDb()->query("SELECT key_name FROM translations WHERE language_code = 'sk' AND key_name NOT LIKE 'anotoki.%' AND value ~* 'pošlite'")->fetchAll(PDO::FETCH_COLUMN),
+        'the formal plural is in none of the IAM\'s own Slovak strings',
+    );
 });
 
 test('an IAM built through 020 as the files left it: both buttons reworded, by nobody', function () {
@@ -78,7 +81,11 @@ test('an IAM built through 020 as its owner left it: a button an administrator s
 
     $result = applyMigrationsThrough($pdo, INFORMAL_MIGRATION);
     same([[INFORMAL_MIGRATION], null], [$result['applied'], $result['failed']], '021 applied, its gate passed - a saved string in the formal words is no failure (' . ($result['error'] ?? '') . ')');
-    same(['login.useCode' => [FORMAL_BUTTONS['login.useCode'], $owner], 'login.paused.sendCode' => ['Pošli mi radšej kód', $owner]], buttonStrings($pdo, 'sk'), 'the owner\'s choices as saved, by the owner');
+    same(
+        ['login.useCode' => [FORMAL_BUTTONS['login.useCode'], $owner], 'login.paused.sendCode' => ['Pošli mi radšej kód', $owner]],
+        buttonStrings($pdo, 'sk'),
+        'the owner\'s choices as saved, by the owner',
+    );
 });
 
 test('an IAM built through 020 with one button\'s Slovak blanked: it stays blank, and the other, untouched, is reworded', function () {
@@ -87,7 +94,11 @@ test('an IAM built through 020 with one button\'s Slovak blanked: it stays blank
 
     $result = applyMigrationsThrough($pdo, INFORMAL_MIGRATION);
     same([[INFORMAL_MIGRATION], null], [$result['applied'], $result['failed']], '021 applied, its gate passed (' . ($result['error'] ?? '') . ')');
-    same(['login.useCode' => [INFORMAL_BUTTONS['login.useCode'], null], 'login.paused.sendCode' => null], buttonStrings($pdo, 'sk'), 'the untouched one in "ty", by nobody; the blank Slovak still blank');
+    same(
+        ['login.useCode' => [INFORMAL_BUTTONS['login.useCode'], null], 'login.paused.sendCode' => null],
+        buttonStrings($pdo, 'sk'),
+        'the untouched one in "ty", by nobody; the blank Slovak still blank',
+    );
 });
 
 finishTests();

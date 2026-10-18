@@ -77,12 +77,17 @@ function legalGateKeys(): array
 function legalStrings(PDO $pdo): array
 {
     $strings = [];
-    foreach ($pdo->query(
-        "SELECT k.name, k.description,
+    foreach (
+        $pdo
+            ->query(
+                "SELECT k.name, k.description,
                 (SELECT value FROM translations WHERE key_name = k.name AND language_code = 'en') AS en,
                 (SELECT value FROM translations WHERE key_name = k.name AND language_code = 'sk') AS sk
-           FROM translation_keys k WHERE k.name LIKE 'legal.%' ORDER BY k.name COLLATE \"C\""
-    )->fetchAll() as $row) {
+           FROM translation_keys k WHERE k.name LIKE 'legal.%' ORDER BY k.name COLLATE \"C\"",
+            )
+            ->fetchAll()
+        as $row
+    ) {
         $strings[$row['name']] = [$row['description'], $row['en'], $row['sk']];
     }
 
@@ -124,28 +129,38 @@ test('a fresh IAM has run 020: the legal pages\' seventy keys, each described, i
     same(0, (int) $before->fetchColumn(), 'and 006\'s words are nowhere');
 });
 
-test('an IAM built through 019, as its owner left it: 020 adds its keys and strings; the sky an administrator saved stays theirs - in 006\'s very words too -, and a blanked string stays blank', function () {
-    $pdo = buildIamThrough('_before_legal', BEFORE_LEGAL);
-    same(LEGAL_MIGRATION, pendingMigrations($pdo)[0] ?? null, 'built through 019, 020 the first pending');
-    same([], legalStrings($pdo), 'no legal key before it');
-    same([[SKY_BEFORE[0], null], [SKY_BEFORE[1], null]], skyRows($pdo), 'before it: the sky as 006 wrote it, by nobody');
+test(
+    'an IAM built through 019, as its owner left it: 020 adds its keys and strings; the sky an administrator saved stays theirs - in 006\'s very words too -, and a blanked string stays blank',
+    function () {
+        $pdo = buildIamThrough('_before_legal', BEFORE_LEGAL);
+        same(LEGAL_MIGRATION, pendingMigrations($pdo)[0] ?? null, 'built through 019, 020 the first pending');
+        same([], legalStrings($pdo), 'no legal key before it');
+        same([[SKY_BEFORE[0], null], [SKY_BEFORE[1], null]], skyRows($pdo), 'before it: the sky as 006 wrote it, by nobody');
 
-    // What the owner may have done on the Translations page, each saved by an administrator: the sky's English put back to
-    // 006's very words on purpose, its Slovak reworded - and a Slovak string elsewhere blanked (the panel deletes it).
-    $owner = (int) $pdo->query("INSERT INTO users (username, email, email_confirmed) VALUES ('owner', 'owner@example.test', TRUE) RETURNING id")->fetchColumn();
-    $save = $pdo->prepare("UPDATE translations SET value = ?, updated_by = ?, updated_at = '2026-10-09 08:15:00+00' WHERE key_name = 'brand.point3' AND language_code = ?");
-    $save->execute([SKY_BEFORE[0], $owner, 'en']);
-    $save->execute(['Nič nepredávame, nikomu.', $owner, 'sk']);
-    $pdo->exec("DELETE FROM translations WHERE key_name = 'common.save' AND language_code = 'sk'");
+        // What the owner may have done on the Translations page, each saved by an administrator: the sky's English put back to
+        // 006's very words on purpose, its Slovak reworded - and a Slovak string elsewhere blanked (the panel deletes it).
+        $owner = (int) $pdo->query("INSERT INTO users (username, email, email_confirmed) VALUES ('owner', 'owner@example.test', TRUE) RETURNING id")->fetchColumn();
+        $save = $pdo->prepare("UPDATE translations SET value = ?, updated_by = ?, updated_at = '2026-10-09 08:15:00+00' WHERE key_name = 'brand.point3' AND language_code = ?");
+        $save->execute([SKY_BEFORE[0], $owner, 'en']);
+        $save->execute(['Nič nepredávame, nikomu.', $owner, 'sk']);
+        $pdo->exec("DELETE FROM translations WHERE key_name = 'common.save' AND language_code = 'sk'");
 
-    $result = applyMigrationsThrough($pdo, LEGAL_MIGRATION);
-    same([[LEGAL_MIGRATION], null], [$result['applied'], $result['failed']], '020 applied, its gate passed - a saved string in 006\'s words is no failure (' . ($result['error'] ?? '') . ')');
-    $later = array_flip(LATER_REWORDED_LEGAL);
-    same(array_diff_key(legalStrings(iamDb()), $later), array_diff_key(legalStrings($pdo), $later), 'every key, description and string as on a fresh IAM - but for what a later file rewords');
-    check(str_contains((string) legalStrings($pdo)['legal.google.role'][1], 'your browser loads the button from Google'), 'which holds 020\'s own words here: the button loaded wherever it is drawn');
-    same([[SKY_BEFORE[0], $owner], ['Nič nepredávame, nikomu.', $owner]], skyRows($pdo), 'the owner\'s choices as the owner saved them, by the owner: 006\'s English kept, the Slovak reworded kept');
-    same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name = 'common.save' AND language_code = 'sk'")->fetchColumn(), 'and the Slovak string the owner blanked stays blank');
-});
+        $result = applyMigrationsThrough($pdo, LEGAL_MIGRATION);
+        same([[LEGAL_MIGRATION], null], [$result['applied'], $result['failed']], '020 applied, its gate passed - a saved string in 006\'s words is no failure (' . ($result['error'] ?? '') . ')');
+        $later = array_flip(LATER_REWORDED_LEGAL);
+        same(array_diff_key(legalStrings(iamDb()), $later), array_diff_key(legalStrings($pdo), $later), 'every key, description and string as on a fresh IAM - but for what a later file rewords');
+        check(
+            str_contains((string) legalStrings($pdo)['legal.google.role'][1], 'your browser loads the button from Google'),
+            'which holds 020\'s own words here: the button loaded wherever it is drawn',
+        );
+        same(
+            [[SKY_BEFORE[0], $owner], ['Nič nepredávame, nikomu.', $owner]],
+            skyRows($pdo),
+            'the owner\'s choices as the owner saved them, by the owner: 006\'s English kept, the Slovak reworded kept',
+        );
+        same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name = 'common.save' AND language_code = 'sk'")->fetchColumn(), 'and the Slovak string the owner blanked stays blank');
+    },
+);
 
 test('a 020 whose gate fails - a Slovak string that did not arrive - leaves nothing behind, and runs once the cause is gone', function () {
     $pdo = buildIamThrough('_spoilt_legal', BEFORE_LEGAL);

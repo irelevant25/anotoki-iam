@@ -103,27 +103,29 @@ function buildIamApp(): \Slim\App
     $errorMiddleware = $app->addErrorMiddleware(false, true, true);
     // The IAM's own answer to a failure, written into the error log with the
     // status and code it answered (the library's wrapHandler()).
-    $errorMiddleware->setDefaultErrorHandler($errorLog->wrapHandler(function (\Psr\Http\Message\ServerRequestInterface $request, \Throwable $exception) use ($app) {
-        [$status, $code, $message] = match (true) {
-            $exception instanceof \Slim\Exception\HttpNotFoundException => [404, 'not_found', 'Not found'],
-            $exception instanceof \Slim\Exception\HttpMethodNotAllowedException => [405, 'method_not_allowed', 'Method not allowed'],
-            default => [500, 'server_error', 'Something went wrong on our side'],
-        };
+    $errorMiddleware->setDefaultErrorHandler(
+        $errorLog->wrapHandler(function (\Psr\Http\Message\ServerRequestInterface $request, \Throwable $exception) use ($app) {
+            [$status, $code, $message] = match (true) {
+                $exception instanceof \Slim\Exception\HttpNotFoundException => [404, 'not_found', 'Not found'],
+                $exception instanceof \Slim\Exception\HttpMethodNotAllowedException => [405, 'method_not_allowed', 'Method not allowed'],
+                default => [500, 'server_error', 'Something went wrong on our side'],
+            };
 
-        // The IAM's own names of secrets out of its message, for both logs
-        // (iamRedactSecrets()); the library's redactor does the rest - in the
-        // error log's line, and in PHP's own below.
-        iamRedactException($exception);
+            // The IAM's own names of secrets out of its message, for both logs
+            // (iamRedactSecrets()); the library's redactor does the rest - in the
+            // error log's line, and in PHP's own below.
+            iamRedactException($exception);
 
-        if ($status === 500) {
-            error_log('[iam] ' . get_class($exception) . ': ' . Redactor::text($exception->getMessage()) . ' in ' . $exception->getFile() . ':' . $exception->getLine());
-        }
+            if ($status === 500) {
+                error_log('[iam] ' . get_class($exception) . ': ' . Redactor::text($exception->getMessage()) . ' in ' . $exception->getFile() . ':' . $exception->getLine());
+            }
 
-        $response = $app->getResponseFactory()->createResponse($status);
-        $response->getBody()->write((string) json_encode(['error' => $message, 'code' => $code]));
+            $response = $app->getResponseFactory()->createResponse($status);
+            $response->getBody()->write((string) json_encode(['error' => $message, 'code' => $code]));
 
-        return $response->withHeader('Content-Type', 'application/json');
-    }));
+            return $response->withHeader('Content-Type', 'application/json');
+        }),
+    );
 
     $app->add(corsMiddleware());
     // The anotoki family's gate (anotoki/lib): /api/site-status always passes;
@@ -139,8 +141,11 @@ function buildIamApp(): \Slim\App
     // discovery, the token endpoint, a 404 - and, with the database host gone,
     // a connect timeout before the route's own. Its answers are the gate's.
     $gate = new SiteGate(iamSiteState(), $app->getResponseFactory(), ['~^/api/admin/migrations(/file|/apply)?$~D']);
-    $app->add(static fn(\Psr\Http\Message\ServerRequestInterface $request, \Psr\Http\Server\RequestHandlerInterface $handler): \Psr\Http\Message\ResponseInterface
-        => iamSetUpProblems() === [] ? $handler->handle($request) : $gate->process($request, $handler));
+    $app->add(
+        static fn(\Psr\Http\Message\ServerRequestInterface $request, \Psr\Http\Server\RequestHandlerInterface $handler): \Psr\Http\Message\ResponseInterface => iamSetUpProblems() === []
+            ? $handler->handle($request)
+            : $gate->process($request, $handler),
+    );
     $app->add(securityHeadersMiddleware());
     // An exception none of those answered - thrown outside the error handler -
     // with the IAM's own names of secrets out of its message, before the error

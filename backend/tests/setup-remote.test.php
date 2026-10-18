@@ -64,7 +64,10 @@ test('on a real host the first view writes a token only the server\'s owner can 
     check(str_contains($page['body'], 'value="https://iam.example.test"'), 'the address it is opened at is the suggestion');
     check(str_contains($page['body'], 'value="noreply@example.test"'), 'and mail from its domain');
     check(str_contains($page['body'], 'value="anotoki_iam"'), 'and the database the installer suggests');
-    check(str_contains($page['body'], 'placeholder="https://genshin.anotoki.eu"') && !str_contains($page['body'], 'value="https://genshin.anotoki.eu"'), 'the sites\' addresses are placeholders, never values');
+    check(
+        str_contains($page['body'], 'placeholder="https://genshin.anotoki.eu"') && !str_contains($page['body'], 'value="https://genshin.anotoki.eu"'),
+        'the sites\' addresses are placeholders, never values',
+    );
 
     setupRequest('GET', REMOTE_SERVER);
     same($token, tokenOnDisk(), 'a second view keeps the same token');
@@ -89,10 +92,17 @@ test('with the token, "Test connection" answers, in the family\'s words', functi
     // The database is not made until the install: what is said of it depends
     // on whether the tests' login may make one.
     $mayCreate = (bool) connectDatabase(testServer(), 'postgres', false)->query('SELECT rolcreatedb OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn();
-    same($mayCreate
-        ? ['ok' => true, 'tone' => 'good', 'message' => "Connected to the server. The database \"{$GLOBALS['database']}\" does not exist yet - Save creates it."]
-        : ['ok' => false, 'tone' => 'bad', 'message' => "Connected to the server, but there is no database \"{$GLOBALS['database']}\" and this user may not create one. Make it in the hosting panel first."],
-        $answer, 'the server answers');
+    same(
+        $mayCreate
+            ? ['ok' => true, 'tone' => 'good', 'message' => "Connected to the server. The database \"{$GLOBALS['database']}\" does not exist yet - Save creates it."]
+            : [
+                'ok' => false,
+                'tone' => 'bad',
+                'message' => "Connected to the server, but there is no database \"{$GLOBALS['database']}\" and this user may not create one. Make it in the hosting panel first.",
+            ],
+        $answer,
+        'the server answers',
+    );
 });
 
 test('a real host is https, and each site\'s address is its https origin', function () {
@@ -134,7 +144,11 @@ test('the install: files, database, administrator, the sites\' production addres
     same(['https://survey.example.test'], applicationOrigins($survey), 'its origin');
     same('https://survey.example.test', $pdo->query("SELECT home_url FROM applications WHERE id = {$survey}")->fetchColumn(), 'its home');
 
-    same(0, (int) $pdo->query("SELECT count(*) FROM application_redirect_uris WHERE uri LIKE 'http://localhost%' OR uri LIKE 'http://127.0.0.1%'")->fetchColumn(), 'no development redirect URI is left');
+    same(
+        0,
+        (int) $pdo->query("SELECT count(*) FROM application_redirect_uris WHERE uri LIKE 'http://localhost%' OR uri LIKE 'http://127.0.0.1%'")->fetchColumn(),
+        'no development redirect URI is left',
+    );
     same(0, (int) $pdo->query("SELECT count(*) FROM application_origins WHERE origin LIKE 'http://localhost%' OR origin LIKE 'http://127.0.0.1%'")->fetchColumn(), 'nor a development origin');
     $piano = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'piano-academy'")->fetchColumn();
     same([], applicationRedirectUris($piano, 'login'), 'a site left blank has no address yet');

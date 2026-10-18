@@ -71,7 +71,7 @@ function iamHousekeeping(): void
         $pdo->exec(
             "DELETE FROM refresh_tokens
               WHERE COALESCE(revoked_at, used_at, expires_at) < CURRENT_TIMESTAMP - INTERVAL '30 days'
-                AND (revoked_at IS NOT NULL OR used_at IS NOT NULL OR expires_at < CURRENT_TIMESTAMP)"
+                AND (revoked_at IS NOT NULL OR used_at IS NOT NULL OR expires_at < CURRENT_TIMESTAMP)",
         );
         $pdo->exec("DELETE FROM user_tokens WHERE expires_at < CURRENT_TIMESTAMP - INTERVAL '30 days'");
         $pdo->exec("DELETE FROM login_attempts WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '365 days'");

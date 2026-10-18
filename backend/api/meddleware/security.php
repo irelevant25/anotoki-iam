@@ -110,8 +110,7 @@ function csrfMiddleware(): callable
     return function (Request $request, RequestHandler $handler): Response {
         $method = $request->getMethod();
 
-        $exempt = in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)
-            || in_array(routedPath($request), CSRF_EXEMPT_PATHS, true);
+        $exempt = in_array($method, ['GET', 'HEAD', 'OPTIONS'], true) || in_array(routedPath($request), CSRF_EXEMPT_PATHS, true);
 
         if ($exempt) {
             return $handler->handle($request);
@@ -136,8 +135,7 @@ function securityHeadersMiddleware(): callable
     return function (Request $request, RequestHandler $handler): Response {
         $response = $handler->handle($request);
 
-        $ensure = static fn(Response $response, string $name, string $value): Response =>
-            $response->hasHeader($name) ? $response : $response->withHeader($name, $value);
+        $ensure = static fn(Response $response, string $name, string $value): Response => $response->hasHeader($name) ? $response : $response->withHeader($name, $value);
 
         $response = $ensure($response, 'X-Content-Type-Options', 'nosniff');
         $response = $ensure($response, 'X-Frame-Options', 'DENY');

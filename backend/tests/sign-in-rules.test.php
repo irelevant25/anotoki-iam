@@ -51,15 +51,21 @@ function grantIn(PDO $pdo, int $userId, string $clientId, string $role): void
 {
     $pdo->prepare(
         'INSERT INTO user_roles (user_id, role_id)
-         SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = ? AND r.name = ?'
+         SELECT ?, r.id FROM application_roles r JOIN applications a ON a.id = r.application_id WHERE a.client_id = ? AND r.name = ?',
     )->execute([$userId, $clientId, $role]);
 }
 
 /** An application of the owner's own, made in the admin panel before 010: its roles name => description. */
 function ownersApplication(PDO $pdo, string $clientId, string $access, array $roles): void
 {
-    $id = (int) $pdo->query("INSERT INTO applications (client_id, name, type, access, sort_order, system)
-                              VALUES ('{$clientId}', '" . ucfirst($clientId) . "', 'public', '{$access}', 70, FALSE) RETURNING id")->fetchColumn();
+    $id = (int) $pdo
+        ->query(
+            "INSERT INTO applications (client_id, name, type, access, sort_order, system)
+                              VALUES ('{$clientId}', '" .
+                ucfirst($clientId) .
+                "', 'public', '{$access}', 70, FALSE) RETURNING id",
+        )
+        ->fetchColumn();
     foreach ($roles as $name => $description) {
         $pdo->prepare('INSERT INTO application_roles (application_id, name, description) VALUES (?, ?, ?)')->execute([$id, $name, $description]);
     }
@@ -91,10 +97,14 @@ function holders(PDO $pdo, string $clientId, string $role): array
 /** The accounts that do not hold MEMBER in some application, as "username client_id". */
 function withoutMember(PDO $pdo): array
 {
-    return $pdo->query("SELECT u.username || ' ' || a.client_id FROM users u CROSS JOIN applications a
+    return $pdo
+        ->query(
+            "SELECT u.username || ' ' || a.client_id FROM users u CROSS JOIN applications a
                          WHERE NOT EXISTS (SELECT 1 FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id
                                             WHERE ur.user_id = u.id AND r.application_id = a.id AND r.name = 'MEMBER')
-                         ORDER BY 1")->fetchAll(PDO::FETCH_COLUMN);
+                         ORDER BY 1",
+        )
+        ->fetchAll(PDO::FETCH_COLUMN);
 }
 
 /**
@@ -108,8 +118,12 @@ function whoGetsIn(PDO $pdo, bool $byTheNewRule): array
         ? 'EXISTS (SELECT 1 FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.application_id = a.id AND r.may_sign_in)'
         : "(a.access = 'everyone' OR EXISTS (SELECT 1 FROM user_roles ur JOIN application_roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.application_id = a.id))";
 
-    return $pdo->query("SELECT u.username || ' ' || a.client_id FROM users u CROSS JOIN applications a
-                         WHERE a.system = FALSE AND a.enabled AND NOT u.disabled AND {$rule} ORDER BY 1")->fetchAll(PDO::FETCH_COLUMN);
+    return $pdo
+        ->query(
+            "SELECT u.username || ' ' || a.client_id FROM users u CROSS JOIN applications a
+                         WHERE a.system = FALSE AND a.enabled AND NOT u.disabled AND {$rule} ORDER BY 1",
+        )
+        ->fetchAll(PDO::FETCH_COLUMN);
 }
 
 function loginRequiredIn(PDO $pdo): array
@@ -121,10 +135,16 @@ function loginRequiredIn(PDO $pdo): array
 function useIamDatabase(string $name): void
 {
     $environment = testEnvironment();
-    file_put_contents($environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
-        "<?php\n\n\$config = require " . var_export(developmentDatabaseFile(), true) . ";\n"
-        . "\$config['databases'] = ['iam' => " . var_export(throwawayDatabase($name), true) . "];\n"
-        . "\$config['persistent'] = false;\n\nreturn \$config;\n");
+    file_put_contents(
+        $environment['config'] . DIRECTORY_SEPARATOR . 'database.local.php',
+        "<?php\n\n\$config = require " .
+            var_export(developmentDatabaseFile(), true) .
+            ";\n" .
+            "\$config['databases'] = ['iam' => " .
+            var_export(throwawayDatabase($name), true) .
+            "];\n" .
+            "\$config['persistent'] = false;\n\nreturn \$config;\n",
+    );
     forgetLocalConfig();
     settingsAll(true);
     languageCodes(null, true);
@@ -135,10 +155,19 @@ function useIamDatabase(string $name): void
 function startSignIn(Browser $browser, string $clientId = 'survey', string $callback = SURVEY_CALLBACK): array
 {
     [$verifier, $challenge] = pkce();
-    $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-        'response_type' => 'code', 'client_id' => $clientId, 'redirect_uri' => $callback, 'scope' => 'openid profile email',
-        'state' => 's', 'nonce' => 'n', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => $clientId,
+                'redirect_uri' => $callback,
+                'scope' => 'openid profile email',
+                'state' => 's',
+                'nonce' => 'n',
+                'code_challenge' => $challenge,
+                'code_challenge_method' => 'S256',
+            ]),
+    );
 
     return ['location' => $start->location(), 'verifier' => $verifier];
 }
@@ -193,9 +222,14 @@ function surveyInPanel(Browser $admin): array
 function surveyMaySignIn(Browser $admin, array $maySignIn): TestResponse
 {
     [$id, $application] = surveyInPanel($admin);
-    $roles = array_map(static fn(array $role): array => [
-        'name' => $role['name'], 'description' => $role['description'], 'may_sign_in' => $maySignIn[$role['name']] ?? $role['may_sign_in'],
-    ], $application['roles']);
+    $roles = array_map(
+        static fn(array $role): array => [
+            'name' => $role['name'],
+            'description' => $role['description'],
+            'may_sign_in' => $maySignIn[$role['name']] ?? $role['may_sign_in'],
+        ],
+        $application['roles'],
+    );
 
     return $admin->put("/api/admin/applications/{$id}", ['roles' => $roles]);
 }
@@ -231,16 +265,25 @@ test('a fresh IAM: MEMBER everywhere, every role may sign in, genshin and the an
         same(['Uses the site', true], rolesWith($pdo, $clientId)['MEMBER'] ?? null, "{$clientId} has MEMBER, and it may sign in");
     }
     same(0, (int) $pdo->query('SELECT count(*) FROM application_roles WHERE NOT may_sign_in')->fetchColumn(), 'every role may sign in');
-    same(['build-analyzer' => false, 'genshin' => false, 'iam' => true, 'japanese-academy' => true, 'piano-academy' => true, 'survey' => true],
-        loginRequiredIn($pdo), 'visitors welcome on genshin and the build analyzer; the other sites require signing in');
+    same(
+        ['build-analyzer' => false, 'genshin' => false, 'iam' => true, 'japanese-academy' => true, 'piano-academy' => true, 'survey' => true],
+        loginRequiredIn($pdo),
+        'visitors welcome on genshin and the build analyzer; the other sites require signing in',
+    );
     same(true, signInRulesReady($pdo), 'the rules are ready');
-    same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications' AND column_name = 'access'")->fetchColumn(),
-        'the access column stays, for the build before 010');
+    same(
+        1,
+        (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications' AND column_name = 'access'")->fetchColumn(),
+        'the access column stays, for the build before 010',
+    );
     same(2, (int) $pdo->query("SELECT count(*) FROM pg_trigger WHERE tgname IN ('trg_users_member_everywhere', 'trg_applications_member_role')")->fetchColumn(), 'both triggers');
 
     foreach ($pdo->query('SELECT client_id, system FROM applications ORDER BY client_id')->fetchAll() as $application) {
-        same(asBool($application['system']) ? ['ADMIN', 'MEMBER'] : ['ADMIN', 'EDITOR', 'MEMBER'], array_keys(rolesWith($pdo, $application['client_id'])),
-            "{$application['client_id']}: the fixed roles (011)");
+        same(
+            asBool($application['system']) ? ['ADMIN', 'MEMBER'] : ['ADMIN', 'EDITOR', 'MEMBER'],
+            array_keys(rolesWith($pdo, $application['client_id'])),
+            "{$application['client_id']}: the fixed roles (011)",
+        );
     }
     same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE type <> 'public' OR secret_hash IS NOT NULL")->fetchColumn(), 'every client public, no secret');
 
@@ -291,11 +334,17 @@ test('an IAM through 009, as its owner left it: 010 lets in exactly who got in b
     same($before, whoGetsIn($pdo, true), 'who gets in where is what it was, to the account');
     same([], withoutMember($pdo), 'every account holds MEMBER in every application there is');
 
-    same(['ADMIN' => ['Runs it', true], 'INVITED' => ['Was MEMBER before 2026-10-05', true], 'MEMBER' => ['Uses the site', false]], rolesWith($pdo, 'invited'),
-        'a MEMBER somebody held in a members-only application is INVITED now, letting them in; the new MEMBER does not');
+    same(
+        ['ADMIN' => ['Runs it', true], 'INVITED' => ['Was MEMBER before 2026-10-05', true], 'MEMBER' => ['Uses the site', false]],
+        rolesWith($pdo, 'invited'),
+        'a MEMBER somebody held in a members-only application is INVITED now, letting them in; the new MEMBER does not',
+    );
     same(['guest'], holders($pdo, 'invited', 'INVITED'), 'held by whoever held it');
-    same(['INVITED' => ['Asked in', true], 'INVITED_2' => ['Was MEMBER before 2026-10-05', true], 'MEMBER' => ['Uses the site', false]], rolesWith($pdo, 'taken'),
-        'with INVITED taken, it is INVITED_2');
+    same(
+        ['INVITED' => ['Asked in', true], 'INVITED_2' => ['Was MEMBER before 2026-10-05', true], 'MEMBER' => ['Uses the site', false]],
+        rolesWith($pdo, 'taken'),
+        'with INVITED taken, it is INVITED_2',
+    );
     same([['invitee'], ['guest2']], [holders($pdo, 'taken', 'INVITED'), holders($pdo, 'taken', 'INVITED_2')], 'and each keeps its own holders');
     same(['EDITOR' => ['Edits', true], 'MEMBER' => ['Nobody asked yet', false]], rolesWith($pdo, 'quiet'), 'a MEMBER nobody held keeps its words, and may not sign in');
     same(['ADMIN' => ['Runs the notes', true], 'MEMBER' => ['Uses the site', false], 'READER' => ['Reads them', true]], rolesWith($pdo, 'notes'), 'a members-only application of the owner\'s');
@@ -308,8 +357,23 @@ test('an IAM through 009, as its owner left it: 010 lets in exactly who got in b
     same(false, asBool($pdo->query("SELECT enabled FROM applications WHERE client_id = 'closed'")->fetchColumn()), 'let nobody in, and is switched off now');
     same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE NOT enabled AND client_id <> 'closed'")->fetchColumn(), 'and nothing else is');
     same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE client_id = 'japanese-academy'")->fetchColumn(), 'a site deleted by hand stays deleted');
-    same(['build-analyzer' => false, 'closed' => true, 'genshin' => false, 'iam' => true, 'invited' => true, 'notes' => true, 'open' => true,
-          'piano-academy' => true, 'quiet' => true, 'survey' => true, 'taken' => true], loginRequiredIn($pdo), 'who requires signing in');
+    same(
+        [
+            'build-analyzer' => false,
+            'closed' => true,
+            'genshin' => false,
+            'iam' => true,
+            'invited' => true,
+            'notes' => true,
+            'open' => true,
+            'piano-academy' => true,
+            'quiet' => true,
+            'survey' => true,
+            'taken' => true,
+        ],
+        loginRequiredIn($pdo),
+        'who requires signing in',
+    );
 
     // The invariant from now on, on this IAM too.
     $late = accountIn($pdo, 'late');
@@ -324,7 +388,11 @@ test('an IAM with 009, 010 and 011 pending: Apply runs them all, 009\'s words as
     accountIn($pdo, 'someone');
 
     $result = applyPendingMigrations($pdo, 'iam');
-    same([['009_admin_panel.sql', RULES_MIGRATION, STATIC_MIGRATION], null], [array_slice($result['applied'], 0, 3), $result['failed']], 'all three, in order, and whatever came after them (' . ($result['error'] ?? '') . ')');
+    same(
+        [['009_admin_panel.sql', RULES_MIGRATION, STATIC_MIGRATION], null],
+        [array_slice($result['applied'], 0, 3), $result['failed']],
+        'all three, in order, and whatever came after them (' . ($result['error'] ?? '') . ')',
+    );
     same('Admin panel', $pdo->query("SELECT value FROM translations WHERE key_name = 'shell.admin' AND language_code = 'en'")->fetchColumn(), '009\'s English');
     same([], withoutMember($pdo), 'and 010\'s MEMBER for everyone');
 });
@@ -353,9 +421,16 @@ test('an IAM through 010, as its owner left it: 011 makes every client public an
     same([[STATIC_MIGRATION], null], [$result['applied'], $result['failed']], '011 applied, its gate passed (' . ($result['error'] ?? '') . ')');
 
     same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE type <> 'public' OR secret_hash IS NOT NULL")->fetchColumn(), 'every client public, its secret gone');
-    same(['ADMIN' => ['Runs the notes', true], 'EDITOR' => [SITE_ROLE_WORDS['EDITOR'], true], 'MEMBER' => ['Uses the site', false], 'READER' => ['Reads them', true]],
-        rolesWith($pdo, 'notes'), 'an owner\'s application: EDITOR added in the family\'s words, its ADMIN\'s words and its own READER kept, MEMBER still unticked');
-    same(['ADMIN' => [SITE_ROLE_WORDS['ADMIN'], true], 'EDITOR' => [SITE_ROLE_WORDS['EDITOR'], true], 'MEMBER' => ['Uses the site', true]], rolesWith($pdo, 'bare'), 'one with MEMBER alone gets ADMIN and EDITOR');
+    same(
+        ['ADMIN' => ['Runs the notes', true], 'EDITOR' => [SITE_ROLE_WORDS['EDITOR'], true], 'MEMBER' => ['Uses the site', false], 'READER' => ['Reads them', true]],
+        rolesWith($pdo, 'notes'),
+        'an owner\'s application: EDITOR added in the family\'s words, its ADMIN\'s words and its own READER kept, MEMBER still unticked',
+    );
+    same(
+        ['ADMIN' => [SITE_ROLE_WORDS['ADMIN'], true], 'EDITOR' => [SITE_ROLE_WORDS['EDITOR'], true], 'MEMBER' => ['Uses the site', true]],
+        rolesWith($pdo, 'bare'),
+        'one with MEMBER alone gets ADMIN and EDITOR',
+    );
     same('Writes the surveys', rolesWith($pdo, 'survey')['EDITOR'][0], 'a role reworded in the panel keeps its words');
     same(['ADMIN', 'MEMBER'], array_keys(rolesWith($pdo, 'iam')), 'the IAM: ADMIN and MEMBER, no EDITOR');
     same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE client_id = 'japanese-academy'")->fetchColumn(), 'a site deleted by hand stays deleted');
@@ -366,7 +441,11 @@ test('an IAM through 010, as its owner left it: 011 makes every client public an
     // From now on a new application gets all three; a system one MEMBER alone.
     accountIn($pdo, 'late');
     ownersApplication($pdo, 'later', 'everyone', []);
-    same(['ADMIN' => [SITE_ROLE_WORDS['ADMIN'], true], 'EDITOR' => [SITE_ROLE_WORDS['EDITOR'], true], 'MEMBER' => ['Uses the site', true]], rolesWith($pdo, 'later'), 'a new site: the three, in the family\'s words');
+    same(
+        ['ADMIN' => [SITE_ROLE_WORDS['ADMIN'], true], 'EDITOR' => [SITE_ROLE_WORDS['EDITOR'], true], 'MEMBER' => ['Uses the site', true]],
+        rolesWith($pdo, 'later'),
+        'a new site: the three, in the family\'s words',
+    );
     same([], withoutMember($pdo), 'MEMBER for every account, the new one too');
     same([], holders($pdo, 'later', 'ADMIN'), 'and its ADMIN for nobody');
     $pdo->exec("INSERT INTO applications (client_id, name, system) VALUES ('another-system', 'Another', TRUE)");
@@ -380,16 +459,23 @@ test('every way an account is made gives it MEMBER everywhere: the installer\'s 
 
     $imported = buildIamThrough('_imported', RULES_MIGRATION);
     $legacy = makeLegacyDatabase('_legacy_rules');
-    $legacy->prepare("INSERT INTO users (id, role, username, email, email_confirmed, password) VALUES
-        (3, 'ADMIN', 'old-owner', 'old-owner@example.test', TRUE, ?), (8, 'USER', 'old-player', 'old-player@example.test', TRUE, ?)")
+    $legacy
+        ->prepare(
+            "INSERT INTO users (id, role, username, email, email_confirmed, password) VALUES
+        (3, 'ADMIN', 'old-owner', 'old-owner@example.test', TRUE, ?), (8, 'USER', 'old-player', 'old-player@example.test', TRUE, ?)",
+        )
         ->execute([password_hash('a long password', PASSWORD_DEFAULT), password_hash('a long password', PASSWORD_DEFAULT)]);
     same(2, importLegacyAccounts($imported, $legacy)['accounts'], 'two accounts imported');
     same([], withoutMember($imported), 'each holds MEMBER everywhere, beside what the import mapped');
 
     same(201, (new Browser('10.5.1.1'))->post('/api/register', ['username' => 'newcomer', 'email' => 'newcomer@example.test', 'password' => 'a long password'])->status, 'registered');
 
-    $made = admin()->post('/api/admin/users', ['username' => 'made', 'email' => 'made@example.test', 'password' => 'correct horse',
-        'roles' => [['client_id' => 'survey', 'role' => 'MEMBER'], ['client_id' => 'survey', 'role' => 'EDITOR']]]);
+    $made = admin()->post('/api/admin/users', [
+        'username' => 'made',
+        'email' => 'made@example.test',
+        'password' => 'correct horse',
+        'roles' => [['client_id' => 'survey', 'role' => 'MEMBER'], ['client_id' => 'survey', 'role' => 'EDITOR']],
+    ]);
     same(201, $made->status, 'the admin panel makes an account, the body naming the MEMBER it gets anyway: ' . $made->body);
     same([], withoutMember(iamDb()), 'every account here holds MEMBER everywhere');
     same(['made'], holders(iamDb(), 'survey', 'EDITOR'), 'and the role given beside it');
@@ -399,20 +485,32 @@ test('a new application in the admin panel: ADMIN, EDITOR and MEMBER by themselv
     $admin = admin();
     $everybody = (int) iamDb()->query('SELECT count(*) FROM users')->fetchColumn();
 
-    foreach ([
-        'a role of its own' => [['name' => 'GUEST', 'may_sign_in' => true]],
-        'its own words for a role' => [['name' => 'ADMIN', 'description' => 'Runs it']],
-    ] as $what => $roles) {
+    foreach (
+        [
+            'a role of its own' => [['name' => 'GUEST', 'may_sign_in' => true]],
+            'its own words for a role' => [['name' => 'ADMIN', 'description' => 'Runs it']],
+        ]
+        as $what => $roles
+    ) {
         $refused = $admin->post('/api/admin/applications', ['client_id' => 'refused', 'name' => 'Refused', 'roles' => $roles]);
         check($refused->status === 422 && str_starts_with($refused->json()['error'] ?? '', 'The roles are fixed - '), "{$what} is refused: " . $refused->body);
     }
     $refused = $admin->post('/api/admin/applications', ['client_id' => 'refused', 'name' => 'Refused', 'type' => 'confidential']);
-    same([422, 'Every application is a public client: it names itself and proves each sign-in with PKCE - there are no client secrets'],
-        [$refused->status, $refused->json()['error'] ?? null], 'a confidential client is refused');
+    same(
+        [422, 'Every application is a public client: it names itself and proves each sign-in with PKCE - there are no client secrets'],
+        [$refused->status, $refused->json()['error'] ?? null],
+        'a confidential client is refused',
+    );
     same(0, (int) iamDb()->query("SELECT count(*) FROM applications WHERE client_id = 'refused'")->fetchColumn(), 'and nothing half-made is left');
 
-    $created = $admin->post('/api/admin/applications', ['client_id' => 'newsite', 'name' => 'New site', 'type' => 'public', 'show_on_landing' => false, 'sort_order' => -5,
-        'roles' => [['name' => 'MEMBER', 'may_sign_in' => false], ['name' => 'EDITOR', 'description' => SITE_ROLE_WORDS['EDITOR']]]]);
+    $created = $admin->post('/api/admin/applications', [
+        'client_id' => 'newsite',
+        'name' => 'New site',
+        'type' => 'public',
+        'show_on_landing' => false,
+        'sort_order' => -5,
+        'roles' => [['name' => 'MEMBER', 'may_sign_in' => false], ['name' => 'EDITOR', 'description' => SITE_ROLE_WORDS['EDITOR']]],
+    ]);
     same(201, $created->status, 'made, naming only the roles whose tick it sets: ' . $created->body);
     $started = lastAuditOf('application.created');
     ksort($started);
@@ -420,14 +518,22 @@ test('a new application in the admin panel: ADMIN, EDITOR and MEMBER by themselv
     same(['application'], array_keys($created->json()), 'and no client secret in the answer');
     $application = $created->json()['application'];
     same(true, $application['login_required'], 'a new site requires signing in');
-    same([['name' => 'ADMIN', 'description' => SITE_ROLE_WORDS['ADMIN'], 'may_sign_in' => true, 'members' => 0],
-          ['name' => 'EDITOR', 'description' => SITE_ROLE_WORDS['EDITOR'], 'may_sign_in' => true, 'members' => 0],
-          ['name' => 'MEMBER', 'description' => SITE_ROLE_WORDS['MEMBER'], 'may_sign_in' => false, 'members' => $everybody]],
-        $application['roles'], 'the family\'s three roles in the family\'s words, MEMBER every account\'s, ticked as asked');
+    same(
+        [
+            ['name' => 'ADMIN', 'description' => SITE_ROLE_WORDS['ADMIN'], 'may_sign_in' => true, 'members' => 0],
+            ['name' => 'EDITOR', 'description' => SITE_ROLE_WORDS['EDITOR'], 'may_sign_in' => true, 'members' => 0],
+            ['name' => 'MEMBER', 'description' => SITE_ROLE_WORDS['MEMBER'], 'may_sign_in' => false, 'members' => $everybody],
+        ],
+        $application['roles'],
+        'the family\'s three roles in the family\'s words, MEMBER every account\'s, ticked as asked',
+    );
     same([], array_intersect(['access', 'type', 'has_secret', 'show_on_landing', 'sort_order'], array_keys($application)), 'no access, type, secret or landing page settings in the panel\'s shape');
     same(['public', null], array_values(iamDb()->query("SELECT type, secret_hash FROM applications WHERE client_id = 'newsite'")->fetch(PDO::FETCH_NUM)), 'a public client without a secret');
-    same((int) iamDb()->query("SELECT max(sort_order) FROM applications WHERE client_id <> 'newsite'")->fetchColumn() + 1,
-        (int) iamDb()->query("SELECT sort_order FROM applications WHERE client_id = 'newsite'")->fetchColumn(), 'last in the list, whatever the body said');
+    same(
+        (int) iamDb()->query("SELECT max(sort_order) FROM applications WHERE client_id <> 'newsite'")->fetchColumn() + 1,
+        (int) iamDb()->query("SELECT sort_order FROM applications WHERE client_id = 'newsite'")->fetchColumn(),
+        'last in the list, whatever the body said',
+    );
     same([], withoutMember(iamDb()), 'nobody without MEMBER');
 
     $listed = array_column((new Browser())->get('/api/applications')->json(), 'client_id');
@@ -547,8 +653,11 @@ test('MEMBER taken from one person in one site: refused there, still everywhere 
 
 test('a code given before MEMBER is unticked, or taken from the person, is not exchanged for tokens', function () {
     $refusedExchange = static function (TestResponse $answer, string $what): void {
-        same([400, 'invalid_grant', 'The sign-in behind this code is no longer valid'],
-            [$answer->status, $answer->json()['error'] ?? null, $answer->json()['error_description'] ?? null], $what . ': ' . $answer->body);
+        same(
+            [400, 'invalid_grant', 'The sign-in behind this code is no longer valid'],
+            [$answer->status, $answer->json()['error'] ?? null, $answer->json()['error_description'] ?? null],
+            $what . ': ' . $answer->body,
+        );
         check(!isset($answer->json()['access_token']) && !isset($answer->json()['refresh_token']) && !isset($answer->json()['id_token']), 'and no tokens come back');
     };
     $admin = admin();
@@ -623,16 +732,23 @@ test('the public contract: three fields for an enabled site, cacheable, no cooki
 
 test('public clients only: a client secret is refused at the token and revocation endpoints, PKCE is asked of every client, discovery says so', function () {
     $discovery = (new Browser())->get('/.well-known/openid-configuration')->json();
-    same([['none'], ['none']], [$discovery['token_endpoint_auth_methods_supported'] ?? null, $discovery['revocation_endpoint_auth_methods_supported'] ?? null], 'discovery: no client authentication but none');
+    same(
+        [['none'], ['none']],
+        [$discovery['token_endpoint_auth_methods_supported'] ?? null, $discovery['revocation_endpoint_auth_methods_supported'] ?? null],
+        'discovery: no client authentication but none',
+    );
 
     $browser = new Browser('10.5.8.1');
     $tokens = intoSurvey($browser, 'surveyeditor@example.test');
     $refusal = ['error' => 'invalid_client', 'error_description' => 'Public clients only - send client_id and the PKCE code_verifier, no secret'];
-    foreach ([
-        'a client_secret in the body' => ['form' => ['client_secret' => 'anything']],
-        'an empty client_secret' => ['form' => ['client_secret' => '']],
-        'HTTP Basic' => ['headers' => ['Authorization' => 'Basic ' . base64_encode('survey:anything')]],
-    ] as $what => $extra) {
+    foreach (
+        [
+            'a client_secret in the body' => ['form' => ['client_secret' => 'anything']],
+            'an empty client_secret' => ['form' => ['client_secret' => '']],
+            'HTTP Basic' => ['headers' => ['Authorization' => 'Basic ' . base64_encode('survey:anything')]],
+        ]
+        as $what => $extra
+    ) {
         $refreshed = (new Browser())->request('POST', '/api/oidc/token', [
             'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'], 'client_id' => 'survey'] + ($extra['form'] ?? []),
             'headers' => ['Origin' => SURVEY_FRONTEND] + ($extra['headers'] ?? []),
@@ -650,11 +766,21 @@ test('public clients only: a client secret is refused at the token and revocatio
     // hand) is asked for PKCE all the same.
     iamDb()->exec("UPDATE applications SET type = 'confidential' WHERE client_id = 'survey'");
     try {
-        $start = $browser->get('/api/oidc/authorize?' . http_build_query([
-            'response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK, 'scope' => 'openid', 'state' => 's',
-        ]));
-        same(['invalid_request', 'A public client must send a PKCE code_challenge'], [queryOf($start->location())['error'] ?? null, queryOf($start->location())['error_description'] ?? null],
-            'no code without a PKCE challenge, whatever the row says');
+        $start = $browser->get(
+            '/api/oidc/authorize?' .
+                http_build_query([
+                    'response_type' => 'code',
+                    'client_id' => 'survey',
+                    'redirect_uri' => SURVEY_CALLBACK,
+                    'scope' => 'openid',
+                    'state' => 's',
+                ]),
+        );
+        same(
+            ['invalid_request', 'A public client must send a PKCE code_challenge'],
+            [queryOf($start->location())['error'] ?? null, queryOf($start->location())['error_description'] ?? null],
+            'no code without a PKCE challenge, whatever the row says',
+        );
     } finally {
         iamDb()->exec("UPDATE applications SET type = 'public' WHERE client_id = 'survey'");
     }
@@ -671,21 +797,37 @@ test('the admin panel: the roles are fixed, MEMBER stays, some role may sign in,
     $fixed = static fn(TestResponse $answer): bool => $answer->status === 422 && str_starts_with($answer->json()['error'] ?? '', 'The roles are fixed - ');
 
     $refused = $admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EDITOR', 'GUEST'])]);
-    same([422, 'Every application keeps its MEMBER role - take it from people instead (Users -> the person -> Roles)'], [$refused->status, $refused->json()['error'] ?? null], 'MEMBER cannot be removed');
+    same(
+        [422, 'Every application keeps its MEMBER role - take it from people instead (Users -> the person -> Roles)'],
+        [$refused->status, $refused->json()['error'] ?? null],
+        'MEMBER cannot be removed',
+    );
     check($fixed($admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EDITOR', 'GUEST', 'MEMBERS'])])), 'nor renamed');
     $refused = $admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'GUEST', 'MEMBER'])]);
     same([422, 'The roles are fixed - EDITOR cannot be removed; only whether each may sign in can change'], [$refused->status, $refused->json()['error'] ?? null], 'no role can be removed');
     check($fixed($admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EDITOR', 'GUEST', 'MEMBER', 'READER'])])), 'nor one added');
     $reworded = $roles(['ADMIN', 'EDITOR', 'GUEST', 'MEMBER']);
     $reworded[1]['description'] = 'Something else';
-    same([422, 'The roles are fixed - EDITOR keeps its description; only whether each may sign in can change'],
-        [($r = $admin->put("/api/admin/applications/{$id}", ['roles' => $reworded]))->status, $r->json()['error'] ?? null], 'nor reworded');
+    same(
+        [422, 'The roles are fixed - EDITOR keeps its description; only whether each may sign in can change'],
+        [($r = $admin->put("/api/admin/applications/{$id}", ['roles' => $reworded]))->status, $r->json()['error'] ?? null],
+        'nor reworded',
+    );
     same(array_column($application['roles'], 'description', 'name'), array_column($admin->get("/api/admin/applications/{$id}")->json()['roles'], 'description', 'name'), 'the roles are as they were');
-    same(200, $admin->put("/api/admin/applications/{$id}", ['roles' => array_map(static fn(array $role): array => ['name' => strtolower($role['name']), 'description' => $role['description']], $application['roles'])])->status,
-        'a body naming them as they are (any case) is fine');
+    same(
+        200,
+        $admin->put("/api/admin/applications/{$id}", [
+            'roles' => array_map(static fn(array $role): array => ['name' => strtolower($role['name']), 'description' => $role['description']], $application['roles']),
+        ])->status,
+        'a body naming them as they are (any case) is fine',
+    );
 
     $refused = $admin->put("/api/admin/applications/{$id}", ['type' => 'confidential']);
-    same([422, 'Every application is a public client: it names itself and proves each sign-in with PKCE - there are no client secrets'], [$refused->status, $refused->json()['error'] ?? null], 'no confidential clients');
+    same(
+        [422, 'Every application is a public client: it names itself and proves each sign-in with PKCE - there are no client secrets'],
+        [$refused->status, $refused->json()['error'] ?? null],
+        'no confidential clients',
+    );
     same(200, $admin->put("/api/admin/applications/{$id}", ['type' => 'public'])->status, 'public is what it is anyway');
     $before = iamDb()->query("SELECT show_on_landing, sort_order FROM applications WHERE client_id = 'survey'")->fetch();
     same(200, $admin->put("/api/admin/applications/{$id}", ['show_on_landing' => !asBool($before['show_on_landing']), 'sort_order' => 999])->status, 'landing page settings sent by an old script');
@@ -719,7 +861,10 @@ test('the admin panel: the roles are fixed, MEMBER stays, some role may sign in,
     $iamId = (int) iamDb()->query("SELECT id FROM applications WHERE client_id = 'iam'")->fetchColumn();
     $refused = $admin->put("/api/admin/applications/{$iamId}", ['login_required' => false]);
     same([422, 'The IAM\'s own pages have no sign-in switch - Settings -> Signing in is theirs'], [$refused->status, $refused->json()['error'] ?? null], 'the IAM has no sign-in switch');
-    $iamRoles = array_map(static fn(array $role): array => ['name' => $role['name'], 'description' => $role['description'], 'may_sign_in' => false], $admin->get("/api/admin/applications/{$iamId}")->json()['roles']);
+    $iamRoles = array_map(
+        static fn(array $role): array => ['name' => $role['name'], 'description' => $role['description'], 'may_sign_in' => false],
+        $admin->get("/api/admin/applications/{$iamId}")->json()['roles'],
+    );
     $saved = $admin->put("/api/admin/applications/{$iamId}", ['roles' => $iamRoles]);
     same(200, $saved->status, 'its roles are saved: ' . $saved->body);
     same([true, true], array_column($saved->json()['roles'], 'may_sign_in'), 'but may_sign_in means nothing for its own pages, and stays as it was');
@@ -742,12 +887,23 @@ test('two saves of one application at the same moment run one after the other, s
         iamDb()->exec('SET lock_timeout = 0');
     }
     same(500, $waited->status, 'unticking MEMBER waits for the other save (here: until its lock timeout) rather than reading its roles as still ticked');
-    same(true, asBool(iamDb()->query("SELECT may_sign_in FROM application_roles WHERE name = 'MEMBER' AND application_id = {$id}")->fetchColumn()), 'and changes nothing');
+    same(
+        true,
+        asBool(
+            iamDb()
+                ->query("SELECT may_sign_in FROM application_roles WHERE name = 'MEMBER' AND application_id = {$id}")
+                ->fetchColumn(),
+        ),
+        'and changes nothing',
+    );
     $other->commit();
 
     $refused = surveyMaySignIn($admin, ['MEMBER' => false]);
-    same([422, 'At least one role must be allowed to sign in - switch the application off instead'], [$refused->status, $refused->json()['error'] ?? null],
-        'once the other is in, unticking MEMBER as well is refused');
+    same(
+        [422, 'At least one role must be allowed to sign in - switch the application off instead'],
+        [$refused->status, $refused->json()['error'] ?? null],
+        'once the other is in, unticking MEMBER as well is refused',
+    );
     same(200, surveyMaySignIn($admin, ['ADMIN' => true, 'EDITOR' => true])->status, 'ADMIN and EDITOR ticked again');
     intoSurvey(new Browser('10.5.5.2'), 'surveyeditor@example.test');
 });
@@ -762,12 +918,16 @@ test('the admin panel\'s lists: blocked_in on each account, the Members tab\'s h
     $pianoEditor = makeUser('pianoeditor', 'pianoeditor@example.test');
     $off = makeUser('switchedoff', 'switchedoff@example.test');
     grantRole($pianoEditor, 'piano-academy', 'EDITOR');
-    $pdo->prepare("DELETE FROM user_roles WHERE user_id IN (?, ?) AND role_id = (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id
-                    WHERE a.client_id = 'survey' AND r.name = 'MEMBER')")->execute([$taken, $off]);
+    $pdo->prepare(
+        "DELETE FROM user_roles WHERE user_id IN (?, ?) AND role_id = (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id
+                    WHERE a.client_id = 'survey' AND r.name = 'MEMBER')",
+    )->execute([$taken, $off]);
     $pdo->prepare('UPDATE users SET disabled = TRUE WHERE id = ?')->execute([$off]);
     $pianoId = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'piano-academy'")->fetchColumn();
-    $pianoRoles = static fn(array $maySignIn): array => array_map(static fn(array $role): array => ['name' => $role['name'], 'may_sign_in' => $maySignIn[$role['name']] ?? true],
-        $admin->get("/api/admin/applications/{$pianoId}")->json()['roles']);
+    $pianoRoles = static fn(array $maySignIn): array => array_map(
+        static fn(array $role): array => ['name' => $role['name'], 'may_sign_in' => $maySignIn[$role['name']] ?? true],
+        $admin->get("/api/admin/applications/{$pianoId}")->json()['roles'],
+    );
     same(200, $admin->put("/api/admin/applications/{$pianoId}", ['roles' => $pianoRoles(['MEMBER' => false, 'EDITOR' => false])])->status, 'Piano: only ADMIN may sign in');
 
     try {
@@ -779,15 +939,26 @@ test('the admin panel\'s lists: blocked_in on each account, the Members tab\'s h
         same(['piano-academy'], $admin->get("/api/admin/users/{$pianoEditor}")->json()['blocked_in'], 'and so is one account');
 
         $filters = array_column($admin->get('/api/admin/users/filters')->json()['applications'], null, 'client_id');
-        same([false, ['ADMIN', 'EDITOR', 'MEMBER'], ['ADMIN']], [$filters['piano-academy']['system'], $filters['piano-academy']['roles'], $filters['piano-academy']['sign_in_roles']], 'the filters: Piano\'s roles, and which may sign in');
+        same(
+            [false, ['ADMIN', 'EDITOR', 'MEMBER'], ['ADMIN']],
+            [$filters['piano-academy']['system'], $filters['piano-academy']['roles'], $filters['piano-academy']['sign_in_roles']],
+            'the filters: Piano\'s roles, and which may sign in',
+        );
         same([true, ['ADMIN', 'MEMBER']], [$filters['iam']['system'], $filters['iam']['sign_in_roles']], 'the IAM marked as the system entry');
 
         $members = $admin->get("/api/admin/applications/{$pianoId}/members")->json();
-        same([['pianoeditor', ['EDITOR', 'MEMBER']]], array_map(static fn(array $member): array => [$member['username'], $member['roles']], $members['members']),
-            'the Members tab: who holds a role beyond MEMBER, with every role there - not every account');
+        same(
+            [['pianoeditor', ['EDITOR', 'MEMBER']]],
+            array_map(static fn(array $member): array => [$member['username'], $member['roles']], $members['members']),
+            'the Members tab: who holds a role beyond MEMBER, with every role there - not every account',
+        );
         same([['user_id' => $pianoEditor, 'username' => 'pianoeditor', 'email' => 'pianoeditor@example.test']], $members['blocked'], 'and who cannot sign in');
         $surveyId = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'survey'")->fetchColumn();
-        same(['taken'], array_column($admin->get("/api/admin/applications/{$surveyId}/members")->json()['blocked'], 'username'), 'the survey: MEMBER taken from one, the account switched off left out');
+        same(
+            ['taken'],
+            array_column($admin->get("/api/admin/applications/{$surveyId}/members")->json()['blocked'], 'username'),
+            'the survey: MEMBER taken from one, the account switched off left out',
+        );
         $iamId = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'iam'")->fetchColumn();
         $iamMembers = $admin->get("/api/admin/applications/{$iamId}/members")->json();
         same([[], ['admin']], [$iamMembers['blocked'], array_column($iamMembers['members'], 'username')], 'the IAM blocks nobody (Settings -> Signing in is its gate); its ADMIN listed');
@@ -852,12 +1023,24 @@ test('with 010 pending signing in works by the rule before it, the panel\'s appl
         $renamed = $admin->put('/api/admin/users/' . $early->json()['id'], ['username' => 'earlier']);
         same([200, 'earlier', []], [$renamed->status, $renamed->json()['username'] ?? null, $renamed->json()['blocked_in'] ?? null], 'and changed, its row as ever');
         $contract = (new Browser())->get('/api/public/applications/survey');
-        same([503, 'sign_in_rules_unavailable', 'no-store'], [$contract->status, $contract->code(), $contract->header('Cache-Control')], 'the public contract has no switch to read yet: 503, kept by nobody');
+        same(
+            [503, 'sign_in_rules_unavailable', 'no-store'],
+            [$contract->status, $contract->code(), $contract->header('Cache-Control')],
+            'the public contract has no switch to read yet: 503, kept by nobody',
+        );
         same(404, (new Browser())->get('/api/public/applications/nobody-here')->status, 'an unknown site is still 404');
-        same([RULES_MIGRATION, STATIC_MIGRATION], array_slice(migrationNames($admin->get('/api/admin/migrations')->json()['pending'] ?? []), 0, 2), 'the Migrations page shows 010 and 011 pending, first');
+        same(
+            [RULES_MIGRATION, STATIC_MIGRATION],
+            array_slice(migrationNames($admin->get('/api/admin/migrations')->json()['pending'] ?? []), 0, 2),
+            'the Migrations page shows 010 and 011 pending, first',
+        );
 
         $applied = $admin->post('/api/admin/migrations/apply');
-        same([200, [RULES_MIGRATION, STATIC_MIGRATION], null], [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 2), $applied->json()['failed'] ?? null], 'Apply pending: ' . $applied->body);
+        same(
+            [200, [RULES_MIGRATION, STATIC_MIGRATION], null],
+            [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 2), $applied->json()['failed'] ?? null],
+            'Apply pending: ' . $applied->body,
+        );
 
         same(true, signInRulesReady($pdo), 'from the next request on, in the same process: the rules are there');
         $list = $admin->get('/api/admin/applications');

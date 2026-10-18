@@ -139,8 +139,7 @@ function localConfigEntry(string $name): array
 
     if (!array_key_exists($name, $cache)) {
         $path = localConfigPath($name);
-        $cache[$name] = (is_file($path) ? readLocalConfigFile($path) : ['value' => null, 'problem' => null])
-            + ['there' => file_exists($path) || is_link($path)];
+        $cache[$name] = (is_file($path) ? readLocalConfigFile($path) : ['value' => null, 'problem' => null]) + ['there' => file_exists($path) || is_link($path)];
         if ($cache[$name]['problem'] !== null) {
             localConfigSaid("config/{$name}.local.php {$cache[$name]['problem']}: it is passed over, nothing in it read");
         }
@@ -293,8 +292,12 @@ function iamSetUpProblems(): array
         $problems[] = $why;
     } elseif (!is_array($database)) {
         $problems[] = 'config/database.local.php is missing';
-    } elseif (trim((string) ($database['host'] ?? '')) === '' || trim((string) ($database['username'] ?? '')) === ''
-        || !is_array($database['databases'] ?? null) || trim((string) ($database['databases']['iam'] ?? '')) === '') {
+    } elseif (
+        trim((string) ($database['host'] ?? '')) === '' ||
+        trim((string) ($database['username'] ?? '')) === '' ||
+        !is_array($database['databases'] ?? null) ||
+        trim((string) ($database['databases']['iam'] ?? '')) === ''
+    ) {
         $problems[] = 'config/database.local.php does not name a host, a username and the iam database';
     }
 
@@ -334,9 +337,14 @@ function requireSetUpOnCli(): void
     $problems = iamSetUpProblems();
 
     if ($problems !== []) {
-        fwrite(STDERR, "The IAM is not set up yet:\n  - " . implode("\n  - ", $problems) . "\n\n"
-            . "Run the installer: `composer start` here, then open http://localhost:8100/setup.php\n"
-            . "(DEV.md walks through it).\n");
+        fwrite(
+            STDERR,
+            "The IAM is not set up yet:\n  - " .
+                implode("\n  - ", $problems) .
+                "\n\n" .
+                "Run the installer: `composer start` here, then open http://localhost:8100/setup.php\n" .
+                "(DEV.md walks through it).\n",
+        );
         exit(1);
     }
 }

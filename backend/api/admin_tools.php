@@ -227,25 +227,26 @@ function iamMigrationErrorForAudit(?string $error): ?string
     // on a later line (a value with a line break in it): left open by the cut,
     // it goes whole.
     $first = preg_replace('/(:\s+)"(?:[^"]|"")*$/u', '$1"{…}"', $first) ?? '';
-    $text = preg_replace(
-        [
-            // C:\... or C:/... - a drive letter not inside a word (so never https:// or a SQLSTATE).
-            '#(?<![\w])[A-Za-z]:[\\\\/][^\s"\'<>]*#u',
-            // \\server\share\... - a Windows network path.
-            '#\\\\\\\\[^\s"\'<>]+#u',
-            // file:///..., phar:///..., stream:/... - a path behind any scheme but the web's.
-            '#(?<![\w.+-])(?!https?:)[A-Za-z][A-Za-z0-9+.-]*:/+[^\s"\'<>]*#u',
-            // /two/or/more/segments - not inside a word, and never a URL's own slashes.
-            '#(?<![\w.~:/-])/(?:[^\s/"\'<>]+/)+[^\s/"\'<>]*#u',
-            // What a path with a space in it leaves after the rules above
-            // ("Jane Doe\iam\x.php", "Doe/www/x.php"): a word with a backslash
-            // in it, or one with two slashes in it.
-            '#[^\s"\'<>{}]*\\\\[^\s"\'<>]*#u',
-            '#(?<=^|[\s"\'(])[^\s"\'<>/{}]+/[^\s"\'<>/]+/[^\s"\'<>]*#u',
-        ],
-        '{path}',
-        iamRedactSecrets(Redactor::text($first))
-    ) ?? '{a message the IAM could not read}';
+    $text =
+        preg_replace(
+            [
+                // C:\... or C:/... - a drive letter not inside a word (so never https:// or a SQLSTATE).
+                '#(?<![\w])[A-Za-z]:[\\\\/][^\s"\'<>]*#u',
+                // \\server\share\... - a Windows network path.
+                '#\\\\\\\\[^\s"\'<>]+#u',
+                // file:///..., phar:///..., stream:/... - a path behind any scheme but the web's.
+                '#(?<![\w.+-])(?!https?:)[A-Za-z][A-Za-z0-9+.-]*:/+[^\s"\'<>]*#u',
+                // /two/or/more/segments - not inside a word, and never a URL's own slashes.
+                '#(?<![\w.~:/-])/(?:[^\s/"\'<>]+/)+[^\s/"\'<>]*#u',
+                // What a path with a space in it leaves after the rules above
+                // ("Jane Doe\iam\x.php", "Doe/www/x.php"): a word with a backslash
+                // in it, or one with two slashes in it.
+                '#[^\s"\'<>{}]*\\\\[^\s"\'<>]*#u',
+                '#(?<=^|[\s"\'(])[^\s"\'<>/{}]+/[^\s"\'<>/]+/[^\s"\'<>]*#u',
+            ],
+            '{path}',
+            iamRedactSecrets(Redactor::text($first)),
+        ) ?? '{a message the IAM could not read}';
 
     return mb_strlen($text) > 500 ? mb_substr($text, 0, 500) . '…' : $text;
 }
@@ -488,11 +489,7 @@ function iamBackupConnection(): PDO
     $config = databaseConfig();
     $name = trim((string) ($config['databases']['iam'] ?? ''));
 
-    $pdo = Copy::connect(
-        "pgsql:host={$config['host']};port={$config['port']};dbname={$name};connect_timeout=5",
-        (string) $config['username'],
-        (string) ($config['password'] ?? '')
-    );
+    $pdo = Copy::connect("pgsql:host={$config['host']};port={$config['port']};dbname={$name};connect_timeout=5", (string) $config['username'], (string) ($config['password'] ?? ''));
     $pdo->exec("SET TIME ZONE 'UTC'; SET client_encoding = 'UTF8'");
 
     return $pdo;

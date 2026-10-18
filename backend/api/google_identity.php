@@ -109,7 +109,7 @@ function googleSigningKeys(bool $ignoreCache = false): array
         // it was: an empty key set stored for an hour would switch Google
         // sign-in off for that hour over one bad answer.
         $cached = is_file($cacheFile) ? json_decode((string) @file_get_contents($cacheFile), true) : null;
-        return is_array($cached) ? ($cached['keys'] ?? []) : [];
+        return is_array($cached) ? $cached['keys'] ?? [] : [];
     }
 
     $lifetime = GOOGLE_KEYS_FALLBACK_TTL;
@@ -160,11 +160,13 @@ function googleVerifyIdToken(string $idToken): ?array
         }
     }
 
-    if (!$verified
-        || !in_array($claims['iss'] ?? '', GOOGLE_ISSUERS, true)
-        || ($claims['aud'] ?? '') !== $clientId
-        || (int) ($claims['exp'] ?? 0) + GOOGLE_CLOCK_SKEW < time()
-        || empty($claims['sub'])) {
+    if (
+        !$verified ||
+        !in_array($claims['iss'] ?? '', GOOGLE_ISSUERS, true) ||
+        ($claims['aud'] ?? '') !== $clientId ||
+        (int) ($claims['exp'] ?? 0) + GOOGLE_CLOCK_SKEW < time() ||
+        empty($claims['sub'])
+    ) {
         return null;
     }
 
@@ -174,9 +176,7 @@ function googleVerifyIdToken(string $idToken): ?array
 /** The account an identity belongs to, or null. Disabled accounts included - the caller decides. */
 function identityOwner(PDO $pdo, string $provider, string $subject): ?array
 {
-    $statement = $pdo->prepare(
-        'SELECT u.* FROM user_identities i JOIN users u ON u.id = i.user_id WHERE i.provider = ? AND i.subject = ?'
-    );
+    $statement = $pdo->prepare('SELECT u.* FROM user_identities i JOIN users u ON u.id = i.user_id WHERE i.provider = ? AND i.subject = ?');
     $statement->execute([$provider, $subject]);
 
     return $statement->fetch() ?: null;
@@ -192,6 +192,5 @@ function identityFor(PDO $pdo, int $userId, string $provider): ?array
 
 function attachIdentity(PDO $pdo, int $userId, string $provider, string $subject, ?string $email): void
 {
-    $pdo->prepare('INSERT INTO user_identities (user_id, provider, subject, email) VALUES (?, ?, ?, ?)')
-        ->execute([$userId, $provider, $subject, $email]);
+    $pdo->prepare('INSERT INTO user_identities (user_id, provider, subject, email) VALUES (?, ?, ?, ?)')->execute([$userId, $provider, $subject, $email]);
 }
