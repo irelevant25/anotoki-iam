@@ -1,0 +1,17 @@
+**/node_modules/
+**/vendor/
+**/dist/
+**/.angular/
+coverage/
+bun.lock
+package-lock.json
+composer.lock
+*.md
+*.sql
+**/storage/
+**/config/*.local.php
+
+# Every site vendors copies of the SDK's files, and their headers carry its version: reformatting them would force a new version and a new copy in five sites for no change in code.
+sdk/
+# Runs on PHP 5.6 and up, so an old host still gets an answer: the PHP plugin would add PHP 7.3's trailing commas.
+tools/host-check.php

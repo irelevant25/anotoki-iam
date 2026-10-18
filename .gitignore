@@ -13,6 +13,9 @@ backend/storage/*
 # Assembled for upload by `php build-dist.php`.
 backend/dist/
 
+# The root's Prettier (package.json: the anotoki family's one formatting setup).
+/node_modules/
+
 # The Angular app's own build output and dependencies.
 frontend/node_modules/
 frontend/dist/

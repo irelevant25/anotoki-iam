@@ -18,7 +18,7 @@ npm run build           # production build into dist/iam/browser/
 npm run build:dev       # development build (unminified, source maps)
 npm run build:deploy    # production build + the web root's .htaccess (see below)
 npm run watch           # development build, rebuilt on change
-npm run format          # prettier over src/
+cd .. && bun run format:check   # Prettier on every file of both halves, at the root (bun install there first)
 npx ng test --watch=false   # the unit tests (Vitest, jsdom) - see below
 ```
 

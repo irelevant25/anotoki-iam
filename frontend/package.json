@@ -11,8 +11,7 @@
     "build": "ng build",
     "build:dev": "ng build --configuration development",
     "build:deploy": "ng build --configuration production && node scripts/prepare-deploy.mjs",
-    "watch": "ng build --watch --configuration development",
-    "format": "prettier --write \"src/**/*.{ts,html,scss}\""
+    "watch": "ng build --watch --configuration development"
   },
   "private": true,
   "packageManager": "npm@10.9.2",
@@ -30,7 +29,6 @@
     "@angular/build": "^21.2.22",
     "@angular/cli": "^21.2.22",
     "@angular/compiler-cli": "^21.2.0",
-    "prettier": "^3.8.1",
     "typescript": "~5.9.2"
   }
 }

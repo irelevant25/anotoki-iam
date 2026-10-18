@@ -139,7 +139,7 @@ Frontend checks:
 cd frontend
 npx ng build                 # production; add --configuration development for a debug build
 npx ng test --watch=false    # the unit tests: needs vitest and jsdom in devDependencies (frontend/README.md)
-npx prettier --check "src/**/*.{ts,html,scss}"   # a checkout with CRLF line endings: add --end-of-line crlf
+cd .. && bun run format:check   # Prettier on every file of both halves, at the root (bun install there first)
 ```
 
 ## The SDKs

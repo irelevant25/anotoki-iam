@@ -1,0 +1,15 @@
+{
+  "plugins": ["@prettier/plugin-php"],
+  "endOfLine": "auto",
+  "trailingComma": "all",
+  "tabWidth": 4,
+  "printWidth": 200,
+  "singleQuote": false,
+  "semi": true,
+  "overrides": [
+    { "files": ["*.ts", "*.js", "*.mjs", "*.cjs"], "options": { "tabWidth": 2, "singleQuote": true } },
+    { "files": ["*.json", "*.scss", "*.css", "*.yml", "*.yaml"], "options": { "tabWidth": 2 } },
+    { "files": "*.html", "options": { "bracketSameLine": true, "htmlWhitespaceSensitivity": "ignore", "arrowParens": "always", "singleAttributePerLine": false } },
+    { "files": "*.php", "options": { "phpVersion": "8.2", "singleQuote": true } }
+  ]
+}
