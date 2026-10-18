@@ -1759,10 +1759,10 @@ every anotoki site; the admin panel's Migrations page is the family's page,
 `ADMIN` - none of which needs a table a pending migration makes - and the CSRF
 header on Apply. The engine applies the files the IAM has not recorded yet, in
 order - the anotoki library's admin set (`anotoki_admin`, in
-`vendor/anotoki/lib/php/migrations/admin`: the tables of the admin tools - the
+`vendor/anotoki/lib/backend/migrations/admin`: the tables of the admin tools - the
 audit log, and feedback, which the IAM does not use), those of
 `migrations/iam`, then the library's translations set (`anotoki_translations`,
-in `vendor/anotoki/lib/php/migrations/translations`: the tables of the words
+in `vendor/anotoki/lib/backend/migrations/translations`: the tables of the words
 proved, and the library's own words) - each in a transaction of its own with
 its record in the `migrations` table, and stops at the first that fails
 (rolled back whole: the files after it never run, the library's included). The

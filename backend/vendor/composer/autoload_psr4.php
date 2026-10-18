@@ -14,5 +14,5 @@ return array(
     'Psr\\Container\\' => array($vendorDir . '/psr/container/src'),
     'Fig\\Http\\Message\\' => array($vendorDir . '/fig/http-message-util/src'),
     'FastRoute\\' => array($vendorDir . '/nikic/fast-route/src'),
-    'Anotoki\\Lib\\' => array($vendorDir . '/anotoki/lib/php/src'),
+    'Anotoki\\Lib\\' => array($vendorDir . '/anotoki/lib/backend/src'),
 );

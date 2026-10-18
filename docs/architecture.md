@@ -121,10 +121,10 @@ routes. The IAM wires it in `backend/api/migration_runner.php` and
 `frontend/src/app/core/migrations/migrations.config.ts`.
 
 - **The engine** (`iamMigrator()`): three sets, in this order - the library's
-  admin set, `anotoki_admin` (`vendor/anotoki/lib/php/migrations/admin`: the
+  admin set, `anotoki_admin` (`vendor/anotoki/lib/backend/migrations/admin`: the
   admin tools' tables, "The admin panel's tools" below), the IAM's own, `iam`
   (`migrations/iam`), then the library's translations set,
-  `anotoki_translations` (`vendor/anotoki/lib/php/migrations/translations`:
+  `anotoki_translations` (`vendor/anotoki/lib/backend/migrations/translations`:
   the tables of the words proved to be in the family's shape, and the
   library's own words; "The IAM's own words" below). The admin set comes first
   because the IAM's 018 moves its audit log into the library's table; the
@@ -606,7 +606,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 ## The admin panel's tools: the error log, the audit log, backups
 
 Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11; 0.6.3 now, both halves): the same pages, routes and
+owner's decision of 2026-10-11; 0.7.0 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and

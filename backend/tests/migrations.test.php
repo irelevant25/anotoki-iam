@@ -257,7 +257,7 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
         same(['set' => 'iam', 'name' => '001_initial_schema.sql', 'sql' => file_get_contents(dirname(__DIR__) . '/migrations/iam/001_initial_schema.sql')], $file->json(), 'its SQL, as it is on disk');
         $library = $admin->get('/api/admin/migrations/file?' . http_build_query(['set' => 'anotoki_translations', 'name' => '001_languages_and_strings.sql']));
         same(
-            [200, file_get_contents(dirname(__DIR__) . '/vendor/anotoki/lib/php/migrations/translations/001_languages_and_strings.sql')],
+            [200, file_get_contents(dirname(__DIR__) . '/vendor/anotoki/lib/backend/migrations/translations/001_languages_and_strings.sql')],
             [$library->status, $library->json()['sql'] ?? null],
             'and a file of the library\'s set, from vendor/anotoki/lib',
         );

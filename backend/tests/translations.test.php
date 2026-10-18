@@ -25,7 +25,7 @@
  *   - The catalogue. What the migrations leave is held to the frontend's
  *     compiled English (core/i18n/en.ts) and to MAIL_KEYS / MAIL_FALLBACK, so
  *     the three cannot drift apart; the library's words beside them are its
- *     file's (php/resources/library-words.json).
+ *     file's (backend/resources/library-words.json).
  *   - The IAM's contract on every route (docs/api.md): its error body, who
  *     may, the CSRF header, the audit log, `accounts`, `ui_locales`, the
  *     `locale` claim, discovery and /api/public/config with the database out

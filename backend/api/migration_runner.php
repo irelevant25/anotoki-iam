@@ -7,7 +7,7 @@
  * repository, and an update waiting behaves the same on each site.
  *
  * Here: three sets of files, in this order. First the library's admin set,
- * anotoki_admin (vendor/anotoki/lib/php/migrations/admin): the tables of the
+ * anotoki_admin (vendor/anotoki/lib/backend/migrations/admin): the tables of the
  * family's admin tools - the audit log (001) and feedback (002, which the IAM
  * does not use: the set comes whole). It runs first because the IAM's 018
  * moves the IAM's audit_log into its anotoki_audit_log, and nothing else
@@ -15,7 +15,7 @@
  * IAM's own, migrations/iam, recorded in the `migrations` table as it always
  * was (id, filename, applied_at - the engine reads and writes that shape as it
  * is, and never changes it). Then the library's translations set,
- * anotoki_translations (vendor/anotoki/lib/php/migrations/translations): the
+ * anotoki_translations (vendor/anotoki/lib/backend/migrations/translations): the
  * tables of the words, which the IAM's 006 made long before the library had
  * them, proved to be in the family's shape, and the library's own words under
  * `anotoki.`. It runs after the IAM's because the IAM's 006 makes those tables

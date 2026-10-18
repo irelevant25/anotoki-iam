@@ -76,7 +76,7 @@ config/
                           Each read cleanly or not at all: one that does not start with <?php (no <?php line, a
                           BOM, a blank line) is passed over uncompiled, one that prints caught and passed over
 migrations/iam/           NNN_name.sql - the schema and the seeded data; never edit an applied one (the library's
-                          own sets are in vendor/anotoki/lib/php/migrations: anotoki_admin runs before it,
+                          own sets are in vendor/anotoki/lib/backend/migrations: anotoki_admin runs before it,
                           anotoki_translations after it)
 storage/                  cache/, mail in development (storage/mail/*.eml), the setup nonce, the install lock;
                           logs/ (the error log, and audit entries waiting for 018), backups/ (the database's,

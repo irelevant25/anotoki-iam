@@ -1,9 +1,51 @@
 # Changelog
 
 One version for both halves: the Composer package `anotoki/lib` (from the git tag)
-and the npm package `@anotoki/lib` (`angular/projects/lib/package.json`). While the
+and the npm package `@anotoki/lib` (`frontend/projects/lib/package.json`). While the
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
+
+## 0.7.0 - 2026-10-18
+
+**The library's folders named as in every other anotoki project** (the owner's choice of 2026-10-18): the Angular
+workspace `angular/` is now `frontend/`, and the PHP half `php/` is now `backend/` - moved whole with git, so each
+file's history follows it. Nothing either half does changed; every path that named the old folders moved with them:
+composer.json's autoload and autoload-dev (`backend/src/`, `backend/tests/`), phpunit.xml.dist, `.gitattributes` (the
+Composer archive's allow-list, the LF rule of the migration files and the words) and `.gitignore`, the workflows (the
+Angular jobs in `frontend/`, the tag held to `frontend/projects/lib/package.json`, the tarball packed in
+`frontend/dist/lib`), the archive's check, the words generator (`frontend/scripts/library-words.mjs`, reading
+`backend/resources/library-words.json` - the files it writes say so), the spec and the showcase that read the JSON,
+the code's comments and README.md. The released migration files are not edited: their comments name `php/migrations`
+and `php/resources`, where those were when each was released.
+
+- The Composer package: GitHub's archive of the tag holds `backend/src`, `backend/migrations`, `backend/resources` and
+  `backend/testing` beside composer.json, README.md and CHANGELOG.md - the same files, under `backend/`. The classes
+  and their namespace (`Anotoki\Lib\`) are as they were, and the library finds its own files where they are now (each
+  module's `Schema::migrationSet()`, `LibraryWords::file()`, `StandInIam::script()`). A site's bookkeeping table
+  records a library file by its set and its name (`anotoki_translations/012_footer_words.sql`), never by its folder:
+  nothing to apply.
+- The npm package: nothing in it moved - the same entry points, `styles/` and `assets/theme-boot.js`; only its
+  package.json's `repository.directory` (`frontend/projects/lib`) and its README's pointer to the words' source.
+
+**The family's formatting setup** (the owner's decision of 2026-10-18: one look for the code of every project, both
+halves): Prettier at the repository's root, the family's one setup, the same files in every anotoki repository - a
+package.json for Prettier alone (`bun run format`, `bun run format:check`; Prettier 3.8.1 and `@prettier/plugin-php`
+0.25.0, the PHP formatted for PHP 8.2), `.prettierrc.json`, `.prettierignore` and `.editorconfig` - in place of the
+Angular workspace's own `.prettierrc`, `.prettierignore`, `.editorconfig`, its `prettier` dependency and its `format`
+script. Then every file formatted with it, in a commit of its own, with no change in behaviour; `endOfLine: auto`
+keeps each file's line endings. Prettier leaves alone the generated words (held byte for byte to the JSON by `bun run
+words --check` and `LibraryWordsTest`), the migration files and the Markdown. The Composer archive leaves the setup
+out, as it leaves out everything at the root but composer.json, README.md and CHANGELOG.md (`.gitattributes`; the
+archive's check refuses anything else).
+
+What a site must do: take `anotoki/lib ^0.7.0` and the 0.7.0 tarball together (0.x: `^0.6` does not take 0.7.0).
+Every `vendor/anotoki/lib/php/...` it names becomes `vendor/anotoki/lib/backend/...`: its migration runner's library
+migration folders where it names them itself (until then it finds none of the library's files there - those applied
+show as missing, and none waits); the stand-in IAM its tests and browser checks start,
+`vendor/anotoki/lib/backend/testing/stand-in-iam.php`; a build script or a test of the upload that names the library's
+files (its migrations, `resources/library-words.json`, `src/...`); and its docs. Nothing in its frontend: its imports
+(`@anotoki/lib/...`), `@use "@anotoki/lib/styles"` and the `theme-boot.js` asset (`node_modules/@anotoki/lib/assets`)
+are where they were.
 
 ## 0.6.3 - 2026-10-18
 
@@ -23,8 +65,8 @@ the top border."): `@anotoki/lib/footer` (new), `<anotoki-site-footer>`, the bui
   the footer's own, 0.9 kB gzipped) - the button busy meanwhile, and the focus is back on the button once the dialog
   goes. With the dialog drawn by the footer itself its first load took 2.0 kB more beside lazy pages, which use the rest
   of ui/dialog's one file.
-- Its words: `anotoki.footer.version` ("Version {version}"), `anotoki.footer.whatsNew`, `anotoki.footer.feedback` ("Send
-  feedback") and `anotoki.footer.fanHoyoverse` (the fan clause's first sentence), English and impersonal Slovak, in
+- Its words: `anotoki.footer.version` ("Version {version}"), `anotoki.footer.whatsNew`, `anotoki.footer.feedback`
+  ("Feedback", the build analyzer's word) and `anotoki.footer.fanHoyoverse` (the fan clause's first sentence), English and impersonal Slovak, in
   `php/resources/library-words.json`, generated into `@anotoki/lib/words/footer` and read by the footer itself through
   `pieceWords()` - the site's string first, then the built-in words - never registered (`READ_BY_THEIR_PAGES`: the
   footer has no provide*() of its own); `anotoki_translations/012_footer_words.sql` writes them by 002's rule, its gate
