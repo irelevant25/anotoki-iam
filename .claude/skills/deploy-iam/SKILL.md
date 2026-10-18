@@ -116,6 +116,13 @@ origin secret's: fails closed) instead of a 500 on every request, and PHP's
 error log names it ("does not start with <?php") - save it again as plain
 UTF-8 starting with `<?php`.
 
+anotoki-lib 0.6.3 brings the family's footer: the build analyzer's top border
+and Terms · Privacy · Contact under every page of the IAM, the admin panel's
+too (no row above them: the IAM has no version, What's new or feedback), and
+`/not-set-up` with nothing of the IAM round it. The same Apply brings the
+library's translations 012 (the footer's four words, none of them on the
+IAM's footer); nothing on the IAM's pages waits for it.
+
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 with no address - never a `localhost` one there. Admin panel →
 Applications → the site, `{site}` being its https address: redirect URI

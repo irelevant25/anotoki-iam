@@ -92,8 +92,9 @@ hosting:
     (`<?php return ['origin_secret' => '...'];`, uploaded by hand, never committed). With both, `CF-Connecting-IP`
     is believed only on a request that carries the value, so nobody else's Cloudflare Worker can write itself a new
     address for every guess; without the file the site believes it from Cloudflare's ranges alone. Set the two
-    together: a file the zone does not match - or one that cannot be read, a byte-order mark before its `<?php` -
-    counts every visitor as their Cloudflare edge (`docs/operations.md`, "Behind Cloudflare").
+    together: a file the zone does not match - or one that cannot be read, a byte-order mark before its `<?php`, or
+    one that names no secret - counts every visitor as their Cloudflare edge (`docs/operations.md`, "Behind
+    Cloudflare"); only deleting the file switches the secret off.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); the admin panel's Sessions show visitors' own addresses, not Cloudflare's (else the origin secret's

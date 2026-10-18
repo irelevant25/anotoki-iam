@@ -69,14 +69,21 @@ call exactly those endpoints and must handle exactly those refusal codes.
   (`google-button`: its button in Google's branding first; Google's script
   and button only after a press - `GoogleSignInService.load()`, which nothing
   else calls -, the owner's decision of 2026-10-14).
-- `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame) and
+- `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame),
+  `legal-layout` (the legal pages') and
   `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
   `@anotoki/lib/shell`, worded and wired for the IAM - CLAUDE.md says what it
   holds, its fold width and its keyboard rules; `top-bar.component.spec.ts`
-  checks them on the real bar). The account pages and the admin panel are in
-  the family's frame, `<anotoki-shell>`.
-- Pages: the sign-in flow (with `/error` and `/not-set-up`), `/account/**`,
-  `/admin/**`. Styles shared by a group of pages: `pages/auth/_auth-page.scss`,
+  checks them on the real bar). The account pages, the legal pages and the
+  admin panel are in the family's frame, `<anotoki-shell>`. Under every frame
+  (the sign-in, account, legal and admin pages) the family's footer,
+  `<anotoki-site-footer>` (`@anotoki/lib/footer`): Terms · Privacy · Contact
+  with no row above them (the IAM has no version, What's new or feedback form:
+  give none, invent none). `app.routes.spec.ts` checks the frames.
+- Pages: the sign-in flow (with `/error`), `/account/**`, `/admin/**`, the
+  legal pages; `/not-set-up`, the family's status page, on a route of its own
+  and no frame (no bar, no switches, no footer - the owner's rule of
+  2026-10-18). Styles shared by a group of pages: `pages/auth/_auth-page.scss`,
   `pages/admin/_admin-list.scss`, `pages/admin/_admin-field.scss`, `@use`d from
   each page's own `.scss`.
 

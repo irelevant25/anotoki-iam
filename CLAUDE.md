@@ -71,8 +71,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   text after a closing tag - is caught, never sent, and the file is passed
   over (said by its fault, and byte count, never its text; a required one
   leaves the IAM not set up, `iamSetUpProblems()` naming it;
-  `cloudflare.local.php` so fails closed, a secret no request carries); so
-  is one PHP cannot read. The installer reads through it too, and saves over
+  `cloudflare.local.php` so fails closed, a secret no request carries, as it
+  does read cleanly with no usable secret in it); so is one PHP cannot read. The installer reads through it too, and saves over
   no file it could not read (a master key with a BOM is still the key).
 - They are **required**: the anotoki family's gate (anotoki/lib's `SiteGate`
   over `iamSiteState()`, `api/migration_runner.php`; asked only while the IAM
@@ -82,7 +82,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   while `storage/installed.lock` is not there (the owner's rule: an IAM
   installed once never offers the installer again) - and the frontend turns
   that into `/not-set-up` (the family's `<anotoki-site-status>`, in the IAM's
-  `notSetUp.*` words). The CLI tools stop with `requireSetUpOnCli()`.
+  `notSetUp.*` words, a page of its own with no bar and no footer). The CLI
+  tools stop with `requireSetUpOnCli()`.
 - **`backend/setup.php` writes them**, in development too. On this computer
   (loopback `REMOTE_ADDR`, a localhost `Host`, no forwarding headers): no token,
   a nonce in the form (`storage/setup-nonce`) plus Origin / Sec-Fetch-Site
@@ -278,8 +279,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   mails stay the IAM's (`MAIL_KEYS`, `MAIL_FALLBACK`, `mailWords()`,
   `mailFill()`, `mailMessage()`); their rules are `IamMailRules`, which the
   library's checks ask. `anotoki.` is the library's namespace: its own words
-  (257 keys since 0.6.0: the kit's, the status page's, the legal pages' and
-  more) come from its migration set
+  (261 keys since 0.6.3: the kit's, the status page's, the legal pages', the
+  footer's and more) come from its migration set
   `anotoki_translations`, which runs after the IAM's set everywhere
   (`iamMigrator()`), is recorded in `migrations` as `set/name`, and writes a
   key's strings only where the key has none - but for 0.6.1's 010, which
@@ -315,12 +316,17 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `CF-Connecting-IP` is believed only on a request that carries it - any other
   from the ranges is the edge it came from, coarser, never looser; passed to
   `requestIp()` (and so the limiter and the audit log) and `iamAdminContext()`;
-  without the file, as before; with one that cannot be read cleanly, a secret
-  no request carries (fails closed: every request from the ranges its edge).
-  Never printed or logged.
+  without the file - nothing at its path, `localConfigThere()` - as before;
+  with anything there that yields no usable secret, a secret no request
+  carries (fails closed: every request from the ranges its edge) - one that
+  cannot be read cleanly, and since 2026-10-18 (the owner's "do as you think
+  is the best") one read cleanly that names none (blank, no string, a
+  misspelt key, no array, a forgotten `return`) and a folder in its place:
+  only deleting the file switches the secret off. Never printed or logged.
   `tests/addresses.test.php` holds the attacks it stops (a forged header from
   outside the ranges, the other headers from inside them, a catch-all range, a
-  Worker writing a new address into every guess without the secret).
+  Worker writing a new address into every guess without the secret, or past a
+  file that names none).
 - **The admin panel's tools are the family's library's** (anotoki-lib 0.4.1,
   then 0.5.0 - the owner's decisions of 2026-10-11; `docs/decisions.md`): the
   error log, the audit log and backups - one page each, the library's routes
@@ -452,10 +458,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): 0.6.2,
+  halves, updated together where both change (`docs/operations.md`): 0.6.3,
   both halves (the migrations module, the translations module, the UI kit,
-  the admin tools, the pages' error reporter, the legal pages; never 0.4.0,
-  which fails on PHP 8.2). Never
+  the admin tools, the pages' error reporter, the legal pages, the footer;
+  never 0.4.0, which fails on PHP 8.2). Never
   edit the vendored copy: a change goes to the library and comes back as a
   release. Its routes here: `GET /api/site-status` (first-party, public, no
   CORS), `/api/admin/migrations[/file|/apply]` inside the admin group, the
@@ -485,7 +491,9 @@ known and unknown addresses; the limiter on every mail-sending and sign-in
 endpoint, counting the visitor - `CF-Connecting-IP` alone, pinned in the
 code, believed only on a connection from the trusted proxies (Cloudflare's
 ranges; none wider than an IPv4 /8 or an IPv6 /16) and, with the zone's
-origin secret, only on a request that carries it in `X-Anotoki-Origin`;
+origin secret, only on a request that carries it in `X-Anotoki-Origin` -
+anything at its file's path that yields no usable secret fails closed, only
+nothing there is no secret;
 five wrong authenticator codes pause an account's codes for fifteen minutes
 on every way that takes one, a code by email standing in only after the
 password and only until five of those are wrong; the same switches on every way in; no self-lockout, no removing the
@@ -545,7 +553,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.6.2), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.6.3), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they
@@ -571,7 +579,9 @@ a decision for `docs/decisions.md`, not a refactor.
   would load Google's script as each page opens, while the Privacy page says
   only a press does); fix forward.
 - Pages: the sign-in flow (`/login`, `/register`, `/confirm-email`,
-  `/forgot-password`, `/reset-password`, `/logout`, `/error`, `/not-set-up`),
+  `/forgot-password`, `/reset-password`, `/logout`, `/error`; and
+  `/not-set-up`, the family's status page, on a route of its own - on no
+  frame: no bar, no switches, no footer, the owner's rule of 2026-10-18),
   the account page (`/account/**`, the family's frame at `maxWidth="88rem"`),
   the admin panel (`/admin/**`, English only; `/admin/translations` and
   `/admin/languages` are the family's `<anotoki-translations-page>` and
@@ -591,9 +601,13 @@ a decision for `docs/decisions.md`, not a refactor.
   `@anotoki/lib/legal/pages`, lazy, anybody's, in `layouts/legal-layout` -
   the family's frame, the top bar's `public` area - with the IAM's facts,
   `core/legal/legal-facts.ts`, given by that frame and out of the first load;
-  the Privacy page is the one every anotoki site links to for the account;
-  Terms · Privacy · Contact under the sign-in and account pages,
-  `layouts/site-footer`, not in the admin panel). The facts are true of the
+  the Privacy page is the one every anotoki site links to for the account).
+  Under the sign-in pages, the account pages, the legal pages and - as in
+  every anotoki admin panel, the owner's decision of 2026-10-18 - the admin
+  panel: the family's footer (`<anotoki-site-footer>`, `@anotoki/lib/footer`,
+  in each frame), its top border and Terms · Privacy · Contact with no row
+  above them - the IAM has no version, no What's new and no feedback form,
+  so it gives none and invents none (`app.routes.spec.ts`). The facts are true of the
   code as it is: a change to what the IAM keeps, or for how long, changes
   their `legal.*` strings (by a migration) and `IAM_LEGAL_UPDATED`; every
   address a page links to is in the code, never a string (the 0.6.0 review).

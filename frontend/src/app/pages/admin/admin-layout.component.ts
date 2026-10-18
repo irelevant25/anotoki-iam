@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
+import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { UpdateBannerComponent } from '@anotoki/lib/migrations';
 import { ShellComponent, ShellNavItem } from '@anotoki/lib/shell';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
@@ -44,10 +45,15 @@ const NAV: readonly (ShellNavItem & { icon: IconName })[] = [
  * (`<anotoki-update-banner>`, which asks the server once). The IAM goes on
  * working meanwhile - it is the door every site signs in through - so nobody
  * else is told anything.
+ *
+ * Under every page, as in every anotoki admin panel (the owner, 2026-10-18):
+ * the family's footer (@anotoki/lib/footer), in English like the panel -
+ * Terms · Privacy · Contact, and no row above them: the IAM has no version,
+ * no What's new and no feedback form.
  */
 @Component({
   selector: 'app-admin-layout',
-  imports: [RouterLink, RouterOutlet, UpdateBannerComponent, ShellComponent, AppTopBarComponent, ButtonComponent, EmptyStateComponent],
+  imports: [RouterLink, RouterOutlet, UpdateBannerComponent, ShellComponent, AppTopBarComponent, ButtonComponent, EmptyStateComponent, SiteFooterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss',

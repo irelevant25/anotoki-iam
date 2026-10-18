@@ -591,7 +591,7 @@ test('the two languages the IAM is released in, and every key - the IAM\'s and t
         'the languages'
     );
     $library = count(LibraryWords::keys());
-    same(257, $library, 'the library\'s words: 257 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 -, 004 - the feedback form\'s 31 -, 005 - the legal pages\' 122 -, 006 - the top bar\'s 1 -, 007 - the kit\'s pieces\' 4 -, 008 - the tabs\' 2 - and 009 - the input pieces\' 34)');
+    same(261, $library, 'the library\'s words: 261 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 -, 004 - the feedback form\'s 31 -, 005 - the legal pages\' 122 -, 006 - the top bar\'s 1 -, 007 - the kit\'s pieces\' 4 -, 008 - the tabs\' 2 -, 009 - the input pieces\' 34 - and 012 - the footer\'s 4; 010 and 011 reword)');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the IAM\'s own: 568 keys of the pages and 52 of the mails');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'and the library\'s beside them');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('en')), 'each has an English string');
@@ -1108,7 +1108,7 @@ test('the bundle: a language\'s strings with English underneath, the library\'s 
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 568 strings of the pages, and the library\'s 257');
+    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 568 strings of the pages, and the library\'s 261');
     same('Save', $english->json()['values']['common.save'], 'a string');
     same(['Language', 'Language: {name} ({code})'], [$english->json()['values']['anotoki.language.label'] ?? null, $english->json()['values']['anotoki.language.button'] ?? null], 'the library\'s words, from the database');
     check(str_contains($english->header('Content-Type'), 'application/json'), 'as JSON');

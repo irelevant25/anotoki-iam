@@ -76,7 +76,9 @@ prints all the same - text after a closing tag - is caught and goes nowhere
 and the file is passed over too. Each is said by its fault (and byte count),
 never its text; so is one PHP cannot read. The origin secret's
 (`cloudflare.local.php`) so passed over fails closed: a secret no request
-carries, every request from Cloudflare's ranges its edge.
+carries, every request from Cloudflare's ranges its edge - and so does one
+read cleanly that names no secret, or a folder in its place (2026-10-18):
+only nothing at its path is no secret.
 
 They are required. Until `database`, `secret`, `iam` and `mail` are all there
 and sensible (`google` and `cloudflare` are optional; the installer never
@@ -178,7 +180,10 @@ routes. The IAM wires it in `backend/api/migration_runner.php` and
   `<anotoki-site-status>` in the IAM's own words - "This IAM is not set up
   yet", "Open the installer" - with the developer's line, while it was never
   installed; once installed, "The site is not available right now", asking
-  again by itself, and never the installer.
+  again by itself, and never the installer. It is a page of its own (the
+  owner's rule of 2026-10-18, the family's): on a route outside every frame,
+  in a `<main>` of its own as the family's gate draws it on the sites that
+  have one - no bar, no language or theme switch, no night sky, no footer.
 
 ## A sign-in, end to end
 
@@ -449,9 +454,13 @@ Anybody may read them: they are in the family's frame
 (`layouts/legal-layout`), whose bar is the account pages' for somebody
 signed in and Sign in for anybody else (the top bar's `public` area), and
 the session is asked for before the first page when one of them is where the
-site was opened. The foot of every sign-in and account page links to them
-(`layouts/site-footer`, the library's `<anotoki-legal-links>`); the admin
-panel does not.
+site was opened. The family's footer links to them (`<anotoki-site-footer>`,
+anotoki-lib 0.6.3, the build analyzer's: a top border, the muted ink at
+13 px) under every sign-in, account and legal page and - as in every anotoki
+admin panel, the owner's decision of 2026-10-18 - in the admin panel, in
+English there: Terms · Privacy · Contact (`<anotoki-legal-links>`) with no
+row above them, the IAM having no version, no What's new and no feedback
+form. The not-set-up page has none of it.
 
 The words are the library's (`anotoki.legal.*`, written by its translations
 set's 005); the facts are the IAM's - what it keeps, for how long, its
@@ -521,7 +530,9 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   `storageSignInPurpose`) only while each is still `005`'s word for word and
   nobody saved it (`updated_by IS NULL`) - none of the three is on the IAM's
   pages: its Privacy page says its own words for the account, its backups'
-  keeping and its storage.
+  keeping and its storage. 0.6.3's `012` writes the footer's four words
+  (`anotoki.footer.*`: the version, What's new, Feedback, the fan clause) by
+  `002`'s rule - none of them on the IAM's footer, which has no row.
   The IAM's language switcher said its two words as `lang.label` and
   `lang.button`; migration 017 moved them, with every string, writer and date,
   to `anotoki.language.label` and `anotoki.language.button`, and renamed
@@ -595,7 +606,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 ## The admin panel's tools: the error log, the audit log, backups
 
 Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11; 0.6.2 now, both halves): the same pages, routes and
+owner's decision of 2026-10-11; 0.6.3 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and
@@ -674,7 +685,9 @@ written down, not a refactor.
    pinned in the code, never from anywhere else, never a configured range
    wider than an IPv4 /8 or an IPv6 /16, and with the zone's origin secret only
    on a request that carries it (2026-10-13: Cloudflare's ranges are every
-   customer's; without it a request from them is the edge it came from) -
+   customer's; without it a request from them is the edge it came from), and
+   anything at the secret file's path that yields no usable secret fails
+   closed - only nothing there is no secret (2026-10-18) -
    counted by its bucket: an IPv4 address whole, an IPv6 address by its /64,
    so a network of one's own is no supply of fresh sources (`limiterSource()`).
    And wrong authenticator codes are counted **per account** too, whatever
@@ -778,6 +791,6 @@ written down, not a refactor.
 | `frontend/src/app/core/migrations/` | How the pages use `@anotoki/lib/migrations`: who is the IAM's ADMIN, the sign-in, the language and the IAM's own not-set-up words, the account's dates. |
 | `frontend/src/app/core/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the database (the IAM's own strings where it has one, `kit-words.ts`; the library's `anotoki.*` for the rest), the icons the IAM's templates name, the account's theme and the languages. |
 | `frontend/src/app/core/legal/` | How the pages use the family's legal pages (`@anotoki/lib/legal`): `legal.config.ts` (the language, the database's words - in the first load, for the footer's links) and `legal-facts.ts` (the IAM's facts and every address the pages link to, given by the pages' frame). |
-| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px), `legal-layout` (the legal pages' frame), `site-footer` (Terms · Privacy · Contact under the sign-in and account pages). The account pages, the legal pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`. |
+| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px), `legal-layout` (the legal pages' frame). The account pages, the legal pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`; every frame, the sign-in pages' too, has the family's footer under it (`<anotoki-site-footer>`, `@anotoki/lib/footer`: Terms · Privacy · Contact, no row). `/not-set-up` is on none of them (`app.routes.ts`). |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

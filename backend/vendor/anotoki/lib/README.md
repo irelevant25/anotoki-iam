@@ -9,7 +9,7 @@ version:
 | PHP 8.2+, Slim 4, PostgreSQL | `anotoki/lib` (Composer) | `composer.json`, `php/src/`, `php/migrations/`, `php/resources/`, `php/testing/` |
 | Angular 21 (standalone, zoneless, signals) | `@anotoki/lib` (npm tarball) | `angular/projects/lib/` |
 
-Version 0.6.2 holds:
+Version 0.6.3 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -35,7 +35,12 @@ Version 0.6.2 holds:
 - **the legal pages** (Angular, with their words in both halves; 0.6.0) -
   Terms, Privacy and Contact for every site, the family's
   wording around each site's facts, and the footer's three links (the section
-  "Legal pages").
+  "Legal pages");
+- **the footer** (Angular, with its words in both halves; 0.6.3, not released
+  yet) - `<anotoki-site-footer>`, one footer under every page and admin panel of
+  every site: the version, What's new, Feedback, Terms · Privacy · Contact
+  and the fan clause; and the status page, with no header and no footer (the
+  section "Footer").
 
 ## The behaviour
 
@@ -242,7 +247,9 @@ uses is in the first load again.
 | `@anotoki/lib/error-report/marker` (0.6.0) | `ANOTOKI_ERROR_REPORT` alone, the mark on a report's request an interceptor reads (the auth module's) - without the reporter; `@anotoki/lib/error-report` names it too | with the reporter, and the auth module |
 | `@anotoki/lib/legal` (0.6.0) | the legal pages' configuration (`provideAnotokiLegal`: the site's facts, its paths, the operator) and `<anotoki-legal-links>`, Terms · Privacy · Contact for a footer ("Legal pages" below) | yes (a footer on every page) |
 | `@anotoki/lib/legal/pages` (0.6.0) | the Terms, Privacy and Contact pages, with their words | lazy routes |
-| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's), `/legal-links` (the footer's links, 0.6.0), `/legal` (the legal pages', 0.6.0 - read by those pages alone), `/chips`, `/progress`, `/stepper`, `/tabs`, `/date-field`, `/color-field`, `/file-picker`, `/combobox` and `/rich-text` (the kit's pieces', 0.6.0 - read by those pieces alone) | with its module, which alone imports it and registers it with the translations module (the legal pages and the kit's pieces read theirs themselves) |
+| `@anotoki/lib/footer` (0.6.3) | `<anotoki-site-footer>`, the family's footer: the version, What's new, Feedback, Terms · Privacy · Contact, the fan clause ("Footer" below) | yes (every page) |
+| `@anotoki/lib/footer/feedback` (0.6.3) | the footer's feedback dialog: the kit's dialog around the feedback form; the library's own, a site imports nothing of it | loaded with the press on Feedback |
+| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's), `/legal-links` (the footer's links, 0.6.0), `/legal` (the legal pages', 0.6.0 - read by those pages alone), `/chips`, `/progress`, `/stepper`, `/tabs`, `/date-field`, `/color-field`, `/file-picker`, `/combobox` and `/rich-text` (the kit's pieces', 0.6.0 - read by those pieces alone), `/footer` (the footer's, 0.6.3 - read by the footer itself) | with its module, which alone imports it and registers it with the translations module (the legal pages, the kit's pieces and the footer read theirs themselves) |
 | `@anotoki/lib/words` (0.4.0, generated) | `LIBRARY_WORDS`, every module's words (the kit's and each namespace's) | never - a site's specs, the showcase |
 
 Every component is standalone, OnPush and zoneless-safe; colours only through
@@ -840,7 +847,9 @@ provideAppInitializer(() => inject(SiteStatus).check()),   // early in the boot;
 
 ```html
 <!-- the app's template: the gate around the router outlet, and around nothing else - the pages as a marked template
-     (SitePagesDirective in the component's imports), made only while the site is open -->
+     (SitePagesDirective in the component's imports), made only while the site is open. The gate is the outermost of
+     what the site draws: the site's frame - its bar, its footer - is inside its pages, so that the status page shows
+     with no header and no footer ("Footer" below) -->
 <anotoki-site-gate><ng-template anotokiSitePages><router-outlet /></ng-template></anotoki-site-gate>
 ```
 
@@ -857,7 +866,8 @@ provideAppInitializer(() => inject(SiteStatus).check()),   // early in the boot;
   `not_set_up` tells `SiteStatus` (the request still fails).
 - `<anotoki-site-gate>` - its pages while the site is ready (or not asked yet),
   or for the ADMIN on the Migrations route while an update waits;
-  `<anotoki-site-status>` otherwise. The pages as `<ng-template anotokiSitePages>`
+  `<anotoki-site-status>` otherwise - a page of its own, in a `<main>` of the
+  gate's (0.6.3). The pages as `<ng-template anotokiSitePages>`
   are made only while they show; content given as it is (no template) shows as
   in 0.1.0 but is made anyway, so a page behind the status page would run. An
   unmarked `<ng-template>` is not the pages (a control-flow block is a
@@ -1155,6 +1165,11 @@ $migrator = new Migrator($pdo, [new MigrationSet('survey', __DIR__ . '/../migrat
   `anotoki.combobox.*` ("No matches", how many more match, the chosen ones' name) and the rich-text
   toolbar's `anotoki.richText.*` (its name and its twelve buttons'), 34 keys in English and impersonal
   Slovak, by 002's rule.
+- `010_backups_where_words.sql` (0.6.1) and `011_privacy_words_made_true.sql` (0.6.2) reword sentences of
+  the Privacy page where they are still 005's words (CHANGELOG.md).
+- `012_footer_words.sql` (0.6.3) adds the footer's words (`anotoki.footer.*`: "Version {version}",
+  "What's new", "Feedback" and the HoYoverse fan clause), 4 keys in English and impersonal Slovak,
+  by 002's rule - 261 library keys.
 - The house rules: every library file ends with `-- end of NNN` (Japanese
   Academy's draft rule accepts it), has LF line endings, one string a line with
   `''` for an apostrophe and nothing else escaped, names no site table, runs
@@ -1164,7 +1179,15 @@ $migrator = new Migrator($pdo, [new MigrationSet('survey', __DIR__ . '/../migrat
   name NOT LIKE 'anotoki.%'`); `anotoki.` is the library's namespace; a site that
   words a library string its own way writes the key first (`INSERT … ON CONFLICT
   DO NOTHING`, then `UPDATE … WHERE value = '<the library's words>'` for a
-  database that has the library's already).
+  database that has the library's already). A gate that compares lists of names
+  compares them as sets, or sorts both sides `COLLATE "C"` (0.6.3): a host's
+  collation may skip punctuation (glibc's `en_US.utf8`, ICU's
+  `en-US-u-ka-shifted`), and names sorted as TEXT then come out in another order
+  than the catalog's `name` type sorts them - byte order -, so the Apply is refused
+  (the build analyzer's live PostgreSQL 14, 2026-10-18). The library's sets apply
+  on such a database (`SchemaTest`, PostgreSQL 15+): `001`'s check of the primary
+  keys, the one such comparison in a released file, sorts names that come out
+  alike in every collation.
 
 ### The PHP half
 
@@ -1302,6 +1325,9 @@ import it:
   load. Each piece reads its words through `pieceWords()` (`ui/piece-words`) -
   the site's string for the key first (`lookup`, the database's), then the built-in
   words; their Slovak is impersonal too;
+- the footer's (0.6.3), `@anotoki/lib/words/footer`, read by `@anotoki/lib/footer`
+  alone the same way - it has no provide*() either - and so in the footer's first
+  load, and in no other; impersonal Slovak;
 - `@anotoki/lib/words` (`angular/projects/lib/words/`): `LIBRARY_WORDS`, every
   namespace's, for a site's specs and the showcase - no module imports it.
 
@@ -1319,8 +1345,8 @@ words brings a namespace, an entry point of its own and its registration:
 first load to the namespaces its page says, and refuses a module that imports
 its words without registering them, and the translations module importing any -
 but for the words their readers alone read (`READ_BY_THEIR_PAGES`: the legal
-pages', the kit's pieces'), which only those readers may import and no first load
-may carry.
+pages', the kit's pieces', the footer's), which only those readers may import and
+no first load may carry but their reader's own (the footer's).
 
 ### The Angular half: `@anotoki/lib/translations`
 
@@ -2795,9 +2821,10 @@ provideAnotokiLegal(() => {
 ```
 
 ```html
-<!-- in the family's frame: the footer under every page (a site with a footer of its own adds the three links
-     itself, in the same words: i18n.t('anotoki.legalLinks.terms'), ...) -->
-<footer shellFooter><anotoki-legal-links /></footer>
+<!-- in the family's frame: the footer under every page - since 0.6.3 the family's own, which holds them ("Footer" below) -->
+<anotoki-site-footer shellFooter [version]="version()" feedback />
+<!-- the links alone, where a page needs them without the footer -->
+<anotoki-legal-links />
 ```
 
 **The site's facts** (`LegalFacts`) are worded in the page's language - a site
@@ -2888,6 +2915,96 @@ site or a module changes:
 - The account: the IAM's deletion closes the account at once, deletes it 30
   days later and can be cancelled until then.
 
+## Footer (0.6.3)
+
+One footer for every anotoki site - the build analyzer's, its order, its words
+and its top border (the owner's choice of 2026-10-18) - under every page and in
+every admin panel (genshin: in its admin panel only).
+
+```ts
+// app.config.ts - what the footer reads: the legal configuration (its links), and the feedback form's where the site takes feedback
+provideAnotokiLegal(() => ({ /* "Legal pages" above */ })),
+provideAnotokiFeedback(() => ({ /* "The visitors' feedback form" above */ })),
+```
+
+```html
+<!-- in the family's frame of every layout - the site's pages and its admin panel - under the page -->
+<anotoki-shell>
+  <app-top-bar topBar />
+  <router-outlet />
+  <anotoki-site-footer shellFooter [version]="changelog.current()" whatsNew (whatsNew)="changelog.open()" feedback fan="hoyoverse" />
+</anotoki-shell>
+```
+
+| Input / output | |
+| --- | --- |
+| `version` | the version of the site the page runs (`'0.3'`): "Version 0.3", first in the row; null or empty - neither it nor its dot |
+| `whatsNew`, `(whatsNew)` | "What's new" after the version, a link button naming the dialog it opens (`aria-haspopup="dialog"`); pressed, `(whatsNew)`: the site opens its own What's new |
+| `feedback` | "Feedback", last in the row: the library's feedback form in the kit's dialog, named by the button's words, the form with its Cancel and - after the thanks - its Close (the site's `provideAnotokiFeedback()` as it is). The dialog's and the form's code come with the first press (`@anotoki/lib/footer/feedback`, the footer's own: no first load carries them), the button busy meanwhile; the focus is back on the button once the dialog goes. Left out on a site that takes no feedback (the IAM, the survey) |
+| `fan` | `'hoyoverse'`: the fan clause, last (genshin, the build analyzer); Terms and Contact say it longer (`fanDisclaimer`) |
+
+- **Drawn**: a top border (`--anotoki-border`), everything centred in the muted
+  ink at 0.8125rem, 1.25rem 1rem 1.5rem round it; the row - the parts that are
+  on, a dot between two of them (drawn, `aria-hidden`: a part left out takes its
+  dot with it, and with none the row is not drawn), the version's figures of one
+  width, the kit's small link buttons (44 px where the pointer is a finger);
+  Terms · Privacy · Contact under it, always (`<anotoki-legal-links>`, to the
+  paths of the site's `provideAnotokiLegal()`); the fan clause at 0.75rem, at most
+  40rem wide. A `<footer>` landmark of its own, the dialog outside it; wraps at
+  390 px; not printed, as the bar is not. Light and dark from the tokens.
+- **Words** (`anotoki.footer.*`): "Version {version}", "What's new", "Send
+  feedback" and the fan clause, English and impersonal Slovak - in every site's
+  database through `anotoki_translations/012`, reworded on its Translations page.
+  The footer reads them itself (no provide*() of its own, no registration): the
+  site's string first, through provideAnotokiUi's `lookup` (the translations
+  module's `forKit()`: the database's), then the built-in words, in the kit's
+  language (English in an admin panel); a part says its language where it is not
+  the page's. Terms · Privacy · Contact are the legal links' (`anotoki.legalLinks.*`).
+- **Weight**: 7.6 kB gzipped of a site's first load with the legal links and the
+  kit's button (8.0 beside lazy pages; the package check holds it to 9) - the
+  dialog and the form come with the press.
+
+A site's own footer goes for it - its version, What's new, Feedback, its legal
+links, its fan clause; its own feedback dialog with it (the footer opens the
+form itself) - and with them its own words for them, by a migration of its own
+once nothing reads them (`footer.version`, `footer.feedback`, `footer.fanMade`,
+...). The admin panel's frame has the footer too.
+
+### The status page: no header, no footer
+
+The family's status page (`<anotoki-site-status>`: an update waiting, the
+database out of reach, not set up) is a page of its own, drawn with no header
+and no footer (the owner's rule of 2026-10-18):
+
+- **A site with the gate**: `<anotoki-site-gate>` is the outermost of what the
+  site draws, around its router outlet, and the site's frame - its bar, its side
+  navigation, its footer, the notes above its pages - is inside its pages: on its
+  layout routes (the build analyzer's: `<anotoki-shell>` with the bar and the
+  footer in each layout), or in the marked template with the outlet. Never beside
+  the gate. The overlays (`<anotoki-confirm-host>`, `<anotoki-toast-host>`) stay
+  outside it, for the pages and the status page alike. The gate draws the status
+  page in a `<main>` of its own (0.6.3), so a site puts no landmark round the
+  gate. An ADMIN on the Migrations route while an update waits has the site's
+  pages - the admin panel's frame with them.
+- **A site without the gate** (the IAM, which keeps answering while an update
+  waits): its status page is a route of its own outside the frame - on no layout
+  that draws the bar or the footer.
+
+```html
+<!-- app.component.html: the gate outermost, the frame inside the pages -->
+<anotoki-site-gate>
+  <ng-template anotokiSitePages>
+    <anotoki-shell>
+      <app-top-bar topBar />
+      <router-outlet />
+      <anotoki-site-footer shellFooter [version]="version()" whatsNew (whatsNew)="openWhatsNew()" feedback />
+    </anotoki-shell>
+  </ng-template>
+</anotoki-site-gate>
+<anotoki-confirm-host />
+<anotoki-toast-host />
+```
+
 ## Working on the library
 
 ```
@@ -2907,9 +3024,9 @@ bun run build           # ng build lib -> angular/dist/lib, then scripts/check-p
                         # size (gzipped code; limits for the eager ones) and import boundaries; what a site's
                         # build keeps of an entry point nothing is used of (nothing); no bundle naming innerHTML,
                         # outerHTML, insertAdjacentHTML or bypassSecurityTrust, comments too (the IAM's deploy
-                        # check refuses such a release); and ten first loads - the gate, the bar, the words, a
+                        # check refuses such a release); and eleven first loads - the gate, the bar, the words, a
                         # button, a select, the sign-in, the badge, the words + feedback, the error report, the
-                        # words + legal links - beside lazy pages that use the rest (no file of theirs, under a limit; the words
+                        # words + legal links, the footer - beside lazy pages that use the rest (no file of theirs, under a limit; the words
                         # of the namespaces their page says, and no others), each file through Angular's own
                         # linker and the CLI's esbuild
 bun run test            # ng test lib --watch=false (Vitest, jsdom)
@@ -2922,8 +3039,9 @@ bun run showcase        # projects/showcase on http://localhost:4320: every piec
                         # a password as the proof ("secret"), ?signedin=1 for the form; /sign-in, the sign-in
                         # failure's screen (?code=state_mismatch, ..., unavailable); /terms, /privacy, /contact,
                         # the legal pages with a sample site's facts, linked from the footer (?iam=1 the anotoki
-                        # account's own, ?fan=1 the fan clause, ?feedback=0 a site without feedback); never
-                        # published)
+                        # account's own, ?fan=1 the fan clause, ?feedback=0 a site without feedback); the family's
+                        # footer under every page (the library's version, What's new, Feedback; the same
+                        # ?fan=1 and ?feedback=0) and its samples in the gallery; never published)
 bun run build:showcase  # the same, built into angular/dist/showcase
 bun run words           # the Angular half's library words from php/resources/library-words.json (--check: stale?)
 ```

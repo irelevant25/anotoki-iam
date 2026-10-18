@@ -363,46 +363,111 @@ test('with the secret, what the audit log keeps, a session shows, and the librar
     });
 });
 
-test('config/cloudflare.local.php: its value trimmed; an empty one, one of spaces, or one that is no string is no secret - said in PHP\'s error log by the file\'s name, never a value - and the set-up check never asks for the file', function () {
-    withOriginSecret("  \t" . ORIGIN_SECRET . "\n", static function (): void {
-        same(ORIGIN_SECRET, iamOriginSecret(), 'trimmed: a header\'s value never starts or ends with a space');
-        same('198.51.100.7', requestIp(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7', ORIGIN_HEADER => ORIGIN_SECRET])), 'and so it matches the header');
-    });
-
-    $log = loggedWhile(static function (): void {
-        foreach (['empty' => '', 'spaces' => " \t  ", 'a number' => 12345678901234567890, 'a list' => [ORIGIN_SECRET], 'null' => null] as $what => $value) {
-            withOriginSecret($value, static function () use ($what): void {
-                same(null, iamOriginSecret(), "{$what}: no secret");
-                same('198.51.100.7', requestIp(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7'])), "{$what}: Cloudflare's ranges alone, as with no file");
-            });
-        }
-        withCloudflareFile("<?php\n\nreturn ['secret' => " . var_export(ORIGIN_SECRET, true) . "];\n", static function (): void {
-            same(null, iamOriginSecret(), 'the secret under another name: none');
-        });
-    });
-    check(str_contains($log, 'config/cloudflare.local.php holds no origin_secret'), 'said in PHP\'s error log: ' . $log);
-    check(!str_contains($log, ORIGIN_SECRET), 'and never the value in it');
-
-    same([], iamSetUpProblems(), 'without the file the IAM is set up: it is never asked for');
-    withOriginSecret(ORIGIN_SECRET, static function (): void {
-        same([], iamSetUpProblems(), 'and with it nothing there changes');
-    });
-});
-
 /**
- * A cloudflare.local.php that is there but was passed over fails closed: the
- * secret is one no request carries, so a request from Cloudflare's ranges is
- * its edge - without the header, and with the very value the file holds (it
- * was never read) - and from outside the ranges the connection, as ever.
+ * A cloudflare.local.php that is there but yields no usable secret fails
+ * closed: the secret is one no request carries, so a request from Cloudflare's
+ * ranges is its edge - without the header, with an empty one, and with the
+ * very value the file holds (passed over, or under the wrong name) - for the
+ * IAM's limits and the library's alike, and from outside the ranges the
+ * connection, as ever.
  */
 function failsClosed(?string $read, string $what): void
 {
     check(is_string($read) && preg_match('/^[0-9a-f]{64}$/D', $read) === 1 && $read !== ORIGIN_SECRET, "{$what}: a secret no request carries, not the file's");
     same($read, iamOriginSecret(), "{$what}: the same one all through the process");
     same(CLOUDFLARE_EDGE, requestIp(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7'])), "{$what}: fails closed - from Cloudflare's ranges, the edge");
+    same(CLOUDFLARE_EDGE, requestIp(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7', ORIGIN_HEADER => ''])), "{$what}: the edge with an empty header");
     same(CLOUDFLARE_EDGE, requestIp(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7', ORIGIN_HEADER => ORIGIN_SECRET])), "{$what}: the edge with the file's own value too");
+    same(CLOUDFLARE_EDGE, iamAdminContext()->clientKey(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7'])), "{$what}: and the library counts the edge");
     same(ELSEWHERE, requestIp(requestFrom(ELSEWHERE, ['CF-Connecting-IP' => '198.51.100.7'])), "{$what}: from elsewhere, the connection");
 }
+
+test('config/cloudflare.local.php: its value trimmed; one that names no usable secret - empty, spaces, no string, a misspelt or another key, no array, a forgotten return - or a folder in its place fails closed (2026-10-18), said in PHP\'s error log by the file\'s name, never a value; only deleting it switches the secret off; and the set-up check never asks for the file', function () {
+    withOriginSecret("  \t" . ORIGIN_SECRET . "\n", static function (): void {
+        same(ORIGIN_SECRET, iamOriginSecret(), 'trimmed: a header\'s value never starts or ends with a space');
+        same('198.51.100.7', requestIp(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7', ORIGIN_HEADER => ORIGIN_SECRET])), 'and so it matches the header');
+    });
+
+    // Read cleanly, with no usable secret in it: until 2026-10-18 "no secret" - CF-Connecting-IP believed from every
+    // Cloudflare customer's Worker -, now a secret no request carries.
+    array_map('unlink', glob(iamStorageDir() . '/cache/said-*.logged') ?: []);
+    $log = loggedWhile(static function (): void {
+        foreach (['empty' => '', 'spaces' => " \t  ", 'a number' => 12345678901234567890, 'a list' => [ORIGIN_SECRET], 'true' => true, 'null' => null] as $what => $value) {
+            withOriginSecret($value, static function () use ($what): void {
+                same(null, localConfigProblem('cloudflare'), "{$what}: read cleanly");
+                failsClosed(iamOriginSecret(), $what);
+            });
+        }
+        // A value a Worker could guess (the IAM's review of 2026-10-18): too short, or a placeholder of the docs left in.
+        foreach (['31 characters' => substr(ORIGIN_SECRET, 0, 31), 'the comment\'s placeholder' => '<a long random value, 32 characters or more>',
+            'operations.md\'s placeholder' => '<the same value>', 'a long value with a placeholder in it' => ORIGIN_SECRET . '<x>'] as $what => $value) {
+            withOriginSecret($value, static function () use ($what): void {
+                failsClosed(iamOriginSecret(), $what);
+            });
+        }
+        $secret = var_export(ORIGIN_SECRET, true);
+        foreach ([
+            'the secret under another name' => "<?php\n\nreturn ['secret' => {$secret}];\n",
+            'a misspelt key' => "<?php\n\nreturn ['orign_secret' => {$secret}];\n",
+            'the secret alone, no array' => "<?php\n\nreturn {$secret};\n",
+            'a forgotten return' => "<?php\n\n['origin_secret' => {$secret}];\n",
+            'nothing but <?php' => "<?php\n",
+        ] as $what => $contents) {
+            withCloudflareFile($contents, static function () use ($what): void {
+                same(null, localConfigProblem('cloudflare'), "{$what}: read cleanly");
+                failsClosed(iamOriginSecret(), $what);
+            });
+        }
+    });
+    check(str_contains($log, 'config/cloudflare.local.php holds no origin_secret (a string with something in it): no request carries its secret'), 'said in PHP\'s error log, and that it fails closed: ' . $log);
+    check(str_contains($log, 'config/cloudflare.local.php holds an origin_secret shorter than 32 characters, or a placeholder (with < or >): no request carries its secret'), 'a guessable one said too: ' . $log);
+    check(!str_contains($log, ORIGIN_SECRET) && !str_contains($log, substr(ORIGIN_SECRET, 0, 31)), 'and never the value in it');
+
+    // 32 characters, no placeholder: a secret.
+    withOriginSecret(substr(ORIGIN_SECRET, 0, 32), static function (): void {
+        same(substr(ORIGIN_SECRET, 0, 32), iamOriginSecret(), '32 characters: the secret, read');
+        same('198.51.100.7', requestIp(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7', ORIGIN_HEADER => substr(ORIGIN_SECRET, 0, 32)])), 'and believed with it');
+    });
+
+    // A folder in the file's place: something is there, read as no file, and it holds no secret.
+    $path = localConfigPath('cloudflare');
+    mkdir($path);
+    forgetLocalConfig();
+    try {
+        check(localConfigThere('cloudflare') && localConfig('cloudflare') === null, 'a folder: there, and nothing read');
+        failsClosed(iamOriginSecret(), 'a folder in its place');
+    } finally {
+        rmdir($path);
+        clearstatcache();
+        forgetLocalConfig();
+    }
+
+    // Only nothing there is no secret.
+    check(!localConfigThere('cloudflare'), 'deleted: nothing there');
+    same(null, iamOriginSecret(), 'deleted: no secret');
+    same('198.51.100.7', requestIp(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => '198.51.100.7'])), 'deleted: Cloudflare\'s ranges alone, as before');
+
+    same([], iamSetUpProblems(), 'without the file the IAM is set up: it is never asked for');
+    withOriginSecret(ORIGIN_SECRET, static function (): void {
+        same([], iamSetUpProblems(), 'and with it nothing there changes');
+    });
+    withOriginSecret('', static function (): void {
+        same([], iamSetUpProblems(), 'nor with one that names no secret: it fails closed, it does not stop the IAM');
+    });
+});
+
+test('the attack, with a cloudflare.local.php that names no secret: a Worker writing a new CF-Connecting-IP into every guess - without the header, or with an empty one - is its edge to the limiter, never the addresses it writes', function () {
+    makeUser('blank-target', 'blank-target@example.test', PASSWORD);
+
+    withOriginSecret('', static function (): void {
+        foreach ([[], [ORIGIN_HEADER => '']] as $guess => $sent) {
+            $answer = (new Browser(CLOUDFLARE_EDGE))->request('POST', '/api/login/password', ['json' => ['email' => 'blank-target@example.test', 'password' => "wrong {$guess}"],
+                'headers' => ['CF-Connecting-IP' => "198.51.100.{$guess}"] + $sent]);
+            same(401, $answer->status, "guess {$guess}: refused");
+        }
+        same([CLOUDFLARE_EDGE], attemptAddresses('blank-target@example.test'), 'both counted under the edge they came from, none under what they wrote');
+    });
+});
 
 test('a local file that does not start with <?php - no <?php line, a byte-order mark or a line before it, before declare(strict_types=1) too, which PHP cannot even compile - or that prints (text after a closing tag) is passed over and never printed: the origin secret\'s fails closed, every request from Cloudflare\'s ranges its edge, and a required one leaves the IAM not set up, never a 500; its fault said by its start or its byte count, never its text', function () {
     $secret = var_export(['origin_secret' => ORIGIN_SECRET], true);

@@ -204,10 +204,12 @@ Transform Rule of the owner's zone adds to every request through it, and
 nobody else knows. A request from the ranges without it, or with another
 value, is counted as the Cloudflare edge it came from (coarser, never looser);
 the header's value is compared whole, in constant time. Without the file, the
-ranges alone decide, as above; a file that is there but cannot be read (it
-does not start with `<?php` - a byte-order mark, a blank line, no `<?php`
-line -, it prints, or PHP cannot read it) fails
-closed: a secret no request carries, every request from the ranges its edge. Nothing answers differently for it: only which
+ranges alone decide, as above; anything there that yields no secret fails
+closed - a file that cannot be read (it does not start with `<?php` - a
+byte-order mark, a blank line, no `<?php` line -, it prints, or PHP cannot
+read it), one that names no `origin_secret` (empty, a misspelt key; since
+2026-10-18), a folder in its place: a secret no request carries, every
+request from the ranges its edge. Nothing answers differently for it: only which
 address is counted and kept.
 
 ---

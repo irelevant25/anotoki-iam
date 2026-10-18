@@ -20,6 +20,12 @@ import { TPipe } from '../../../core/i18n/t.pipe';
  * It asks the server itself whatever sent it here, so a reload says the truth
  * too; an IAM that answers - ready, or going on while an update waits - sends
  * it back to the page it came from, from scratch, so the whole app asks again.
+ *
+ * A page of its own, with no header and no footer (the owner's rule of
+ * 2026-10-18, the whole family's): on a route outside every frame
+ * (app.routes.ts) - no bar, no language or theme switch, no night sky, no
+ * footer - in a `<main>` of its own, as the family's gate draws its status
+ * page on the sites that have one. The page it goes back to brings its frame.
  */
 @Component({
   selector: 'app-not-set-up',

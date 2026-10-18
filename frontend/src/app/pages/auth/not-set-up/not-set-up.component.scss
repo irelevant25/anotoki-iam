@@ -1,25 +1,34 @@
 :host {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-  width: 100%;
+  display: block;
 }
 
-// The family's status page is a card of its own, centred, with room around it;
-// in the sign-in pages' column the column is the room.
+// The status page's landmark, as the family's gate draws it (`anotoki-site-gate__status`): the page itself lays out
+// what it holds - the status card centred, with the room round it that it keeps itself.
+.status-page {
+  display: block;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 0 3rem;
+}
+
+// The developer's line follows the card closely.
 anotoki-site-status {
-  padding: 0;
+  padding-bottom: 1.1rem;
 }
 
+// As wide as the status card above it (34rem at most, the room beside it the same).
 .developer {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0 0.25rem;
+  box-sizing: content-box;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 0 1rem;
 }
 
 // A command to copy: a block of its own, wrapping rather than widening the
-// column at 390 px. Colours and font are the global `code` rule's.
+// page at 390 px. Colours and font are the global `code` rule's.
 .command {
   display: block;
   padding: 0.6rem 0.75rem;
@@ -31,4 +40,10 @@ anotoki-site-status {
   display: flex;
   justify-content: center;
   padding: 3rem 0;
+}
+
+@media (max-width: 480px) {
+  .developer {
+    padding: 0 0.75rem;
+  }
 }

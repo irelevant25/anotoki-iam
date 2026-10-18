@@ -169,11 +169,14 @@ through it, and the IAM believes the header only on a request that carries it
    cannot read is passed over too; each fails closed: a secret no request
    carries, so every visitor counts as their Cloudflare edge until the file
    is saved again (PHP's error log says so, by its start, its size or the
-   kind of error, never its text). Spaces or a line break around the value
-   do not matter: it is trimmed.
+   kind of error, never its text). So does one read cleanly that names no
+   secret - an empty value, a misspelt `origin_secret`, a forgotten `return`
+   - and a folder in its place (2026-10-18, `docs/decisions.md`). Spaces or a
+   line break around the value do not matter: it is trimmed.
 
-Without the file, or with an empty value, the IAM believes `CF-Connecting-IP`
-from Cloudflare's ranges alone, as before. With it, a request from the ranges
+Without the file - nothing at its path - the IAM believes `CF-Connecting-IP`
+from Cloudflare's ranges alone, as before; to switch the secret off, delete
+the file (an emptied one fails closed). With it, a request from the ranges
 that does not carry the value counts as the Cloudflare edge it came through:
 one source for the limiter, however many addresses it writes. The rule alone
 changes nothing; the file without the rule, or with another value, counts
@@ -546,6 +549,17 @@ now the IAM says "not set up" (a required file) or fails closed (the origin
 secret's), and PHP's error log names the file and that it "does not start
 with <?php".
 
+**anotoki-lib 0.6.3** (both halves), with the same upload: the family's
+footer - the build analyzer's top border and Terms · Privacy · Contact -
+under every page, the admin panel's too (no row above the links: the IAM has
+no version, What's new or feedback), and `/not-set-up` with nothing of the
+IAM round it. Apply brings the library's translations 012 (the footer's four
+words, none of them on the IAM's footer); nothing on the IAM's pages waits
+for it. Before this upload, look at the server's `config/cloudflare.local.php`:
+from it on, a file there that names no usable secret - blank, a misspelt key,
+fewer than 32 characters, a placeholder left in - counts every visitor as
+their edge. Put the zone's value in, or delete the file.
+
 ### The family's library (anotoki/lib)
 
 What the anotoki sites share lives in one library,
@@ -563,9 +577,9 @@ Languages pages -, the admin tools the IAM takes, both halves - the error log,
 the audit log and backups (a migration set of its own, `anotoki_admin`,
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
-styles and palette, its components, the top bar and the frame, and the legal
-pages. The IAM is on 0.6.2, both halves (`composer.json`'s `^0.6.0`, the lock
-on v0.6.2, and the 0.6.2 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+styles and palette, its components, the top bar and the frame, the legal
+pages and the footer. The IAM is on 0.6.3, both halves (`composer.json`'s `^0.6.0`, the lock
+on v0.6.3, and the 0.6.3 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/php/migrations`, `/php/resources`),
 which `build-dist.php` uploads with the rest of `vendor/` and which are denied
@@ -888,7 +902,7 @@ php tests/run.php                          # every test, against throwaway datab
 | Symptom | Likely cause |
 | --- | --- |
 | Every request answers 503 `not_set_up`; the pages say "not set up yet" | The installer has not run, or a `config/*.local.php` is missing or wrong. On a development machine `setup.php` lists which. A file that "does not start with <?php" was written by hand without its `<?php` line or with a byte-order mark or a blank line before it (an editor's "UTF-8 with BOM") - it is never compiled, so even one with `declare(strict_types=1)` after such a start answers "not set up", never a 500; one that "prints N bytes of its own" has text after a closing tag: save it again as plain UTF-8 starting with `<?php`. |
-| Every visitor seems to come from a few Cloudflare addresses (the limiter refuses people who did nothing; Sessions shows `104.x`, `172.6x.x` and the like) | `config/cloudflare.local.php` has an origin secret the zone does not send: the Transform Rule is missing, or its value differs ("Behind Cloudflare" above). Set the rule's value and the file's to the same, or remove the file. Or the file cannot be read - a byte-order mark, no `<?php` line, a parse error - and fails closed, every visitor their edge: save it again as plain UTF-8 starting with `<?php`. PHP's error log says which: the file passed over and failing closed, or holding no value. |
+| Every visitor seems to come from a few Cloudflare addresses (the limiter refuses people who did nothing; Sessions shows `104.x`, `172.6x.x` and the like) | `config/cloudflare.local.php` has an origin secret the zone does not send: the Transform Rule is missing, or its value differs ("Behind Cloudflare" above). Set the rule's value and the file's to the same, or remove the file. Or the file cannot be read - a byte-order mark, no `<?php` line, a parse error - or names no secret - an empty value, a misspelt `origin_secret` - or a folder stands in its place, and fails closed, every visitor their edge: save it again as plain UTF-8 starting with `<?php`, its `origin_secret` the zone's value. PHP's error log says which: the file passed over and failing closed, or holding no origin_secret and failing closed. |
 | The pages say "The site is not available right now", on an installed IAM | A `config/*.local.php` is missing or wrong (uploaded over, or deleted) - the API answers 503 `not_set_up` with `installed: true` - or the database does not answer (`/api/site-status` says `unavailable`). Restore the file from your copy; the installer is gone and is not offered. The pages notice by themselves |
 | Migrations says "Another database update is running" | Another apply holds the lock - another administrator, `php migration.php`, the installer. Wait a moment and look again; nothing was applied |
 | Apply says "The backup before the update could not be made, so nothing was applied" | The backup it makes first failed: `storage/backups/` is not writable by PHP, the disk is too full, or the host's PHP lacks COPY (pdo_pgsql) or AES-256-GCM (openssl) - the Backups page's status says which. Mend that and Apply again |

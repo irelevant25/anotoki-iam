@@ -27,7 +27,7 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.6.2) - which every anotoki site
+its GitHub release, named in `package.json` (0.6.3) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
 tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,
@@ -42,9 +42,13 @@ not-set-up page, the admin panel's "A database update is waiting" line;
 `@anotoki/lib/admin` (the admin tools' configuration; `@anotoki/lib/admin/errors`,
 `/audit` and `/backups` are the admin panel's Error log, Audit log and Backups
 pages), `@anotoki/lib/error-report` (the pages' own errors, reported to the
-backend's error log: `provideAnotokiErrorReport()` in `app.config.ts`) and
-`@anotoki/lib/legal` (the legal pages' configuration and the footer's Terms ·
-Privacy · Contact; `@anotoki/lib/legal/pages` is the three pages). The
+backend's error log: `provideAnotokiErrorReport()` in `app.config.ts`),
+`@anotoki/lib/legal` (the legal pages' configuration and their links, Terms ·
+Privacy · Contact; `@anotoki/lib/legal/pages` is the three pages) and
+`@anotoki/lib/footer` (the family's footer, `<anotoki-site-footer>`, under the
+sign-in pages, the account pages, the legal pages and the admin panel - the
+IAM's with no row above its links: it has no version, no What's new and no
+feedback form, so it gives none). The
 IAM takes nothing of its auth, people or feedback modules: it is the IAM. Its PHP half is the
 backend's `anotoki/lib`. A new version: its release's URL in `package.json`,
 then `bun install` and `npm install --package-lock-only`, so that
@@ -110,7 +114,16 @@ this site, as the browser reads it (`core/auth/next-path.ts`'s
 family's own - and their coming back after a sign-in). The top bar's spec
 holds its `public` area too (the legal pages: the account's links only for
 somebody signed in), and the translations' that the start asks for the
-account first on the legal pages, never on the sign-in pages.
+account first on the legal pages, never on the sign-in pages. And the frames
+as `app.routes.ts` lays them out (`app.routes.spec.ts`): the family's footer
+under a sign-in page, an account page, a legal page and the admin panel (for
+somebody without access too) - Terms · Privacy · Contact alone, after the
+page and last in its frame, in the page's language (English in the admin
+panel) and the database's words -, and `/not-set-up` on a route of its own:
+the family's status page in a `<main>` of its own with nothing of the IAM
+round it (never installed, installed and set up no more, the database out of
+reach, the moment's spinner), and once the IAM answers, back by `location` to
+the page it came from, in its frame again.
 
 `npm start` needs the backend beside it, set up once through its installer
 (`../DEV.md`):
@@ -120,7 +133,8 @@ cd ../backend && composer start
 ```
 
 Until the backend is set up, every API call answers 503 `not_set_up` and every
-page becomes `/not-set-up` - the family's status page, in the IAM's words -
+page becomes `/not-set-up` - the family's status page, in the IAM's words, a
+page of its own with no bar and no footer -
 which links to the installer while the IAM was never installed (on this
 computer, always).
 
@@ -137,7 +151,10 @@ src/
                            themes, Manrope, the base, utilities, tables) and the
                            sign-in pages' night sky
   app/
-    app.routes.ts          three lazy areas: sign-in pages, /account, /admin
+    app.routes.ts          the lazy areas - sign-in pages, /account, /admin, the
+                           legal pages, each with the family's footer under it -
+                           and /not-set-up, on a route of its own (no frame)
+    app.routes.spec.ts     the frames: the footer under each area, /not-set-up bare
     core/
       api/                 models.ts (the shapes) and one typed service per area:
                            public.api.ts, login.api.ts, account.api.ts, admin.api.ts
@@ -190,16 +207,18 @@ src/
     ui/                    google-button, the IAM's own (its button in Google's
                            branding first, Google's own only after a press); the
                            rest of the kit is the family's (@anotoki/lib/ui)
-    layouts/               auth-layout (the night-sky sign-in pages' own frame),
-                           top-bar (the anotoki family's one bar, worded and wired
-                           for the IAM - below), legal-layout (the legal pages'
-                           frame: the family's, the bar's `public` area), site-footer
-                           (Terms · Privacy · Contact under the sign-in and account
-                           pages)
+    layouts/               auth-layout (the night-sky sign-in pages' own frame, the
+                           family's footer under the form), top-bar (the anotoki
+                           family's one bar, worded and wired for the IAM - below),
+                           legal-layout (the legal pages' frame: the family's, the
+                           bar's `public` area). The footer is the family's
+                           (<anotoki-site-footer>, @anotoki/lib/footer) in every
+                           frame - here, and the account and admin layouts
     pages/
       auth/                /login /register /confirm-email /forgot-password
-                           /reset-password /logout /unsubscribe /error
-                           /not-set-up, and not-found
+                           /reset-password /logout /unsubscribe /error, and
+                           not-found; /not-set-up, the family's status page, on
+                           no frame (no bar, no switches, no footer)
       (the legal pages)    /terms /privacy /contact are the family's
                            (@anotoki/lib/legal/pages, lazy), in layouts/legal-layout,
                            with the IAM's facts (core/legal)
@@ -218,7 +237,8 @@ src/
                            backups - encrypted, restoring off, behind the password -,
                            the panel's part in admin-tools.ts); and /admin/migrations
                            is the family's (@anotoki/lib/migrations/page), whose
-                           update line sits above them all
+                           update line sits above them all - and the family's
+                           footer under them all, in English
 public/
   anotoki.png, favicon.png - and the build copies the family's theme-boot.js beside
                            them (angular.json): the stored theme before the first

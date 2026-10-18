@@ -18,8 +18,9 @@ const IAM_LEGAL_WORDS: Readonly<Record<string, TranslationKey>> = {
 /**
  * How the IAM plugs into the anotoki family's legal pages (@anotoki/lib/legal:
  * Terms, Privacy and Contact on the lazy routes /terms, /privacy and
- * /contact, and the footer's links to them - layouts/site-footer).
- * `provideAnotokiLegal()` runs it in an injection context.
+ * /contact, and the links to them in the family's footer, @anotoki/lib/footer,
+ * under the sign-in, account, legal and admin pages). `provideAnotokiLegal()`
+ * runs it in an injection context.
  *
  * - The language: the page's (English in the admin panel).
  * - The words: the library's (`anotoki.legal.*`, `anotoki.legalLinks.*`) - the

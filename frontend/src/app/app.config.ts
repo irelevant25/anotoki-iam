@@ -57,7 +57,9 @@ export const appConfig: ApplicationConfig = {
     // says and does is handed over by its routes (core/admin/admin-tools.config.ts).
     provideAnotokiAdmin(iamAdminToolsConfig),
     // The family's legal pages - Terms, Privacy, Contact, on lazy routes - and
-    // the footer's links to them: the library's words around the IAM's facts,
+    // the links to them in the family's footer (@anotoki/lib/footer, which has
+    // no configuration of its own - its links read this one; the IAM gives it
+    // no version, What's new or feedback): the library's words around the IAM's facts,
     // every address the pages link to in the code (core/legal/legal.config.ts;
     // the facts, which only the pages read, come with their frame:
     // core/legal/legal-facts.ts, layouts/legal-layout).

@@ -34,7 +34,8 @@ hand must start with `<?php` and carry no byte-order mark: one that does not
 start with `<?php` is passed over uncompiled, one that prints anything of
 its own is passed over too - a required file then leaves the IAM not set
 up, and `cloudflare.local.php` fails closed, every visitor counted as their
-Cloudflare edge.)
+Cloudflare edge, as it does when it names no secret: delete it to switch the
+secret off.)
 
 ### 1. The installer
 

@@ -3,7 +3,8 @@ import { sessionGuard } from './core/auth/guards';
 import { notSetUpTitle } from './pages/auth/not-set-up/not-set-up-title';
 
 /**
- * Four areas, each loaded only when it is visited:
+ * Four areas, each loaded only when it is visited - each with the anotoki
+ * family's footer (@anotoki/lib/footer) under its pages:
  *
  *   the sign-in pages   no session needed; bilingual; the night-sky layout
  *   /account            the signed-in account; bilingual; the app shell
@@ -13,6 +14,11 @@ import { notSetUpTitle } from './pages/auth/not-set-up/not-set-up-title';
  *                       account) and /contact, the family's pages
  *                       (@anotoki/lib/legal/pages), with the IAM's facts
  *                       (core/legal/legal-facts.ts)
+ *
+ * - and /not-set-up, the family's status page, which is a page of its own:
+ * on no layout, so with no bar, no controls and no footer round it (the
+ * owner's rule of 2026-10-18; the IAM has no gate to draw it - it never
+ * closes while an update waits).
  *
  * The sign-in layout comes last because its not-found child (`**`) would
  * otherwise swallow the others before they were tried. A URL under /account
@@ -32,6 +38,11 @@ export const routes: Routes = [
     path: 'admin',
     canActivate: [sessionGuard],
     loadChildren: () => import('./pages/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
+  },
+  {
+    path: 'not-set-up',
+    title: notSetUpTitle,
+    loadComponent: () => import('./pages/auth/not-set-up/not-set-up.component').then((m) => m.NotSetUpComponent),
   },
   {
     path: '',
@@ -70,11 +81,6 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/auth/unsubscribe/unsubscribe.component').then((m) => m.UnsubscribeComponent),
       },
       { path: 'error', title: 'errorPage.pageTitle', loadComponent: () => import('./pages/auth/error/error-page.component').then((m) => m.ErrorPageComponent) },
-      {
-        path: 'not-set-up',
-        title: notSetUpTitle,
-        loadComponent: () => import('./pages/auth/not-set-up/not-set-up.component').then((m) => m.NotSetUpComponent),
-      },
       { path: '**', title: 'notFound.pageTitle', loadComponent: () => import('./pages/auth/not-found/not-found.component').then((m) => m.NotFoundComponent) },
     ],
   },

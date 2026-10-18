@@ -1284,6 +1284,26 @@
             "description": "The anotoki library's rich-text toolbar: the name and the tooltip of the button that does again what was undone. No placeholders.",
             "en": "Redo",
             "sk": "Znova"
+        },
+        "anotoki.footer.version": {
+            "description": "The anotoki library's footer (the foot of every page of a site, and of its admin panel): the version of the site the page runs, first in its row - before What's new and Send feedback. The footer's Slovak addresses nobody - no ty, no Vy - so that it fits every site. {version}: the version number, shown as it is (\"0.3\", \"1.2.0\"). Placeholders: {version}.",
+            "en": "Version {version}",
+            "sk": "Verzia {version}"
+        },
+        "anotoki.footer.whatsNew": {
+            "description": "The anotoki library's footer: the button beside the version that opens the site's own What's new - the notes of each of its releases, in a dialog of the site's. Short: it stands in one row with the version and Send feedback. No placeholders.",
+            "en": "What's new",
+            "sk": "Čo je nové"
+        },
+        "anotoki.footer.feedback": {
+            "description": "The anotoki library's footer, on a site that takes feedback: the button that opens the feedback form (the anotoki library's form, in a dialog), and the heading of that dialog. Short: it stands in one row with the version and What's new. No placeholders.",
+            "en": "Feedback",
+            "sk": "Spätná väzba"
+        },
+        "anotoki.footer.fanHoyoverse": {
+            "description": "The anotoki library's footer, on a site that asks for it (the genshin site, the build analyzer): the fan clause, the last line under Terms · Privacy · Contact. Terms and Contact say it longer (anotoki.legal.fanHoyoverse). HoYoverse is the games' publisher, a name never translated. No placeholders.",
+            "en": "This site is a fan-made project and is not affiliated with or endorsed by HoYoverse.",
+            "sk": "Táto stránka je fanúšikovský projekt a nie je prepojená so spoločnosťou HoYoverse ani ňou schválená."
         }
     }
 }

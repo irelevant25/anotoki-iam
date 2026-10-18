@@ -5,6 +5,69 @@ and the npm package `@anotoki/lib` (`angular/projects/lib/package.json`). While 
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.6.3 - 2026-10-18
+
+**The family's footer** (the owner's choice of 2026-10-18, after the deploy: the six live sites' footers differed - their
+order, their words, a top border or none, links missing - "I like the footer of builder the most. The order, texts and
+the top border."): `@anotoki/lib/footer` (new), `<anotoki-site-footer>`, the build analyzer's footer in the kit's look
+(README.md, "Footer").
+
+- A top border, centred, the muted ink at 0.8125rem; a row - "Version X" (`version`, its figures of one width), "What's
+  new" (`whatsNew`; pressed, `(whatsNew)`: the site opens its own) and "Feedback" (`feedback`), the kit's small link
+  buttons naming the dialog they open, 44 px where the pointer is a finger, a dot between two parts, drawn and never
+  read - a part that is off takes its dot with it, and with none the row is not drawn; Terms · Privacy · Contact always
+  (`<anotoki-legal-links>`, the site's `provideAnotokiLegal()`); the fan clause where the site asks for it
+  (`fan="hoyoverse"`). A `<footer>` landmark; wraps at 390 px; light and dark; not printed, as the bar is not.
+- Feedback opens the library's feedback form in the kit's dialog, named by the button's words, with the form's
+  Cancel and its Close after the thanks; their code comes with the first press - `@anotoki/lib/footer/feedback` (new,
+  the footer's own, 0.9 kB gzipped) - the button busy meanwhile, and the focus is back on the button once the dialog
+  goes. With the dialog drawn by the footer itself its first load took 2.0 kB more beside lazy pages, which use the rest
+  of ui/dialog's one file.
+- Its words: `anotoki.footer.version` ("Version {version}"), `anotoki.footer.whatsNew`, `anotoki.footer.feedback` ("Send
+  feedback") and `anotoki.footer.fanHoyoverse` (the fan clause's first sentence), English and impersonal Slovak, in
+  `php/resources/library-words.json`, generated into `@anotoki/lib/words/footer` and read by the footer itself through
+  `pieceWords()` - the site's string first, then the built-in words - never registered (`READ_BY_THEIR_PAGES`: the
+  footer has no provide*() of its own); `anotoki_translations/012_footer_words.sql` writes them by 002's rule, its gate
+  naming its own keys (261 library keys).
+- The package check: the footer 2.6 kB gzipped of its 3; its first load ("the footer": with the legal configuration its
+  links read) 7.6 kB alone and 8.0 beside lazy pages, of 9, carrying the kit's, the legal links' and its own words and
+  no others; every other first load as it was.
+- The showcase: the family's footer under every page (the library's version, What's new, Feedback; `?fan=1`,
+  `?feedback=0`) and its samples in the gallery - looked at beside the build analyzer's at 1280 and 390 px, light and
+  dark, English and Slovak: the same paddings, sizes, gaps and heights, the family's colours.
+
+**The status page: no header, no footer** (the owner's rule of 2026-10-18): the gate is the outermost of what a site
+draws, the site's frame - its bar, its side navigation, its footer - inside its pages (its layout routes, or the marked
+template with the outlet); the IAM, with no gate, shows its status page on a route outside its frame (README.md,
+"Footer"). `<anotoki-site-gate>` draws the status page in a `<main>` of its own (`anotoki-site-gate__status`): drawn
+with nothing of the site round it, it is a whole page.
+
+**Lists compared as sets** (the build analyzer's live database, PostgreSQL 14 on `en_US.utf8`, which sorts text skipping
+its punctuation, refused an Apply whose gate compared catalog names in byte order with TEXT in the database's order):
+the library holds one such comparison, `anotoki_translations/001`'s check of the primary keys (sorted attnames against
+sorted TEXT). It runs only as 001 is applied, never on an installed database, and its names (`code`; `name`;
+`key_name`, `language_code`) sort alike in every collation, so it refuses nothing; released, it stays as it is. Every
+other check of the library's sets goes name by name, and the runtime orders by the bytes (`COLLATE "C"`, the catalog's
+`name`, PHP's sort) or compares sets - nothing to change. `SchemaTest` applies the library's three sets over each
+aligned site's tables on ICU's `en-US-u-ka-shifted` (PostgreSQL 15+; skipped elsewhere) and reads the keys there in byte
+order, and CLAUDE.md has the rule: a gate that compares lists compares them as sets, or sorts both sides `COLLATE "C"`.
+
+- Tests: Vitest - the footer (its row and its absences with no stray dot, What's new's output, the bare attributes, the
+  feedback form in the dialog with its code fetched by the press and the focus back after Cancel, Escape and the close
+  button, the fan clause only when asked, Slovak, the site's own words first, English marked so on a page of another
+  language) and the gate's status page in its landmark, a framed site's bar and footer not drawn with it (873 tests);
+  PHPUnit - 012's words, a site's own kept, its gate; the library's sets on a punctuation-skipping collation (531, 1
+  skipped).
+
+What a site must do: replace its own footer with `<anotoki-site-footer>` in the family's frame of every layout - its pages
+and its admin panel (genshin: its admin panel only) - giving it `version`, `whatsNew` and `(whatsNew)`, `feedback` where
+it takes feedback, and `fan="hoyoverse"` on a fan site; its own footer, its feedback dialog and their words go (the
+footer opens the form itself). Apply `anotoki_translations/012` on the Migrations page (four keys; until then the footer
+says the library's built-in words). Put its frame inside its pages, the gate outermost: Piano Academy and Japanese
+Academy, whose bar and footer stand round the gate, move them into the gate's marked template - and Piano's `<main>`
+round the gate goes, the gate drawing one for its status page; the IAM shows its not-set-up page on a route outside its
+frame. A site's spec that read the status page as the gate's own child finds it in `main.anotoki-site-gate__status`.
+
 ## 0.6.2 - 2026-10-18
 
 **Three sentences of the Privacy page, made true on every site** (found by the survey's and Piano Academy's site

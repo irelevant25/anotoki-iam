@@ -114,12 +114,24 @@ function localConfigProblem(string $name): ?string
 }
 
 /**
+ * Whether anything is at config/{name}.local.php: a file, read cleanly or not,
+ * or something else in its place - a folder, a link to nowhere. Asked with the
+ * file itself, once per process (localConfigEntry()): the optional
+ * cloudflare.local.php fails closed on whatever is there that yields no usable
+ * secret, and only nothing there means no secret (config/cloudflare.php).
+ */
+function localConfigThere(string $name): bool
+{
+    return localConfigEntry($name)['there'];
+}
+
+/**
  * One file's entry in the cache, read the first time it is asked for. A file
  * passed over is said in PHP's error log - at most once a day where the IAM
  * keeps its stamps (sayOncePerDay(), api/helpers.php) - by its name and its
  * fault alone.
  *
- * @return array{value: mixed, problem: ?string}
+ * @return array{value: mixed, problem: ?string, there: bool}
  */
 function localConfigEntry(string $name): array
 {
@@ -127,7 +139,8 @@ function localConfigEntry(string $name): array
 
     if (!array_key_exists($name, $cache)) {
         $path = localConfigPath($name);
-        $cache[$name] = is_file($path) ? readLocalConfigFile($path) : ['value' => null, 'problem' => null];
+        $cache[$name] = (is_file($path) ? readLocalConfigFile($path) : ['value' => null, 'problem' => null])
+            + ['there' => file_exists($path) || is_link($path)];
         if ($cache[$name]['problem'] !== null) {
             localConfigSaid("config/{$name}.local.php {$cache[$name]['problem']}: it is passed over, nothing in it read");
         }

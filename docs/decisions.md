@@ -1582,7 +1582,8 @@ that carry the weight", 7), made here as the owner's:
   (`iamOriginSecret()`, `config/cloudflare.php`), trimmed - a header's value
   never starts or ends with a space, so a value saved with a line break at its
   end would never match; an empty value, or one that is no string, is no
-  secret (said in PHP's error log once a day, by the file's name). A file that
+  secret (said in PHP's error log once a day, by the file's name - since
+  2026-10-18 it fails closed instead, below). A file that
   is there but cannot be read cleanly - it prints (a byte-order mark, no
   `<?php` line), or PHP cannot read it - fails closed (the security review of
   2026-10-13): a secret no request carries (random, of the process, never
@@ -1789,7 +1790,8 @@ the owner, not legal advice. What the IAM decided with them:
   before the first page when a legal page is where the site was opened, as on
   the account pages, so the bar and the account's language are right at once.
   The footer's links are on every sign-in and account page; not in the admin
-  panel, which is English and the administrators'.
+  panel, which is English and the administrators'. (Since 2026-10-18 the admin
+  panel has them too, in the family's footer - below.)
 - **The facts are the code's, and say what the code does.** Twelve parts of
   what the IAM keeps - the account, two-factor authentication, Google, the
   sessions and the sign-in attempts with their addresses, the remembered and
@@ -1936,3 +1938,78 @@ library's first wording and nobody saved it. None of the three is on the
 IAM's Privacy page, which says its own words for the account, its backups and
 its storage. Nothing of the IAM's changed for it.
 
+## 2026-10-18 - A `cloudflare.local.php` that names no secret fails closed (the owner's "do as you think is the best")
+
+The rule of 2026-10-13 (above) left one reading looser than the rest: a
+`config/cloudflare.local.php` read cleanly that names no usable secret -
+blank, a value that is no string or only spaces, a misspelt or another key, no
+array, a forgotten `return` - counted as no secret, and so did a folder in the
+file's place: `CF-Connecting-IP` believed from Cloudflare's ranges alone, so
+every Cloudflare customer's Worker could write itself a new address for every
+guess. Asked about it on the day of round 3's deploy, the owner said "do as
+you think is the best". The whole family reads it alike (the build analyzer and
+the survey first, the other sites with their footers). A rule of "The rules
+that carry the weight" (7), tightened:
+
+- **Only nothing there is no secret.** `iamOriginSecret()` returns null only
+  when nothing is at the file's path (`localConfigThere()`, asked with the
+  file, once a process: a file, read cleanly or not, a folder, a link to
+  nowhere all count). Anything there that yields no `origin_secret` that is a
+  string with something in it is a secret no request carries, as a file that
+  cannot be read cleanly already was: every request from the ranges counts as
+  its edge until the file names one. It is said in PHP's error log once a day
+  by the file's name, never a value. Whoever put a file there meant a secret,
+  and a slip in it never switches the check off; deleting the file does. A
+  value a Worker could guess counts as none too (the review of the change):
+  fewer than 32 characters, or a placeholder of the docs left in (`<` or
+  `>`) - a guesser would know it was right when the limiter stopped tripping.
+- **What it costs.** Nothing while the file and the zone's Transform Rule
+  agree. A file emptied on purpose now counts every visitor as their edge, as
+  `docs/operations.md`'s troubleshooting row says: delete it instead.
+- **Tested** (`tests/addresses.test.php`): each of those files, and a folder
+  in its place, fails closed. A forged `CF-Connecting-IP` from the ranges is
+  the edge without the header, with an empty one and with the file's own
+  value, for the IAM's limits and the library's alike. Through the app, a
+  Worker's guesses, each with a new address written in, are counted under
+  the edge. With the file deleted, Cloudflare's ranges alone decide again,
+  and the set-up check never asks for the file, whatever it holds. With the
+  old reading put back, both tests fail.
+
+## 2026-10-18 - The family's footer under every page, the admin panel's too, and the status page bare (anotoki-lib 0.6.3)
+
+After round 3's deploy the owner compared the six sites' footers - their
+order, their words, a top border or none, links missing - and chose the build
+analyzer's: "I like the footer of builder the most. The order, texts and the
+top border." And of the page a site shows while it cannot be used: "I prefer
+nor header nor footer to be there." anotoki-lib 0.6.3 made both the family's.
+
+- **One footer, the family's** (`<anotoki-site-footer>`,
+  `@anotoki/lib/footer`), in place of the IAM's own `layouts/site-footer`
+  (Terms · Privacy · Contact, no border). It is the build analyzer's - a top
+  border, the muted ink at 13 px, 20/16/24 px round it, everything centred -
+  with a row above the links for the version, What's new and Feedback. The
+  IAM has none of the three - its package is 0.0.0, it keeps no notes of its
+  releases and it takes no feedback (its Contact page gives the address
+  alone) - so it gives none and invents no version: its footer is the border
+  and Terms · Privacy · Contact, which read the IAM's `provideAnotokiLegal()`
+  as before. No page of the IAM says the footer's own words
+  (`anotoki.footer.*`, the library's translations 012, listed on the
+  Translations page like every library word), and no word of the IAM's went
+  with its old footer, which said only the library's.
+- **The admin panel has it too** (the owner: the footer in every admin
+  panel), in English like the panel - the rule of 2026-10-14 above, "not in
+  the admin panel", no longer holds.
+- **The status page bare.** `/not-set-up` was a page of the sign-in pages'
+  frame - the night sky, the language and theme switches, the footer. It is a
+  route of its own now, on no frame: the family's `<anotoki-site-status>` in a
+  `<main>` of its own, as the family's gate draws it on the sites that have
+  one (the IAM has none: it never closes while an update waits). Nothing on
+  it switches the language or the theme: it reads as the page starts.
+- **Tested**: `app.routes.spec.ts` draws the four frames with the footer
+  (after the page and last in its frame, Terms · Privacy · Contact alone, in
+  the page's language - English in the admin panel - and the database's
+  words) and the IAM's own routes for `/not-set-up`: bare in each closed
+  state, and back by `location` to the page it came from once the IAM answers. With
+  the old routes and the old admin panel put back, eight of its tests fail.
+  The browser check looked at all of it at 1280 and 390 px, light and dark,
+  English and Slovak.

@@ -197,7 +197,12 @@ the files you were given). You do not edit anything.
   (`config/iam.php`: Cloudflare's ranges; `iamTrustedProxies()` refuses one
   wider than an IPv4 /8 or an IPv6 /16), never `X-Real-IP`,
   `True-Client-IP` or `X-Forwarded-For` - what the limiter counts, the audit
-  log keeps and a session shows. The audit log: `audit()` keeps what it kept, never throws, writes behind
+  log keeps and a session shows. With the zone's origin secret
+  (`config/cloudflare.local.php`, `iamOriginSecret()`) only on a request that
+  carries it in `X-Anotoki-Origin`, compared in constant time; anything at the
+  file's path that yields no usable secret - a file passed over, one read
+  cleanly that names none, a folder - fails closed (a secret no request
+  carries), and only nothing there is no secret (2026-10-18). The audit log: `audit()` keeps what it kept, never throws, writes behind
   a savepoint; a deleted account's person scrubbed by the IAM's rules in
   `anotoki_audit_log` and in `audit_log_before_018`, and out of the entries
   that waited for 018 as they go in (`flushWaitingAuditEntries()`). Backups
