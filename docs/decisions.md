@@ -1885,3 +1885,53 @@ make the Privacy page's sentence on where the backups are true where an
 administrator keeps a downloaded copy elsewhere, as `docs/operations.md` asks
 the owner to. Nothing of the IAM's changed for it.
 
+## 2026-10-18 - A local file is never compiled unless it starts with `<?php` (and anotoki-lib 0.6.2)
+
+Japanese Academy's review found a hole in the round's lesson of 2026-10-13
+("a local file is read cleanly or not at all", above), and it is the whole
+family's: the output buffer catches what a local file prints, but not a file
+PHP cannot compile. A `config/*.local.php` saved with a byte-order mark or a
+blank line before `<?php declare(strict_types=1);` is a compile-time fatal
+error ("strict_types declaration must be the very first statement", exit 255)
+that no `try`, no error handler and no output buffer catches: every request -
+`/api/site-status` included - answered 500 instead of "not set up", and a
+`cloudflare.local.php` saved so never failed closed. (The files the installer
+writes have no `declare`; one written or copied by hand may.)
+
+- **`readLocalConfigFile()` reads a file's first five bytes before anything
+  else** and, unless they are `<?php` (in any case), passes the file over
+  without requiring it: its value null, its problem that it "does not start
+  with <?php", said by that fault alone, never its text. What passing over
+  means is as before: a required file leaves the IAM not set up
+  (`iamSetUpProblems()` names it), the origin secret's fails closed, the
+  installer shows none and saves over none. A file PHP may not open is no
+  file either ("could not be read (PHP may not open it)"). It covers a bad
+  start only: a file that starts with `<?php` and still cannot be compiled (a
+  `declare` after another statement, a `break` outside a loop) stays a fatal
+  error raised before anything can act - every request a 500, nothing printed,
+  nothing served looser - and no slip of the hand makes one (the IAM's review
+  of the change, 2026-10-18).
+- **Nothing a good file needs is lost**: every file the installer writes
+  starts with `<?php`, and one whose `<?php` comes after anything else would
+  print that ahead of every answer anyway - so a byte-order mark, a line
+  before it or no `<?php` line at all is now said by its start, not by the
+  bytes it printed; "prints N bytes of its own" is left for text after a
+  closing tag, or an echo.
+- **Tested** (`tests/addresses.test.php`): both starts before
+  `declare(strict_types=1)` for `cloudflare.local.php` (fails closed: a forged
+  `CF-Connecting-IP` from Cloudflare's ranges is the edge, the file's own value
+  too) and for `database.local.php` (not set up - the status says so, every
+  other address 503 `not_set_up`, never a 500 -, nothing printed, nothing of
+  the file in any answer or the log); with the check taken out the process
+  ends at the require (PHP's fatal error, exit 255).
+  `tests/setup.test.php`'s installer page names both of its broken files by
+  their start.
+
+Both halves take **anotoki-lib 0.6.2** with it: the library's translations 011
+make three of the Privacy page's sentences true on every site (a feedback
+message's reply address, the backups kept by count, the sign-in's note on a
+site that signs in without a click), each only while it is still the
+library's first wording and nobody saved it. None of the three is on the
+IAM's Privacy page, which says its own words for the account, its backups and
+its storage. Nothing of the IAM's changed for it.
+

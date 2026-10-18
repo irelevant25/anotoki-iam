@@ -163,13 +163,14 @@ through it, and the IAM believes the header only on a request that carries it
    <?php return ['origin_secret' => '<the same value>'];
    ```
 
-   `<?php` its very first bytes: a file that prints something of its own - no
-   `<?php` line, a byte-order mark an editor put before it - or that PHP
-   cannot read is passed over and fails closed: a secret no request carries,
-   so every visitor counts as their Cloudflare edge until the file is saved
-   again (PHP's error log says so, by its size or the kind of error, never its
-   text). Spaces or a line break around the value do not matter: it is
-   trimmed.
+   `<?php` its very first bytes: a file that does not start with them - no
+   `<?php` line, a byte-order mark an editor put before it, a blank line - is
+   never even compiled, and one that prints something of its own or that PHP
+   cannot read is passed over too; each fails closed: a secret no request
+   carries, so every visitor counts as their Cloudflare edge until the file
+   is saved again (PHP's error log says so, by its start, its size or the
+   kind of error, never its text). Spaces or a line break around the value
+   do not matter: it is trimmed.
 
 Without the file, or with an empty value, the IAM believes `CF-Connecting-IP`
 from Cloudflare's ranges alone, as before. With it, a request from the ranges
@@ -533,6 +534,17 @@ right after the upload. **Once 022 is applied, a build from before it never
 goes on the host again** - it would load Google's script as each page opens,
 while the Privacy page says only a press does; fix forward.
 
+**anotoki-lib 0.6.2** (both halves), with the same upload: the library's
+translations 011 rewords three sentences of the sites' Privacy page (none of
+them on the IAM's, which says its own words there) - Apply brings it after
+the IAM's own files. And a `config/*.local.php` that does not start with
+`<?php` - a byte-order mark or a blank line before it - is passed over
+before PHP compiles it: with `declare(strict_types=1)` after such a start
+it was a fatal error that made every request a 500, the status included;
+now the IAM says "not set up" (a required file) or fails closed (the origin
+secret's), and PHP's error log names the file and that it "does not start
+with <?php".
+
 ### The family's library (anotoki/lib)
 
 What the anotoki sites share lives in one library,
@@ -551,8 +563,8 @@ the audit log and backups (a migration set of its own, `anotoki_admin`,
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
 styles and palette, its components, the top bar and the frame, and the legal
-pages. The IAM is on 0.6.1, both halves (`composer.json`'s `^0.6.0`, the lock
-on v0.6.1, and the 0.6.1 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+pages. The IAM is on 0.6.2, both halves (`composer.json`'s `^0.6.0`, the lock
+on v0.6.2, and the 0.6.2 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/php/migrations`, `/php/resources`),
 which `build-dist.php` uploads with the rest of `vendor/` and which are denied
@@ -874,7 +886,7 @@ php tests/run.php                          # every test, against throwaway datab
 
 | Symptom | Likely cause |
 | --- | --- |
-| Every request answers 503 `not_set_up`; the pages say "not set up yet" | The installer has not run, or a `config/*.local.php` is missing or wrong. On a development machine `setup.php` lists which. A file that "prints N bytes of its own" was written by hand without its `<?php` line or with a byte-order mark before it (an editor's "UTF-8 with BOM"): save it again as plain UTF-8 starting with `<?php`. |
+| Every request answers 503 `not_set_up`; the pages say "not set up yet" | The installer has not run, or a `config/*.local.php` is missing or wrong. On a development machine `setup.php` lists which. A file that "does not start with <?php" was written by hand without its `<?php` line or with a byte-order mark or a blank line before it (an editor's "UTF-8 with BOM") - it is never compiled, so even one with `declare(strict_types=1)` after such a start answers "not set up", never a 500; one that "prints N bytes of its own" has text after a closing tag: save it again as plain UTF-8 starting with `<?php`. |
 | Every visitor seems to come from a few Cloudflare addresses (the limiter refuses people who did nothing; Sessions shows `104.x`, `172.6x.x` and the like) | `config/cloudflare.local.php` has an origin secret the zone does not send: the Transform Rule is missing, or its value differs ("Behind Cloudflare" above). Set the rule's value and the file's to the same, or remove the file. Or the file cannot be read - a byte-order mark, no `<?php` line, a parse error - and fails closed, every visitor their edge: save it again as plain UTF-8 starting with `<?php`. PHP's error log says which: the file passed over and failing closed, or holding no value. |
 | The pages say "The site is not available right now", on an installed IAM | A `config/*.local.php` is missing or wrong (uploaded over, or deleted) - the API answers 503 `not_set_up` with `installed: true` - or the database does not answer (`/api/site-status` says `unavailable`). Restore the file from your copy; the installer is gone and is not offered. The pages notice by themselves |
 | Migrations says "Another database update is running" | Another apply holds the lock - another administrator, `php migration.php`, the installer. Wait a moment and look again; nothing was applied |

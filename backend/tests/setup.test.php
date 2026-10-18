@@ -349,7 +349,7 @@ test('a fresh database arrives with the sites\' development addresses, as in the
     same(['ADMIN', 'EDITOR', 'MEMBER'], $roles->fetchAll(PDO::FETCH_COLUMN), 'the roles the survey site asks for, and the MEMBER every account holds - each may sign in');
 });
 
-test('a file the installer reads that prints - no <?php line, a byte-order mark - is never shown, and nothing is saved over it until it is corrected; config/cloudflare.local.php it never touches', function () {
+test('a file the installer reads that does not start with <?php - no <?php line, a byte-order mark - is never shown, and nothing is saved over it until it is corrected; config/cloudflare.local.php it never touches', function () {
     $nonce = nonceFrom(setupRequest('GET', LOCAL_SERVER));
     $secretFile = IAM_CONFIG_DIR . '/secret.local.php';
     $iamFile = IAM_CONFIG_DIR . '/iam.local.php';
@@ -373,7 +373,7 @@ test('a file the installer reads that prints - no <?php line, a byte-order mark 
         same('', $printed, 'nothing of either is printed');
         same(200, $page['status'], 'the form');
         check(!str_contains($page['body'], $hex), 'the master key is not in the page');
-        check(str_contains($page['body'], 'config/secret.local.php prints 3 bytes of its own') && str_contains($page['body'], 'config/iam.local.php prints ' . strlen($withoutPhp) . ' bytes of its own'),
+        check(str_contains($page['body'], 'config/secret.local.php does not start with &lt;?php') && str_contains($page['body'], 'config/iam.local.php does not start with &lt;?php'),
             'the page names both files and their fault: ' . strip_tags($page['body']));
 
         ob_start();

@@ -791,9 +791,9 @@
             "sk": "Aby sa dala stránka obnoviť, keby sa niečo vážne pokazilo."
         },
         "anotoki.legal.backupsKept": {
-            "description": "The anotoki library's Privacy page: how long the backups stay. {daily}: the days a daily copy stays (14). {beforeUpdate}: how many copies made before an update are kept (5). {beforeRestore}: how many made before a restore (5). Placeholders: {daily}, {beforeUpdate}, {beforeRestore}.",
-            "en": "The daily copies for {daily} days; the {beforeUpdate} newest made before an update and the {beforeRestore} newest made before a restore; a copy made by hand until an administrator deletes it. What is deleted on the site stays in the copies made before, until they go.",
-            "sk": "Denné kópie {daily} dní; {beforeUpdate} najnovších kópií pred aktualizáciou a {beforeRestore} najnovších pred obnovením; ručne vytvorená kópia, kým ju správca nezmaže. Čo sa na stránke zmaže, zostáva v skôr vytvorených kópiách, kým nezaniknú."
+            "description": "The anotoki library's Privacy page: how long the backups stay - kept by count, not by age. {daily}: how many daily copies are kept (14; a daily copy is made only on a day the site is used). {beforeUpdate}: how many copies made before an update are kept (5). {beforeRestore}: how many made before a restore (5). Placeholders: {daily}, {beforeUpdate}, {beforeRestore}.",
+            "en": "The {daily} newest daily copies (a daily copy is made on a day the site is used); the {beforeUpdate} newest made before an update and the {beforeRestore} newest made before a restore; a copy made by hand until an administrator deletes it. What is deleted on the site stays in the copies made before, until they go.",
+            "sk": "{daily} najnovších denných kópií (denná kópia vzniká v deň, keď sa stránka používa); {beforeUpdate} najnovších kópií pred aktualizáciou a {beforeRestore} najnovších pred obnovením; ručne vytvorená kópia, kým ju správca nezmaže. Čo sa na stránke zmaže, zostáva v skôr vytvorených kópiách, kým nezaniknú."
         },
         "anotoki.legal.privacyAccountText": {
             "description": "The anotoki library's Privacy page, on every site but the anotoki account's own: who keeps the account itself (a link to the anotoki account's own privacy policy follows). {site}: the site's name as the site gives it (\"anotoki survey\"). Placeholders: {site}.",
@@ -807,8 +807,8 @@
         },
         "anotoki.legal.privacyAccountRecord": {
             "description": "The anotoki library's Privacy page, on every site but the anotoki account's own: what the site keeps of the account, and what happens when the account is deleted. {site}: the site's name as the site gives it (\"anotoki survey\"). Placeholders: {site}.",
-            "en": "{site} never sees your password, and it does not keep your account's e-mail address. It keeps its own record of you - your account's id, the name the account gives, and what you do here - as listed above. When your anotoki account is deleted, {site} takes your name out of what it keeps; what you did here stays, without your name.",
-            "sk": "Stránka {site} heslo nikdy nevidí a e-mailovú adresu účtu si neukladá. Vedie si vlastný záznam - identifikátor účtu, meno, ktoré účet poskytne, a to, čo sa na stránke robí - ako je uvedené vyššie. Po zmazaní účtu anotoki stránka {site} z uchovávaných údajov odstráni meno; to, čo sa na nej urobilo, zostane, ale bez mena."
+            "en": "{site} never sees your password, and it keeps your account's e-mail address only as the reply address of a feedback message you send, if you leave it in the form (on a site that takes feedback). It keeps its own record of you - your account's id, the name the account gives, and what you do here - as listed above. When your anotoki account is deleted, {site} takes your name and any reply address out of what it keeps; what you did here stays, without them.",
+            "sk": "Stránka {site} heslo nikdy nevidí a e-mailovú adresu účtu si ukladá len ako adresu na odpoveď pri správe so spätnou väzbou, ak sa vo formulári ponechá (na stránkach, ktoré spätnú väzbu prijímajú). Vedie si vlastný záznam - identifikátor účtu, meno, ktoré účet poskytne, a to, čo sa na stránke robí - ako je uvedené vyššie. Po zmazaní účtu anotoki stránka {site} z uchovávaných údajov odstráni meno aj adresu na odpoveď; to, čo sa na nej urobilo, zostane, ale bez nich."
         },
         "anotoki.legal.privacyAccountTextIam": {
             "description": "The anotoki library's Privacy page, on the anotoki account's own site (the IAM): what it is, and what each site keeps. No placeholders.",
@@ -852,8 +852,8 @@
         },
         "anotoki.legal.storageSignInPurpose": {
             "description": "The anotoki library's Privacy page: what the site keeps of a person's sign-in in the browser (the tokens the anotoki account gave it, and the sign-in's own notes). No placeholders.",
-            "en": "Your sign-in to this site - the keys the anotoki account gave it - and small notes the sign-in needs (where it started, when the site last signed you in by itself).",
-            "sk": "Prihlásenie do tejto stránky - kľúče, ktoré jej vydal účet anotoki - a drobné poznámky, ktoré prihlásenie potrebuje (odkiaľ sa začalo, kedy stránka naposledy prihlásila sama)."
+            "en": "Your sign-in to this site - the keys the anotoki account gave it - and small notes the sign-in needs (where it started, and on a site that signs you in without a click, when it last did).",
+            "sk": "Prihlásenie do tejto stránky - kľúče, ktoré jej vydal účet anotoki - a drobné poznámky, ktoré prihlásenie potrebuje (odkiaľ sa začalo a - na stránke, ktorá prihlasuje bez kliknutia - kedy to naposledy urobila)."
         },
         "anotoki.legal.storageSignInKept": {
             "description": "The anotoki library's Privacy page: how long the sign-in stays in the browser. No placeholders.",

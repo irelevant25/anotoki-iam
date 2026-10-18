@@ -205,7 +205,8 @@ nobody else knows. A request from the ranges without it, or with another
 value, is counted as the Cloudflare edge it came from (coarser, never looser);
 the header's value is compared whole, in constant time. Without the file, the
 ranges alone decide, as above; a file that is there but cannot be read (it
-prints - a byte-order mark, no `<?php` line - or PHP cannot read it) fails
+does not start with `<?php` - a byte-order mark, a blank line, no `<?php`
+line -, it prints, or PHP cannot read it) fails
 closed: a secret no request carries, every request from the ranges its edge. Nothing answers differently for it: only which
 address is counted and kept.
 

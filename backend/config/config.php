@@ -23,13 +23,15 @@
 //                                 uploaded by hand - setup.php neither asks
 //                                 for it nor writes it
 //
-// A file is read cleanly or not at all: one that prints something of its own
-// when PHP requires it - written by hand without its <?php line, with a
-// byte-order mark or a blank line before it, with text after a closing tag -
-// would send what it holds, the master key or a password among it, ahead of
-// every answer. What it prints is caught and goes nowhere, and the file counts
-// as not there (localConfigProblem() says why, by its fault and never a value
-// in it); so does one PHP cannot read.
+// A file is read cleanly or not at all. One that does not start with <?php -
+// written by hand without that line, with a byte-order mark or a blank line
+// before it - would send what it holds, the master key or a password among it,
+// ahead of every answer, and with declare(strict_types=1) after such a start
+// PHP could not even compile it (a fatal error, every request a 500): it is
+// passed over before PHP compiles it. What one that does start so prints all
+// the same - text after a closing tag - is caught and goes nowhere. Either
+// way the file counts as not there (localConfigProblem() says why, by its
+// fault and never a value in it); so does one PHP cannot read.
 //
 // Without the required ones the IAM does not run. The API answers every
 // request with 503 `not_set_up` (all but /api/site-status, which says so
@@ -101,9 +103,10 @@ function localConfig(string $name): mixed
 }
 
 /**
- * Why config/{name}.local.php was passed over - "prints 3 bytes of its own
- * (...)", "could not be read (ParseError on line 2)" - or null when it was read
- * cleanly, or is not there. It names the file's fault, never a value in it.
+ * Why config/{name}.local.php was passed over - "does not start with <?php
+ * (...)", "prints 12 bytes of its own (...)", "could not be read (ParseError on
+ * line 2)" - or null when it was read cleanly, or is not there. It names the
+ * file's fault, never a value in it.
  */
 function localConfigProblem(string $name): ?string
 {
@@ -134,24 +137,48 @@ function localConfigEntry(string $name): array
 }
 
 /**
- * Requires one *.local.php - inside a closure of its own, so it sees none of
- * the caller's variables - with whatever it prints caught.
+ * Requires one *.local.php - read cleanly, or not at all. The installer reads
+ * the files it writes through here too (setup.php).
  *
- * A file written by hand without its <?php line, with a byte-order mark or a
- * line before it, or with text after a closing tag (that comes before its
- * return) prints what is outside its PHP when PHP requires it - all of it, the
- * master key, a database password, the origin secret, where the line is
- * missing - ahead of every answer, where a browser or a site would read it. Caught here, it
- * goes nowhere, and the file is no file: its value null, its problem the
- * number of bytes it printed. One PHP cannot read (a ParseError) is no file
- * either, said by the kind of error and its line alone - a parse error's
- * message can quote the file. The installer reads the files it writes through
- * here too (setup.php).
+ * A file that does not start with <?php - written by hand with a byte-order
+ * mark, a blank line or a space before it, or without that line at all - is
+ * passed over before PHP ever compiles it: required, it would print what comes
+ * before (all of it, the master key, a database password, the origin secret,
+ * where the line is missing) ahead of every answer, and one with
+ * declare(strict_types=1) after such a start is a compile-time fatal error
+ * ("strict_types declaration must be the very first statement") that no try,
+ * no handler and no output buffer catches - every request, /api/site-status
+ * too, would be a 500 instead of "not set up", and a cloudflare.local.php
+ * would never fail closed (Japanese Academy's review of 2026-10-18, the
+ * family's rule since). Its first five bytes are read alone, never the rest:
+ * its value null, its problem that it does not start with <?php. One PHP may
+ * not open is no file either. This covers a bad start only: a file that does
+ * start with <?php and still cannot be compiled (a declare after another
+ * statement, a break outside a loop) stays a fatal error PHP raises before
+ * anything here can act - every request a 500, nothing printed, nothing
+ * served looser - and no slip of the hand makes one (the IAM's review of
+ * 2026-10-18).
+ *
+ * A file that does start with it is required inside a closure of its own, so
+ * it sees none of the caller's variables, with whatever it prints all the same
+ * caught - text after a closing tag (that comes before its return), an echo, a
+ * buffer of its own left open: it goes nowhere, and the file is no file, its
+ * problem the number of bytes it printed. One PHP cannot read (a ParseError)
+ * is no file either, said by the kind of error and its line alone - a parse
+ * error's message can quote the file.
  *
  * @return array{value: mixed, problem: ?string}
  */
 function readLocalConfigFile(string $path): array
 {
+    $head = @file_get_contents($path, false, null, 0, 5);
+    if ($head === false) {
+        return ['value' => null, 'problem' => 'could not be read (PHP may not open it)'];
+    }
+    if (strtolower($head) !== '<?php') {
+        return ['value' => null, 'problem' => 'does not start with <?php (a byte-order mark, a blank line or a space before it, or no <?php line at all)'];
+    }
+
     $level = ob_get_level();
     $value = null;
     $failure = null;
@@ -177,7 +204,7 @@ function readLocalConfigFile(string $path): array
         return ['value' => null, 'problem' => $failure];
     }
     if ($printed > 0) {
-        return ['value' => null, 'problem' => "prints {$printed} bytes of its own (text outside its PHP: no <?php line, a byte-order mark or a line before it, text after a closing tag)"];
+        return ['value' => null, 'problem' => "prints {$printed} bytes of its own (text outside its PHP: text after a closing tag, or something it echoes)"];
     }
 
     return ['value' => $value, 'problem' => null];

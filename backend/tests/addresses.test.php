@@ -404,29 +404,39 @@ function failsClosed(?string $read, string $what): void
     same(ELSEWHERE, requestIp(requestFrom(ELSEWHERE, ['CF-Connecting-IP' => '198.51.100.7'])), "{$what}: from elsewhere, the connection");
 }
 
-test('a local file that prints - no <?php line, a byte-order mark or a line before it, text after a closing tag - is passed over and never printed: the origin secret\'s fails closed, every request from Cloudflare\'s ranges its edge, and a required one leaves the IAM not set up; its fault said by its byte count, never its text', function () {
+test('a local file that does not start with <?php - no <?php line, a byte-order mark or a line before it, before declare(strict_types=1) too, which PHP cannot even compile - or that prints (text after a closing tag) is passed over and never printed: the origin secret\'s fails closed, every request from Cloudflare\'s ranges its edge, and a required one leaves the IAM not set up, never a 500; its fault said by its start or its byte count, never its text', function () {
     $secret = var_export(['origin_secret' => ORIGIN_SECRET], true);
+    $start = 'does not start with <?php (a byte-order mark, a blank line or a space before it, or no <?php line at all)';
     $cases = [
-        'no <?php line' => ["return {$secret};\n", strlen("return {$secret};\n")],
-        'a byte-order mark' => ["\xEF\xBB\xBF<?php\n\nreturn {$secret};\n", 3],
-        'a line before its <?php' => ["\n<?php\n\nreturn {$secret};\n", 1],
-        'text after a closing tag' => ["<?php \$kept = 1; ?>\n" . ORIGIN_SECRET . "\n<?php return {$secret};\n", strlen(ORIGIN_SECRET) + 1],
+        // Required, these would print what comes before their <?php - all of it, the secret too, where the line is
+        // missing - ahead of every answer; and with declare(strict_types=1) after such a start PHP could not even
+        // compile it: a fatal error no handler catches (this process would end here; every request a 500, the file
+        // never failing closed). None is compiled: a file that does not start with <?php is passed over unread.
+        'no <?php line' => ["return {$secret};\n", $start],
+        'a byte-order mark' => ["\xEF\xBB\xBF<?php\n\nreturn {$secret};\n", $start],
+        'a line before its <?php' => ["\n<?php\n\nreturn {$secret};\n", $start],
+        'a byte-order mark before <?php declare(strict_types=1)' => ["\xEF\xBB\xBF<?php declare(strict_types=1);\n\nreturn {$secret};\n", $start],
+        'a blank line before <?php declare(strict_types=1)' => ["\n<?php declare(strict_types=1);\n\nreturn {$secret};\n", $start],
+        // A file that does start with <?php and prints all the same: caught.
+        'text after a closing tag' => ["<?php \$kept = 1; ?>\n" . ORIGIN_SECRET . "\n<?php return {$secret};\n",
+            'prints ' . (strlen(ORIGIN_SECRET) + 1) . ' bytes of its own (text outside its PHP: text after a closing tag, or something it echoes)'],
     ];
 
-    foreach ($cases as $what => [$contents, $bytes]) {
+    foreach ($cases as $what => [$contents, $fault]) {
         // Each case said afresh: what was said today is not said again (sayOncePerDay()'s stamps).
         array_map('unlink', glob(iamStorageDir() . '/cache/said-*.logged') ?: []);
-        $log = loggedWhile(static function () use ($contents, $bytes, $what): void {
-            withCloudflareFile($contents, static function () use ($bytes, $what): void {
+        $log = loggedWhile(static function () use ($contents, $fault, $what): void {
+            withCloudflareFile($contents, static function () use ($fault, $what): void {
                 [$read, $printed] = printedBy(static fn(): ?string => iamOriginSecret());
                 same('', $printed, "{$what}: nothing of it printed");
-                same("prints {$bytes} bytes of its own (text outside its PHP: no <?php line, a byte-order mark or a line before it, text after a closing tag)", localConfigProblem('cloudflare'), "{$what}: its fault, by its bytes");
+                same($fault, localConfigProblem('cloudflare'), "{$what}: its fault, by its start or its bytes");
                 failsClosed($read, $what);
             });
         });
-        check(str_contains($log, "config/cloudflare.local.php prints {$bytes} bytes of its own"), "{$what}: said in PHP's error log: " . $log);
+        check(str_contains($log, "config/cloudflare.local.php {$fault}"), "{$what}: said in PHP's error log: " . $log);
         check(str_contains($log, 'config/cloudflare.local.php cannot be read cleanly: no request carries its secret'), "{$what}: and that it fails closed: " . $log);
         check(!str_contains($log, ORIGIN_SECRET), "{$what}: never the secret");
+        check(!str_contains($log, 'strict_types'), "{$what}: nor what PHP said of it");
     }
 
     $log = loggedWhile(static function (): void {
@@ -450,8 +460,7 @@ test('a local file that prints - no <?php line, a byte-order mark or a line befo
     try {
         [$problems, $printed] = printedBy(static fn(): array => iamSetUpProblems());
         same('', $printed, 'the key is not printed');
-        same(['config/secret.local.php prints 3 bytes of its own (text outside its PHP: no <?php line, a byte-order mark or a line before it, text after a closing tag)'], $problems,
-            'the set-up check names the file and its fault, never a value');
+        same(["config/secret.local.php {$start}"], $problems, 'the set-up check names the file and its fault, never a value');
         [$answer, $printed] = printedBy(static fn(): TestResponse => (new Browser())->get('/api/public/config'));
         same('', $printed, 'nothing printed ahead of the answer');
         same([503, 'not_set_up'], [$answer->status, $answer->code()], 'the IAM is not set up while it prints');
@@ -461,6 +470,67 @@ test('a local file that prints - no <?php line, a byte-order mark or a line befo
         forgetLocalConfig();
     }
     same([], iamSetUpProblems(), 'corrected, the IAM is set up again');
+
+    // And the database's with a byte-order mark, or a blank line, before <?php declare(strict_types=1): compiled, a
+    // fatal error no handler catches - every answer a 500 (this process would end here), never "not set up". Never
+    // compiled: not set up, nothing printed, nothing of it in the answer.
+    $file = localConfigPath('database');
+    $settings = (string) file_get_contents($file);
+    check(str_starts_with($settings, '<?php'), 'the test\'s own database.local.php starts with <?php');
+    $marker = 'by-hand-' . bin2hex(random_bytes(8));
+    foreach (['a byte-order mark' => "\xEF\xBB\xBF", 'a blank line' => "\n"] as $what => $before) {
+        array_map('unlink', glob(iamStorageDir() . '/cache/said-*.logged') ?: []);
+        file_put_contents($file, $before . "<?php declare(strict_types=1);\n// {$marker}\n" . substr($settings, 5));
+        forgetLocalConfig();
+        try {
+            $log = loggedWhile(static function () use ($what, $start, $marker): void {
+                [$problems, $printed] = printedBy(static fn(): array => iamSetUpProblems());
+                same('', $printed, "{$what} before declare(strict_types=1): nothing of the database's file printed");
+                same(["config/database.local.php {$start}"], $problems, "{$what}: the set-up check names the file and its fault, never a value");
+                foreach (['/api/site-status', '/api/public/config', '/.well-known/openid-configuration'] as $path) {
+                    [$answer, $printed] = printedBy(static fn(): TestResponse => (new Browser())->get($path));
+                    same('', $printed, "{$what}, {$path}: nothing printed ahead of the answer");
+                    check($answer->status !== 500 && str_starts_with($answer->body, '{'), "{$what}, {$path}: an answer of its own, never a 500: " . $answer->status);
+                    check(!str_contains($answer->body, $marker) && !str_contains($answer->body, 'strict_types'), "{$what}, {$path}: nothing of the file in it, nor PHP's words");
+                }
+                $status = (new Browser())->get('/api/site-status');
+                same([200, 'not_set_up'], [$status->status, $status->json()['state'] ?? null], "{$what}: the status says not set up");
+                $answer = (new Browser())->get('/api/public/config');
+                same([503, 'not_set_up'], [$answer->status, $answer->code()], "{$what}: and every other address is 503 not_set_up");
+            });
+            check(str_contains($log, "config/database.local.php {$start}"), "{$what}: said in PHP's error log by its fault: " . $log);
+            check(!str_contains($log, $marker) && !str_contains($log, 'strict_types'), "{$what}: never the file's text, nor what PHP said");
+        } finally {
+            file_put_contents($file, $settings);
+            forgetLocalConfig();
+        }
+    }
+    same([], iamSetUpProblems(), 'corrected, the IAM is set up again');
+});
+
+test('readLocalConfigFile() at the edges of its first five bytes: <?PHP is PHP, an empty or a four-byte file is no file, and one PHP cannot open is said before any require (the IAM\'s review of 2026-10-18)', function () {
+    $folder = sys_get_temp_dir() . '/iam-local-edges-' . bin2hex(random_bytes(4));
+    mkdir($folder);
+    try {
+        $write = static function (string $name, string $contents) use ($folder): string {
+            file_put_contents("$folder/$name", $contents);
+
+            return "$folder/$name";
+        };
+        same(['value' => ['a' => 1], 'problem' => null], readLocalConfigFile($write('upper.php', "<?PHP return ['a' => 1];\n")), '<?PHP, as PHP reads it');
+        same(['value' => ['a' => 1], 'problem' => null], readLocalConfigFile($write('mixed.php', "<?pHp return ['a' => 1];\n")), '<?pHp too');
+        foreach (['empty' => '', 'four bytes' => '<?ph', 'a short tag' => "<?= 1;\n"] as $what => $contents) {
+            $read = readLocalConfigFile($write(str_replace(' ', '-', $what) . '.php', $contents));
+            check($read['value'] === null && str_starts_with((string) $read['problem'], 'does not start with <?php'), "{$what}: no file - " . json_encode($read));
+        }
+        same(['value' => null, 'problem' => 'could not be read (PHP may not open it)'], readLocalConfigFile($folder), 'a folder in a file\'s place: said before any require');
+        same(['value' => null, 'problem' => 'could not be read (PHP may not open it)'], readLocalConfigFile("$folder/missing.php"), 'and a file that is not there');
+    } finally {
+        foreach (glob("$folder/*") ?: [] as $file) {
+            unlink($file);
+        }
+        rmdir($folder);
+    }
 });
 
 finishTests();

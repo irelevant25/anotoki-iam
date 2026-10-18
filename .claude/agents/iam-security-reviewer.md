@@ -131,7 +131,12 @@ the files you were given). You do not edit anything.
   migration that seeds a site adds loopback addresses only while the IAM's own
   `iam` entry has its home on this computer (as 005 does), since it reaches
   live IAMs too.
-  Database names and hosts cannot reach into the DSN.
+  Database names and hosts cannot reach into the DSN. Every local file is read
+  through `readLocalConfigFile()`: a plain `require` of one, or one required
+  that does not start with `<?php` (a byte-order mark or a blank line before
+  `declare(strict_types=1)` is a compile-time fatal error no handler catches -
+  every request a 500, the origin secret's never failing closed), is a
+  finding; so is a fault logged with the file's text.
 - **Words and mails** (`api/translations.php` - the IAM's configuration of the
   anotoki library's `Anotoki\Lib\Translations` -, `api/mail.php`, the routes in
   `routes/login.php` and `routes/admin.php`, the library's Translations and

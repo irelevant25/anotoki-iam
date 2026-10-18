@@ -66,10 +66,15 @@ is in `backend/config/*.local.php` and nowhere else: gitignored, never
 defaulted from anything committed. The committed `config/*.php` beside them
 read those files and hold only the tunables that are the same everywhere.
 Each file is read cleanly or not at all (`readLocalConfigFile()`): one that
-prints when PHP requires it - no `<?php` line, a byte-order mark or a line
-before it - would send what it holds ahead of every answer, so what it prints
-is caught and goes nowhere and the file is passed over, said by its fault and
-its byte count, never its text; so is one PHP cannot read. The origin secret's
+does not start with `<?php` - no `<?php` line, a byte-order mark or a line
+before it - would send what it holds ahead of every answer, and with
+`declare(strict_types=1)` after such a start PHP could not even compile it (a
+fatal error no handler catches: every request a 500, the status too), so its
+first five bytes are read alone and the file is passed over uncompiled
+(Japanese Academy's review of 2026-10-18); what one that does start so
+prints all the same - text after a closing tag - is caught and goes nowhere
+and the file is passed over too. Each is said by its fault (and byte count),
+never its text; so is one PHP cannot read. The origin secret's
 (`cloudflare.local.php`) so passed over fails closed: a secret no request
 carries, every request from Cloudflare's ranges its edge.
 
@@ -505,13 +510,18 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   only where the key has none, so an owner's rewording - and a language left
   blank on purpose - stays; their descriptions are the library's, and their
   placeholders are the library's English's whatever a stored rewording says.
-  One later file of the set rewords strings it wrote before: 0.6.1's `010`
+  Two later files of the set reword strings it wrote before: 0.6.1's `010`
   gives the Privacy page's two sentences on where the backups are
   (`anotoki.legal.backupsWherePlain`, `anotoki.legal.backupsWhereEncrypted`)
   their new words, in English and Slovak, but only while each is still
   `005`'s word for word - a rewording stays. An administrator cannot have
   saved 005's very words before it on any site: every site applies 005 and
-  010 in the same Apply.
+  010 in the same Apply. 0.6.2's `011` rewords three more
+  (`anotoki.legal.privacyAccountRecord`, `backupsKept`,
+  `storageSignInPurpose`) only while each is still `005`'s word for word and
+  nobody saved it (`updated_by IS NULL`) - none of the three is on the IAM's
+  pages: its Privacy page says its own words for the account, its backups'
+  keeping and its storage.
   The IAM's language switcher said its two words as `lang.label` and
   `lang.button`; migration 017 moved them, with every string, writer and date,
   to `anotoki.language.label` and `anotoki.language.button`, and renamed
@@ -585,7 +595,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 ## The admin panel's tools: the error log, the audit log, backups
 
 Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11; 0.6.1 now, both halves): the same pages, routes and
+owner's decision of 2026-10-11; 0.6.2 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and

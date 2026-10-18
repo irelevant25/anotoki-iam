@@ -107,6 +107,15 @@ Privacy page's sentence about Google) and the library's translations 010 (the
 Privacy page's sentence on where the backups are); until then the button
 shows its key (`google.signIn`).
 
+anotoki-lib 0.6.2 comes with it: the library's translations 011 reword three
+of the sites' Privacy sentences (none of them on the IAM's pages) - the same
+Apply brings it. And a `config/*.local.php` that does not start with `<?php`
+is passed over before PHP compiles it: one saved with a byte-order mark or a
+blank line before `declare(strict_types=1)` now answers "not set up" (the
+origin secret's: fails closed) instead of a 500 on every request, and PHP's
+error log names it ("does not start with <?php") - save it again as plain
+UTF-8 starting with `<?php`.
+
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 with no address - never a `localhost` one there. Admin panel →
 Applications → the site, `{site}` being its https address: redirect URI

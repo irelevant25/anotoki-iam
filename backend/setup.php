@@ -48,8 +48,9 @@ declare(strict_types=1);
  * Whatever else those files hold - trusted proxies added by hand, say - is kept.
  * A file whose content would not change is not written again. One that cannot
  * be read cleanly - written by hand without its <?php line or with a
- * byte-order mark before it, so that it prints when PHP reads it, or one PHP
- * cannot read at all - is never shown and never written over: the page says
+ * byte-order mark before it, so that it does not start with <?php and is
+ * never compiled, one that prints when PHP reads it, or one PHP cannot read
+ * at all - is never shown and never written over: the page says
  * which, and nothing is saved until it is corrected (setupSavedProblems()).
  *
  * It never reads or writes config/cloudflare.local.php - the secret the
@@ -483,8 +484,9 @@ function setupSavedFile(array $context, string $name): mixed
 
 /**
  * The files the installer would write that are there but cannot be read
- * cleanly - one that prints (no <?php line, a byte-order mark before it), or
- * that PHP cannot read: a sentence each, naming the file and its fault, never
+ * cleanly - one that does not start with <?php (no <?php line, a byte-order
+ * mark before it), one that prints, or one PHP cannot read: a sentence each,
+ * naming the file and its fault, never
  * a value in it. While there is
  * one, nothing is saved: the installer never writes over a file it could not
  * read - a master key with a byte-order mark before it is still the key every

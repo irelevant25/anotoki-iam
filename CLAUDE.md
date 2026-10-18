@@ -61,14 +61,19 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `config/config.php` (`localConfig()`). The committed `config/*.php` hold the
   loaders and the tunables that are the same everywhere; there is no template
   to fall back on. A file is read cleanly or not at all
-  (`readLocalConfigFile()`, the round-3 lesson of 2026-10-13): what it prints
-  when PHP requires it - no `<?php` line, a byte-order mark or a line before
-  it - is caught, never sent, and the file is passed over (said by its fault
-  and byte count, never its text; a required one leaves the IAM not set up,
-  `iamSetUpProblems()` naming it; `cloudflare.local.php` so fails closed, a
-  secret no request carries); so is one PHP cannot read. The installer
-  reads through it too, and saves over no file it could not read (a master
-  key with a BOM is still the key).
+  (`readLocalConfigFile()`, the round-3 lesson of 2026-10-13): one that does
+  not start with `<?php` - no `<?php` line, a byte-order mark or a line
+  before it - is passed over before PHP ever compiles it, its first five
+  bytes read alone (2026-10-18, Japanese Academy's review: with
+  `declare(strict_types=1)` after such a start it is a fatal error nothing
+  catches, every request a 500 - the status too - and the origin secret's
+  never failing closed); what one that does start so prints all the same -
+  text after a closing tag - is caught, never sent, and the file is passed
+  over (said by its fault, and byte count, never its text; a required one
+  leaves the IAM not set up, `iamSetUpProblems()` naming it;
+  `cloudflare.local.php` so fails closed, a secret no request carries); so
+  is one PHP cannot read. The installer reads through it too, and saves over
+  no file it could not read (a master key with a BOM is still the key).
 - They are **required**: the anotoki family's gate (anotoki/lib's `SiteGate`
   over `iamSiteState()`, `api/migration_runner.php`; asked only while the IAM
   is not set up, so a set-up IAM does no database work for it) answers every
@@ -280,7 +285,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   key's strings only where the key has none - but for 0.6.1's 010, which
   rewords the Privacy page's two `anotoki.legal.backupsWhere*` sentences while
   each is still 005's word for word (no site can have saved 005's very words
-  before it: every site applies 005 and 010 in the same Apply). Migration 017 moved `lang.label` /
+  before it: every site applies 005 and 010 in the same Apply), and 0.6.2's
+  011, which rewords three more (`privacyAccountRecord`, `backupsKept`,
+  `storageSignInPurpose` - none of them on the IAM's pages) while each is
+  still 005's and nobody saved it. Migration 017 moved `lang.label` /
   `lang.button` there and renamed `sessions.*.other` to `.unknown`; once it is
   applied, no build from before it goes on the host again (it would show
   those four as keys). Both route groups stay behind `requireAdmin()`; the
@@ -444,7 +452,7 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): 0.6.1,
+  halves, updated together where both change (`docs/operations.md`): 0.6.2,
   both halves (the migrations module, the translations module, the UI kit,
   the admin tools, the pages' error reporter, the legal pages; never 0.4.0,
   which fails on PHP 8.2). Never
@@ -537,7 +545,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.6.1), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.6.2), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they

@@ -30,9 +30,11 @@ locks it away for good). The installer writes them. (One more is optional and
 never the installer's: `cloudflare.local.php`, the secret the Cloudflare zone
 adds to every request - a real host's, uploaded by hand; nothing on this
 computer needs it, `docs/operations.md`, "Behind Cloudflare". A file edited by
-hand must start with `<?php` and carry no byte-order mark: one that prints
-anything of its own is passed over - and `cloudflare.local.php` then fails
-closed, every visitor counted as their Cloudflare edge.)
+hand must start with `<?php` and carry no byte-order mark: one that does not
+start with `<?php` is passed over uncompiled, one that prints anything of
+its own is passed over too - a required file then leaves the IAM not set
+up, and `cloudflare.local.php` fails closed, every visitor counted as their
+Cloudflare edge.)
 
 ### 1. The installer
 

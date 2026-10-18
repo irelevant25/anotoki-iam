@@ -5,6 +5,28 @@ and the npm package `@anotoki/lib` (`angular/projects/lib/package.json`). While 
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.6.2 - 2026-10-18
+
+**Three sentences of the Privacy page, made true on every site** (found by the survey's and Piano Academy's site
+passes of 0.6.0):
+
+- `anotoki.legal.privacyAccountRecord` said a site "does not keep your account's e-mail address", but a site that
+  takes feedback keeps the reply address the form fills in from the account. It now says the address is kept only as
+  a feedback message's reply address, if the sender leaves it in the form - and that the account's deletion takes the
+  reply address out with the name (as the scrub always did: `Feedback::scrub`).
+- `anotoki.legal.backupsKept` said "the daily copies for {daily} days", but the library keeps the `{daily}` newest by
+  count, and makes a daily copy only on a day the site is used. It now says so; its description too.
+- `anotoki.legal.storageSignInPurpose` said "when the site last signed you in by itself", which a site that never signs
+  anybody in without a click (no sign-in hint) does not do. It now says it of a site that does.
+
+`anotoki_translations/011_privacy_words_made_true.sql` rewords each of the six strings only while it is still 005's
+word for word and nobody saved it (`updated_by IS NULL`): a site's own wording and an administrator's deliberate save
+stay - the rule every rewording file keeps from now on (CLAUDE.md). Tests: PHPUnit - 011 on a site built through 010,
+with an administrator's save and a site's own words kept, and its gate; Vitest - the Privacy page's new words.
+
+What a site must do: apply `anotoki_translations/011` on the Migrations page with the rest of 0.6's set. A site that
+worded one of the three in its own facts keeps its own words.
+
 ## 0.6.1 - 2026-10-14
 
 **The Privacy page's backups, made true** (found by the IAM's site pass of 0.6.0): the two sentences on where the

@@ -25,12 +25,16 @@
 // with the same value in the zone's Transform Rule (docs/operations.md,
 // "Behind Cloudflare"). Without the file, or with an empty value, there is no
 // secret: CF-Connecting-IP is believed from Cloudflare's ranges alone, as
-// before. A file that is there but cannot be read cleanly - one that prints
-// (a byte-order mark, no <?php line), or that PHP cannot read - fails closed:
+// before. A file that is there but cannot be read cleanly - one that does not
+// start with <?php (a byte-order mark, a blank line, no <?php line: never
+// compiled), one that prints (text after a closing tag), or one PHP cannot
+// read - fails closed:
 // its secret is one no request carries, so every request from Cloudflare's
-// ranges counts as the edge it came from until the file is mended. A slip of
-// the editor never switches the check off. The secret is never printed, never
-// logged and never in an answer.
+// ranges counts as the edge it came from until the file is mended. A file
+// that is read cleanly but names no usable secret - blank, a misspelt key, a
+// forgotten return - counts as no secret, as an empty value does (the rule of
+// 2026-10-13, docs/decisions.md), and says so in PHP's error log once a day.
+// The secret is never printed, never logged and never in an answer.
 // ---------------------------------------------------------------------------
 
 require_once __DIR__ . '/config.php';
