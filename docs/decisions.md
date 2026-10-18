@@ -1775,7 +1775,8 @@ Both halves of the IAM take anotoki-lib 0.6.0 (`composer.json` `^0.6.0`, the
 family's words its own, each site giving its facts -, the operator Code Hero
 s.r.o. (the family's default, written to at the support address), Slovak law,
 16 the age for an account without a parent's permission, the hosting company
-"to be named" until the owner names it. The texts are a good-faith draft for
+"to be named" until the owner named it (2026-10-18: WebSupport s.r.o., the
+servers, the database and the mail). The texts are a good-faith draft for
 the owner, not legal advice. What the IAM decided with them:
 
 - **The pages are anybody's, in the family's frame.** On the library's paths

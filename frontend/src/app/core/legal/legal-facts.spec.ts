@@ -18,6 +18,7 @@ const ADDRESSES = [
   'mailto:support@anotoki.eu',
   'https://codehero.sk',
   'https://dataprotection.gov.sk/',
+  'https://www.websupport.sk',
   'https://www.cloudflare.com/privacypolicy/',
   'https://policies.google.com/privacy',
 ];
@@ -150,7 +151,13 @@ describe('the legal pages, as the IAM fills them in', () => {
     ]);
     // On a plain-http development machine the session cookie goes by its bare name (api/session.php).
     expect(iamLegalFacts(i18n, false).storage[1].name).toBe('anotoki_iam');
-    expect(facts.processors).toEqual([{ preset: 'hosting' }, { preset: 'cloudflare' }, { preset: 'google', role: en['legal.google.role'] }, { preset: 'mail', role: en['legal.mail.role'] }]);
+    const webHost = { name: 'WebSupport s.r.o.', url: 'https://www.websupport.sk' };
+    expect(facts.processors).toEqual([
+      { preset: 'hosting', ...webHost },
+      { preset: 'cloudflare' },
+      { preset: 'google', role: en['legal.google.role'] },
+      { preset: 'mail', ...webHost, role: en['legal.mail.role'] },
+    ]);
     // An address is the code's: no string of the facts holds one (the 0.6.0 review; the backend's test of 020 too).
     for (const [key, text] of Object.entries(en).filter(([key]) => key.startsWith('legal.'))) {
       expect([key, /https?:|:\/\/|www\.|@/.test(text)]).toEqual([key, false]);
@@ -189,7 +196,7 @@ describe('the legal pages, as the IAM fills them in', () => {
       'anotoki-iam:lang',
       'anotoki-iam:localization-drafts',
     ]);
-    expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name')).toEqual(['The hosting company (to be named)', 'Cloudflare, Inc.', 'Google', 'The mail service (to be named)']);
+    expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name')).toEqual(['WebSupport s.r.o.', 'Cloudflare, Inc.', 'Google', 'WebSupport s.r.o.']);
     expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name + p')[2]).toBe(en['legal.google.role']);
     // Google is contacted only when somebody presses the button (ui/google-button; the owner's decision of 2026-10-14).
     expect(en['legal.google.role']).toMatch(/^Only when you press "Sign in with Google".* does your browser load anything from Google/);

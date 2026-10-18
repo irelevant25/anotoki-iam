@@ -518,7 +518,8 @@ buttons in the informal Slovak) and the library's translations 005-009 (the
 legal pages' words, the top bar's, the kit's new pieces'). Until then the
 pages say the library's built-in words, and the IAM's facts show as their
 keys - so Apply right after the upload. The hosting company and the mail
-service are "to be named" on the Privacy page until the owner names them
+service are WebSupport s.r.o. (the owner named it on 2026-10-18: the
+servers, the database and the mail) on the Privacy page
 (`frontend/src/app/core/legal/legal-facts.ts`, `processors`).
 
 **anotoki-lib 0.6.1** (both halves) and migration **022**, at the end of round

@@ -11,7 +11,10 @@ import { THEME_STORAGE_KEY } from '../kit/kit.config';
  * the IAM keeps or for how long - and the strings that say so (`legal.*`,
  * migration 020).
  */
-export const IAM_LEGAL_UPDATED = '2026-10-14';
+export const IAM_LEGAL_UPDATED = '2026-10-18';
+
+/** The hosting company the owner named on 2026-10-18: a name and an address of the code's, never a string's. */
+const WEB_HOST = { name: 'WebSupport s.r.o.', url: 'https://www.websupport.sk' } as const;
 
 /**
  * Where a person deletes their account: the account page's Security page,
@@ -110,14 +113,15 @@ export function iamLegalFacts(i18n: TranslationService, secure: boolean): LegalF
       { name: LANGUAGE_STORAGE.drafts, kind: 'session', purpose: i18n.t('legal.storage.drafts.purpose'), kept: i18n.t('legal.storage.untilTabClosed') },
     ],
     processors: [
-      // "To be named" until the owner names the hosting company and the mail service (PHP's mail() on the host, config/mail.php).
-      { preset: 'hosting' },
+      // The hosting company, named by the owner on 2026-10-18: the servers, the database and the mail - which goes out
+      // through PHP's mail() on that host (config/mail.php), so it is the mail service too.
+      { preset: 'hosting', name: WEB_HOST.name, url: WEB_HOST.url },
       { preset: 'cloudflare' },
       // Nothing is loaded from Google until somebody presses the IAM's own button (ui/google-button, 2026-10-14); that
       // press already lets Google see the browser, before anybody chooses an account - which the library's words
       // ("only if you choose to sign in with Google") would leave out.
       { preset: 'google', role: i18n.t('legal.google.role') },
-      { preset: 'mail', role: i18n.t('legal.mail.role') },
+      { preset: 'mail', name: WEB_HOST.name, url: WEB_HOST.url, role: i18n.t('legal.mail.role') },
     ],
   };
 }

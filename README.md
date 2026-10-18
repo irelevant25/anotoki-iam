@@ -159,7 +159,8 @@ hosting:
   2026-10-13): the family's pages at `/terms`, `/privacy` and `/contact`,
   anybody's, around the IAM's facts (migration 020) - written from what the
   code keeps, every address a page links to in the code alone. The hosting
-  company and the mail service are "to be named" until the owner names them.
+  company and the mail service: WebSupport s.r.o. (named by the owner on
+  2026-10-18).
 - Google is contacted only when somebody asks for it (migration 022, the
   owner's decision of 2026-10-14): the sign-in, sign-up and account pages draw
   the IAM's own "Sign in with Google" button, in Google's branding, and only a
