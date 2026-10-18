@@ -44,7 +44,7 @@ bun add <package>                         # add or update packages with bun: npm
 npx ng build                              # production; --configuration development for a debug build
 npm run build:deploy                      # production build + the web root's .htaccess
 npx ng test --watch=false                 # unit tests (Vitest): needs vitest + jsdom in devDependencies (frontend/README.md)
-npx prettier --check "src/**/*.{ts,html,scss}"   # a checkout with CRLF line endings: add --end-of-line crlf
+cd .. && bun run format:check             # Prettier on every file of both halves, at the root (bun install there first)
 
 # SDKs (from the repo root)
 node sdk/js/build.mjs                     # regenerate anotoki-auth.js after editing the .mjs

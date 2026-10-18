@@ -108,8 +108,8 @@ call exactly those endpoints and must handle exactly those refusal codes.
    admin panel is English only, written in its templates.
 6. `npx ng build` (production) and `npx ng build --configuration development`
    must pass, `npx ng test --watch=false` too (it needs `vitest` and `jsdom`
-   in `devDependencies` - `frontend/README.md`), and `npx prettier --check
-   "src/**/*.{ts,html,scss}"` be clean (`--end-of-line crlf` on a CRLF checkout).
+   in `devDependencies` - `frontend/README.md`), and `bun run format:check` at
+   the root be clean.
    A change to the top bar is checked in a browser too: 360, 390, the fold
    width and one px over, 1280; light and dark; English and Slovak; a real
    Tab press from a menu item.
