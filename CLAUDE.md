@@ -457,7 +457,7 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   name again - an address, a turned text: the lure this closes - and show
   `register.usernameHint` as a key); fix forward.
 - **A confirmation link and a Google token prove only so much** (the security
-  review of 2026-10-19 and the review of its change, migration 026;
+  review of 2026-10-19 and the reviews of its changes, migration 026;
   `docs/decisions.md`): a confirmation link signs in only while its address
   waits to be confirmed - decided in the write that confirms it (`AND NOT
   email_confirmed`); every link of the account is spent once the address is
@@ -465,8 +465,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   is switched on (`spendConfirmationLinks()`); one of an address confirmed
   already answers `{signed_in: false, reason: "already_confirmed"}` and opens
   nothing -, only for the address it was mailed to (a hash of it in the
-  link's context: one of an account moved elsewhere says nothing of it),
-  never in place of another account's session this browser has
+  link's context, asked by the write too: one of an account moved elsewhere,
+  even a moment before, confirms nothing and says nothing of it; 026 spent
+  every live link that noted none), never in place of another account's
+  session this browser has
   (`other_account`: the address confirmed, the session left as it was), and
   never past two-factor (the code asked as a reset asks it, under the pause).
   The confirmation page sends a link only on a press, and names the account
@@ -477,11 +479,16 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   minute's leeway either way) and once: from the moment the Google sign-in
   finds the account it names, it is held for that account's sign-in
   (`holdGoogleIdToken()`, `held_for_user`) - back with the code there, refused
-  everywhere else, the account page's connect included - and spent when it
-  changes something (`spendGoogleIdToken()`; `google_id_tokens_used` keeps a
-  hash of what Google signed until the token runs out); one that names no
-  account is spent at once. Once 026 is applied, no build from before it goes
-  on the host again (it would open the holes again); fix forward.
+  everywhere else, the account page's connect included -, and the account
+  page's connect holds it for the account connecting it before it asks for
+  the password (back with the password there, a refusal keeping it held) -
+  and spent when it changes something (`spendGoogleIdToken()`;
+  `google_id_tokens_used` keeps a hash of what Google signed until the token
+  runs out); one that names no account is spent at once. The connect takes no
+  Google whose verified address another account has confirmed (`409
+  email_taken`; an unconfirmed registration counts for nothing). Once 026 is
+  applied, no build from before it goes on the host again (it would open the
+  holes again); fix forward.
 
 ## Backend layout & conventions
 
@@ -598,8 +605,8 @@ nothing there is no secret;
 five wrong authenticator codes pause an account's codes for fifteen minutes
 on every way that takes one, a code by email standing in only after the
 password and only until five of those are wrong; the same switches on every way in;
-a confirmation link signing in only while its address waits (decided in the write), only for the address it went to, never in place of another account's session nor past two-factor,
-and a session's `mfa` only for a second factor its own sign-in checked; a Google id token fresh (five minutes), good once, and held for the sign-in of the account it names - free for nothing else;
+a confirmation link signing in only while its address waits and only for the address it went to (both decided in the write), never in place of another account's session nor past two-factor,
+and a session's `mfa` only for a second factor its own sign-in checked; a Google id token fresh (five minutes), good once, and held from the first for the account it names at the sign-in or that connects it on the account page - free for nothing else;
 no self-lockout, no removing the
 last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; the sign-in hint opens nothing and no account no site lets in has one;
 a username letters and digits only, whoever chooses or makes it (one from before kept, never checked when sent back unchanged);
