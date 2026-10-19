@@ -101,7 +101,6 @@ if (unsafe.length) {
   process.exit(1);
 }
 
-
 const files = readdirSync(dist).length;
 const shown = dist
   .replace(process.cwd() + '\\', '')
