@@ -121,8 +121,9 @@ runs after the IAM's files.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
   that no migration wrote. It also counts what the migrations leave (after
-  024 and the library's sets of 0.8.0: 914 keys - 574 of the pages, 52 of the
-  mails, 288 of the library's - 1828 strings): a migration that adds or removes keys
+  025 and the library's sets of 0.8.0: 914 keys - 574 of the pages, 52 of the
+  mails, 288 of the library's - 1828 strings; 025 put one page key in place of
+  another): a migration that adds or removes keys
   moves those numbers, and `tests/top-bar-strings.test.php` is the pattern for
   testing one on an installed IAM. A test that holds an IAM built through an
   earlier file to a fresh one leaves out what a later file rewords
@@ -133,8 +134,10 @@ runs after the IAM's files.
   (`applyMigrationsThrough()`, or `['applied'][0]`), not on the list.
   `tests/strings-through-the-library.test.php` holds 017 that way by naming
   the keys of the IAM's later files (`LATER_PAGE_KEYS`, `LATER_MAIL_KEYS`): a
-  migration that adds keys adds them there too, and one that rewords a string
-  from before 017 adds it to `LATER_REWORDED` (020's and 021's).
+  migration that adds keys adds them there too, one that rewords a string
+  from before 017 adds it to `LATER_REWORDED` (020's, 021's and 025's), and
+  one that deletes a key from before 017 adds it to `LATER_REMOVED` (025's
+  `register.usernameHint`).
 - **`anotoki.` is the library's namespace.** Never write a key there; the
   library's 002 writes them and their descriptions. 017 moved the IAM's
   `lang.*` there once, and that is the pattern for moving another word the

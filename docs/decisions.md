@@ -2262,8 +2262,10 @@ validation so the username may contains only [a-zA-Z0-9]".
   besides), is the line under the field on the register page and the account
   page; and `register.usernameHint` - "What you would like to be called.",
   which asked for a name as people write theirs - goes, with its strings. Once
-  025 is applied, no build from before it goes on the host again (it would
-  show `register.usernameHint` as a key); fix forward. The register page and
+  025 is applied, no build from before it goes on the host again: it would
+  take any name again - an address, a turned text, the lure this closes (the
+  security review of 2026-10-19) - and show `register.usernameHint` as a key;
+  fix forward. The register page and
   the account page ask the same rule before they send (`core/auth/username.ts`),
   and so do the admin panel's create and edit, in its English; the server
   stays the rule.

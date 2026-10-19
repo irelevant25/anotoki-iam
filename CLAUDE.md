@@ -435,6 +435,26 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   never change an account because a message asks. Once 1.0.0 has taken a
   message, no build from before it goes on the host again (it would neither
   scrub a deleted person's messages nor prune them); fix forward.
+- **Usernames are letters and digits** (the owner's decision of 2026-10-19,
+  closing Low 1 of that day's security review; migration 025;
+  `docs/decisions.md`): `[A-Za-z0-9]`, 1 to 100 (`usernameRefusal()`,
+  `api/helpers.php`) on every way a name is chosen - `/api/register`, the
+  account page, the admin panel's create and edit, a name given to
+  `createFirstAdmin()` -, `422 invalid_username` otherwise; unique regardless
+  of case as before. No name may look like an address or turn the text: the
+  Feedback page and every site show it. The names the IAM makes fit
+  (`usernameFrom()`: the Latin letters with a mark written plain by a table -
+  no intl -, everything else dropped): a Google sign-up's
+  (`availableUsername()`: the display name, else the address before the `@`,
+  else `player`, then a number) and the first administrator's default (the
+  address, else `admin`). A name from before is kept: sent back unchanged it
+  is no change and never checked (`usernameUnchanged()`) - it must never stop
+  the rest of a save; the legacy import kept the names it moved; a deleted
+  account's `deleted-{id}` keeps its dash. The pages ask the same rule before
+  they send (`core/auth/username.ts`); the server is the rule. Once 025 is
+  applied, no build from before it goes on the host again (it would take any
+  name again - an address, a turned text: the lure this closes - and show
+  `register.usernameHint` as a key); fix forward.
 
 ## Backend layout & conventions
 
@@ -477,7 +497,9 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `config/iam.php`'s trusted proxies and `config/cloudflare.php`'s origin
   secret), `languageCodes()` / `languageOrDefault()`
   (read through the library's `offeredCodes()`, `en`/`sk` before the tables
-  exist) and the text and refusal helpers the announcements use.
+  exist), the usernames' rule (`usernameRefusal()`, `usernameUnchanged()`,
+  and `usernameFrom()` for the names the IAM makes) and the text and refusal
+  helpers the announcements use.
 - Files under `storage/` go through `iamStorageDir()`, config through
   `localConfig()` - the tests point both at temp folders (`IAM_CONFIG_DIR`,
   `IAM_STORAGE_DIR`, constants only code can define). No environment variables.
@@ -550,6 +572,7 @@ five wrong authenticator codes pause an account's codes for fifteen minutes
 on every way that takes one, a code by email standing in only after the
 password and only until five of those are wrong; the same switches on every way in; no self-lockout, no removing the
 last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; the sign-in hint opens nothing and no account no site lets in has one;
+a username letters and digits only, whoever chooses or makes it (one from before kept, never checked when sent back unchanged);
 the session cookie never gets a Domain, and is __Host- on https, where the bare name is never read; no loopback address
 left on a real host's install, nor seeded into a live IAM by a later migration;
 backups only encrypted under the master key, made, downloaded and deleted only

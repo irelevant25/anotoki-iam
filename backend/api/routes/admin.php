@@ -489,14 +489,17 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
 
         $changes = [];
+        $nameSentUnchanged = false;
 
         if (array_key_exists('username', $body)) {
             if (usernameUnchanged($body, $target)) {
                 // The name the account has, sent back: no change, so never
                 // held to the rule - a name from before 2026-10-19 that does
                 // not fit must not stop an administrator changing anything
-                // else. Written as it is, as every field sent is.
-                $changes['username'] = (string) $target['username'];
+                // else. And never written: the copy read above may be older
+                // than a rename the account made meanwhile, which writing it
+                // back would undo (the security review of 2026-10-19).
+                $nameSentUnchanged = true;
             } else {
                 // A new name keeps the rule (letters and digits, usernameRefusal()).
                 $username = field($body, 'username');
@@ -543,6 +546,11 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
 
         if ($changes === []) {
+            // Only the name it has, sent back: the account as it is, nothing written or audited.
+            if ($nameSentUnchanged) {
+                return respondJson($response, adminUser($pdo, $id));
+            }
+
             return respondError($response, 422, 'nothing_to_change', 'Nothing to change');
         }
 

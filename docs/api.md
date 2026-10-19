@@ -1358,7 +1358,7 @@ endpoint here.
 | `GET /api/admin/users/{id}` | `AdminUser` |
 | `GET /api/admin/users/{id}/detail` | `AdminUserDetail` |
 | `POST /api/admin/users` | `{ username, email, password, language?, force_password_change?, roles?: RoleGrant[] }` → `201 AdminUser` - the username letters and digits (`422 invalid_username` otherwise; Conventions, above) |
-| `PUT /api/admin/users/{id}` | `{ username?, email?, language?, email_confirmed?, force_password_change? }` → `AdminUser` - a new username letters and digits (`422 invalid_username` otherwise); the account's own name sent back is not checked, so an account with a name from before the rule can still be edited |
+| `PUT /api/admin/users/{id}` | `{ username?, email?, language?, email_confirmed?, force_password_change? }` → `AdminUser` - a new username letters and digits (`422 invalid_username` otherwise); the account's own name sent back is not checked and not written, so an account with a name from before the rule can still be edited (sent alone, the account as it is: nothing written, nothing audited) |
 | `PUT /api/admin/users/{id}/password` | `{ password, force_password_change? }` → `{ message, note }` - every session of the account ends |
 | `PUT /api/admin/users/{id}/enabled` | `{ enabled }` → `AdminUser` - disabling ends every session and refresh token |
 | `DELETE /api/admin/users/{id}/2fa` | turn two-factor off for somebody locked out → `AdminUser` |

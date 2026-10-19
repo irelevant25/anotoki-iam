@@ -305,6 +305,33 @@ test('an account keeps a name from before the rule: sent back unchanged it is no
     same(200, $admin->put("/api/admin/users/$id", ['force_password_change' => false, 'username' => ' Ján Novák '])->status, 'the spaces round it no change there either');
     same([422, 'invalid_username'], [($r = $admin->put("/api/admin/users/$id", ['username' => 'Ján Novák 2']))->status, $r->code()], 'a new name from the panel is held to the rule');
 
+    // Nor is it written back (the security review of 2026-10-19): the copy the route read may be older than a rename the
+    // account made meanwhile, which writing it back would undo. While a trigger refuses every write of the name, the
+    // edit still goes through - and the name alone, sent back, is the account as it is: nothing written, nothing audited.
+    $pdo = iamDb();
+    $pdo->exec(
+        <<<'SQL'
+        CREATE FUNCTION username_written() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            RAISE EXCEPTION 'the username was written';
+        END
+        $$
+        SQL
+        ,
+    );
+    $pdo->exec('CREATE TRIGGER username_written BEFORE UPDATE OF username ON users FOR EACH ROW EXECUTE FUNCTION username_written()');
+    try {
+        $edited = $admin->put("/api/admin/users/$id", ['username' => 'Ján Novák', 'email' => 'jan.novak3@example.test']);
+        same([200, 'jan.novak3@example.test'], [$edited->status, $edited->json()['email'] ?? null], 'the address changed, the name sent back never written: ' . $edited->body);
+        $audited = auditsAbout('user.updated', $id);
+        $alone = $admin->put("/api/admin/users/$id", ['username' => 'Ján Novák']);
+        same([200, 'Ján Novák'], [$alone->status, $alone->json()['username'] ?? null], 'the name alone, sent back: the account as it is');
+        same($audited, auditsAbout('user.updated', $id), '...and nothing audited, as nothing changed');
+    } finally {
+        $pdo->exec('DROP TRIGGER username_written ON users');
+        $pdo->exec('DROP FUNCTION username_written()');
+    }
+
     // Renamed to letters and digits, the old name is a new name too: it cannot come back.
     same(200, $browser->put('/api/account/profile', ['username' => 'JanNovak'])->status, 'renamed to letters and digits');
     same([422, 'invalid_username'], [($r = $browser->put('/api/account/profile', ['username' => 'Ján Novák']))->status, $r->code()], 'and the old name is refused as a new one');
