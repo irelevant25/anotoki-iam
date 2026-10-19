@@ -35,7 +35,7 @@ php translations.php --status             # the pages' keys against the database
 php translations.php --export sk [file]   # a language's own strings as flat JSON; --import sk file puts them back (both refuse while a migration waits)
 php backup.php --list                     # the database's backups (encrypted; --create, --inspect=<id>, --extract=<id> <folder>; --from= --key= for a downloaded one)
 php account-deletions.php --list          # the record of deletions asked, cancelled, done (storage/records); --replay --since=<the backup's time> [--dry-run] after a restore by hand
-# the release: cd ../frontend && npx anotoki-deploy build / deploy (deploy-iam skill)
+# the release: cd ../frontend && bun run anotoki-deploy build / deploy (deploy-iam skill)
 composer update anotoki/lib --prefer-dist # the family's library, with frontend/package.json's @anotoki/lib URL (docs/operations.md)
 
 # Frontend (from frontend/)

@@ -100,7 +100,7 @@ composer update anotoki/lib --prefer-dist # the family's library: with the front
 php translations.php --status             # the keys the pages use against the database's strings
 php backup.php --list                     # the database's backups (--create, --inspect=<id>, --extract=<id> <folder>)
 php account-deletions.php --list          # the record of deletions; --replay --since=<time> [--dry-run] after a restore by hand
-# the release: cd ../frontend && npx anotoki-deploy build (../docs/operations.md)
+# the release: cd ../frontend && bun run anotoki-deploy build (../docs/operations.md)
 ```
 
 The development database is `anotoki_iam` on PostgreSQL's port 5432 - the

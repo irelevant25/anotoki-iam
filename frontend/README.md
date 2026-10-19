@@ -377,8 +377,8 @@ scripts/
 ## Deploying
 
 `npm run build:deploy` produces `dist/iam/browser/` and checks it; anotoki-deploy
-(`npx anotoki-deploy build`) runs it and makes the release's `frontend/` of it. The
-release's `.htaccess` (anotoki-deploy's, from `backend/composer.json`):
+(`bun run anotoki-deploy build`) runs it and makes the release's `frontend/` of
+it. The release's `.htaccess` (anotoki-deploy's, from `backend/composer.json`):
 
 - passes `/api/…` through to the backend untouched;
 - refuses `/config`, `/migrations`, `/storage` and `/vendor` (403), in any

@@ -29,17 +29,17 @@ storage/    the lock, logs, backups, the deletion record, mail, caches    never 
 
 ```bash
 cd backend && php tests/run.php                        # must pass before anything ships
-cd ../frontend && npx anotoki-deploy build             # npm run build:deploy (the build and its checks),
+cd ../frontend && bun run anotoki-deploy build         # npm run build:deploy (the build and its checks),
                                                        # then the release -> ../dist/frontend/ and ../dist/backend/
-npx anotoki-deploy deploy --backups <folder>           # a dry run: what goes up
-npx anotoki-deploy deploy --backups <folder> --go      # the live frontend/ and backend/ copied into <folder>,
+bun run anotoki-deploy deploy --backups <folder>       # a dry run: what goes up
+bun run anotoki-deploy deploy --backups <folder> --go  # the live frontend/ and backend/ copied into <folder>,
                                                        # the release up beside them, checked, swapped in, the site checked
-npx anotoki-deploy rollback --go                       # the release before (kept as .old) back in
+bun run anotoki-deploy rollback --go                   # the release before (kept as .old) back in
 ```
 
-(Until `@anotoki/deploy` is a dev dependency of `frontend/` - from anotoki-lib
-0.9.0's release - `node ../../anotoki-lib/deploy/cli.mjs` stands for
-`npx anotoki-deploy`.) anotoki-deploy is the anotoki library's deploy tool, the
+(`@anotoki/deploy`: a dev dependency of `frontend/`, from anotoki-lib's release.
+`bun run` finds it whichever tool installed `node_modules/`; on Windows, `npx`
+misses bun's links.) anotoki-deploy is the anotoki library's deploy tool, the
 same for every site; the IAM's facts are in `backend/composer.json`,
 `extra["anotoki-deploy"]`: what goes into `backend/` (never `setup.php`, the
 command-line tools, the tests or a `*.local.php`), the routes (`/api`,
@@ -47,7 +47,7 @@ command-line tools, the tests or a `*.local.php`), the routes (`/api`,
 controller, which routes on the original path), the CSP and the headers. The SFTP
 login is never in a repository: `ANOTOKI_DEPLOY_SECRETS` names a `secrets.json`,
 with the host's pinned key in `hostkey.txt` beside it. The first time:
-`npx anotoki-deploy switch --go`, once - the folder's `.htaccess` becomes the
+`bun run anotoki-deploy switch --go`, once - the folder's `.htaccess` becomes the
 switch into `frontend/`; `backend/`, `config/` and `storage/` are never served.
 The PHP finds its state with one rule (`iamStateRoot()`, `config/config.php`):
 with `release.json` in `backend/`, `config/` and `storage/` are the ones beside
@@ -292,7 +292,7 @@ working at step 3 and moves to a personal token (below).
 
 ### Later updates
 
-`npx anotoki-deploy deploy --backups <folder> --go` (a release never holds
+`bun run anotoki-deploy deploy --backups <folder> --go` (a release never holds
 `config/*.local.php` and never touches `config/` or `storage/`), then **admin
 panel → Migrations → Apply pending**. There is
 no shell; the button runs the same engine as `php migration.php` - the anotoki
