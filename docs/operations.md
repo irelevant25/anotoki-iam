@@ -131,6 +131,12 @@ puts Google's own button in its place, and a press on that opens Google's
 account chooser. A browser that cannot reach Google keeps the IAM's button,
 with a line under it saying so.
 
+The id token Google hands over is good for five minutes here, and once (the
+security review of 2026-10-19): the server's clock must be right within a
+minute - NTP, as every host has it - or every Google sign-in reads as stale or
+from the future. Somebody who takes longer than five minutes over the
+two-factor code after pressing Google is sent back to press it again.
+
 ### Behind Cloudflare (or another proxy)
 
 Every sign-in limit counts failures per address, the audit log keeps the
@@ -615,6 +621,18 @@ proves there. **Once 1.0.0 has taken a message, no build from before it goes
 on the host again**: an older build neither takes a deleted person out of
 their messages nor prunes them, and its Privacy page says the IAM takes no
 feedback; fix forward.
+
+Migration **026** (the security review of 2026-10-19, `docs/decisions.md`):
+upload both halves, then Apply. It spends every confirmation link an address
+already confirmed still holds, makes the table that keeps a Google sign-in
+from being used twice, and brings the confirmation page's six new words - the
+page now asks for a press ("Confirm my address") before it confirms anything.
+Until Apply the page shows those words as keys and a Google token is held to
+its five minutes alone; everything else works. The sites need nothing: an
+`amr` says `mfa` only where a second factor was checked, which is what it
+always claimed. **Once 026 is applied, no build from before it goes on the
+host again** - it would open the three holes again, and its confirmation page
+would read a confirmation that signs nobody in as a sign-in; fix forward.
 
 ### The family's library (anotoki/lib)
 

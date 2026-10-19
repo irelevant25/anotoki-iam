@@ -5,9 +5,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /**
  * The authenticator step, checked the same way on every way in that takes an
  * authenticator code - the password sign-in, the emailed code's, Google's, a
- * password reset, and the account page's turning two-factor off and making new
- * recovery codes - with its pause (migration 019, the owner's decision of
- * 2026-10-13; docs/decisions.md).
+ * password reset, a confirmation link that would sign in (since the security
+ * review of 2026-10-19), and the account page's turning two-factor off and
+ * making new recovery codes - with its pause (migration 019, the owner's
+ * decision of 2026-10-13; docs/decisions.md).
  *
  * Reaching the step means the first one was passed - the password, as a rule
  * (or a code mailed to the address, Google's word, a reset link, a signed-in
@@ -200,7 +201,7 @@ function authenticatorCheck(PDO $pdo, Request $request, array $user, mixed $code
  * else that was typed, or nothing, is refused unchecked. Neither counts
  * towards the next pause. The refusal says, read under the same hold, whether
  * this pause's emailed codes are spent (`email_code_spent`): the password's
- * sign-in then offers none (routes/login.php, totpRefusal()).
+ * sign-in then offers none (routes/login.php, secondFactorAnswer()).
  */
 function authenticatorWhilePaused(PDO $pdo, Request $request, array $user, string $value, string $method, bool $recovery, string $until): array
 {

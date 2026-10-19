@@ -662,6 +662,20 @@ export class LoginComponent implements OnInit {
         }
         this.formError.set(this.t('error.invalidCredentials'));
         return;
+      case 'invalid_token':
+        // Google's token did not verify - or ran out: it is good for five
+        // minutes, and once. A new one comes from Google's button, which is
+        // on the form, not on the code's step the page may have reached.
+        if (pending?.kind === 'google') {
+          this._pending = null;
+          this.totp.set('');
+          if (this.step() !== 'form') {
+            this.goTo('form');
+          }
+          this.formError.set(this.t('error.googleFailed'));
+          return;
+        }
+        break;
     }
 
     // Google's own refusal means the token did not verify - not a dead link,

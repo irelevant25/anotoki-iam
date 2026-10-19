@@ -18,6 +18,8 @@
  *     revoked or expired): a spent token is kept that long so that presenting it
  *     again is still recognised as reuse, and a month is far past any leeway;
  *   - one-time mailed tokens a month past their expiry;
+ *   - the Google id tokens spent here, once they ran out (026): refused as
+ *     expired by then anyway, so nothing need remember them;
  *   - sign-in attempts older than a year: the limiter counts fifteen minutes,
  *     and "somebody has been trying" on the account page means recently;
  *   - the accounts whose deletion is due, thirty days after their owners asked
@@ -80,6 +82,9 @@ function iamHousekeeping(): void
         );
         $pdo->exec("DELETE FROM user_tokens WHERE expires_at < CURRENT_TIMESTAMP - INTERVAL '30 days'");
         $pdo->exec("DELETE FROM login_attempts WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '365 days'");
+        if (googleTokensReady($pdo)) {
+            $pdo->exec('DELETE FROM google_id_tokens_used WHERE expires_at < CURRENT_TIMESTAMP');
+        }
     } catch (\Throwable $e) {
         error_log('[housekeeping] ' . $e->getMessage());
     }

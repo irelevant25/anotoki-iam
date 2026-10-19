@@ -1,10 +1,33 @@
 <app-auth-card>
     @switch (step()) {
+        @case ("ready") {
+            <header class="auth-head">
+                <span class="auth-icon"><anotoki-icon name="mail" [size]="22" /></span>
+                <h1 tabindex="-1" anotokiAutofocus>{{ "confirm.pageTitle" | t }}</h1>
+                <p>{{ "confirm.readyText" | t }}</p>
+            </header>
+            @if (formError()) {
+                <anotoki-alert tone="danger" [announce]="true">{{ formError() }}</anotoki-alert>
+            }
+            <button anotokiButton type="button" variant="primary" size="lg" [block]="true" [loading]="busy()" (click)="confirm()">{{ "confirm.submit" | t }}</button>
+        }
+
         @case ("working") {
             <h1 class="visually-hidden">{{ "confirm.pageTitle" | t }}</h1>
             <div class="centered">
                 <anotoki-spinner size="lg" [label]="'confirm.working' | t" [showLabel]="true" />
             </div>
+        }
+
+        @case ("totp") {
+            <header class="auth-head">
+                <h1>{{ "login.totp.title" | t }}</h1>
+                <p>{{ "confirm.totpText" | t }}</p>
+            </header>
+            <form class="form" novalidate (submit)="$event.preventDefault(); confirm()">
+                <anotoki-text-field [label]="'login.totp.label' | t" name="totp" autocomplete="one-time-code" [required]="true" [(value)]="totp" [error]="totpError()" [autofocus]="true" />
+                <button anotokiButton type="submit" variant="primary" size="lg" [block]="true" [loading]="busy()">{{ "login.totp.submit" | t }}</button>
+            </form>
         }
 
         @case ("done") {
@@ -32,6 +55,30 @@
                 <h1 tabindex="-1" anotokiAutofocus>{{ "confirm.doneTitle" | t }}</h1>
                 <p>{{ "common.approvalWait" | t }}</p>
             </header>
+        }
+
+        @case ("confirmed") {
+            <header class="auth-head">
+                <span class="auth-icon is-success"><anotoki-icon name="checkCircle" [size]="22" /></span>
+                <h1 tabindex="-1" anotokiAutofocus>{{ "confirm.doneTitle" | t }}</h1>
+                <p>{{ "confirm.signInText" | t }}</p>
+            </header>
+            <a anotokiButton variant="primary" size="lg" [block]="true" routerLink="/login">{{ "common.signIn" | t }}</a>
+        }
+
+        @case ("other-account") {
+            <header class="auth-head">
+                <span class="auth-icon is-success"><anotoki-icon name="checkCircle" [size]="22" /></span>
+                <h1 tabindex="-1" anotokiAutofocus>{{ "confirm.doneTitle" | t }}</h1>
+                <p>{{ "confirm.otherAccountText" | t }}</p>
+            </header>
+            @if (formError()) {
+                <anotoki-alert tone="danger" [announce]="true">{{ formError() }}</anotoki-alert>
+            }
+            <div class="actions">
+                <button anotokiButton type="button" variant="primary" size="lg" [block]="true" [loading]="busy()" (click)="signOutAndIn()">{{ "confirm.signOutAndIn" | t }}</button>
+                <a anotokiButton variant="secondary" [block]="true" routerLink="/account">{{ "common.goToAccount" | t }}</a>
+            </div>
         }
 
         @case ("failed") {

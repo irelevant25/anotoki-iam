@@ -246,7 +246,8 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `users` | Accounts: username and address (unique regardless of case; a username chosen or made since 2026-10-19 is letters and digits only - `usernameRefusal()` -, one from before is kept), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator, news_mail - whether it gets the announcements), the language and how every site is to look - `theme`, `date_format`, `time_format` (015), and a deletion its owner asked for - `deletion_requested_at`, `deletion_due_at`, then `anonymized_at` (016). The id is the `sub` every site keys its data on: a deleted account's row stays, a placeholder, so it is never anybody else's. |
 | `user_sign_in_devices` | The browsers an account signed in from at the IAM (016): the SHA-256 of the account's id and the browser's device cookie, first and last seen, the browser in a few words. Decides whether a sign-in is mailed; opens nothing. |
 | `user_identities` | Who an account is at Google: provider + permanent subject. |
-| `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). |
+| `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). A confirmation link is good only while its address waits to be confirmed: every one of the account's is spent once the address is confirmed, by any way, and when two-factor is switched on (026). |
+| `google_id_tokens_used` | The Google id tokens that changed something here - a session opened, an account made or claimed, an identity attached or connected (026): the SHA-256 of what Google signed and when the token runs out, nothing of the person, so a token is good once; housekeeping sweeps it once it has run out. |
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
 | `sessions` | A signed-in browser at the IAM: the cookie's hash, a public `sid`, how it signed in, sliding expiry with an absolute cap. |
 | `login_attempts`, `email_log` | The limiter's memory and the history; the mail log keeps no bodies. An attempt's `outcome` says how it went (`bad_totp` - a wrong authenticator code, which the pause counts by account; `totp_paused` - one refused unchecked during a pause; `bad_email_code` - a wrong code by email beside the password during a pause, five of which end the mailbox's standing in until it ends; `email_code_paused` - one refused unchecked then; ...). The pause itself is `users.totp_paused_until`, and `totp_count_from` where the count starts again (019). |
@@ -714,7 +715,11 @@ written down, not a refactor.
 3. **A code is good once, for 60 seconds**, for the client, redirect URI and
    challenge it was issued with. Used twice, it revokes what it produced.
 4. **The algorithm is pinned** (RS256) wherever a token is read - here and in
-   the SDK. `typ` separates access tokens from ID tokens.
+   the SDK. `typ` separates access tokens from ID tokens. A Google id token is
+   taken only when it is Google's, for this IAM's client id, issued in the
+   last five minutes, and never used here before: spent the moment it changes
+   something, and remembered until it runs out (the security review of
+   2026-10-19).
 5. **Refresh tokens rotate; reuse ends the family.** A spent token gets one
    sibling within a minute (two tabs racing), never a second.
 6. **Only hashes** of secrets that open things; **only ciphertext** of secrets
@@ -748,7 +753,11 @@ written down, not a refactor.
     call cross-origin with no cookie - token, userinfo, revoke, preferences -
     named exactly and compared on the percent-decoded path the router matches;
     none of the four ever reads the session cookie.
-12. **Two-factor holds on every way in, resets included**; an authenticator code
+12. **Two-factor holds on every way in, resets included** - and a confirmation
+    link that would sign in, which asks for the code as a reset does; a
+    session's `mfa` (and every token's `amr`) says a second factor only where
+    its own sign-in checked one, never because the account has two-factor on
+    (the security review of 2026-10-19). An authenticator code
     is accepted once, and every miss counts against the limiter. **Five wrong
     codes for an account pause its codes for fifteen minutes** (the owner's
     decision of 2026-10-13, migration 019): on every way that takes one, a code
@@ -763,7 +772,13 @@ written down, not a refactor.
 13. **Proving an address on an account never confirmed clears it**: nothing its
     registrant set survives the owner's arrival. **A reset takes an account back
     completely** - sessions, personal tokens, devices, outside identities, the
-    browsers it signed in from.
+    browsers it signed in from. **A confirmation link signs in only while its
+    address waits to be confirmed**, never past two-factor, and never in place
+    of another account's session this browser has: every link of the account
+    is spent once the address is confirmed, by any way, and when two-factor is
+    switched on; one of an address confirmed already opens nothing, and the
+    page sends a link only when the person presses its button (the security
+    review of 2026-10-19).
 14. **Plain http only for this computer** in redirect URIs and web origins, and
     **no loopback address survives a real host's install**: the development
     addresses a fresh database is seeded with go as the production ones arrive,
@@ -824,7 +839,7 @@ written down, not a refactor.
 | `backend/api/account_deletion.php` | An account's deletion: asked, cancelled, done when due (housekeeping), and the public list of deleted ids; the record of each beside the database, and its replay after a restore by hand (`account-deletions.php`, the command line's). |
 | `backend/api/authenticator_pause.php` | The one authenticator check of every way that takes a code (`authenticatorCheck()`), and its pause: five wrong codes for an account, fifteen minutes (019); the code by email that stands in during it on the password's sign-in, counted the same way (`pausedEmailCodeCheck()`). |
 | `backend/api/sign_in_devices.php` | The browsers an account signed in from, the device cookie, and the mail for a new one. |
-| `backend/api/totp.php`, `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php` | Carried over from the genshin site, rules intact. |
+| `backend/api/totp.php`, `trusted_device.php`, `one_time_token.php`, `google_identity.php`, `mail.php` | Carried over from the genshin site, rules intact - and tightened by the security review of 2026-10-19: confirmation links spent with the address (`spendConfirmationLinks()`), a Google id token fresh and good once (`spendGoogleIdToken()`). |
 | `backend/api/legacy_import.php` | The one-time move of the genshin site's accounts. |
 | `backend/api/translations.php` | The IAM's configuration of the library's translations (`iamTranslations()`): the mails' rules (`IamMailRules`), the two sentences cut around `{app}`, the accounts per language (`IamLanguageUsage`), refusals in the IAM's error body; and the key scan's settings for the command line and the tests (`iamKeyScanner()`). The routes are in `routes/login.php` (the bundle) and `routes/admin.php`. |
 | `backend/api/announcements.php` | Announcements: the senders, the checks of a draft and of its links, who it reaches, the mail's layout, the batches, the token that stops the news. |

@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   CodeSignInBody,
+  ConfirmResponse,
   GoogleSignInBody,
   LoginRequest,
   LogoutRequest,
@@ -67,8 +68,14 @@ export class LoginApi {
     return this._http.post<RegisterResponse>('/api/register', body);
   }
 
-  confirm(token: string): Observable<SignedInWithLink> {
-    return this._http.post<SignedInWithLink>('/api/register/confirm', { token });
+  /**
+   * `totp` - an authenticator or recovery code - once the answer was
+   * `totp_required`: a link that would sign in an account with two-factor on
+   * asks for it, as a reset does. Sent only when the person presses the
+   * page's button, never as the page opens.
+   */
+  confirm(token: string, totp?: string): Observable<ConfirmResponse> {
+    return this._http.post<ConfirmResponse>('/api/register/confirm', totp ? { token, totp } : { token });
   }
 
   resendConfirmation(email: string): Observable<RequestedResponse> {

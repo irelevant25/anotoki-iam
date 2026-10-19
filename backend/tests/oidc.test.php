@@ -394,9 +394,11 @@ test('registration: no session until the link is opened, then signed in and poin
     preg_match('/token=([0-9a-f]{64})/', $mail['body'], $found);
 
     $confirmed = $browser->post('/api/register/confirm', ['token' => $found[1]]);
-    same(200, $confirmed->status, 'confirmed');
+    same([200, true], [$confirmed->status, $confirmed->json()['signed_in'] ?? null], 'confirmed, and signed in');
     same('Genshin Impact', $confirmed->json()['continue_to']['name'] ?? null, 'the way back to the application');
-    same(400, $browser->post('/api/register/confirm', ['token' => $found[1]])->status, 'the link works once');
+    // Once: opened again, the address is confirmed already, and it signs nobody in (tests/confirmation-links.test.php).
+    $again = $browser->post('/api/register/confirm', ['token' => $found[1]]);
+    same([200, false, 'already_confirmed'], [$again->status, $again->json()['signed_in'] ?? null, $again->json()['reason'] ?? null], 'the link works once');
     same(409, $browser->post('/api/register', ['username' => 'NEWBIE', 'email' => 'other@example.test', 'password' => 'a long password'])->status, 'usernames are unique regardless of case');
 });
 

@@ -247,6 +247,8 @@ function googleToken(string $subject, string $email, string $name): string
             'name' => $name,
             'iat' => time(),
             'exp' => time() + 600,
+            // Each its own, as Google writes them: a token is good once (api/google_identity.php).
+            'jti' => bin2hex(random_bytes(16)),
         ]),
     );
     openssl_sign("{$header}.{$payload}", $signature, $key, OPENSSL_ALGO_SHA256);
@@ -920,6 +922,7 @@ test('what a request does to its own session counts: a handler that ends it leav
             new \Slim\Psr7\Response(),
             $user,
             SESSION_METHOD_PASSWORD,
+            false,
             [],
         );
         check(!responseSetsCookie($raced, HINT), 'the account read afresh: switched off, no hint');

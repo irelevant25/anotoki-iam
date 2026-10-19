@@ -86,6 +86,11 @@ if ($clearTwoFactor) {
     $pdo->prepare('DELETE FROM user_recovery_codes WHERE user_id = ?')->execute([$user['id']]);
 }
 
+// The address is confirmed now: the confirmation links still out for it are
+// spent, as everywhere an address is confirmed (spendConfirmationLinks(),
+// api/one_time_token.php) - one would sign in by the mailbox alone.
+$pdo->prepare("UPDATE user_tokens SET consumed_at = CURRENT_TIMESTAMP WHERE user_id = ? AND purpose = 'email_confirm' AND consumed_at IS NULL")->execute([$user['id']]);
+
 $pdo->prepare('DELETE FROM login_attempts WHERE lower(email) = lower(?)')->execute([$email]);
 $pdo->prepare("UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'password_changed' WHERE user_id = ? AND revoked_at IS NULL")->execute([$user['id']]);
 $pdo->prepare("UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'password_changed' WHERE user_id = ? AND kind = 'rotating' AND revoked_at IS NULL")->execute([$user['id']]);

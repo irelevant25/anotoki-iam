@@ -11,6 +11,14 @@
  * can get a valid Google token by signing in to any site that uses Google, and
  * `aud` is what says this one was minted for us.
  *
+ * And two more since the security review of 2026-10-19: the token is fresh -
+ * issued in the last five minutes - and new - not spent here before. Google
+ * signs a token for an hour, and the IAM took it as often as it came within
+ * that hour: whoever saw one (a log, a tab's memory, a proxy) signed in with
+ * it again, a site's "Sign in again" (prompt=login) answered too. A token is
+ * spent (spendGoogleIdToken()) the moment it changes something, and is
+ * remembered until it runs out (google_id_tokens_used, migration 026).
+ *
  * The client id is config/google.local.php's (googleClientId(), in
  * config/google.php). No file means no Google: the button is not drawn and the
  * endpoints refuse.
@@ -21,6 +29,14 @@ const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
 const GOOGLE_KEYS_FALLBACK_TTL = 3600;
 const GOOGLE_CLOCK_SKEW = 60;
 const IDENTITY_GOOGLE = 'google';
+
+/**
+ * How old a Google id token may be when it arrives, by its `iat`: five
+ * minutes, with the clocks' GOOGLE_CLOCK_SKEW besides. Long enough to find the
+ * phone for the second factor - the page sends the same token again with the
+ * code -, short against one that turns up later.
+ */
+const GOOGLE_ID_TOKEN_MAX_AGE = 300;
 
 /**
  * A GET: its status, its headers and its body, or null when nothing came back.
@@ -130,6 +146,13 @@ function googleSigningKeys(bool $ignoreCache = false): array
 /**
  * The claims of a Google id token, or null for every way it can fail to be one.
  * The caller is told none of them apart.
+ *
+ * Fresh and new as well as Google's: one issued more than five minutes ago
+ * (googleIdTokenFresh()) is none, nor is one spent here before
+ * (googleIdTokenSpent()). Checking spends nothing: the caller spends the token
+ * (spendGoogleIdToken()) just before the first thing it changes, so a sign-in
+ * that stops to ask for the second factor takes the same token again with the
+ * code.
  */
 function googleVerifyIdToken(string $idToken): ?array
 {
@@ -165,12 +188,96 @@ function googleVerifyIdToken(string $idToken): ?array
         !in_array($claims['iss'] ?? '', GOOGLE_ISSUERS, true) ||
         ($claims['aud'] ?? '') !== $clientId ||
         (int) ($claims['exp'] ?? 0) + GOOGLE_CLOCK_SKEW < time() ||
-        empty($claims['sub'])
+        !googleIdTokenFresh($claims) ||
+        empty($claims['sub']) ||
+        googleIdTokenSpent(iamDb(), $idToken)
     ) {
         return null;
     }
 
     return $claims;
+}
+
+/**
+ * Whether the token was issued within GOOGLE_ID_TOKEN_MAX_AGE, the clocks'
+ * GOOGLE_CLOCK_SKEW either way: not older, and not from further ahead. One
+ * without an `iat` - Google writes one in every token - is not.
+ */
+function googleIdTokenFresh(array $claims): bool
+{
+    $issued = $claims['iat'] ?? null;
+    if (!is_int($issued) && !is_float($issued)) {
+        return false;
+    }
+    $now = time();
+
+    return $issued <= $now + GOOGLE_CLOCK_SKEW && $issued + GOOGLE_ID_TOKEN_MAX_AGE + GOOGLE_CLOCK_SKEW >= $now;
+}
+
+/**
+ * What a spent token is remembered by: the SHA-256 of what Google signed - its
+ * header and claims as they came, `header.payload`. Never of the whole token:
+ * base64 leaves bits of the signature's last character unread, so one
+ * signature can be written several ways, each of which verifies, and a hash
+ * of the whole would take each for a token of its own.
+ */
+function googleIdTokenKey(string $idToken): string
+{
+    $parts = explode('.', $idToken);
+
+    return sha256($parts[0] . '.' . ($parts[1] ?? ''));
+}
+
+/**
+ * Whether the database has migration 026's google_id_tokens_used. A catalog
+ * question that cannot fail, asked afresh every time like the others: a build
+ * is uploaded before its migrations, Google's sign-in works in between, and
+ * the admin panel's Apply runs in the same process as the requests after it.
+ */
+function googleTokensReady(PDO $pdo): bool
+{
+    return asBool($pdo->query("SELECT to_regclass('google_id_tokens_used') IS NOT NULL")->fetchColumn());
+}
+
+/** Whether the token was spent here before (spendGoogleIdToken()). Before 026, never: its five minutes alone hold it then. */
+function googleIdTokenSpent(PDO $pdo, string $idToken): bool
+{
+    if (!googleTokensReady($pdo)) {
+        return false;
+    }
+
+    $statement = $pdo->prepare('SELECT 1 FROM google_id_tokens_used WHERE token_hash = ?');
+    $statement->execute([googleIdTokenKey($idToken)]);
+
+    return $statement->fetchColumn() !== false;
+}
+
+/**
+ * Spends a token googleVerifyIdToken() took, and answers whether this call is
+ * the one that did: the hash is the table's key and the insert steps aside for
+ * a row that is there, so two requests racing with one token cannot both be
+ * told they won. The Google sign-in and the account page's connect call it
+ * just before the first thing the token changes - a session opened, an
+ * account made or claimed, an identity attached - never before.
+ *
+ * Remembered until the token runs out (its `exp`, with the clocks' leeway):
+ * after that it is refused as expired anyway, and housekeeping sweeps the row.
+ * Only the hash and that moment are kept - nothing of the person. Before 026
+ * there is nowhere to remember it: true, as before it.
+ */
+function spendGoogleIdToken(PDO $pdo, string $idToken, array $claims): bool
+{
+    if (!googleTokensReady($pdo)) {
+        return true;
+    }
+
+    $spent = $pdo->prepare(
+        "INSERT INTO google_id_tokens_used (token_hash, expires_at) VALUES (?, TIMESTAMPTZ 'epoch' + (? * INTERVAL '1 second'))
+         ON CONFLICT (token_hash) DO NOTHING",
+    );
+    $spent->execute([googleIdTokenKey($idToken), (int) ($claims['exp'] ?? time()) + GOOGLE_CLOCK_SKEW]);
+
+    return $spent->rowCount() === 1;
 }
 
 /** The account an identity belongs to, or null. Disabled accounts included - the caller decides. */

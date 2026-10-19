@@ -9,6 +9,9 @@
  * The links are 256 random bits; the code is six digits because a person types
  * it, and everything about it is arranged around that being weak - ten minutes,
  * five outstanding, and five wrong guesses put them all out.
+ *
+ * A confirmation link is good only while its address waits to be confirmed:
+ * every one an account has goes once the address is (spendConfirmationLinks()).
  */
 
 const TOKEN_EMAIL_CONFIRM = 'email_confirm';
@@ -120,6 +123,49 @@ function consumeOneTimeToken(PDO $pdo, int $tokenId): bool
 function revokeOneTimeTokens(PDO $pdo, int $userId, string $purpose): void
 {
     $pdo->prepare('UPDATE user_tokens SET consumed_at = CURRENT_TIMESTAMP WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL')->execute([$userId, $purpose]);
+}
+
+/**
+ * Every confirmation link the account still has, spent: once its address is
+ * confirmed - by a confirmation link, a reset link, Google's word, an
+ * administrator -, when an administrator changes the address (the links went
+ * to the old one), and when two-factor is switched on.
+ *
+ * The security review of 2026-10-19: a link left over - "send it again" mails
+ * a second, and the first is never opened - stayed good for its 48 hours
+ * after the other confirmed the address, and signed in by the mailbox alone:
+ * past two-factor switched on meanwhile, in a session that said two factors
+ * had been asked. A link of an address confirmed already opens no session now
+ * (routes/login.php); this leaves none to open.
+ */
+function spendConfirmationLinks(PDO $pdo, int $userId): void
+{
+    revokeOneTimeTokens($pdo, $userId, TOKEN_EMAIL_CONFIRM);
+}
+
+/**
+ * Whether a confirmation link was mailed for an account whose address is
+ * confirmed now - the link spent, run out or live. Not for a link never
+ * mailed, one swept (a month after it ran out), or one of an address not
+ * confirmed now - an anonymized account's never is (016).
+ *
+ * What the confirmation answers a link with that confirms nothing any more:
+ * "the address is confirmed" - rather than "that link did not work" - to the
+ * mailbox's owner opening an older mail. findOneTimeToken() tells no failure
+ * apart, so that a near guess learns nothing; this tells apart only a link
+ * that was mailed - 256 random bits nobody guesses - and says nothing of its
+ * account but that its address is confirmed.
+ */
+function linkOfConfirmedAddress(PDO $pdo, string $token): bool
+{
+    if (!preg_match('/^[0-9a-f]{64}$/', $token)) {
+        return false;
+    }
+
+    $statement = $pdo->prepare('SELECT 1 FROM user_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ? AND t.purpose = ? AND u.email_confirmed');
+    $statement->execute([sha256($token), TOKEN_EMAIL_CONFIRM]);
+
+    return $statement->fetchColumn() !== false;
 }
 
 function tokenContext(array $token): array

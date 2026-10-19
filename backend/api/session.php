@@ -553,6 +553,10 @@ function signInHintInResponse(Response $response): bool
 /**
  * Opens a session and hands back the cookie's secret with the row.
  *
+ * `$mfa` is what the sign-in itself checked - a second factor, or not
+ * (completeSignIn()) -, never the account's two-factor switch: the session's
+ * `mfa`, and every token's `amr`, say it to the sites.
+ *
  * @return array{secret: string, session: array}
  */
 function openSession(PDO $pdo, Request $request, array $user, string $method, bool $mfa, bool $remember): array
@@ -758,6 +762,13 @@ const ATTEMPT_METHOD_ACCOUNT_TOTP = 'account_totp';
 
 /** The `method` of an authenticator code asked for by a password reset. */
 const ATTEMPT_METHOD_PASSWORD_RESET = 'password_reset';
+
+/**
+ * The `method` of an authenticator code asked for by a confirmation link that
+ * would sign in an account with two-factor on (routes/login.php), as a reset
+ * asks for one.
+ */
+const ATTEMPT_METHOD_EMAIL_CONFIRM = 'email_confirm';
 
 /** The `method` of the password a deletion of the account is asked with, and of its mail (16 characters: the column's width). */
 const ATTEMPT_METHOD_ACCOUNT_DELETION = 'account_deletion';

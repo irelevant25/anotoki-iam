@@ -59,8 +59,8 @@ const GENSHIN_ORIGIN = 'http://localhost:4200';
 const ENGLISH = ['code' => 'en', 'name' => 'English', 'native_name' => 'English'];
 const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina'];
 
-/** The IAM's own keys, as the migrations leave them: 574 of the pages and 52 of the mails (019: the authenticator's pause, 9 and 4; 020: the legal pages' facts, 70 of the pages; 022: the IAM's own Google button, 6 of the pages; 024: What's new, 6 of the pages; 025: the line under the username field, one of the pages in place of another). */
-const IAM_PAGE_KEYS = 574;
+/** The IAM's own keys, as the migrations leave them: 580 of the pages and 52 of the mails (019: the authenticator's pause, 9 and 4; 020: the legal pages' facts, 70 of the pages; 022: the IAM's own Google button, 6 of the pages; 024: What's new, 6 of the pages; 025: the line under the username field, one of the pages in place of another; 026: the confirmation page's press, 6 of the pages). */
+const IAM_PAGE_KEYS = 580;
 const IAM_MAIL_KEYS = 52;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -648,7 +648,7 @@ test('the two languages the IAM is released in, and every key - the IAM\'s and t
     same(
         IAM_PAGE_KEYS + IAM_MAIL_KEYS,
         (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
-        'the IAM\'s own: 574 keys of the pages and 52 of the mails',
+        'the IAM\'s own: 580 keys of the pages and 52 of the mails',
     );
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn(), 'and the library\'s beside them');
     same(IAM_PAGE_KEYS + IAM_MAIL_KEYS + $library, count(seeded('en')), 'each has an English string');
@@ -786,7 +786,7 @@ test('the frontend\'s compiled English is the database\'s: the same keys without
     $dictionary = EnglishDictionary::read(iamFrontendSources() . '/' . TRANSLATION_DICTIONARY_FILE, 'en');
     $pages = array_filter(seeded('en'), static fn(string $key): bool => !str_starts_with($key, 'mail.') && !LibraryWords::isLibraryKey($key), ARRAY_FILTER_USE_KEY);
 
-    same(IAM_PAGE_KEYS, count($pages), 'the pages have 574 keys of their own');
+    same(IAM_PAGE_KEYS, count($pages), 'the pages have 580 keys of their own');
     foreach (array_keys($dictionary) as $key) {
         check(KeyScanner::shapeOk((string) $key), "$key in en.ts has the shape of a key, so the scan can find it");
     }
@@ -812,7 +812,7 @@ test('every page key the database has is used by the frontend, and nothing in th
     same([], $scan['problems'], 'what the scan does not let through');
     same([], $scan['unused'], 'in the database, used nowhere - a key built at run time cannot be seen and is forbidden; delete a dead key with a migration');
     same([], array_keys($scan['missing']), 'used by the frontend, not in the database - the page would show the key');
-    same(IAM_PAGE_KEYS, count($scan['used']), 'all 574');
+    same(IAM_PAGE_KEYS, count($scan['used']), 'all 580');
     same(
         [],
         array_values(array_filter(array_keys($scan['used']), static fn(string $key): bool => str_starts_with($key, 'mail.') || LibraryWords::isLibraryKey($key))),
@@ -1387,7 +1387,7 @@ test('the bundle: a language\'s strings with English underneath, the library\'s 
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 574 strings of the pages, and the library\'s 288');
+    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 580 strings of the pages, and the library\'s 288');
     same('Save', $english->json()['values']['common.save'], 'a string');
     same(
         ['Language', 'Language: {name} ({code})'],

@@ -145,10 +145,34 @@ export interface ContinueTo {
   url: string;
 }
 
-/** What confirming an address and resetting a password both answer. */
+/** What resetting a password answers, and confirming an address when it signs in. */
 export interface SignedInWithLink {
   user: AccountUser;
   continue_to: ContinueTo | null;
+}
+
+/**
+ * What `POST /api/register/confirm` answers: the address is confirmed - and,
+ * with `signed_in`, this browser signed in to its account. Without, `reason`
+ * says why not (the security review of 2026-10-19).
+ */
+export type ConfirmResponse = ConfirmedAndSignedIn | ConfirmedWithoutSession;
+
+export interface ConfirmedAndSignedIn extends SignedInWithLink {
+  signed_in: true;
+  device_token: string | null;
+}
+
+export interface ConfirmedWithoutSession {
+  signed_in: false;
+  /**
+   * `already_confirmed` - the address was confirmed before (an older link, or
+   * this one used already): the link opens nothing. `other_account` -
+   * confirmed now, and this browser stays signed in to the other account it
+   * was signed in to. `sign_in` - confirmed now; signing in takes the
+   * account's own way in.
+   */
+  reason: 'already_confirmed' | 'other_account' | 'sign_in';
 }
 
 export interface LogoutResponse {

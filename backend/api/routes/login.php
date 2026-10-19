@@ -23,10 +23,14 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 // ---------------------------------------------------------------------------
 
 /**
- * The second factor, for the endpoints that start a session. Null when the
- * sign-in may go ahead, a refusal when it may not. `totp_required`,
- * `totp_invalid` and `authenticator_paused` are told apart because the page
- * does different things.
+ * The second factor, for the endpoints that start a session: a refusal when
+ * the sign-in may not go ahead; when it may, whether a second factor was
+ * checked here (true - a remembered browser, an authenticator or a recovery
+ * code) or there was none to ask for (false - two-factor is off). That, and
+ * nothing read off the account, is what the session's `mfa` says
+ * (completeSignIn()). `totp_required`, `totp_invalid` and
+ * `authenticator_paused` are told apart because the page does different
+ * things.
  *
  * Every refusal is recorded as a failed attempt, whichever way in asked, so
  * the limiter counts guesses at the digits on every path - not only after a
@@ -37,22 +41,22 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * pausedEmailCodeAnswer()): on the password's sign-in alone, and only until
  * five of them were wrong in this pause.
  */
-function totpRefusal(Request $request, Response $response, PDO $pdo, array $user, mixed $code, mixed $deviceToken, string $method): ?Response
+function secondFactorAnswer(Request $request, Response $response, PDO $pdo, array $user, mixed $code, mixed $deviceToken, string $method): Response|bool
 {
     if (!asBool($user['totp_enabled'])) {
-        return null;
+        return false;
     }
 
     // A browser that answered a code in the last thirty days skips the digits
     // and nothing else - the password was already right to get here. A 256-bit
     // secret, no six digits to guess: it works during a pause too.
     if (trustedDeviceAccepted($pdo, (int) $user['id'], $deviceToken)) {
-        return null;
+        return true;
     }
 
     $result = authenticatorCheck($pdo, $request, $user, $code, $method);
     if ($result['passed']) {
-        return null;
+        return true;
     }
 
     $extra = $result['extra'];
@@ -110,7 +114,18 @@ function signInRefusalResponse(Response $response, ?array $user): ?Response
  *
  * Any session this browser already had is ended first ('replaced'): signing in
  * again - as the same person or somebody else - should not leave the previous
- * sign-in running behind the new one.
+ * sign-in running behind the new one. (A confirmation link is the one way in
+ * that never replaces another account's session: it stops before this, and
+ * says so - routes below.)
+ *
+ * `$mfa` is whether this sign-in checked a second factor itself - an
+ * authenticator or a recovery code, a remembered browser standing in for one
+ * (secondFactorAnswer()), or during the authenticator's pause the code mailed
+ * beside the password - and so what the session's `mfa`, and every token's
+ * `amr`, say. Never read off the account: two-factor switched on is no code
+ * asked. A confirmation link left over signed an account with two-factor on
+ * in without its code, and its tokens said `mfa` all the same (the security
+ * review of 2026-10-19).
  *
  * Every way in ends here - password, emailed code, Google, a confirmation or
  * reset link, each past its second factor - so this is also where the browser
@@ -125,7 +140,7 @@ function signInRefusalResponse(Response $response, ?array $user): ?Response
  * way). A hint this browser still has then belongs to the session just
  * replaced, and goes with it.
  */
-function completeSignIn(Request $request, Response $response, array $user, string $method, array $body, int $status = 200, array $extra = []): Response
+function completeSignIn(Request $request, Response $response, array $user, string $method, bool $mfa, array $body, int $status = 200, array $extra = []): Response
 {
     $pdo = iamDb();
 
@@ -134,13 +149,13 @@ function completeSignIn(Request $request, Response $response, array $user, strin
     }
 
     $remember = !array_key_exists('remember', $body) || !empty($body['remember']);
-    $opened = openSession($pdo, $request, $user, $method, asBool($user['totp_enabled']), $remember);
+    $opened = openSession($pdo, $request, $user, $method, $mfa, $remember);
     recordLoginAttempt($pdo, $request, (string) $user['email'], (int) $user['id'], $method, 'ok');
     // A completed sign-in: the wrong authenticator codes before it count no more (api/authenticator_pause.php).
     restartAuthenticatorCount($pdo, (int) $user['id']);
 
-    // Only worth issuing where there is a code to skip.
-    $deviceToken = !empty($body['remember_device']) && asBool($user['totp_enabled']) ? issueTrustedDevice($pdo, (int) $user['id'], $request) : null;
+    // Only worth issuing where there is a code to skip - and to a browser that answered one here.
+    $deviceToken = !empty($body['remember_device']) && $mfa && asBool($user['totp_enabled']) ? issueTrustedDevice($pdo, (int) $user['id'], $request) : null;
 
     $fresh = userById($pdo, (int) $user['id']);
 
@@ -430,8 +445,12 @@ $app->post('/api/login/password', function (Request $request, Response $response
     if ($byMail instanceof Response) {
         return $byMail;
     }
-    if ($byMail === null && ($refusal = totpRefusal($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_PASSWORD))) {
-        return $refusal;
+    $secondFactor = $byMail === true;
+    if ($byMail === null) {
+        $secondFactor = secondFactorAnswer($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_PASSWORD);
+        if ($secondFactor instanceof Response) {
+            return $secondFactor;
+        }
     }
     // A browser is remembered for the authenticator it answered; the mailbox standing in for it during a pause remembers none.
     if ($byMail === true) {
@@ -455,7 +474,7 @@ $app->post('/api/login/password', function (Request $request, Response $response
     }
 
     // The session says the mailbox stood in for the authenticator (its `amr`: pwd, email, mfa).
-    return completeSignIn($request, $response, $user, $byMail === true ? SESSION_METHOD_PASSWORD_EMAIL : SESSION_METHOD_PASSWORD, $body);
+    return completeSignIn($request, $response, $user, $byMail === true ? SESSION_METHOD_PASSWORD_EMAIL : SESSION_METHOD_PASSWORD, $secondFactor, $body);
 });
 
 // ── Emailed sign-in code ─────────────────────────────────────────────────────
@@ -513,8 +532,9 @@ $app->post('/api/login/code/verify', function (Request $request, Response $respo
         return respondError($response, 400, 'invalid_code', 'That code is not valid');
     }
 
-    if ($refusal = totpRefusal($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_LOGIN_CODE)) {
-        return $refusal;
+    $secondFactor = secondFactorAnswer($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_LOGIN_CODE);
+    if ($secondFactor instanceof Response) {
+        return $secondFactor;
     }
 
     if (!consumeOneTimeToken($pdo, (int) $token['id'])) {
@@ -526,10 +546,20 @@ $app->post('/api/login/code/verify', function (Request $request, Response $respo
         return $stop;
     }
 
-    return completeSignIn($request, $response, $user, SESSION_METHOD_LOGIN_CODE, $body);
+    return completeSignIn($request, $response, $user, SESSION_METHOD_LOGIN_CODE, $secondFactor, $body);
 });
 
 // ── Google ───────────────────────────────────────────────────────────────────
+
+/**
+ * A Google token that is none: not Google's, not for this IAM, run out, more
+ * than five minutes old, or spent here before - told none of them apart
+ * (googleVerifyIdToken()). The page asks Google for another.
+ */
+function googleTokenRefused(Response $response): Response
+{
+    return respondError($response, 400, 'invalid_token', 'That Google sign-in could not be verified');
+}
 
 /**
  * POST /api/login/google - sign in, or make an account, with a Google token.
@@ -540,6 +570,12 @@ $app->post('/api/login/code/verify', function (Request $request, Response $respo
  * `email_verified` the address is a string nobody vouched for, and attaching on
  * it would be a way into somebody else's account. Else it is a new account,
  * confirmed on arrival, with no password.
+ *
+ * A token is good once (the security review of 2026-10-19): spent just before
+ * the first thing it changes - a session, an account claimed or made, an
+ * identity attached - and refused ever after (spendGoogleIdToken()). Not
+ * before: a sign-in stopped for the second factor, or refused before anything
+ * changed, leaves it as it was, and the page sends it again with the code.
  */
 $app->post('/api/login/google', function (Request $request, Response $response) {
     if (!googleLoginEnabled()) {
@@ -547,10 +583,11 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
     }
 
     $body = requestBody($request);
-    $claims = googleVerifyIdToken((string) ($body['credential'] ?? ''));
+    $credential = (string) ($body['credential'] ?? '');
+    $claims = googleVerifyIdToken($credential);
 
     if ($claims === null) {
-        return respondError($response, 400, 'invalid_token', 'That Google sign-in could not be verified');
+        return googleTokenRefused($response);
     }
 
     $pdo = iamDb();
@@ -567,23 +604,35 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
     }
 
     if ($user = $owner) {
-        if ($refusal = totpRefusal($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_GOOGLE)) {
-            return $refusal;
+        $secondFactor = secondFactorAnswer($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_GOOGLE);
+        if ($secondFactor instanceof Response) {
+            return $secondFactor;
         }
         if ($stop = signInRefusalResponse($response, $user)) {
             return $stop;
         }
-        return completeSignIn($request, $response, $user, SESSION_METHOD_GOOGLE, $body, 200, ['created' => false]);
+        if (!spendGoogleIdToken($pdo, $credential, $claims)) {
+            return googleTokenRefused($response);
+        }
+        return completeSignIn($request, $response, $user, SESSION_METHOD_GOOGLE, $secondFactor, $body, 200, ['created' => false]);
     }
 
     if ($verified && $email !== '' && ($user = userByEmail($pdo, $email))) {
+        $secondFactor = false;
         if (asBool($user['email_confirmed'])) {
             // Before attaching anything: an account with two-factor on must
             // not gain a new way in on the strength of a Google token alone.
-            if ($refusal = totpRefusal($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_GOOGLE)) {
-                return $refusal;
+            $secondFactor = secondFactorAnswer($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_GOOGLE);
+            if ($secondFactor instanceof Response) {
+                return $secondFactor;
             }
-        } else {
+        }
+        // Spent before the first thing it changes - a registrant's settings
+        // gone, an identity attached, the address confirmed.
+        if (!spendGoogleIdToken($pdo, $credential, $claims)) {
+            return googleTokenRefused($response);
+        }
+        if (!asBool($user['email_confirmed'])) {
             // Never confirmed: whoever registered it may not own the address
             // Google has just vouched for, so everything they set goes before
             // the owner is let in - their two-factor included, which would
@@ -610,12 +659,14 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
         if ($confirmed->rowCount() === 0) {
             return respondError($response, 403, 'account_disabled', 'This account has been switched off');
         }
+        // The address proved: the confirmation links still out for it confirm nothing more, and sign nobody in.
+        spendConfirmationLinks($pdo, (int) $user['id']);
 
         if ($stop !== null) {
             return respondError($response, $stop['status'], $stop['code'], $stop['error']);
         }
 
-        return completeSignIn($request, $response, userById($pdo, (int) $user['id']), SESSION_METHOD_GOOGLE, $body, 200, ['created' => false]);
+        return completeSignIn($request, $response, userById($pdo, (int) $user['id']), SESSION_METHOD_GOOGLE, $secondFactor, $body, 200, ['created' => false]);
     }
 
     if (!$verified || $email === '') {
@@ -624,6 +675,10 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
 
     if (!registrationEnabled() || !loginEnabled()) {
         return respondError($response, 403, 'registration_disabled', 'New accounts cannot be made at the moment');
+    }
+
+    if (!spendGoogleIdToken($pdo, $credential, $claims)) {
+        return googleTokenRefused($response);
     }
 
     // The news from the sites: a yes only from the registration page's box,
@@ -648,7 +703,7 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
         return respondError($response, $stop['status'], $stop['code'], $stop['error'], ['created' => true]);
     }
 
-    return completeSignIn($request, $response, userById($pdo, $userId), SESSION_METHOD_GOOGLE, $body, 201, ['created' => true]);
+    return completeSignIn($request, $response, userById($pdo, $userId), SESSION_METHOD_GOOGLE, false, $body, 201, ['created' => true]);
 });
 
 // ── Registration ─────────────────────────────────────────────────────────────
@@ -720,12 +775,102 @@ $app->post('/api/register', function (Request $request, Response $response) {
     return respondJson($response, ['email' => $email, 'sent' => $sent, 'approval_pending' => $made['waits']], 201);
 });
 
+/** A confirmation link that is none: never mailed, run out with its address unconfirmed, swept, or its account deleted. */
+function confirmationLinkRefused(Response $response): Response
+{
+    return respondError($response, 400, 'invalid_token', 'That link is no longer valid');
+}
+
+/**
+ * The address is confirmed, and the link signed nobody in: `already_confirmed`
+ * (confirmed before it - the link opens nothing), `other_account` (confirmed
+ * now; this browser stays signed in to the other account it was signed in
+ * to), `sign_in` (confirmed now; signing in takes the account's own way in).
+ * Nothing of the account: the page offers the sign-in page, or to sign out.
+ */
+function confirmedWithoutSession(Response $response, string $reason): Response
+{
+    return respondJson($response, ['signed_in' => false, 'reason' => $reason]);
+}
+
+/**
+ * POST /api/register/confirm {token, totp?} - the confirmation link.
+ *
+ * It confirms the address and signs in on the spot: holding the link proves
+ * the mailbox, a stronger claim than the password the person would otherwise
+ * be asked for. But only as far as the mailbox goes (the security review of
+ * 2026-10-19):
+ *
+ *   - Only while the address waits to be confirmed. A link of an address
+ *     confirmed already - an older one mailed by "send it again", this one
+ *     used before - opens no session, and says the address is confirmed:
+ *     otherwise whoever holds the mailbox signs in by it for 48 hours, past
+ *     two-factor switched on meanwhile. Every link of the account is spent
+ *     once its address is confirmed, by any way (spendConfirmationLinks()).
+ *   - Never in place of another account's session this browser has. Somebody
+ *     else's link - an attacker's own new account's, sent to a victim -
+ *     signed the victim's browser in to it and ended the victim's session; a
+ *     sign-in a site had waiting there then got a code for the attacker's
+ *     account. Now the address is confirmed - it is the link's to confirm -
+ *     and this browser stays signed in as it was. (The page sends the link
+ *     only when its button is pressed, too.)
+ *   - Past two-factor, as a reset is: an account with two-factor on is asked
+ *     for its code (or a recovery code) before the link is spent or anything
+ *     changes, under the authenticator's pause (authenticatorCheck()) - the
+ *     link proves the mailbox, which is what the second factor stands in case
+ *     of. Only where the link would sign in: confirming the address needs no
+ *     code. No remembered browser stands in, as on a reset.
+ *
+ * An account waiting for approval, switched off, or while signing in is off
+ * has its address confirmed all the same, and is refused a session as at
+ * every way in (signInRefusal()).
+ */
 $app->post('/api/register/confirm', function (Request $request, Response $response) {
     $pdo = iamDb();
-    $token = findOneTimeToken($pdo, field(requestBody($request), 'token'), TOKEN_EMAIL_CONFIRM);
+    $body = requestBody($request);
+    $value = field($body, 'token');
+    $token = findOneTimeToken($pdo, $value, TOKEN_EMAIL_CONFIRM);
 
-    if ($token === null || !consumeOneTimeToken($pdo, (int) $token['id'])) {
-        return respondError($response, 400, 'invalid_token', 'That link is no longer valid');
+    // Spent or run out - an older mail opened: whether its address is confirmed is all it may still say.
+    if ($token === null) {
+        return linkOfConfirmedAddress($pdo, $value) ? confirmedWithoutSession($response, 'already_confirmed') : confirmationLinkRefused($response);
+    }
+
+    $before = userById($pdo, (int) $token['user_id']);
+    if ($before === null || accountAnonymized($before)) {
+        return confirmationLinkRefused($response);
+    }
+
+    // Confirmed already, while this link stayed live (mailed by a build from
+    // before every link was spent with the address, or racing the one that
+    // confirmed it): it confirms nothing, signs nobody in, and goes.
+    if (asBool($before['email_confirmed'])) {
+        spendConfirmationLinks($pdo, (int) $before['id']);
+
+        return confirmedWithoutSession($response, 'already_confirmed');
+    }
+
+    // Another account signed in here stays signed in: the link confirms its
+    // own address, and changes nothing else about this browser.
+    $signIn = currentSignIn($request);
+    $otherAccount = $signIn !== null && (int) $signIn['user']['id'] !== (int) $before['id'];
+
+    // The second factor, before anything is spent or changed - where the link
+    // would sign in to an account with two-factor on.
+    $secondFactor = false;
+    if (!$otherAccount && signInRefusal($before) === null && asBool($before['totp_enabled'])) {
+        if (loginAttemptsExceeded($pdo, $request, (string) $before['email'])) {
+            return tooManyAttempts($response);
+        }
+        $secondFactor = secondFactorAnswer($request, $response, $pdo, $before, $body['totp'] ?? null, null, ATTEMPT_METHOD_EMAIL_CONFIRM);
+        if ($secondFactor instanceof Response) {
+            return $secondFactor;
+        }
+    }
+
+    if (!consumeOneTimeToken($pdo, (int) $token['id'])) {
+        // Spent a moment ago by a request racing this one: if that confirmed the address, say so.
+        return asBool(userById($pdo, (int) $before['id'])['email_confirmed'] ?? false) ? confirmedWithoutSession($response, 'already_confirmed') : confirmationLinkRefused($response);
     }
 
     // An account deleted since the link was mailed has no address to confirm.
@@ -734,16 +879,27 @@ $app->post('/api/register/confirm', function (Request $request, Response $respon
     $user = userById($pdo, (int) $token['user_id']);
 
     if ($user === null || $confirmed->rowCount() === 0) {
-        return respondError($response, 400, 'invalid_token', 'That link is no longer valid');
+        return confirmationLinkRefused($response);
     }
+    // Confirmed: the other links mailed for it go with this one.
+    spendConfirmationLinks($pdo, (int) $user['id']);
 
     if ($stop = signInRefusalResponse($response, $user)) {
         return $stop;
     }
 
-    // Signed in on the spot: holding the link proves the mailbox, a stronger
-    // claim than the password they would otherwise be asked for.
-    return completeSignIn($request, $response, $user, SESSION_METHOD_EMAIL_LINK, ['remember' => true], 200, [
+    if ($otherAccount) {
+        return confirmedWithoutSession($response, 'other_account');
+    }
+
+    // Two-factor on, and no code checked by this request - switched on while
+    // it was on its way: the link does not stand in for it.
+    if (asBool($user['totp_enabled']) && $secondFactor !== true) {
+        return confirmedWithoutSession($response, 'sign_in');
+    }
+
+    return completeSignIn($request, $response, $user, SESSION_METHOD_EMAIL_LINK, $secondFactor, ['remember' => true], 200, [
+        'signed_in' => true,
         'continue_to' => continueTo(tokenContext($token)),
     ]);
 });
@@ -819,12 +975,14 @@ $app->post('/api/password/reset', function (Request $request, Response $response
     // spent or anything changes - so a wrong code costs nothing but an attempt,
     // and those are limited like any other. Not on an account never confirmed:
     // whatever two-factor it has is its registrant's, and goes with the rest.
+    $secondFactor = false;
     if (asBool($before['email_confirmed']) && asBool($before['totp_enabled'])) {
         if (loginAttemptsExceeded($pdo, $request, (string) $before['email'])) {
             return tooManyAttempts($response);
         }
-        if ($refusal = totpRefusal($request, $response, $pdo, $before, $body['totp'] ?? null, null, ATTEMPT_METHOD_PASSWORD_RESET)) {
-            return $refusal;
+        $secondFactor = secondFactorAnswer($request, $response, $pdo, $before, $body['totp'] ?? null, null, ATTEMPT_METHOD_PASSWORD_RESET);
+        if ($secondFactor instanceof Response) {
+            return $secondFactor;
         }
     }
 
@@ -855,8 +1013,10 @@ $app->post('/api/password/reset', function (Request $request, Response $response
     // again at its next sign-in; one under another address is connected again
     // from the account page. The browsers it signed in from are forgotten too,
     // so a sign-in from one of the holder's is mailed; this one is noted next,
-    // as the account's first again.
+    // as the account's first again. And the confirmation links still out, the
+    // address being confirmed now (spendConfirmationLinks()).
     revokeOneTimeTokens($pdo, $userId, TOKEN_PASSWORD_RESET);
+    spendConfirmationLinks($pdo, $userId);
     revokeSessionsFor($pdo, $userId, SESSION_REVOKED_PASSWORD);
     revokePersonalTokens($pdo, $userId, SESSION_REVOKED_PASSWORD);
     $pdo->prepare('DELETE FROM user_identities WHERE user_id = ?')->execute([$userId]);
@@ -874,7 +1034,7 @@ $app->post('/api/password/reset', function (Request $request, Response $response
         return $stop;
     }
 
-    return completeSignIn($request, $response, $user, SESSION_METHOD_EMAIL_LINK, ['remember' => true], 200, [
+    return completeSignIn($request, $response, $user, SESSION_METHOD_EMAIL_LINK, $secondFactor, ['remember' => true], 200, [
         'continue_to' => continueTo(tokenContext($token)),
     ]);
 });

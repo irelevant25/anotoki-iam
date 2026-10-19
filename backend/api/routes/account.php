@@ -278,10 +278,13 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             return $refused;
         }
 
-        $claims = googleVerifyIdToken((string) ($body['credential'] ?? ''));
+        // Fresh and never spent (googleVerifyIdToken()), and spent by being
+        // connected: a token is good once, here as at the sign-in.
+        $credential = (string) ($body['credential'] ?? '');
+        $claims = googleVerifyIdToken($credential);
 
         if ($claims === null) {
-            return respondError($response, 400, 'invalid_token', 'That Google sign-in could not be verified');
+            return googleTokenRefused($response);
         }
 
         $owner = identityOwner($pdo, IDENTITY_GOOGLE, (string) $claims['sub']);
@@ -294,6 +297,10 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
 
         if (identityFor($pdo, (int) $user['id'], IDENTITY_GOOGLE) !== null) {
             return respondError($response, 409, 'google_already_connected', 'This account already has Google connected');
+        }
+
+        if (!spendGoogleIdToken($pdo, $credential, $claims)) {
+            return googleTokenRefused($response);
         }
 
         attachIdentity($pdo, (int) $user['id'], IDENTITY_GOOGLE, (string) $claims['sub'], strtolower(trim((string) ($claims['email'] ?? ''))) ?: null);
@@ -403,9 +410,11 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         $codes = generateRecoveryCodes($pdo, (int) $user['id']);
 
         // The other sessions were signed in without the second factor - what
-        // was just decided to be not enough.
+        // was just decided to be not enough. So would a confirmation link
+        // still out sign in, by the mailbox alone: they go too (one_time_token.php).
         revokeSessionsFor($pdo, (int) $user['id'], SESSION_REVOKED_SECURITY, (int) currentSession($request)['id']);
         revokeTrustedDevices($pdo, (int) $user['id']);
+        spendConfirmationLinks($pdo, (int) $user['id']);
         audit($request, (int) $user['id'], 'account.2fa_on', 'user', $user['id'], ['proof' => $proof['proof']]);
 
         return respondJson($response, ['recovery_codes' => $codes]);

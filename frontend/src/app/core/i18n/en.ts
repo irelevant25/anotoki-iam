@@ -261,6 +261,13 @@ export const en = {
   'confirm.resent': 'If that address needs confirming, another message is on its way.',
   'confirm.missingTitle': 'Nothing to confirm',
   'confirm.missingText': 'This page is where a confirmation link lands, and there was no link in it.',
+  // Migration 026: nothing is sent before the press, and another account's session stays.
+  'confirm.readyText': 'Press the button to confirm your email address.',
+  'confirm.submit': 'Confirm my address',
+  'confirm.totpText': 'Two-factor authentication is on for this account, so signing in with this link needs it too: the code your authenticator app is showing, or one of your recovery codes.',
+  'confirm.signInText': 'Sign in to use your account.',
+  'confirm.otherAccountText': 'This browser is signed in to another account, and stays so. To use the account whose address you have just confirmed, sign out and sign in to it.',
+  'confirm.signOutAndIn': 'Sign out and sign in',
 
   // ── Forgotten password ─────────────────────────────────────────────────────
   'forgot.pageTitle': 'Forgotten password',

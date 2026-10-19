@@ -2307,3 +2307,114 @@ of the library drawn as HTML, the visitor counter's tag), run with every
 release's build. The Authorization header reaches PHP through `CGIPassAuth` (and
 `SetEnvIf`) in `frontend/.htaccess`: `api/.htaccess`'s `E=` copy is gone with
 `api/`'s own folder rules.
+
+## 2026-10-19 - The security review's three older findings: a confirmation link left over, a Google token used again, a confirmation opened for somebody else
+
+The IAM's security review of 2026-10-19 (of the commit that answers a site's
+`prompt=login` with a sign-in after the request) found three holes older than
+that commit, in how a sign-in is proved. The owner: "Fix all three". None
+loosens a rule; each adds to one (`docs/architecture.md`, rules 4, 12, 13).
+
+- **Medium: a confirmation link left over signed in past two-factor, and said
+  it had asked for it.** "Send it again" mails a second link; the first, never
+  opened, stayed good for its 48 hours after the second confirmed the address,
+  and `POST /api/register/confirm` never asked whether the address was
+  confirmed already, nor for a second factor. Reproduced by the reviewer:
+  register, a second link, confirmed by it; two-factor switched on, so a
+  password sign-in asks for the code; then whoever holds only the mailbox
+  posts the first link from another browser - a 30-day session,
+  `{"method":"email_link","mfa":true}`, and ID tokens whose `amr` said
+  `["email","otp","mfa"]`: `completeSignIn()` recorded `mfa` as the account's
+  two-factor switch, whether or not a code was checked. Now:
+  - **Every confirmation link of an account is spent once its address is
+    confirmed** - by a link, a reset, Google's claim, an administrator, the
+    command line's `reset-password.php` -, when an administrator changes the
+    address (the links went to the old one), and when two-factor is switched
+    on (`spendConfirmationLinks()`, `api/one_time_token.php`). Migration 026
+    spends the ones an address confirmed still held from before it.
+  - **A link of an address confirmed already opens no session**: `200
+    {"signed_in": false, "reason": "already_confirmed"}` - nothing of the
+    account -, and the page offers the sign-in page. A link that would sign in
+    an account with two-factor on (one the genshin site's import brought,
+    unconfirmed) asks for its code as a reset does, under the authenticator's
+    pause (`authenticatorCheck()`, attempts under `email_confirm`), before
+    anything is spent or changed; no remembered browser stands in, as on a
+    reset. And it never opens a session for an account with two-factor on
+    without a code checked by that request (`sign_in`, if two-factor came on
+    while the link was on its way).
+  - **`mfa`, and so `amr`, says what the sign-in checked**:
+    `completeSignIn()` takes it from each way in (`secondFactorAnswer()`, which
+    was `totpRefusal()`, answers whether a factor was checked), never from the
+    account. True for an authenticator or recovery code checked now, for a
+    remembered browser standing in for one (as before), and for the
+    password's sign-in finished by a code by email during the pause
+    (`password_email`, as defined); false otherwise - Google claiming an
+    account whose registrant had switched two-factor on (it goes with the rest
+    of the registrant's), a reset of such an account, a new account. A browser
+    is remembered only by a sign-in that checked a second factor.
+- **Low: a Google id token could be used again within its hour** - Google
+  signs one for an hour, and `googleVerifyIdToken()` asked only `exp`; since
+  that commit a reused one answered a site's "Sign in again" too. Now a token
+  is taken only while its `iat` is at most five minutes old, with the clocks'
+  minute either way (`GOOGLE_ID_TOKEN_MAX_AGE`, `GOOGLE_CLOCK_SKEW`; none
+  without an `iat`), and only once: spent the moment it changes something - a
+  session opened, an account made or claimed, an identity attached, Google
+  connected on the account page (`spendGoogleIdToken()`) - and refused ever
+  after, `400 invalid_token` like any token that does not verify. Not before:
+  a sign-in stopped for its second factor spends nothing, and the page sends
+  the same token again with the code (the login page, given a refused token
+  at that step, goes back to the form, where Google's button is). The store
+  is a table, the house's way for a secret that is good once (codes, links,
+  refresh tokens): `google_id_tokens_used`, migration 026 - the SHA-256 of
+  what Google signed, `header.payload`, and when the token runs out; swept by
+  housekeeping after that. Of what Google signed, not of the whole token:
+  base64 leaves bits of the signature's last character unread, so the same
+  signature can be written several ways, each verifying, and a hash of the
+  whole would take each for a new token (`tests/google-tokens.test.php` writes
+  one so). The row says nothing of the person - no account, no address - and
+  lives an hour at most, so the Privacy page, which lists what the IAM keeps
+  of a person, is unchanged. Before 026 is applied a token is held to its five
+  minutes alone (`googleTokensReady()`). A nonce bound to the page was not
+  added: the freshness and the single use are what was asked, and Google's
+  script still loads only on a press.
+- **Low: opening somebody else's confirmation link signed this browser in to
+  their account.** The page posted the link as soon as it opened: an
+  attacker's own new account's link, sent to a victim, signed the victim's
+  browser in to the attacker's account, ended the victim's session, and a
+  sign-in a site had waiting in that browser then got a code for the
+  attacker's account. Now the rule is the server's - the link never puts its
+  account's session in place of another account's this browser has: it
+  confirms the address (it is the link's to confirm), the session stays, and
+  the answer says so, `{"signed_in": false, "reason": "other_account"}` - and
+  the page's: it sends the link only when the person presses "Confirm my
+  address", and then offers to sign out and sign in with the confirmed
+  account, or to stay. A browser with no session is signed in by the press, as
+  before.
+- **Migration 026** brings the table, spends the leftover links, and the
+  confirmation page's six words (`confirm.readyText`, `confirm.submit`,
+  `confirm.totpText`, `confirm.signInText`, `confirm.otherAccountText`,
+  `confirm.signOutAndIn`) in English and an informal Slovak. Once it is applied,
+  no build from before it goes on the host again: it would open the three
+  holes again, and its confirmation page would read a confirmation without a
+  session as a sign-in; fix forward.
+- **Tested** (`tests/confirmation-links.test.php`,
+  `tests/google-tokens.test.php`, each run once against the code from before,
+  failing where the holes were): the reviewer's sequence step by step - no
+  session, no cookie, no code for a waiting site, with the code neither; a
+  link confirmed and opened again; every way an address is confirmed - a
+  reset, Google, an administrator, a changed address - and two-factor on
+  spending the links; a live link of an address confirmed opening nothing;
+  the code asked for by a link, under the pause, a recovery code standing in;
+  `amr` per way in - the password (alone, with a code, a remembered browser),
+  the emailed code, Google, a reset, a confirmation link, each with two-factor
+  off and on, and Google's claim of a registrant's account; another account's
+  link leaving the session, so a waiting site's code is the signed-in
+  account's; 026 on a fresh IAM, on one built through 025 with leftover links,
+  and its gate failing loudly. Google: a used token refused from another
+  browser and written another way; six minutes old, two minutes ahead, no
+  `iat`, refused at the sign-in and on the account page; the second factor's
+  step spending nothing; every way of spending it, across the sign-in and the
+  account page; two at once; the sweep; the window while 026 waits. The
+  frontend's `confirm-email.component.spec.ts`: nothing sent as the page
+  opens, the press, `other_account` leaving the session and offering sign-out,
+  `already_confirmed`, the code's step.

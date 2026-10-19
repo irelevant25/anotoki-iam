@@ -561,6 +561,15 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         if ($updated->rowCount() === 0 && ($refusal = anonymizedRefusal(userById($pdo, $id) ?? []))) {
             return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
         }
+        // A confirmation link names the account, not the address it went to:
+        // an address changed, confirmed or to be confirmed again here leaves
+        // none of the links mailed before good - one would confirm an address
+        // it never reached, or sign in by a mailbox (spendConfirmationLinks()).
+        $addressChanged = isset($changes['email']) && strtolower((string) $changes['email']) !== strtolower((string) $target['email']);
+        $confirmationChanged = isset($changes['email_confirmed']) && !empty($body['email_confirmed']) !== asBool($target['email_confirmed']);
+        if ($addressChanged || $confirmationChanged) {
+            spendConfirmationLinks($pdo, $id);
+        }
         audit($request, (int) actor($request)['id'], 'user.updated', 'user', $id, array_keys($changes));
 
         return respondJson($response, adminUser($pdo, $id));

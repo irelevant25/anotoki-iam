@@ -489,9 +489,16 @@ application's frontend to learn who signed in.
 code), `email` (an emailed code or link), `google`, and `mfa` where two factors
 were asked - the first, then the second: `["pwd", "otp", "mfa"]` for the
 password and an authenticator code, `["email", "otp", "mfa"]` for an emailed code
-and one, and `["pwd", "email", "mfa"]` for the password and, during the
+- or a confirmation or reset link - and one, `["google", "otp", "mfa"]` for
+Google and one, and `["pwd", "email", "mfa"]` for the password and, during the
 authenticator's pause, a code mailed in its place (the mailbox stood in; no
-`otp`).
+`otp`). `otp` stands for what the sign-in itself checked: an authenticator
+code, a recovery code, or a browser remembered for answering one. A second
+factor appears only where that sign-in checked one - never because the
+account has two-factor on (the security review of 2026-10-19: a confirmation
+link left over signed such an account in without its code, and its tokens
+said `otp` and `mfa` all the same; no way in opens a session past two-factor
+now, and the session's `mfa` is what was checked).
 
 ### `GET|POST /api/oidc/userinfo`
 
@@ -958,8 +965,9 @@ Everywhere a second factor is asked for, an authenticator code is accepted once
 account, whatever addresses they come from, within a rolling fifteen minutes,
 from nought again after a right code or a completed sign-in - pause its codes
 for fifteen minutes from the fifth, on every way that takes one: this
-endpoint, the emailed code's sign-in, Google, a password reset, and the
-account page's `POST /api/account/2fa/disable` and `/2fa/recovery`. The fifth
+endpoint, the emailed code's sign-in, Google, a password reset, a confirmation
+link that would sign in (since 2026-10-19), and the account page's
+`POST /api/account/2fa/disable` and `/2fa/recovery`. The fifth
 wrong code is answered `403 authenticator_paused` already, and so is every code
 meanwhile - refused without being checked (a right one is not spent), with
 `paused_until`, when it ends; the answers refused during a pause count towards
@@ -996,6 +1004,22 @@ other ways in. A new account made while new accounts need approval is made,
 waiting, with no session: `403 approval_pending` with `"created": true` beside
 `code` and `error`.
 
+**A credential is good once, for five minutes** (the security review of
+2026-10-19; migration 026). Google signs one for an hour; the IAM takes it only
+while its `iat` is at most five minutes old - with a minute's leeway for the
+clocks either way, and never without an `iat` - and only once: one that signed
+somebody in, made an account, claimed one or attached an identity here, or
+connected Google on the account page, is remembered until it runs out and is
+`400 invalid_token` ever after, from any browser, however its signature is
+written. The same `invalid_token` as one that does not verify - the page tells
+none apart and asks Google for a new one. A sign-in stopped before anything
+changed - `totp_required`, `totp_invalid`, `authenticator_paused`, a refusal of
+the account - spends nothing: the page sends the same credential again with the
+code, within those five minutes. What is kept is the SHA-256 of what Google
+signed (its header and claims) and when the token runs out - nothing of the
+person; housekeeping sweeps it after that. Before 026 is applied a credential
+is held to its five minutes alone.
+
 Attaching to an account whose address was never confirmed first removes
 everything its registrant set - password, two-factor, recovery codes,
 remembered devices, sessions, tokens, other identities, a yes to the news,
@@ -1024,10 +1048,47 @@ the IAM does not offer makes an English account rather than a refusal.
 
 ### `POST /api/register/confirm`
 
-`{ token }` from the emailed link → `{ "user": AccountUser, "continue_to": { "name", "url" } | null }`
-and the session cookie is set. `400 invalid_token`. An account waiting for
-approval has its address confirmed and the link spent all the same, and is
-answered `403 approval_pending`, with no session.
+`{ token, totp? }` from the emailed link - sent by the `/confirm-email` page
+only when the person presses "Confirm my address", never as it opens. The
+address is confirmed, and every other confirmation link of the account is
+spent with this one; then:
+
+- `{ "signed_in": true, "user": AccountUser, "device_token": null, "continue_to": { "name", "url" } | null }`
+  and the session cookie is set - the link signed in (method `email_link`;
+  `amr` `["email"]`, or `["email", "otp", "mfa"]` with the code below).
+- `{ "signed_in": false, "reason": "..." }` - the address is confirmed and
+  nobody is signed in by the link; nothing of the account is in the answer:
+  - `already_confirmed` - the address was confirmed before this link: an older
+    one (a second was mailed by "send it again"), this one opened again, one
+    left over from a build before 026. It opens nothing and is spent; the page
+    offers the sign-in page.
+  - `other_account` - confirmed now, while this browser is signed in to another
+    account, which stays signed in: the link never puts its account's session
+    in place of somebody else's (an attacker's own new account's link, opened
+    by a victim, signed the victim's browser in to it - the security review of
+    2026-10-19). The page offers to sign out and sign in with the confirmed
+    account, or to stay.
+  - `sign_in` - confirmed now; signing in takes the account's own way in (its
+    two-factor was switched on while the link was on its way).
+
+The link signs in only while its address waits to be confirmed: once the
+address is confirmed - by a link, a reset, Google, an administrator - every
+confirmation link of the account is spent, and so they are when two-factor is
+switched on. An account with two-factor on is asked for its code before a
+link signs it in, as a reset asks: `403 totp_required` until `totp` (an
+authenticator or recovery code) comes too, `403 totp_invalid` for a wrong one,
+`403 authenticator_paused` (with `paused_until`) while the account's codes are
+paused - a recovery code still works -, `429` past the limiter; nothing is
+spent, confirmed or opened until it passes, so the same press goes again with
+the code. No remembered browser stands in, as on a reset; no code is asked
+where the link opens no session (`other_account`).
+
+`400 invalid_token` for a link that does not work: never mailed, run out with
+its address still unconfirmed, swept a month after it ran out, or of an
+account deleted since. An account waiting for approval, switched off, or
+while signing in is off, has its address confirmed and the link spent all the
+same, and is answered as at every way in - `403 approval_pending`,
+`account_disabled`, `login_disabled` - with no session.
 
 ### `POST /api/register/resend`
 
@@ -1039,7 +1100,8 @@ answered `403 approval_pending`, with no session.
 `{ token, password, totp? }` → `{ "user": AccountUser, "continue_to": ... }`,
 signs in, and takes the account back: every other session, every personal
 token, every remembered device and every outside identity (an attached Google)
-ends. A Google account under the same address attaches itself again at its next
+ends - and every confirmation link still out, the address being confirmed now.
+A Google account under the same address attaches itself again at its next
 sign-in. `400 invalid_token`, `422` for a short password. An account waiting
 for approval gets its new password and `403 approval_pending`, with no session.
 
@@ -1125,10 +1187,10 @@ interface AccountUser {
 | `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; a forced change done sets a new sign-in hint (above), so the sites that met `interaction_required` try again; `422 wrong_password` for a wrong current password, each one counted by the sign-in limiter: `429 too_many_attempts` past it (ten from one address in 15 minutes), the right one included |
 | `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change, and then sets a new sign-in hint. Asks for the proof below - for an account with no password, a sign-in of the last 15 minutes: `403 reauthentication_required` otherwise. `409 password_already_set`, `422 invalid_password` |
 | `PUT /api/account/password/enabled` | `{ enabled, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, to switch password sign-in off; a sign-in of the last 15 minutes to switch it on. `409 would_lock_account` / `no_password` first |
-| `POST /api/account/google` | `{ credential, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, while password sign-in is on; else a sign-in of the last 15 minutes. `400 invalid_token` for a credential that does not verify, `409` already connected elsewhere |
+| `POST /api/account/google` | `{ credential, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, while password sign-in is on; else a sign-in of the last 15 minutes. `400 invalid_token` for a credential that does not verify - more than five minutes old or used before included (`POST /api/login/google`): connecting spends it -, `409` already connected elsewhere |
 | `DELETE /api/account/google` | | `AccountUser` - `409 would_lock_account` |
 | `POST /api/account/2fa/setup` | | `{ secret, uri }` (otpauth URI for the QR code) - a new secret each time, replacing one still waiting; nothing changes until enable confirms it. `409 totp_already_on` first; then, for an account whose password is not a way in, `403 reauthentication_required` while its sign-in is more than 15 minutes old - before a secret is made, since enable would refuse that sign-in (the proof below). An account whose password is a way in sets up from a sign-in of any age |
-| `POST /api/account/2fa/enable` | `{ code, password? }` | `{ recovery_codes: string[] }` - other sessions end. `409 totp_already_on` / `totp_not_started` first; then the proof below, before the code is read: `password`, the current one, while password sign-in is on, else a sign-in of the last 15 minutes (`429 too_many_attempts`, `422 wrong_password`, `403 reauthentication_required`); then `400 totp_invalid` for a wrong code |
+| `POST /api/account/2fa/enable` | `{ code, password? }` | `{ recovery_codes: string[] }` - other sessions, remembered devices and any confirmation link still out end. `409 totp_already_on` / `totp_not_started` first; then the proof below, before the code is read: `password`, the current one, while password sign-in is on, else a sign-in of the last 15 minutes (`429 too_many_attempts`, `422 wrong_password`, `403 reauthentication_required`); then `400 totp_invalid` for a wrong code |
 | `POST /api/account/2fa/disable` | `{ code }` | `AccountUser` - an authenticator or a recovery code; `400 totp_invalid` for a wrong one, `403 authenticator_paused` (`paused_until`) for an authenticator code while the account's codes are paused (a recovery code still works) |
 | `POST /api/account/2fa/recovery` | `{ code }` | `{ recovery_codes }` - an authenticator code only; `400 totp_invalid`, `403 authenticator_paused` as above |
 | `DELETE /api/account/devices` | | `{ ended }` |
@@ -1146,7 +1208,7 @@ interface AccountUser {
 interface SessionEntry {
   id: number;
   method: 'password' | 'login_code' | 'google' | 'email_link' | 'password_email';  // password_email: the password and, during the authenticator's pause, a code by email
-  mfa: boolean;
+  mfa: boolean;                  // a second factor was checked by the sign-in itself - never merely two-factor on
   ip: string | null;
   user_agent: string | null;
   created_at: string;
@@ -1359,7 +1421,7 @@ endpoint here.
 | `GET /api/admin/users/{id}` | `AdminUser` |
 | `GET /api/admin/users/{id}/detail` | `AdminUserDetail` |
 | `POST /api/admin/users` | `{ username, email, password, language?, force_password_change?, roles?: RoleGrant[] }` → `201 AdminUser` - the username letters and digits (`422 invalid_username` otherwise; Conventions, above) |
-| `PUT /api/admin/users/{id}` | `{ username?, email?, language?, email_confirmed?, force_password_change? }` → `AdminUser` - a new username letters and digits (`422 invalid_username` otherwise); the account's own name sent back is not checked and not written, so an account with a name from before the rule can still be edited (sent alone, the account as it is: nothing written, nothing audited) |
+| `PUT /api/admin/users/{id}` | `{ username?, email?, language?, email_confirmed?, force_password_change? }` → `AdminUser` - a new username letters and digits (`422 invalid_username` otherwise); the account's own name sent back is not checked and not written, so an account with a name from before the rule can still be edited (sent alone, the account as it is: nothing written, nothing audited); a change of `email` or `email_confirmed` spends every confirmation link the account has - they went to the address as it was, and one confirmed signs in by the mailbox alone |
 | `PUT /api/admin/users/{id}/password` | `{ password, force_password_change? }` → `{ message, note }` - every session of the account ends |
 | `PUT /api/admin/users/{id}/enabled` | `{ enabled }` → `AdminUser` - disabling ends every session and refresh token |
 | `DELETE /api/admin/users/{id}/2fa` | turn two-factor off for somebody locked out → `AdminUser` |

@@ -70,12 +70,13 @@ const MOVED_KEYS = [
 /**
  * The keys the IAM's own files after 017 write - 019's, the authenticator's
  * pause, 020's, the legal pages' facts, 022's, the IAM's own Google button,
- * 024's, What's new, and 025's, the line under the username field: applying
- * all that waits after 016 brings them too, and their own files' tests hold
- * them (authenticator-pause.test.php, legal-pages-strings.test.php,
- * google-button-strings.test.php, whats-new-strings.test.php,
- * usernames.test.php). A later file that adds keys adds them here - this test
- * holds 017 and the library's set.
+ * 024's, What's new, 025's, the line under the username field, and 026's, the
+ * confirmation page's press: applying all that waits after 016 brings them
+ * too, and their own files' tests hold them (authenticator-pause.test.php,
+ * legal-pages-strings.test.php, google-button-strings.test.php,
+ * whats-new-strings.test.php, usernames.test.php,
+ * confirmation-links.test.php). A later file that adds keys adds them here -
+ * this test holds 017 and the library's set.
  */
 const LATER_PAGE_KEYS = [
     'error.authenticatorPaused',
@@ -170,6 +171,12 @@ const LATER_PAGE_KEYS = [
     'whatsNew.fixed',
     'whatsNew.updated',
     'common.usernameHint',
+    'confirm.readyText',
+    'confirm.submit',
+    'confirm.totpText',
+    'confirm.signInText',
+    'confirm.otherAccountText',
+    'confirm.signOutAndIn',
 ];
 const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticatorPaused.greeting', 'mail.authenticatorPaused.intro', 'mail.authenticatorPaused.ignore'];
 
