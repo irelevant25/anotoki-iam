@@ -225,7 +225,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `api/authenticator_pause.php`): counted for the account, whatever address
   they come from, within a rolling fifteen minutes, from nought again after a
   right code or a completed sign-in; on every way that takes a code - the
-  password sign-in, the emailed code's, Google, a reset, the account page's
+  password sign-in, the emailed code's, Google, a reset, a confirmation link
+  that would sign in (since 2026-10-19), the account page's
   turning two-factor off and new recovery codes (`authenticatorCheck()`, one
   check at a time per account: the row held). During the pause a code is
   refused unchecked (`403 authenticator_paused` with `paused_until`; refused
@@ -455,6 +456,32 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   applied, no build from before it goes on the host again (it would take any
   name again - an address, a turned text: the lure this closes - and show
   `register.usernameHint` as a key); fix forward.
+- **A confirmation link and a Google token prove only so much** (the security
+  review of 2026-10-19 and the review of its change, migration 026;
+  `docs/decisions.md`): a confirmation link signs in only while its address
+  waits to be confirmed - decided in the write that confirms it (`AND NOT
+  email_confirmed`); every link of the account is spent once the address is
+  confirmed by any way, when an administrator changes it and when two-factor
+  is switched on (`spendConfirmationLinks()`); one of an address confirmed
+  already answers `{signed_in: false, reason: "already_confirmed"}` and opens
+  nothing -, only for the address it was mailed to (a hash of it in the
+  link's context: one of an account moved elsewhere says nothing of it),
+  never in place of another account's session this browser has
+  (`other_account`: the address confirmed, the session left as it was), and
+  never past two-factor (the code asked as a reset asks it, under the pause).
+  The confirmation page sends a link only on a press, and names the account
+  it signed in to. A session's `mfa` - so every token's `amr` - says what its
+  own sign-in checked (`completeSignIn()`'s `$mfa`, `secondFactorAnswer()`),
+  never the account's switch; 026 ended the link sessions that said it
+  without. A Google id token is taken only within five minutes of its `iat` (a
+  minute's leeway either way) and once: from the moment the Google sign-in
+  finds the account it names, it is held for that account's sign-in
+  (`holdGoogleIdToken()`, `held_for_user`) - back with the code there, refused
+  everywhere else, the account page's connect included - and spent when it
+  changes something (`spendGoogleIdToken()`; `google_id_tokens_used` keeps a
+  hash of what Google signed until the token runs out); one that names no
+  account is spent at once. Once 026 is applied, no build from before it goes
+  on the host again (it would open the holes again); fix forward.
 
 ## Backend layout & conventions
 
@@ -570,7 +597,10 @@ anything at its file's path that yields no usable secret fails closed, only
 nothing there is no secret;
 five wrong authenticator codes pause an account's codes for fifteen minutes
 on every way that takes one, a code by email standing in only after the
-password and only until five of those are wrong; the same switches on every way in; no self-lockout, no removing the
+password and only until five of those are wrong; the same switches on every way in;
+a confirmation link signing in only while its address waits (decided in the write), only for the address it went to, never in place of another account's session nor past two-factor,
+and a session's `mfa` only for a second factor its own sign-in checked; a Google id token fresh (five minutes), good once, and held for the sign-in of the account it names - free for nothing else;
+no self-lockout, no removing the
 last admin (one whose deletion is pending counts as none); the CSRF header on every first-party write; the sign-in hint opens nothing and no account no site lets in has one;
 a username letters and digits only, whoever chooses or makes it (one from before kept, never checked when sent back unchanged);
 the session cookie never gets a Domain, and is __Host- on https, where the bare name is never read; no loopback address
@@ -656,7 +686,8 @@ a decision for `docs/decisions.md`, not a refactor.
   a live region says it is ready, and the focus goes onto the frame around it
   (the next Tab is Google's button). No script - blocked, offline, not within
   15 seconds - leaves the IAM's button and a line under it. The id token and
-  the server's check are as before; the Privacy page says so (migration
+  the server's check are as before - since 2026-10-19 the token fresh and
+  good once (above); the Privacy page says so (migration
   022's `legal.google.role`). Never load Google's script as a page opens.
   Once 022 is applied, no build from before it goes on the host again (it
   would load Google's script as each page opens, while the Privacy page says
