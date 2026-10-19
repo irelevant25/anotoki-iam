@@ -606,7 +606,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
 ## The admin panel's tools: the error log, the audit log, backups
 
 Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11; 0.7.0 now, both halves): the same pages, routes and
+owner's decision of 2026-10-11; 0.7.2 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and

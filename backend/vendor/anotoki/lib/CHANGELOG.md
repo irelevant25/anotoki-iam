@@ -5,6 +5,57 @@ and the npm package `@anotoki/lib` (`frontend/projects/lib/package.json`). While
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.7.2 - 2026-10-19
+
+**The feedback form says whom its message is for** (Angular). The form posted with a plain `http.post`, so
+`anotokiAuthInterceptor` took it as the page's `caller()` - a person's whenever the sign-in is set up, signed in or
+not - and a person's request with no token is never sent: "Sign in to send a message", and the page followed the
+session (`auth.refused()`), losing what was typed. The survey and Piano Academy each marked it in an interceptor of
+their own. Now the form sends it as `issuedAs('anybody')`, a new way to say whom a request is for: the person's, with
+the token, while somebody is signed in; the visitor's, with the key, while the page is shown to a visitor; nobody's
+otherwise. Never refused before it is sent for want of a token (with none it goes as nobody's), and its failure is
+handed back as it came, as a report's: no fresh token, no retry, no page following, no sign-in noted as required -
+only a visitor key the server no longer knows is forgotten and tried once more, as on any visitor's request. A site
+that takes signed-in people's feedback alone (`signedInOnly`) answers 401 `sign_in_required`, and the form says its
+kind words in place; what was typed stays. A site's own request may say `issuedAs('anybody')` too.
+
+- `ISSUED_AS`, `Caller` and `issuedAs()` are an entry point of their own, `@anotoki/lib/auth/marker` - importing
+  nothing, as `@anotoki/lib/error-report/marker` holds `ANOTOKI_ERROR_REPORT` - which the form names without the auth
+  module. `@anotoki/lib/auth` names all three as before: a site's imports stay as they are. `ISSUED_AS` and
+  `issuedAs()` take `'anybody'` beside `'caller'`; `Caller` is the three it was.
+- `scripts/check-package.mjs`: the marker imports nothing and weighs at most 0.5 kB; the auth module and the
+  feedback form may import it, the form never the auth module.
+
+**The library's words in the reader's language when the server is out of reach** (Angular). While no bundle is in
+memory - the database out of reach, the site not set up (nothing is asked while `canAsk()` is false), a first answer
+still on its way - the translations module knew no language but English, so a Slovak reader read the status page in
+English. Now `TranslationService.language` is then what the family's ranking settles on among the languages the
+library has built-in words for (`en`, `sk`) in place of the offered ones - this tab's `?lang=`, a choice made before
+(the module's stored choice), the account's language, the browser's languages (a Czech browser's Slovak too) - never
+a language with no built-in words, English otherwise. `effectiveLanguage`, `<html lang>`, `locale` and the kit's words (`forKit()`) follow it, and so does the
+status page, through `siteStatusWords()` and the `language` a site hands `provideAnotokiMigrations()`. The site's own
+keys read its compiled English as before, the English areas stay English, `signInLanguage` stays undefined, and once a
+bundle comes, the page is in its language: nothing changed with a bundle in memory.
+
+**CI checks the formatting**: `bun run format:check` at the root, a job of its own.
+
+What a site must do: take the 0.7.2 tarball (Composer's `^0.7.0` reaches 0.7.2; the PHP half did not change). A site
+may now drop its own `feedbackSenderInterceptor` (the survey's `core/feedback.ts`, Piano Academy's
+`core/site-admin.ts`) and its place among its interceptors, with its spec: the form says whom its message is for
+itself. One that keeps it changes nothing - it leaves alone a request that says whom it is for. A site that hands
+`siteStatusWords()` words of its own read with `t()` from its own keys (the IAM's not-set-up page, `notSetUp.*`) hands
+them in its compiled English while no bundle is in memory, keyed by `effectiveLanguage()` - the reader's language now:
+key them `'en'` while `ready()` is false, and the library's built-in words of the reader's language show in their
+place, or leave them as they are (its English, as before).
+
+## 0.7.1 - 2026-10-19
+
+**The footer says its version short** (the owner, 2026-10-19: "display version like v0.5.0 ... not the whole word
+version"): `<anotoki-site-footer>` shows "v0.5.0" where it showed "Version 0.5.0". Its words
+`anotoki.footer.version` ("Version {version}", the site's own rewording first) stay, for a screen reader alone, in
+their language as before - so no translation changes and nothing to apply. What a site must do: take the 0.7.1
+tarball (Composer's `^0.7.0` reaches 0.7.1); nothing else.
+
 ## 0.7.0 - 2026-10-18
 
 **The library's folders named as in every other anotoki project** (the owner's choice of 2026-10-18): the Angular

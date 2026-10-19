@@ -9,7 +9,7 @@ version:
 | PHP 8.2+, Slim 4, PostgreSQL | `anotoki/lib` (Composer) | `composer.json`, `backend/src/`, `backend/migrations/`, `backend/resources/`, `backend/testing/` |
 | Angular 21 (standalone, zoneless, signals) | `@anotoki/lib` (npm tarball) | `frontend/projects/lib/` |
 
-Version 0.7.0 holds:
+Version 0.7.2 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -235,6 +235,7 @@ uses is in the first load again.
 | `@anotoki/lib/auth/core` (0.5.0) | what the auth module's parts share: the client's types and helpers, the configuration and browser tokens, the built-in words, `SignInSession`; the library's own - `@anotoki/lib/auth` names all of it | with the module |
 | `@anotoki/lib/auth/screens` (0.5.0) | the callback page and the failure's screen themselves | as their route opens |
 | `@anotoki/lib/auth/session` (0.5.0) | the client's token requests: a callback's code exchange, a refresh, a preferences save; the library's own | the first time one is made |
+| `@anotoki/lib/auth/marker` (0.7.2) | whom a request is for - `ISSUED_AS`, `Caller`, `issuedAs()` - alone, what a request's maker sets (the feedback form, without the auth module); `@anotoki/lib/auth` names it too | with the auth module, and the feedback form |
 | `@anotoki/lib/auth/testing` (0.4.0) | `provideTestAnotokiAuth()`, `FakeAuthClient`: the module without an IAM, for a site's specs | a site's specs |
 | `@anotoki/lib/people` (0.4.0) | `provideAnotokiPeople()` and the shape of the People API ("People" below) | where the site configures the page (its app.config, or the page's route) |
 | `@anotoki/lib/people/page` (0.4.0) | the admin People page | a lazy admin route |
@@ -1416,7 +1417,13 @@ this.i18n.noteAddress(url);
   offer the language) keeps it the site's own for the visit, any other sets
   `languageNotSaved` (the switcher's note). Otherwise this device's choice comes
   first and the account's is adopted only while nothing is stored. A choice made
-  before signing in holds for the visit.
+  before signing in holds for the visit. While no bundle is in memory (the
+  server out of reach, the site not set up; 0.7.2), the same ranking - this
+  tab's `?lang=`, a choice made before, the account's language, the browser's -
+  settles on the languages the library has built-in words for (`en`, `sk`)
+  instead of the offered ones: never a language with no built-in words, English
+  otherwise. The library's words (the kit's, the status page's) are in it; the
+  site's own read its compiled English.
 - Words, for each key: the bundle's string; while no bundle is in memory, the
   site's compiled English (`fallbackEnglish`), then the key (warned once). With a
   bundle, a key it lacks is shown as the key, warned once: the owner wants to see
@@ -1733,7 +1740,7 @@ show.
   signing in in another tab - or anybody, on a page shown to a visitor - loads
   the page afresh.
 - `anotokiAuthInterceptor` - who a request of the site's API is, decided when
-  it is issued (`issuedAs('person' | 'visitor' | 'nobody' | 'caller')`,
+  it is issued (`issuedAs('person' | 'visitor' | 'nobody' | 'caller' | 'anybody')`,
   `CARRIES_VISITOR_KEY` for the move): a person's with the token or never sent
   (a 401 `sign_in_required` of its own), one retry after a 401 for the same
   person, a 502 when an answer to a person's request made a visitor; a
@@ -1743,7 +1750,13 @@ show.
   page's own error (`ANOTOKI_ERROR_REPORT`, "The browser's errors" below; 0.6.0)
   goes as any request - the token, or not at all; the key - and its failure is
   handed back as it came: no fresh token, no retry, no sign-in, nothing cleared,
-  no key forgotten, nothing noted.
+  no key forgotten, nothing noted. Anybody's (0.7.2: the feedback form's
+  message) is whoever the page is shown to - the person's token while somebody
+  is signed in, the visitor's key while the page is a visitor's, neither
+  otherwise - never refused for want of a token (with none it goes as
+  nobody's), its failure handed back as a report's but for a `visitor_unknown`
+  key, forgotten and tried once more. `ISSUED_AS`, `Caller` and `issuedAs()`
+  are `@anotoki/lib/auth/marker`'s, named here too.
 - `personGuard`, `personOrVisitorGuard`, `staffGuard`, `adminGuard` - a sign-in
   started for the page asked for; every page while `SiteStatus.blocked()`; the
   failure's screen when a sign-in came back without one, could not start or
