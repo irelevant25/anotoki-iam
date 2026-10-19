@@ -26,11 +26,10 @@ computer is [`../DEV.md`](../DEV.md).
 | `create-admin.php` | `php create-admin.php you@example.com [password]` - the first administrator of an IAM with no accounts, ADMIN in every application that has one; its username made of the address before the `@` in letters and digits (`frantisek.pastorek@…` is `frantisekpastorek`), else `admin` |
 | `reset-password.php` | `php reset-password.php <email> [pw] [--clear-2fa]` - somebody back into their account, from the shell |
 | `import-legacy.php` | `php import-legacy.php [--from=users] [--dry-run] [--site=genshin]` - the one-time move of the genshin site's accounts; `--site` is the application whose EDITOR an old EDITOR becomes (an old ADMIN becomes ADMIN in every application) |
-| `build-dist.php` | `php build-dist.php` - the runtime-only slice into `dist/`, to upload beside the Angular build |
 
 Every command-line tool reads the configuration `setup.php` wrote and stops
 with a sentence when there is none (`requireSetUpOnCli()`). None of them is
-uploaded: `build-dist.php` leaves them, the tests and `setup.php` out.
+in a release: anotoki-deploy's `include` (composer.json) leaves them, the tests and `setup.php` out.
 `php backup.php --extract` writes a backup decrypted into a new folder of the
 owner's - the database in the clear: only on a computer you trust, and delete
 it when done. `--inspect` reads the manifest alone, in memory, and writes
@@ -101,7 +100,7 @@ composer update anotoki/lib --prefer-dist # the family's library: with the front
 php translations.php --status             # the keys the pages use against the database's strings
 php backup.php --list                     # the database's backups (--create, --inspect=<id>, --extract=<id> <folder>)
 php account-deletions.php --list          # the record of deletions; --replay --since=<time> [--dry-run] after a restore by hand
-php build-dist.php                        # -> dist/ for the hosting
+# the release: cd ../frontend && npx anotoki-deploy build (../docs/operations.md)
 ```
 
 The development database is `anotoki_iam` on PostgreSQL's port 5432 - the

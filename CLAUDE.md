@@ -35,14 +35,14 @@ php translations.php --status             # the pages' keys against the database
 php translations.php --export sk [file]   # a language's own strings as flat JSON; --import sk file puts them back (both refuse while a migration waits)
 php backup.php --list                     # the database's backups (encrypted; --create, --inspect=<id>, --extract=<id> <folder>; --from= --key= for a downloaded one)
 php account-deletions.php --list          # the record of deletions asked, cancelled, done (storage/records); --replay --since=<the backup's time> [--dry-run] after a restore by hand
-php build-dist.php                        # -> backend/dist/ for upload
+# the release: cd ../frontend && npx anotoki-deploy build / deploy (deploy-iam skill)
 composer update anotoki/lib --prefer-dist # the family's library, with frontend/package.json's @anotoki/lib URL (docs/operations.md)
 
 # Frontend (from frontend/)
 npm start                                 # bun ci (the packages in bun.lock), then ng serve on :4300, proxying /api, /.well-known and /setup.php to :8100
 bun add <package>                         # add or update packages with bun: npm start's bun ci stops when bun.lock is behind package.json
 npx ng build                              # production; --configuration development for a debug build
-npm run build:deploy                      # production build + the web root's .htaccess
+npm run build:deploy                      # production build + its checks (anotoki-deploy's frontendBuild)
 npx ng test --watch=false                 # unit tests (Vitest): needs vitest + jsdom in devDependencies (frontend/README.md)
 cd .. && bun run format:check             # Prettier on every file of both halves, at the root (bun install there first)
 
@@ -739,10 +739,14 @@ a decision for `docs/decisions.md`, not a refactor.
 
 ## Deployment
 
-One web root on the IAM's subdomain: the Angular build (`npm run build:deploy`,
-which writes the `.htaccess` routing `/api/` and `/.well-known/` to PHP and
-refusing `/config`, `/migrations`, `/storage` and `/vendor` outright) plus
-`backend/dist/`. First install through `backend/setup.php` (uploaded by hand,
+A release of `frontend/` (the Angular build, its checks run by `npm run build:deploy`)
+and `backend/` (`api/`, `config/`'s loaders, `migrations/`, `vendor/`), each
+replaced whole on the IAM's subdomain beside `config/` (the master key) and
+`storage/`, which no release writes - built and put up by anotoki-deploy
+(`backend/composer.json`'s `extra["anotoki-deploy"]`: `/api` and `/.well-known/`
+to the front controller, the CSP; the `deploy-iam` skill). State only through
+`iamStateRoot()` / `iamConfigDir()` / `iamStorageDir()`. First install through
+`backend/setup.php` (never in a release: uploaded by hand into `backend/`,
 token proof, writes every `config/*.local.php`, takes the production addresses,
 imports the genshin accounts or makes the first admin, locks and self-deletes);
 later schema changes through the admin panel's Migrations page, which backs

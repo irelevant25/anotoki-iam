@@ -1,45 +1,23 @@
-// Turns a production `ng build` into something ready to upload, by writing the
-// one thing the build cannot know on its own: the .htaccess for the web root.
+// Checks a production `ng build` before it becomes a release - anotoki-deploy runs it with the build
+// (backend/composer.json, extra["anotoki-deploy"].frontendBuild: `npm run build:deploy`), and a release that fails
+// one goes no further:
 //
-//   /api/...                     the PHP backend, passed through untouched to
-//                                its own front controller (api/.htaccess).
+//   - no inline script or event handler in index.html: the Content-Security-Policy (backend/composer.json's
+//     extra["anotoki-deploy"].csp - this app, Google Identity Services and the family's visitor counter, nothing
+//     inline) would block it, and the page would load blank in production alone. angular.json keeps
+//     critical-CSS inlining off, whose loader is an inline onload handler;
+//   - the family's library (@anotoki/lib) draws no string as HTML (below);
+//   - the visitor counter's tag is async and leaves the query string and the fragment out (below).
 //
-//   /.well-known/openid-configuration and /.well-known/jwks.json
-//                                OpenID Connect discovery lives at the issuer's
-//                                root, not under /api. Both are rewritten to
-//                                api/index.php, which routes on the original
-//                                path (REQUEST_URI survives an internal rewrite).
+// The web root's rules and headers are anotoki-deploy's frontend/.htaccess: /api and OpenID Connect's discovery
+// (/.well-known/openid-configuration, /.well-known/jwks.json) to the front controller, which routes on the original
+// path; every other path that is no file to the app; the headers and the CSP; changelog.json asked for again each
+// time. backend/, config/ and storage/ (the master key, the backups, the logs) are never served: they are beside the
+// release, not in it.
 //
-//   /config, /migrations, /storage, /vendor
-//                                the backend's own folders - the master key,
-//                                the backups (every hash and encrypted secret),
-//                                the logs - refused (403) before anything else,
-//                                in any case of letters; each also denies the
-//                                web in its own .htaccess (backend/build-dist.php,
-//                                the library's guard).
-//
-//   everything else              the app is one page with client-side routes,
-//                                so a path that is not a real file falls back to
-//                                index.html - or a refresh on /account/security
-//                                would be a 404. /setup.php, while it is there
-//                                for the first install, is a real file and is
-//                                run as one; its own script is served by it
-//                                (?asset=js), which the policy below allows.
-//
-// And the headers every page of an identity provider should carry: no framing
-// (clickjacking a sign-in form is a classic), no MIME sniffing, a referrer that
-// never leaks a path to another site, and a Content-Security-Policy that allows
-// exactly this app, Google Identity Services and the family's visitor counter
-// (Umami, whose script sends to its own origin) - nothing inline. The build
-// cooperates: angular.json turns off critical-CSS inlining, whose loader is an
-// inline onload handler that this policy would block. (Component styles are
-// still injected as <style> elements at runtime, hence style-src 'unsafe-inline'.)
-// And changelog.json - the IAM's versions, whose newest the footer shows - asked
-// for again each time (no-cache): it has no hash in its name.
-//
-// Run by `npm run build:deploy` after `ng build`. Nothing here is used in dev.
+// Nothing here is used in dev.
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 // The application builder puts the web files under dist/iam/browser/ - that
@@ -123,72 +101,13 @@ if (unsafe.length) {
   process.exit(1);
 }
 
-const csp = [
-  "default-src 'self'",
-  "script-src 'self' https://accounts.google.com/gsi/client https://umami.anotoki.eu",
-  'frame-src https://accounts.google.com/gsi/',
-  "connect-src 'self' https://accounts.google.com/gsi/ https://umami.anotoki.eu",
-  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
-  "img-src 'self' data: https:",
-  "font-src 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ');
-
-const htaccess = `# anotoki IAM - the web root: the Angular app, with the PHP API beside it.
-# Written by frontend/scripts/prepare-deploy.mjs; edit that, not this.
-
-<IfModule mod_rewrite.c>
-RewriteEngine On
-
-# The API is its own handler (api/.htaccess routes it to api/index.php).
-RewriteRule ^api/ - [L]
-
-# The backend's own folders are never pages: its configuration (the master
-# key), its migrations, its storage (the backups - every hash and encrypted
-# secret -, the logs, the caches) and its libraries. Each also denies the web
-# in its own .htaccess; this refuses them before anything else is tried - in
-# any case of letters, since a host's file system may not tell /Storage from
-# /storage.
-RewriteRule ^(config|migrations|storage|vendor)(/|$) - [F,L,NC]
-
-# OpenID Connect discovery lives at the issuer's root. The front controller
-# routes on the original request path, so it sees /.well-known/... as asked.
-RewriteRule ^\\.well-known/(openid-configuration|jwks\\.json)$ api/index.php [L]
-
-# Real files (the hashed bundles, the logo, theme-boot.js) as they are; every
-# other path is a client-side route and gets the app.
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ index.html [L]
-</IfModule>
-
-<IfModule mod_headers.c>
-Header always set X-Frame-Options "DENY"
-Header always set X-Content-Type-Options "nosniff"
-Header always set Referrer-Policy "strict-origin-when-cross-origin"
-Header always set Content-Security-Policy "${csp}"
-
-# The list of versions - the version the footer shows, and What's new - has no
-# hash in its name and changes with every release: asked again each time, so
-# the version shown is the release's.
-<FilesMatch "^changelog\\.json$">
-Header set Cache-Control "no-cache"
-</FilesMatch>
-</IfModule>
-`;
-
-writeFileSync(join(dist, '.htaccess'), htaccess);
 
 const files = readdirSync(dist).length;
 const shown = dist
   .replace(process.cwd() + '\\', '')
   .replace(process.cwd() + '/', '')
   .replace(/\\/g, '/');
-console.log(`Prepared ${shown}/ for production (${files} entries; upload its contents to the web root, next to api/):`);
-console.log('  .htaccess  -> /api passed through, /.well-known -> api/index.php, config|migrations|storage|vendor refused, SPA fallback');
-console.log('               X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy; changelog.json no-cache');
+console.log(`Checked ${shown}/ (${files} entries) for a release:`);
 console.log(
   `  checked    -> no inline script; @anotoki/lib's ${bundles.length} bundle${bundles.length === 1 ? '' : 's'} and ${scripts.length - bundles.length} boot script${scripts.length - bundles.length === 1 ? '' : 's'}: no string drawn as HTML`,
 );

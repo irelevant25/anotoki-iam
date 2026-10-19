@@ -10,8 +10,8 @@ backend/config/*.local.php
 backend/storage/*
 !backend/storage/.gitkeep
 
-# Assembled for upload by `php build-dist.php`.
-backend/dist/
+# The release anotoki-deploy builds (frontend/ and backend/).
+/dist/
 
 # The root's Prettier (package.json: the anotoki family's one formatting setup).
 /node_modules/

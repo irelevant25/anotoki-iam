@@ -14,31 +14,58 @@ subdomain of its own, its own web root. HTTPS is not optional: the session
 cookie is `Secure`, tokens travel in the open otherwise, and the installer
 refuses a plain-http address on a real host.
 
-### The builds
+### The release
+
+The IAM's folder on the host, `anotoki.eu/sub/iam/`:
+
+```
+.htaccess   the switch: every request -> frontend/ (written once: anotoki-deploy switch)
+frontend/   the built app, index.php (the front controller), .htaccess   } a release:
+backend/    api/, config/ (the loaders, no *.local.php), migrations/,     } replaced whole
+            vendor/, release.json                                         }
+config/     *.local.php - the settings, the master key among them        never in a release
+storage/    the lock, logs, backups, the deletion record, mail, caches    never in a release
+```
 
 ```bash
-cd frontend && npm run build:deploy     # -> frontend/dist/iam/browser/   (with the web root's .htaccess)
-cd ../backend && php build-dist.php     # -> backend/dist/                (runtime only: no tests, no CLI tools, no config)
+cd backend && php tests/run.php                        # must pass before anything ships
+cd ../frontend && npx anotoki-deploy build             # npm run build:deploy (the build and its checks),
+                                                       # then the release -> ../dist/frontend/ and ../dist/backend/
+npx anotoki-deploy deploy --backups <folder>           # a dry run: what goes up
+npx anotoki-deploy deploy --backups <folder> --go      # the live frontend/ and backend/ copied into <folder>,
+                                                       # the release up beside them, checked, swapped in, the site checked
+npx anotoki-deploy rollback --go                       # the release before (kept as .old) back in
 ```
 
-Upload into the IAM's web root:
+(Until `@anotoki/deploy` is a dev dependency of `frontend/` - from anotoki-lib
+0.9.0's release - `node ../../anotoki-lib/deploy/cli.mjs` stands for
+`npx anotoki-deploy`.) anotoki-deploy is the anotoki library's deploy tool, the
+same for every site; the IAM's facts are in `backend/composer.json`,
+`extra["anotoki-deploy"]`: what goes into `backend/` (never `setup.php`, the
+command-line tools, the tests or a `*.local.php`), the routes (`/api`,
+`/.well-known/openid-configuration`, `/.well-known/jwks.json` to the front
+controller, which routes on the original path), the CSP and the headers. The SFTP
+login is never in a repository: `ANOTOKI_DEPLOY_SECRETS` names a `secrets.json`,
+with the host's pinned key in `hostkey.txt` beside it. The first time:
+`npx anotoki-deploy switch --go`, once - the folder's `.htaccess` becomes the
+switch into `frontend/`; `backend/`, `config/` and `storage/` are never served.
+The PHP finds its state with one rule (`iamStateRoot()`, `config/config.php`):
+with `release.json` in `backend/`, `config/` and `storage/` are the ones beside
+it; in a checkout, `backend/`'s own.
 
-```
-frontend/dist/iam/browser/*  ->  web root   (index.html, JS/CSS, .htaccess)
-backend/dist/*               ->  web root   (api/, config/, vendor/, migrations/, storage/)
-backend/setup.php            ->  web root   (first install only; it deletes itself)
-```
+`backend/setup.php` is never in a release: for the first install it is uploaded
+by hand into the live `backend/`, and it deletes itself.
 
-The `.htaccess` from the Angular build passes `/api/` to `api/index.php`,
-rewrites `/.well-known/openid-configuration` and `/.well-known/jwks.json` to
-it too, lets real files (the installer among them) through, falls back to
-`index.html` for the app's own routes, and sets the security headers.
-`api/.htaccess` sends everything under it to `index.php`, and copies the
-`Authorization` header into the environment for a host that runs PHP as
-CGI / FastCGI, which drops it - without it no site's bearer token (userinfo, a
-site's save of its reader's preferences) would reach PHP.
-`config/`, `migrations/`, `storage/` and `vendor/` carry a deny-all `.htaccess`
-of their own - and every folder the anotoki library writes under `storage/`
+The release's `frontend/.htaccess` sends `/api`, `/.well-known/openid-configuration`
+and `/.well-known/jwks.json` to `index.php` (which requires `backend/api/index.php`),
+`/setup.php` to the installer while `backend/` has it, falls back to `index.html`
+for the app's own routes (a missing file with an extension is a 404), sets the
+security headers, and gets the `Authorization` header to PHP under CGI / FastCGI
+(`CGIPassAuth`, and `SetEnvIf` where that cannot be said) - without it no site's
+bearer token (userinfo, a site's save of its reader's preferences, the token
+endpoint's Basic credentials) would reach PHP. `backend/` carries a deny-all
+`.htaccess`, and `config/` and `storage/` - beside the release, never served
+through the switch - keep theirs; every folder the anotoki library writes under `storage/`
 (`logs/`, `backups/`, `cache/backup-tickets/`) gets another, with an empty
 `index.html`, the first time it is written: what `storage/` holds - the error
 log, the backups of the database - is never served. That rests on the host
@@ -265,8 +292,9 @@ working at step 3 and moves to a personal token (below).
 
 ### Later updates
 
-Upload the new build over the old one (never `config/*.local.php` - the build
-leaves them out), then **admin panel → Migrations → Apply pending**. There is
+`npx anotoki-deploy deploy --backups <folder> --go` (a release never holds
+`config/*.local.php` and never touches `config/` or `storage/`), then **admin
+panel → Migrations → Apply pending**. There is
 no shell; the button runs the same engine as `php migration.php` - the anotoki
 family's (anotoki/lib, below), the one every anotoki site's Migrations page
 runs.
@@ -573,7 +601,7 @@ given it. The sites need nothing. It is no one-way step: a build from before
 **1.0.0** (the owner's decision of 2026-10-19): the footer's row - the
 version, What's new and Feedback - and the admin panel's Feedback page.
 Upload both halves - the frontend's `changelog.json` beside `index.html`,
-served `no-cache` by the web root's `.htaccess` (`npm run build:deploy`
+served `no-cache` by the release's `.htaccess` (`extra["anotoki-deploy"].noCache`
 writes it) - then Apply: migration 024 brings What's new's six words. Until
 then the dialog shows its keys; everything else works. The feedback form
 needs no migration (the library's `anotoki_admin/002`, applied with 018) and
@@ -610,7 +638,7 @@ pages and the footer. The IAM is on 0.8.1, both halves (`composer.json`'s `^0.8.
 on v0.8.1, and the 0.8.1 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/backend/migrations`, `/backend/resources`),
-which `build-dist.php` uploads with the rest of `vendor/` and which are denied
+which a release carries with the rest of `vendor/` and which are denied
 to the web like it.
 
 To update it (its `CHANGELOG.md` says what changed - while it is 0.x, a minor

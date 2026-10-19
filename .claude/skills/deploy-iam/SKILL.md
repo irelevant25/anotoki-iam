@@ -10,28 +10,55 @@ description: >
 
 # Deploy the IAM
 
-The host is FTP/SFTP only: no shell, no cron. Everything that would be a command
+The host is SFTP only: no shell, no cron. Everything that would be a command
 is a page - `setup.php` for the first install, the admin panel's Migrations
 page afterwards. `docs/operations.md` is the full reference; this is the order.
+Ask for (and never print, store in a repository, or put in a commit) the SFTP
+login, and confirm with the owner before `--go`: every anotoki site signs in
+through the IAM.
 
-## Build
+The IAM's folder on the host, `anotoki.eu/sub/iam/`:
+
+```
+.htaccess   the switch: every request -> frontend/ (written once: anotoki-deploy switch)
+frontend/   the built app, index.php (the front controller), .htaccess   } a release:
+backend/    api/, config/ (the loaders, no *.local.php), migrations/,     } replaced whole
+            vendor/, release.json                                         }
+config/     *.local.php - the settings, the master key among them        never in a release
+storage/    the lock, logs, backups, the deletion record, mail, caches    never in a release
+```
+
+## Build and release
 
 ```bash
-cd frontend && npm run build:deploy       # frontend/dist/iam/browser/ + .htaccess
-cd ../backend && php tests/run.php        # must pass before anything ships
-php build-dist.php                        # backend/dist/
+cd backend && php tests/run.php                        # must pass before anything ships
+cd ../frontend && npx anotoki-deploy build             # npm run build:deploy (the build and its checks),
+                                                       # then the release -> ../dist/frontend/ and ../dist/backend/
+npx anotoki-deploy deploy --backups <folder>           # a dry run: what goes up
+npx anotoki-deploy deploy --backups <folder> --go      # the live frontend/ and backend/ copied into <folder>,
+                                                       # the release up beside them, checked, swapped in, the site checked
+npx anotoki-deploy rollback --go                       # the release before (kept as .old) back in
 ```
 
-## Upload (into the IAM subdomain's web root)
+(Until `@anotoki/deploy` is a dev dependency of `frontend/` - from anotoki-lib
+0.9.0's release - `node ../../anotoki-lib/deploy/cli.mjs` stands for
+`npx anotoki-deploy`.) anotoki-deploy is the anotoki library's deploy tool, the
+same for every site; the IAM's facts are in `backend/composer.json`,
+`extra["anotoki-deploy"]`: what goes into `backend/` (never `setup.php`, the
+command-line tools, the tests or a `*.local.php`), the routes (`/api`,
+`/.well-known/openid-configuration`, `/.well-known/jwks.json` to the front
+controller, which routes on the original path), the CSP and the headers. The SFTP
+login is never in a repository: `ANOTOKI_DEPLOY_SECRETS` names a `secrets.json`,
+with the host's pinned key in `hostkey.txt` beside it. The first time:
+`npx anotoki-deploy switch --go`, once - the folder's `.htaccess` becomes the
+switch into `frontend/`; `backend/`, `config/` and `storage/` are never served.
+The PHP finds its state with one rule (`iamStateRoot()`, `config/config.php`):
+with `release.json` in `backend/`, `config/` and `storage/` are the ones beside
+it; in a checkout, `backend/`'s own.
 
-```
-frontend/dist/iam/browser/*  ->  /
-backend/dist/*               ->  /
-backend/setup.php            ->  /          (first install only)
-```
-
-Never upload `config/*.local.php` from a development machine - the build leaves
-them out and the server writes its own. Until it has, the IAM answers
+`backend/setup.php` is never in a release: for a first install, upload it by hand
+into the live `backend/` (it deletes itself when done). Never upload
+`config/*.local.php` from a development machine - the server writes its own. Until it has, the IAM answers
 `503 not_set_up` to everything but `/api/site-status` - naming the installer
 until the install has written `storage/installed.lock`, never after.
 
@@ -67,7 +94,7 @@ in its `users` database.
 
 ## Later updates
 
-Upload the new build over the old; admin panel → Migrations → Apply pending.
+`npx anotoki-deploy deploy --backups <folder> --go`; admin panel → Migrations → Apply pending.
 Meanwhile the IAM keeps working (it does not block while an update waits - the
 other sites sign in through it); its administrators see "A database update is
 waiting" above the admin panel's pages. The Migrations page is the anotoki
@@ -129,9 +156,9 @@ the first three on the IAM's footer since 1.0.0); nothing on the IAM's pages
 waits for it.
 
 1.0.0 (the owner's decision of 2026-10-19) brings the footer's row - the
-version, What's new and Feedback - and the admin panel's Feedback page. Upload
-both halves (the frontend's `changelog.json` beside `index.html`; the
-`.htaccess` `npm run build:deploy` writes serves it `no-cache`), then Apply:
+version, What's new and Feedback - and the admin panel's Feedback page. Release it
+(the frontend's `changelog.json` beside `index.html`, served `no-cache` by the
+release's `.htaccess`), then Apply:
 migration 024 brings What's new's six words (until then the dialog shows its
 keys). The feedback form needs no migration and nothing in `config/`. After
 the upload, check the footer reads "v1.0.0 · What's new · Feedback" and a

@@ -18,5 +18,35 @@
       "type": "vcs",
       "url": "https://github.com/irelevant25/anotoki-lib"
     }
-  ]
+  ],
+  "extra": {
+    "anotoki-deploy": {
+      "site": "iam",
+      "remote": "/anotoki.eu/sub/iam",
+      "url": "https://iam.anotoki.eu",
+      "include": [
+        "api",
+        "config",
+        "migrations",
+        "vendor"
+      ],
+      "routes": [
+        "api",
+        ".well-known/openid-configuration",
+        ".well-known/jwks.json"
+      ],
+      "frontendBuild": "npm run build:deploy",
+      "csp": "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client https://umami.anotoki.eu; frame-src https://accounts.google.com/gsi/; connect-src 'self' https://accounts.google.com/gsi/ https://umami.anotoki.eu; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: https:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "headers": {
+        "Referrer-Policy": "strict-origin-when-cross-origin"
+      },
+      "noCache": [
+        "changelog.json"
+      ],
+      "smoke": [
+        "/.well-known/openid-configuration",
+        "/.well-known/jwks.json"
+      ]
+    }
+  }
 }

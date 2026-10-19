@@ -58,7 +58,8 @@ final class IamNotSetUp extends RuntimeException
 }
 
 /**
- * Where the *.local.php files are read from: this folder.
+ * Where the *.local.php files are read from: config/ of the state (iamStateRoot()) - this folder in a checkout, the
+ * site's config/ beside the release's backend/ on the host.
  *
  * The tests run against configuration of their own and say so by defining
  * IAM_CONFIG_DIR before anything is loaded. It is a constant, so only code can
@@ -66,13 +67,25 @@ final class IamNotSetUp extends RuntimeException
  */
 function iamConfigDir(): string
 {
-    return defined('IAM_CONFIG_DIR') ? rtrim((string) constant('IAM_CONFIG_DIR'), '/\\') : __DIR__;
+    return defined('IAM_CONFIG_DIR') ? rtrim((string) constant('IAM_CONFIG_DIR'), '/\\') : iamStateRoot() . '/config';
 }
 
 /** storage/ - mail in development, caches, the installer's lock. IAM_STORAGE_DIR, as above, for the tests. */
 function iamStorageDir(): string
 {
-    return defined('IAM_STORAGE_DIR') ? rtrim((string) constant('IAM_STORAGE_DIR'), '/\\') : dirname(__DIR__) . '/storage';
+    return defined('IAM_STORAGE_DIR') ? rtrim((string) constant('IAM_STORAGE_DIR'), '/\\') : iamStateRoot() . '/storage';
+}
+
+/**
+ * The folder this installation's state is in - its config/*.local.php (the master key among them) and storage/. On
+ * the host a release's backend/ carries release.json (anotoki-deploy) and the state is beside it, in the site's
+ * folder, never part of an upload; in a checkout it is backend/ itself.
+ */
+function iamStateRoot(): string
+{
+    $backend = dirname(__DIR__);
+
+    return is_file($backend . '/release.json') ? dirname($backend) : $backend;
 }
 
 function localConfigPath(string $name): string

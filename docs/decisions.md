@@ -2281,3 +2281,29 @@ validation so the username may contains only [a-zA-Z0-9]".
   built through 024 as the files left it and as its owner left it, and its
   gate failing loudly. In the frontend, the rule's spec
   (`core/auth/username.spec.ts`).
+
+## 2026-10-19 - The owner's decision: a release is frontend/ and backend/, replaced whole
+
+The IAM was two builds - the Angular app with its `.htaccess` (`npm run
+build:deploy`) and `backend/dist/` (`build-dist.php`) - merged by hand into one
+web root and uploaded over the old files. FTP never deletes, so every earlier
+build's hashed bundles and removed PHP files stayed, mixed with
+`config/*.local.php` (the master key among them) and `storage/`: nothing could be
+deleted wholesale, and nobody could tell what was stale. Now the anotoki
+library's anotoki-deploy builds one release from `backend/composer.json`'s
+`extra["anotoki-deploy"]` (the same tool for every site): `frontend/` (the app,
+`index.php`, `.htaccess` - `/api` and `/.well-known/openid-configuration` and
+`/jwks.json` to the front controller, the CSP and the headers that
+`prepare-deploy.mjs` wrote before) and `backend/` (`api/`, `config/`'s loaders,
+`migrations/`, `vendor/` - never `setup.php`, the command-line tools or a
+`*.local.php`), put up beside the live one, checked, and swapped in by renames,
+the one before kept for a rollback. The folder's `.htaccess`, the switch, sends
+every request into `frontend/`: `backend/`, `config/` and `storage/` are never
+served - by construction, no longer by a `[F]` rule and the folders' own deny
+files alone. The PHP finds its state with one rule, `iamStateRoot()`: with
+`release.json` in `backend/`, the folder above it; in a checkout, `backend/`
+itself. `prepare-deploy.mjs` keeps its three checks (no inline script, no string
+of the library drawn as HTML, the visitor counter's tag), run with every
+release's build. The Authorization header reaches PHP through `CGIPassAuth` (and
+`SetEnvIf`) in `frontend/.htaccess`: `api/.htaccess`'s `E=` copy is gone with
+`api/`'s own folder rules.

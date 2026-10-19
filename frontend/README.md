@@ -16,7 +16,7 @@ bun ci                  # the packages, exactly as bun.lock lists them (npm star
 npm start               # ng serve on http://localhost:4300; /api, /.well-known and /setup.php proxied to PHP on :8100
 npm run build           # production build into dist/iam/browser/
 npm run build:dev       # development build (unminified, source maps)
-npm run build:deploy    # production build + the web root's .htaccess (see below)
+npm run build:deploy    # production build + its checks before a release (see below)
 npm run watch           # development build, rebuilt on change
 cd .. && bun run format:check   # Prettier on every file of both halves, at the root (bun install there first)
 npx ng test --watch=false   # the unit tests (Vitest, jsdom) - see below
@@ -282,7 +282,7 @@ public/
                            each in English and informal Slovak: a release adds its
                            entry here and moves package.json with it
 scripts/
-  prepare-deploy.mjs       writes dist/iam/browser/.htaccess
+  prepare-deploy.mjs       checks a production build before a release
 ```
 
 ## Conventions
@@ -376,8 +376,9 @@ scripts/
 
 ## Deploying
 
-`npm run build:deploy` produces `dist/iam/browser/`: upload its contents into
-the web root, next to the backend's `api/`. The `.htaccess` it writes:
+`npm run build:deploy` produces `dist/iam/browser/` and checks it; anotoki-deploy
+(`npx anotoki-deploy build`) runs it and makes the release's `frontend/` of it. The
+release's `.htaccess` (anotoki-deploy's, from `backend/composer.json`):
 
 - passes `/api/…` through to the backend untouched;
 - refuses `/config`, `/migrations`, `/storage` and `/vendor` (403), in any

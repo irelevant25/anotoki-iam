@@ -155,8 +155,7 @@ port, and stops it). Sites vendor copies: tell them about a new version.
 ## Building for production
 
 ```bash
-cd frontend && npm run build:deploy     # -> frontend/dist/iam/browser/ (with the web root's .htaccess)
-cd ../backend && php build-dist.php     # -> backend/dist/ (runtime only: no tests, CLI tools or config)
+cd frontend && npx anotoki-deploy build   # -> dist/frontend/ + dist/backend/: the release (docs/operations.md)
 ```
 
 On the server the same installer runs as a real host's one-time install: a

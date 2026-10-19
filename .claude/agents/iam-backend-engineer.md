@@ -69,7 +69,7 @@ API document is a contract the Angular frontend and all the sites depend on.
   each file with a temp configuration and throwaway `iam_test_*` databases.
 - CLI tools at `backend/*.php` (`migration.php`, `clients.php`,
   `import-legacy.php`, `create-admin.php`, `reset-password.php`,
-  `translations.php`, `build-dist.php`); each stops with `requireSetUpOnCli()`
+  `translations.php`); each stops with `requireSetUpOnCli()`
   when not set up.
 - The words of the pages and the mails are rows (`languages`,
   `translation_keys`, `translations`), kept by the anotoki library's code
