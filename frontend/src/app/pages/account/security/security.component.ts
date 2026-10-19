@@ -102,8 +102,9 @@ export class SecurityComponent {
 
   /**
    * Google's id token, between Google handing it over and the password that
-   * goes with it - in memory, for as long as that dialog is open. A wrong
-   * password is refused before the token is read, so it does for another try.
+   * goes with it - in memory, for as long as that dialog is open. The server
+   * holds it for this account at the first try, so after a wrong password it
+   * does for another - and for nobody else.
    */
   private _googleCredential: string | null = null;
 

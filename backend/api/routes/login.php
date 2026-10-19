@@ -816,6 +816,17 @@ function confirmedWithoutSession(Response $response, string $reason): Response
 }
 
 /**
+ * Whether a link that confirmed nothing - its account's address confirmed a
+ * moment ago by something else - may say `already_confirmed`: only while the
+ * address is still the one it was mailed to (confirmationLinkToAddress()),
+ * never to the holder of an address the account has just left.
+ */
+function confirmedMeanwhileFor(array $token, ?array $user): bool
+{
+    return $user !== null && !accountAnonymized($user) && asBool($user['email_confirmed']) && confirmationLinkToAddress($token, (string) $user['email']) !== false;
+}
+
+/**
  * POST /api/register/confirm {token, totp?} - the confirmation link.
  *
  * It confirms the address and signs in on the spot: holding the link proves
@@ -905,20 +916,22 @@ $app->post('/api/register/confirm', function (Request $request, Response $respon
     }
 
     if (!consumeOneTimeToken($pdo, (int) $token['id'])) {
-        // Spent a moment ago by a request racing this one: if that confirmed the address, say so.
-        return asBool(userById($pdo, (int) $before['id'])['email_confirmed'] ?? false) ? confirmedWithoutSession($response, 'already_confirmed') : confirmationLinkRefused($response);
+        // Spent a moment ago by a request racing this one: if that confirmed this link's address, say so.
+        return confirmedMeanwhileFor($token, userById($pdo, (int) $before['id'])) ? confirmedWithoutSession($response, 'already_confirmed') : confirmationLinkRefused($response);
     }
 
-    // Confirmed by this write, and only while the address still waits - the
-    // read above is a moment old: a reset, Google, an administrator or another
-    // link may have confirmed it since, and then this link opens nothing. An
-    // account deleted since the link was mailed has no address to confirm.
-    $confirmed = $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ? AND NOT email_confirmed' . liveAccountSql($pdo));
-    $confirmed->execute([(int) $token['user_id']]);
+    // Confirmed by this write, and only while the address still waits and is
+    // still the one read above - which is a moment old: a reset, Google, an
+    // administrator or another link may have confirmed it since, or an
+    // administrator moved the account to another address, and then this link
+    // opens nothing and confirms nothing (the reviews of d0e34fb and 632a464).
+    // An account deleted since the link was mailed has no address to confirm.
+    $confirmed = $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ? AND NOT email_confirmed AND lower(email) = lower(?)' . liveAccountSql($pdo));
+    $confirmed->execute([(int) $token['user_id'], (string) $before['email']]);
     $user = userById($pdo, (int) $token['user_id']);
 
     if ($user === null || $confirmed->rowCount() === 0) {
-        if ($user !== null && !accountAnonymized($user) && asBool($user['email_confirmed'])) {
+        if (confirmedMeanwhileFor($token, $user)) {
             spendConfirmationLinks($pdo, (int) $user['id']);
 
             return confirmedWithoutSession($response, 'already_confirmed');

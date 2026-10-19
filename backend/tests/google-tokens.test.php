@@ -15,16 +15,19 @@
  * names, it is held for that account's sign-in (the review of d0e34fb): a
  * sign-in stopped for its second factor, or refused before anything changed,
  * keeps it for the same account to finish with the code, and nothing else
- * takes it; one that names no account is spent at once.
+ * takes it; one that names no account is spent at once. The account page
+ * holds it for the account that sent it before it asks for the password (the
+ * review of 632a464), and connects no Google whose address another account
+ * here has confirmed.
  *
  * The attacks: a token used once, sent again from another browser within its
  * hour - its signature written another way too (base64 leaves bits of the
  * last character unread: the same signature, another string); one made long
  * ago; one spent on the account page then sent to the sign-in, and the other
  * way round; two requests with one token at once; and a token left waiting
- * for its code - or refused `unverified_email`, `registration_disabled` -
- * taken by somebody who saw it, to connect the victim's Google to an account
- * of their own.
+ * for its code - or refused `unverified_email`, `registration_disabled`, or
+ * waiting on the account page for the right password - taken by somebody who
+ * saw it, to connect the victim's Google to an account of their own.
  */
 
 declare(strict_types=1);
@@ -456,13 +459,131 @@ test(
         same([400, 'invalid_token'], [$connect->status, $connect->code()], 'the token, spent, connects nothing');
         same(null, identityFor(iamDb(), $otherId, IDENTITY_GOOGLE), 'nothing connected');
 
-        // Refusals that change nothing spend nothing: Google already connected, then on another account.
+        // A refusal that changes nothing spends nothing - but the account page holds the token for the account
+        // that sent it, from the first (the review of 632a464): Google connected to another account already, the
+        // token is no longer free for that Google account's own sign-in either. Google's button gives a fresh one.
         $spare = googleToken('google-connector', 'elsewhere@example.test');
         same([409, 'google_taken'], [($r = $other->post('/api/account/google', ['credential' => $spare, 'password' => PASSWORD]))->status, $r->code()], 'connected to another account already');
-        same('none', tokenUse($spare), 'not spent by a refusal');
-        same(200, googleSignIn('10.27.4.7', $spare)->status, 'so it still signs its owner in');
+        same("held for {$otherId}", tokenUse($spare), 'not spent by the refusal: held for the account that sent it');
+        same([400, 'invalid_token'], [($r = googleSignIn('10.27.4.7', $spare))->status, $r->code()], 'so not taken by its owner\'s sign-in either');
+        same(200, googleSignIn('10.27.4.8', googleToken('google-connector', 'elsewhere@example.test'))->status, 'a fresh token signs its owner in');
     },
 );
+
+test(
+    'the attack (the review of 632a464): a token waiting on the account page for the right password is held for that account - whoever saw it connects nothing - and the retry connects it; so after a stale sign-in, the limiter and a 409',
+    function () {
+        $victim = accountPage('10.27.12.1', 'pagevictim');
+        $victimId = (int) (userByEmail(iamDb(), 'pagevictim@example.test')['id'] ?? 0);
+        $token = googleToken('google-pagevictim', 'pagevictim-google@example.test');
+        $wrong = $victim->post('/api/account/google', ['credential' => $token, 'password' => 'not the password']);
+        same([422, 'wrong_password'], [$wrong->status, $wrong->code()], 'the victim mistypes the password');
+
+        $attacker = accountPage('10.27.12.2', 'pageattacker');
+        $taken = connectGoogle($attacker, $token);
+        same([400, 'invalid_token'], [$taken->status, $taken->code()], 'whoever saw the token connects nothing - ' . $taken->body);
+        same(null, identityOwner(iamDb(), IDENTITY_GOOGLE, 'google-pagevictim'), 'the victim\'s Google connected to nobody');
+        same("held for {$victimId}", tokenUse($token), 'held for the victim\'s account');
+        same([400, 'invalid_token'], [($r = googleSignIn('10.27.12.3', $token))->status, $r->code()], 'nor signs anybody in');
+
+        same(200, connectGoogle($victim, $token)->status, 'the victim\'s retry, the right password with the same token: connected');
+        same([$victimId, 'spent'], [(int) (identityOwner(iamDb(), IDENTITY_GOOGLE, 'google-pagevictim')['id'] ?? 0), tokenUse($token)], 'to the victim\'s account, the token spent');
+        $later = googleSignIn('10.27.12.4', googleToken('google-pagevictim', 'pagevictim-google@example.test'));
+        same([200, $victimId], [$later->status, (int) ($later->json()['user']['id'] ?? 0)], 'and the victim\'s Google signs the victim in');
+
+        // A sign-in too old to stand for an account without a password.
+        $staleId = makeUser('stalepage', 'stalepage@example.test');
+        $stale = new Browser('10.27.12.5');
+        same(200, $stale->signIn('stalepage@example.test', PASSWORD)->status, 'signed in');
+        iamDb()->exec("UPDATE users SET password = NULL, password_login_enabled = FALSE WHERE id = {$staleId}");
+        iamDb()->exec("UPDATE sessions SET auth_time = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE user_id = {$staleId}");
+        $staleToken = googleToken('google-stalepage', 'stalepage-google@example.test');
+        same([403, 'reauthentication_required'], [($r = $stale->post('/api/account/google', ['credential' => $staleToken]))->status, $r->code()], 'a sign-in of more than fifteen minutes ago');
+        same([400, 'invalid_token'], [($r = connectGoogle(accountPage('10.27.12.6', 'staletaker'), $staleToken))->status, $r->code()], 'its token held: nobody else connects it');
+
+        // The limiter.
+        $limitedId = makeUser('limitedpage', 'limitedpage@example.test');
+        $limited = new Browser('10.27.12.7');
+        same(200, $limited->signIn('limitedpage@example.test', PASSWORD)->status, 'signed in');
+        $fail = iamDb()->prepare("INSERT INTO login_attempts (email, user_id, ip, method, outcome) VALUES ('somebody@example.test', NULL, '10.27.12.7', 'password', 'bad_password')");
+        for ($n = 0; $n < ATTEMPT_MAX_PER_IP; $n++) {
+            $fail->execute();
+        }
+        $limitedToken = googleToken('google-limitedpage', 'limitedpage-google@example.test');
+        same([429, 'too_many_attempts'], [($r = connectGoogle($limited, $limitedToken))->status, $r->code()], 'too many attempts from its address');
+        same([400, 'invalid_token'], [($r = connectGoogle(accountPage('10.27.12.8', 'limitedtaker'), $limitedToken))->status, $r->code()], 'its token held: nobody else connects it');
+        same("held for {$limitedId}", tokenUse($limitedToken), 'held for the account that sent it');
+
+        // A 409 after the proof: Google connected to this account already.
+        $twiceId = makeUser('connectedtwice', 'connectedtwice@example.test');
+        attachIdentity(iamDb(), $twiceId, IDENTITY_GOOGLE, 'google-first', 'first@example.test');
+        $twice = new Browser('10.27.12.9');
+        same(200, $twice->signIn('connectedtwice@example.test', PASSWORD)->status, 'signed in');
+        $second = googleToken('google-second', 'second@example.test');
+        same([409, 'google_already_connected'], [($r = connectGoogle($twice, $second))->status, $r->code()], 'Google connected already');
+        same([400, 'invalid_token'], [($r = connectGoogle(accountPage('10.27.12.10', 'twicetaker'), $second))->status, $r->code()], 'its token held: nobody else connects it');
+    },
+);
+
+test(
+    'the account page connects no Google account whose address Google vouches for another account here has confirmed - the sign-in would attach it there - and the token stays held for the one who tried; an address registered and never confirmed keeps nobody from it',
+    function () {
+        $ownerId = makeUser('addressowner', 'addressowner@example.test');
+        $tryerId = makeUser('notowner', 'notowner@example.test');
+        $tryer = new Browser('10.27.13.1');
+        same(200, $tryer->signIn('notowner@example.test', PASSWORD)->status, 'signed in');
+
+        $token = googleToken('google-addressowner', 'AddressOwner@example.test');
+        $refused = connectGoogle($tryer, $token);
+        same([409, 'email_taken'], [$refused->status, $refused->code()], 'the address is another account\'s, whatever its case - ' . $refused->body);
+        same([null, "held for {$tryerId}"], [identityOwner(iamDb(), IDENTITY_GOOGLE, 'google-addressowner'), tokenUse($token)], 'connected to nobody, the token held for the one who tried');
+
+        // The account whose address it is connects it.
+        $owner = new Browser('10.27.13.2');
+        same(200, $owner->signIn('addressowner@example.test', PASSWORD)->status, 'the address\'s own account signed in');
+        same(200, connectGoogle($owner, googleToken('google-addressowner', 'addressowner@example.test'))->status, 'connects it, with a fresh token');
+        same($ownerId, (int) (identityOwner(iamDb(), IDENTITY_GOOGLE, 'google-addressowner')['id'] ?? 0), 'to the account whose address it is');
+
+        // Nobody's address: one Google does not vouch for, and one a stranger registered and never confirmed.
+        same(
+            200,
+            connectGoogle(accountPage('10.27.13.3', 'unvouched'), googleToken('google-unvouched', 'notowner@example.test', ['email_verified' => false]))->status,
+            'an address Google does not vouch for names nobody',
+        );
+        $squatterId = makeUser('squatter', 'squatted@example.test', PASSWORD, false);
+        $ownGoogle = accountPage('10.27.13.4', 'squattedowner');
+        same(200, connectGoogle($ownGoogle, googleToken('google-squatted', 'squatted@example.test'))->status, 'the address\'s owner connects their Google past a stranger\'s unconfirmed registration');
+        same(
+            [(int) (userByEmail(iamDb(), 'squattedowner@example.test')['id'] ?? 0), null],
+            [(int) (identityOwner(iamDb(), IDENTITY_GOOGLE, 'google-squatted')['id'] ?? 0), identityFor(iamDb(), $squatterId, IDENTITY_GOOGLE)],
+            'to their own account',
+        );
+    },
+);
+
+test('a confirmed account found by its address (no Google yet) and switched off: refused before anything changed - the token held, nothing attached, and the account page refuses it', function () {
+    $id = makeUser('offbyaddress', 'offbyaddress@example.test');
+    iamDb()->exec("UPDATE users SET disabled = TRUE WHERE id = {$id}");
+    $token = googleToken('google-offbyaddress', 'offbyaddress@example.test');
+
+    same([403, 'account_disabled'], [($r = googleSignIn('10.27.14.1', $token))->status, $r->code()], 'switched off');
+    same(["held for {$id}", null], [tokenUse($token), identityFor(iamDb(), $id, IDENTITY_GOOGLE)], 'held, not spent; nothing attached');
+    same([400, 'invalid_token'], [($r = connectGoogle(accountPage('10.27.14.2', 'bystanderone'), $token))->status, $r->code()], 'the account page refuses it');
+});
+
+test('the limiter\'s 429 on a token naming an account with two-factor on leaves it held for that account, and the account page refuses it', function () {
+    $id = makeUser('limited', 'limited@example.test');
+    twoFactorOn($id);
+    $fail = iamDb()->prepare("INSERT INTO login_attempts (email, user_id, ip, method, outcome) VALUES ('someone@example.test', NULL, '10.27.15.1', 'password', 'bad_password')");
+    for ($n = 0; $n < ATTEMPT_MAX_PER_IP; $n++) {
+        $fail->execute();
+    }
+    $token = googleToken('google-limited', 'limited@example.test');
+
+    same([429, 'too_many_attempts'], [($r = googleSignIn('10.27.15.1', $token))->status, $r->code()], 'too many attempts from its address');
+    same("held for {$id}", tokenUse($token), 'held, before the limiter was asked');
+    same([400, 'invalid_token'], [($r = connectGoogle(accountPage('10.27.15.2', 'takertwo'), $token))->status, $r->code()], 'the account page refuses it');
+});
 
 test('two requests with one token: the database lets one of them spend it - and what is kept is the hash of what Google signed, until the token runs out', function () {
     $token = googleToken('google-raced', 'raced@example.test');

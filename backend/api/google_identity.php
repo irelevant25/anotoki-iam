@@ -18,11 +18,12 @@
  * it again, a site's "Sign in again" (prompt=login) answered too. A token is
  * spent (spendGoogleIdToken()) the moment it changes something, and is
  * remembered until it runs out (google_id_tokens_used, migration 026). Before
- * that, from the moment the Google sign-in finds the account it names, it is
- * held for that account's sign-in (holdGoogleIdToken()): back with the second
- * factor's code there, refused everywhere else - a token left waiting for its
- * code was once free for anybody who saw it to connect to an account of their
- * own (the review of d0e34fb).
+ * that, from the moment the IAM knows the account it is for - the one the
+ * Google sign-in finds it names, the one the account page connects it to - it
+ * is held for that account (holdGoogleIdToken()): back with the second factor's
+ * code or the password there, refused everywhere else - a token left waiting
+ * was once free for anybody who saw it to connect to an account of their own
+ * (the reviews of d0e34fb and 632a464).
  *
  * The client id is config/google.local.php's (googleClientId(), in
  * config/google.php). No file means no Google: the button is not drawn and the
@@ -154,10 +155,10 @@ function googleSigningKeys(bool $ignoreCache = false): array
  *
  * Fresh and new as well as Google's: one issued more than five minutes ago
  * (googleIdTokenFresh()) is none, nor is one used here before - spent, or held
- * for an account's sign-in (googleIdTokenSeen()). Checking spends nothing: the
- * caller spends the token (spendGoogleIdToken()) just before the first thing
- * it changes. Everything but the Google sign-in asks this; the sign-in alone
- * takes back a token held for its own account, and asks googleIdTokenClaims().
+ * for an account (googleIdTokenSeen()). Checking spends nothing. For a way of
+ * taking a token that does not hold it first: the Google sign-in and the
+ * account page's connect hold it for their account the moment they know it
+ * (holdGoogleIdToken()), and ask googleIdTokenClaims() before that.
  */
 function googleVerifyIdToken(string $idToken): ?array
 {
@@ -169,8 +170,9 @@ function googleVerifyIdToken(string $idToken): ?array
 /**
  * Google's own checks of an id token, and its freshness: its claims, or null
  * for every way it fails them. Nothing about whether it was used here - the
- * Google sign-in asks that itself, of the account it finds (holdGoogleIdToken(),
- * spendGoogleIdToken()); everything else asks googleVerifyIdToken().
+ * caller asks that by holding it for its account (holdGoogleIdToken()): the
+ * Google sign-in for the account the token names, the account page's connect
+ * for the account connecting it.
  */
 function googleIdTokenClaims(string $idToken): ?array
 {
@@ -259,8 +261,8 @@ function googleTokensReady(PDO $pdo): bool
 }
 
 /**
- * Whether the token was used here before - spent, or held for an account's
- * sign-in. Before 026, never: its five minutes alone hold it then.
+ * Whether the token was used here before - spent, or held for an account.
+ * Before 026, never: its five minutes alone hold it then.
  */
 function googleIdTokenSeen(PDO $pdo, string $idToken): bool
 {
@@ -274,7 +276,7 @@ function googleIdTokenSeen(PDO $pdo, string $idToken): bool
     return $statement->fetchColumn() !== false;
 }
 
-/** The account whose sign-in a token is held for (holdGoogleIdToken()), or null: never seen, or spent. */
+/** The account a token is held for (holdGoogleIdToken()), or null: never seen, or spent. */
 function googleIdTokenHeldFor(PDO $pdo, string $idToken): ?int
 {
     if (!googleTokensReady($pdo)) {
@@ -289,23 +291,26 @@ function googleIdTokenHeldFor(PDO $pdo, string $idToken): ?int
 }
 
 /**
- * Holds a token googleIdTokenClaims() took for the sign-in of one account -
- * the one the Google sign-in finds it names - and answers whether that sign-in
- * may go on: a token never seen here is held for it now; one held for it
- * already - the same sign-in, back with its code - goes on; one spent, or held
+ * Holds a token googleIdTokenClaims() took for one account - the one the
+ * Google sign-in finds it names, or the one the account page connects it to -
+ * and answers whether that account's sign-in or connect may go on: a token
+ * never seen here is held for it now; one held for it already - the same
+ * attempt, back with its code or its password - goes on; one spent, or held
  * for another account, does not.
  *
- * From the moment the account is found, every answer leaves the token held or
- * spent, never free: a sign-in stopped for the second factor, or refused
- * before anything changed, keeps it for the same account's sign-in to finish,
- * and googleVerifyIdToken() refuses it to everything else. Free, a token left
- * waiting for its code was anybody's who saw it - to connect, on the account
- * page, to an account of their own, which every later sign-in with that
- * Google account then landed in (the review of d0e34fb).
+ * From the moment the account is known, every answer leaves the token held or
+ * spent, never free: an attempt stopped for the second factor, a password, the
+ * limiter, or refused before anything changed, keeps it for the same
+ * account to finish, and everything else refuses it. Free, a token left
+ * waiting - for its code at the sign-in (the review of d0e34fb), for the
+ * password on the account page (the review of 632a464) - was anybody's who
+ * saw it: connected to an account of their own, every later sign-in with
+ * that Google account then landed in theirs.
  *
- * The hold names the account until the token runs out, as the spent row
- * keeps its time; an account deleted meanwhile leaves its holds spent
- * (anonymizedLeftovers()). Before 026: true, as before it.
+ * The hold names the account until housekeeping sweeps the row - the first run
+ * after the token ran out, with traffic -, as the spent row keeps its time; an
+ * account deleted meanwhile leaves its holds spent (anonymizedLeftovers()).
+ * Before 026: true, as before it.
  */
 function holdGoogleIdToken(PDO $pdo, string $idToken, array $claims, int $userId): bool
 {
@@ -328,12 +333,12 @@ function holdGoogleIdToken(PDO $pdo, string $idToken, array $claims, int $userId
  * before the first thing the token changes - a session opened, an account made
  * or claimed, an identity attached or connected - never before.
  *
- * With `$heldFor`, the hold of that account's sign-in is claimed: the update
- * asks that it is still that account's hold (one held before 026 was applied,
- * by nothing, is spent by an insert as a new one is). Without, a token never
- * seen here is spent by an insert that steps aside for a row that is there:
- * the account page's connect, and a Google sign-in that found no account to
- * hold it for - one making an account, or refused in a way no second try
+ * With `$heldFor`, that account's hold is claimed - the Google sign-in's, the
+ * account page's connect's: the update asks that it is still that account's
+ * hold (one held before 026 was applied, by nothing, is spent by an insert as
+ * a new one is). Without, a token never seen here is spent by an insert that
+ * steps aside for a row that is there: a Google sign-in that found no account
+ * to hold it for - one making an account, or refused in a way no second try
  * cures (`unverified_email`, `registration_disabled`).
  *
  * Remembered until the token runs out (its `exp`, with the clocks' leeway):

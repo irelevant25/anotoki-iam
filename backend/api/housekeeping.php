@@ -18,8 +18,9 @@
  *     revoked or expired): a spent token is kept that long so that presenting it
  *     again is still recognised as reuse, and a month is far past any leeway;
  *   - one-time mailed tokens a month past their expiry;
- *   - the Google id tokens spent here, once they ran out (026): refused as
- *     expired by then anyway, so nothing need remember them;
+ *   - the Google id tokens used here - spent, or held for an account - once
+ *     they ran out (026): refused as expired by then anyway, so nothing need
+ *     remember them, and a hold names its account no longer;
  *   - sign-in attempts older than a year: the limiter counts fifteen minutes,
  *     and "somebody has been trying" on the account page means recently;
  *   - the accounts whose deletion is due, thirty days after their owners asked

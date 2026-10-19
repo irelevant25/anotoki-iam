@@ -264,6 +264,16 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
     // enough (accountProof()) - a Google account of whoever holds the session
     // would sign them in afresh whenever they liked. The password while it is
     // a way in, else a sign-in of the last fifteen minutes.
+    //
+    // The token is taken first: Google's and fresh (googleIdTokenClaims()),
+    // and held for this account (holdGoogleIdToken()) before anything else is
+    // asked - the proof included - so every answer leaves it held or spent,
+    // never free. A wrong password, a stale sign-in, the limiter or a 409 keep
+    // it for this account's next try - the page sends the same token with the
+    // password -, and nobody else's connect or sign-in takes it meanwhile: free
+    // while it waited for the password, a token was anybody's who saw it, to
+    // connect the victim's Google to an account of their own (the review of
+    // 632a464). Spent when it is connected, the hold claimed by this account.
     $group->post('/google', function (Request $request, Response $response) {
         if (!googleLoginEnabled()) {
             return respondError($response, 403, 'google_disabled', 'Google sign-in is switched off');
@@ -273,18 +283,15 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         $body = requestBody($request);
         $pdo = iamDb();
 
+        $credential = (string) ($body['credential'] ?? '');
+        $claims = googleIdTokenClaims($credential);
+        if ($claims === null || !holdGoogleIdToken($pdo, $credential, $claims, (int) $user['id'])) {
+            return googleTokenRefused($response);
+        }
+
         $proof = accountProof($pdo, $request, $user, currentSession($request), $body['password'] ?? null, ATTEMPT_METHOD_ACCOUNT_PASSWORD);
         if ($refused = proofRefusal($response, $proof)) {
             return $refused;
-        }
-
-        // Fresh and never spent (googleVerifyIdToken()), and spent by being
-        // connected: a token is good once, here as at the sign-in.
-        $credential = (string) ($body['credential'] ?? '');
-        $claims = googleVerifyIdToken($credential);
-
-        if ($claims === null) {
-            return googleTokenRefused($response);
         }
 
         $owner = identityOwner($pdo, IDENTITY_GOOGLE, (string) $claims['sub']);
@@ -299,7 +306,23 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
             return respondError($response, 409, 'google_already_connected', 'This account already has Google connected');
         }
 
-        if (!spendGoogleIdToken($pdo, $credential, $claims)) {
+        // A Google account whose address Google vouches for, and another
+        // account here has confirmed: the sign-in would attach it to that
+        // account (routes/login.php), so it is that account's to connect, never
+        // somebody else's - connected here, every later sign-in with it would
+        // land in this account instead (the review of 632a464). An address
+        // registered and never confirmed is nobody's yet - anybody can
+        // register one they do not hold, and the sign-in hands such an account
+        // to whoever Google vouches for (claimUnconfirmedAccount()) - so a
+        // stranger's registration keeps the address's owner from connecting
+        // their Google no more than a decline does (routes/admin.php).
+        $address = strtolower(trim((string) ($claims['email'] ?? '')));
+        $addressed = !empty($claims['email_verified']) && $address !== '' ? userByEmail($pdo, $address) : null;
+        if ($addressed !== null && (int) $addressed['id'] !== (int) $user['id'] && asBool($addressed['email_confirmed'])) {
+            return respondError($response, 409, 'email_taken', 'That Google account\'s address belongs to another account');
+        }
+
+        if (!spendGoogleIdToken($pdo, $credential, $claims, (int) $user['id'])) {
             return googleTokenRefused($response);
         }
 
@@ -370,8 +393,11 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
     // authenticator of its holder's own, it would take the recovery codes and
     // keep the owner out until an administrator reset two-factor. So the proof
     // first (accountProof()) - the password while it is a way in, else a
-    // sign-in of the last fifteen minutes - and only then the code, as
-    // connecting Google asks for it before reading the credential. Setting up
+    // sign-in of the last fifteen minutes - and only then the code is read: a
+    // wrong one costs nothing but an attempt. (Connecting Google takes its
+    // token first instead, holding it for this account, because a token is a
+    // bearer credential somebody else could spend while the password is
+    // retyped; a code typed here opens nothing anywhere else.) Setting up
     // (above) only keeps a secret waiting, which opens nothing; it turns away
     // early only the stale sign-in this would turn away.
     $group->post('/2fa/enable', function (Request $request, Response $response) {

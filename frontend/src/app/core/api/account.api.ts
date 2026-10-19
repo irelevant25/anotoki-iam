@@ -53,8 +53,10 @@ export class AccountApi {
   /**
    * Google as another way in. The proof: `password`, the current one, while
    * password sign-in is on (`422 wrong_password`); else a sign-in of the last
-   * fifteen minutes (`403 reauthentication_required`). It is checked before
-   * the credential is read, so a wrong password costs no new credential.
+   * fifteen minutes (`403 reauthentication_required`). The credential is
+   * taken first and held for this account, so a wrong password costs no new
+   * credential - the same one goes again - and nobody else can use it
+   * meanwhile.
    */
   connectGoogle(credential: string, password?: string): Observable<AccountUser> {
     return this._http.post<AccountUser>('/api/account/google', password === undefined ? { credential } : { credential, password });

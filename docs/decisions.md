@@ -2371,10 +2371,11 @@ loosens a rule; each adds to one (`docs/architecture.md`, rules 4, 12, 13).
   base64 leaves bits of the signature's last character unread, so the same
   signature can be written several ways, each verifying, and a hash of the
   whole would take each for a new token (`tests/google-tokens.test.php` writes
-  one so). The row says nothing of the person - no address; an account only
-  while a sign-in holds it (the review below) - and lives an hour at most, so
-  the Privacy page, which lists what the IAM keeps of a person, is
-  unchanged. Before 026 is applied a token is held to its five
+  one so). The row says nothing of the person - no address; an account's
+  number only while a sign-in or a connect holds it (the reviews below) - and
+  lives until housekeeping's first run after the token ran out (`exp` and a
+  minute; housekeeping comes with traffic), so the Privacy page, which lists
+  what the IAM keeps of a person, is unchanged. Before 026 is applied a token is held to its five
   minutes alone (`googleTokensReady()`). A nonce bound to the page was not
   added: the freshness and the single use are what was asked, and Google's
   script still loads only on a press.
@@ -2446,10 +2447,15 @@ amended rather than followed by a 027.
   one row: a racing request loses). A token that names no account is spent at
   once, since nothing a second try with it could cure follows: an account
   made of it, or `unverified_email`, `registration_disabled`. The hold names
-  the account for the token's hour at most - an attempt in progress, which the
-  sign-in attempts already record -, so the Privacy page stays as it is; an
-  account deleted meanwhile leaves its holds spent (`anonymizedLeftovers()`),
-  and a `users` row deleted outright too (`ON DELETE SET NULL`). The
+  the account by its number until housekeeping sweeps the row - its first run
+  after the token ran out (`exp` and a minute), which comes with traffic, so
+  an hour and more -: a sign-in's own state while its token lives, nothing of
+  the person beyond the number, so the Privacy page stays as it is. (Most
+  such stops are also among the sign-in attempts - a wrong code, a wrong
+  password -, but not all: a `429` or a refusal of the account records no
+  attempt.) An account deleted meanwhile leaves its holds spent
+  (`anonymizedLeftovers()`), and a `users` row deleted outright too (`ON
+  DELETE SET NULL`). The
   alternative, Google's nonce bound to the browser by a cookie, was not
   simpler: it needs a cookie and a round trip before every press, and still
   the hold for the code's step.
@@ -2499,3 +2505,85 @@ amended rather than followed by a 027.
   spent or live, saying nothing (failing against d0e34fb); 026 ending the
   sessions that say `mfa` - and nothing else - and its gate failing on one
   left; the page naming the account.
+
+## 2026-10-20 - The review of that follow-up: the account page holds a Google token too, and five smaller things
+
+The security review of 632a464 (the entry above) found one Low and five Nits;
+all are fixed, and migration 026 - still applied on no live IAM - was amended
+once more rather than followed by a 027.
+
+- **Low: the account page's connect left a token free while it waited for
+  the password.** `POST /api/account/google` asked for its proof before it
+  held the token, so after a wrong password - or a sign-in too old, the
+  limiter, a `409` - the token stayed free, and the page sends the same one
+  again with the right password. Whoever saw it meanwhile connected it to an
+  account of their own; the victim's retry was refused, and every later
+  sign-in with that Google account landed in the other account (the reviewer's
+  probe). Now the connect checks Google's claims and holds the token for the
+  account connecting it before anything else (`holdGoogleIdToken()`): spent,
+  or held for another account, it is `400 invalid_token`; every refusal after
+  that leaves it held for this account, so the retry takes it and nobody
+  else's connect or sign-in does; connecting claims the hold
+  (`spendGoogleIdToken(..., $userId)`). The cost: a token refused
+  `409 google_taken` - that Google account connected to another one already -
+  is no longer free for that Google account's own sign-in; Google's button
+  gives a fresh token.
+- **And the connect takes no Google account whose address another account
+  has confirmed** (the reviewer's optional hardening, `409 email_taken`):
+  where Google vouches for an address another account here has confirmed, the
+  sign-in would attach that Google account to it, so it is that account's to
+  connect - connected elsewhere, every later sign-in with it would land there.
+  Only a confirmed address counts, where the reviewer said "another account's
+  address": anybody can register an address they do not hold, the sign-in
+  hands such an account to whoever Google vouches for
+  (`claimUnconfirmedAccount()`), and a stranger's registration must not keep
+  the address's owner from connecting their Google, as it must not keep them
+  out by a decline (`routes/admin.php`).
+- **Nit: the confirmation's address check was on the read only.** The write
+  that confirms now asks for the address its request read too (`AND
+  lower(email) = lower(?)`, case aside as the mark is), and a link that
+  confirmed nothing - the write found the address confirmed, or a request
+  racing it spent the link first - says `already_confirmed` only while its
+  mark is the account's address now (`confirmedMeanwhileFor()`); otherwise
+  `invalid_token`. An administrator moving the account at that very moment:
+  the new address is neither confirmed by a link to the old one nor said to
+  be.
+- **Nit: links from before the mark.** 026 also spends every live
+  confirmation link that notes no address: mailed by a build from before the
+  note, one may have gone to an address its account has left since - a build
+  from before 026 moved an address and spent nothing - and nothing could
+  tell. Its gate fails on one left. Somebody in the middle of signing up
+  presses "send it again".
+- **Nit: two orderings held to by tests**, no code changed: the limiter's
+  `429` on a token naming an account with two-factor on leaves it held, and
+  the account page refuses it; a confirmed account found by its address (no
+  Google yet), switched off, gets `403` with the token held and nothing
+  attached.
+- **Nit: tokens for scripts after 026.** A session a leftover link opened
+  could make a token for scripts, which belongs to no session, so 026 does not
+  end it: `docs/operations.md` tells the owner to look at the account page's
+  "Tokens for scripts" of the accounts with two-factor on after the Apply.
+- **Nit: three wordings** - a hold lasts until housekeeping's first run after
+  the token ran out (with traffic), and a `429` or a refusal of the account
+  records no sign-in attempt (the entry above); housekeeping sweeps held rows
+  too (`housekeeping.php`); and 026 no longer says a database that ran its
+  first version gets the hold by applying again - the engine never runs a
+  recorded file twice: such a database deletes 026's row from `migrations`
+  and applies again, every statement in it safe to run twice.
+- **Tests** (`tests/google-tokens.test.php`,
+  `tests/confirmation-links.test.php`): the Low's probe - a wrong password,
+  then whoever saw the token connecting nothing, the victim's retry connecting
+  it, and the victim's Google signing the victim in (failing against
+  632a464) -, and the same after a sign-in too old, the limiter and
+  `google_already_connected`; `google_taken` holding the token (failing
+  against 632a464); the address of another account confirmed refused, the
+  address's own account connecting it, a stranger's unconfirmed registration
+  not counted (failing against 632a464); the two orderings (passing against
+  632a464 too: held to now). An account moved while a link's request ran, by
+  a trigger at the moment the link is spent; moved and confirmed; outrun by a
+  request that spent the link first and moved and confirmed it (each failing
+  against 632a464); the address in other letters still its address, and an
+  outrun link of its own address saying so. 026 spending every link that
+  notes no address - the one to an address its account left confirming
+  nothing after, a waiting address's noted link confirming it - and its gate
+  failing on one left (both failing against 632a464).
