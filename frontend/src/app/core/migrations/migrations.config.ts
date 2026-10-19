@@ -59,10 +59,14 @@ export function iamMigrationsConfig(): AnotokiMigrationsConfig {
     // on the page - the compiled English while no bundle is in memory, which is
     // how an IAM that is not set up always is - so the words are keyed by the
     // language they are in, never by one wished for. The not-set-up page's
-    // words are the IAM's own keys, handed over as the site's overrides.
+    // words are the IAM's own keys, handed over as the site's overrides. Since
+    // anotoki-lib 0.7.2 the language with no bundle in memory is the reader's
+    // (a Slovak reader's `sk`) while `t()` still reads the compiled English:
+    // then the IAM's words are keyed `en`, and the library's built-in words of
+    // the reader's language show in their place.
     get words(): Record<string, Partial<SiteStatusWords>> {
       return siteStatusWords(library, {
-        [i18n.effectiveLanguage()]: {
+        [library.ready() ? i18n.effectiveLanguage() : 'en']: {
           notSetUpTitle: i18n.t('notSetUp.title'),
           notSetUpText: i18n.t('notSetUp.text'),
           openSetup: i18n.t('notSetUp.open'),
