@@ -786,6 +786,43 @@ past it, `429 { code: "too_many", retry_after }` with `Retry-After`, and the
 page stops reporting until it is loaded again. Requests to it are never
 written into the log as failures of their own.
 
+### `POST /api/feedback`
+
+A message for the IAM's administrators, through the anotoki family's
+feedback form (the owner's decision of 2026-10-19; anotoki-lib's
+`FeedbackRoutes::public()`) - the footer under every page opens it, and the
+Contact page. Its browser half is `@anotoki/lib/feedback/form`.
+
+```json
+{ "kind": "bug", "subject": "Optional", "message": "The Security page jumps when I press Save.", "email": "mira@example.test", "page": "/account/security", "language": "en", "anonymous": false, "website": "" }
+```
+
+`201 { "ok": true }` - no id. `kind` is `bug`, `idea` or `other`; `message`
+1 to 10,000 characters; `subject` up to 200; `email` a reply address, kept
+only as sent (the form writes the account's in, for the person to keep,
+change or clear) and only a plain one - none of `? & = % #`, a space or a
+control character; `page` kept as a path, its query and fragment dropped;
+`language` as `xx` or `xx-yy`. Kept with it: the browser's name (its
+`User-Agent`, 300 characters), and the sender - the account this browser's
+session cookie names, by its id alone (read only: nothing is touched, set or
+cleared), or nobody; never an id a body names. `anonymous: true` keeps
+neither the account nor the address. Nothing of where it came from: no
+address, no hash of one. `website` is the robots' field: filled in, the same
+`201`, and nothing kept. No mail is sent: the admin panel's Feedback page
+counts what is new (below, "Feedback").
+
+A first-party write: the CSRF header and the IAM's own `Origin` (`403
+csrf`), in neither CORS list; no session needed. `415 unsupported_media_type`
+for anything but JSON, `413 too_large` past 64 KB, `400 invalid_json`, `422`
+with `kind_unknown`, `message_required`, `too_long` (`field`, `max`),
+`subject_too_long` or `email_invalid` (`field`). At most 5 an hour and 20 a
+day from one sender - a signed-in person by their account; anybody else, and
+a message without a name, by their address (an IPv6 one by its /64) - and
+50 a day from the visitors together, as many from the people signed in:
+past it, `429 { code: "too_many", retry_after }` with `Retry-After`. `503
+feature_unavailable` (`Retry-After: 60`) while the library's table is not
+there.
+
 ### `GET /api/login/request/{id}`
 
 A pending authorization request, so the page can say where the person is going.
@@ -1248,7 +1285,8 @@ deletion that did not happen, and never twice. In the transaction:
   it with nobody else acting - lose their IP, its rows about the account lose
   the names and addresses in their details, a personal token's name goes from
   its row; an announcement's row for the person keeps whether it went, not
-  where;
+  where; the feedback messages it sent, and any whose reply address is its
+  address, lose that address and the browser's name, their words kept;
 - the row stays, so its id - every site's `sub` - is never anybody else's:
   username `deleted-{id}`, address `deleted-{id}@deleted.invalid` (a reserved
   domain that never delivers), no password or two-factor, English, `auto`,
@@ -1273,7 +1311,8 @@ mailed. One issued a moment before the anonymization began is deleted with
 the rest; its mail may still go, to the address the account had, with a link
 or code that opens nothing. What such a request leaves elsewhere - a session,
 a token, an identity, a role, a mail logged, an audit entry with the person's
-IP or name - goes at the next housekeeping run.
+IP or name, a feedback message's reply address and browser - goes at the
+next housekeeping run.
 
 ---
 
@@ -1766,7 +1805,7 @@ every anotoki site; the admin panel's Migrations page is the family's page,
 header on Apply. The engine applies the files the IAM has not recorded yet, in
 order - the anotoki library's admin set (`anotoki_admin`, in
 `vendor/anotoki/lib/backend/migrations/admin`: the tables of the admin tools - the
-audit log, and feedback, which the IAM does not use), those of
+audit log and feedback), those of
 `migrations/iam`, then the library's translations set (`anotoki_translations`,
 in `vendor/anotoki/lib/backend/migrations/translations`: the tables of the words
 proved, and the library's own words) - each in a transaction of its own with
@@ -1814,11 +1853,12 @@ interface ApplyResult {
   The audit entries that waited for migration 018 go in before it, with their
   own times ("The admin tools" below).
 
-### The admin tools: audit log, error log, backups
+### The admin tools: audit log, error log, feedback, backups
 
 The anotoki family's (anotoki-lib 0.4, and 0.5.0 since; `docs/decisions.md`,
-2026-10-11): the same routes and answers on every anotoki site, the admin panel's Audit log,
-Error log and Backups pages drawing them (`@anotoki/lib/admin/*`). Here they
+2026-10-11; feedback since 2026-10-19): the same routes and answers on every
+anotoki site, the admin panel's Audit log, Error log, Feedback and Backups
+pages drawing them (`@anotoki/lib/admin/*`). Here they
 sit inside the admin group - the session, the IAM's `ADMIN` (not while one's
 own deletion is pending), the CSRF header on every write - and each group asks
 the library's own ADMIN check besides, the same rule, so that one mounted
@@ -1859,7 +1899,9 @@ interface AuditEntry {
 
 Every admin change and security-relevant self-service change is an entry (the
 actions are under each area above); the tools add `errors.cleared`
-(`{ files, before? }`), `backup.created` (`{ kind, size, tables, rows,
+(`{ files, before? }`), `feedback.status_changed` (`{ from, to }`) and
+`feedback.deleted` (`{ kind, status, created_at }` - the message's, written
+inside the delete's own transaction), `backup.created` (`{ kind, size, tables, rows,
 encrypted, description? }` - by nobody for the daily backup and the one before
 an update), `backup.downloaded` and `backup.deleted` (`{ kind, size }`).
 `legacy.imported` and `user.password_reset_cli` are by nobody, from no
@@ -1916,6 +1958,44 @@ interface ErrorLogReport {
             file: string | null; line: number | null; route: string | null; source: string;
             count: number; first_at: string; last_at: string; paths: string[]; latest: ErrorLogEntry }[];
   dropped: Record<string, number>;                 // lines only counted, by UTC date
+}
+```
+
+#### Feedback
+
+What people sent through the feedback form (`POST /api/feedback` above; the
+owner's decision of 2026-10-19).
+
+| Method + path | |
+| --- | --- |
+| `GET /api/admin/feedback?kind=&status=&section=&search=&page=` | `{ total, page, pageSize: 25, items: FeedbackMessage[] }`, newest first; `search` in the subject, the message, the reply address and the extra fields |
+| `GET /api/admin/feedback/facets` | `{ kinds, statuses, sections, fields, byStatus, byKind }` - the page's choices and counts |
+| `GET /api/admin/feedback/unread` | `{ unread }` - how many nobody opened yet |
+| `GET /api/admin/feedback/{id}` | `{ message: FeedbackMessage }` - a new one opened is `read`; `404 not_found` |
+| `PUT /api/admin/feedback/{id}/status` | `{ status: 'new' \| 'read' \| 'resolved' \| 'spam' }` → `{ message }`; `422 status_unknown`; audited `feedback.status_changed` |
+| `DELETE /api/admin/feedback/{id}` | `{ deleted: true }`; audited `feedback.deleted` inside the delete's own transaction - no message goes without its entry (`503 feature_unavailable` while the audit log's table waits) |
+
+`503 { code: "feature_unavailable" }` (`Retry-After: 60`) while the library's
+table is not there. Kept: a message marked `spam` 30 days and one `resolved`
+365 days after it was marked, anything else until it is deleted - pruned at
+most once a day, after the answer of a message sent, this list opened or
+housekeeping. When an account is deleted, the messages it sent - and any
+whose reply address is its address - lose `contact_email` and `user_agent`;
+the words stay, `user_name` the placeholder's.
+
+```ts
+interface FeedbackMessage {
+  id: number;
+  created_at: string; updated_at: string;          // ISO 8601 UTC
+  kind: 'bug' | 'idea' | 'other';
+  status: 'new' | 'read' | 'resolved' | 'spam';
+  section: string | null;                          // none on the IAM
+  subject: string | null; message: string;         // the sender's words, as text
+  details: Record<string, string>;                 // extra fields: none on the IAM
+  contact_email: string | null;                    // the reply address, as sent
+  user_id: number | null; user_name: string | null;  // the account (its username as it is now), or nobody
+  page: string | null; language: string | null; user_agent: string | null;
+  handled_by: number | null; handled_by_name: string | null; handled_at: string | null;
 }
 ```
 

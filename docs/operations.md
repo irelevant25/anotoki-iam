@@ -467,12 +467,13 @@ the anotoki library, anotoki-lib 0.4.1 - `docs/decisions.md`, 2026-10-11): the
 Error log, Audit log and Backups pages are the family's library's. The upload
 brings, in this order: `anotoki_admin/001_audit_log.sql` and
 `002_feedback.sql` (the library's tables - the audit log, and feedback, which
-the IAM does not use), then 018, which moves every entry of the IAM's
+the IAM takes since 2026-10-19), then 018, which moves every entry of the IAM's
 `audit_log` into the library's `anotoki_audit_log` with its id, and keeps the
 old table, unread, as `audit_log_before_018` (a later migration drops it once
 both IAMs run 018); then the library's translations set's `003` and `004`
 (the words of the sites' sign-in screen and feedback form - the IAM shows
-neither, but they are in its Translations page like every library word).
+the sign-in screen's never and the feedback form's since 1.0.0, and they are
+in its Translations page like every library word).
 **Apply right after the upload**; the first Apply makes the first backup
 before it starts. Until then nothing closes and every way in works; the audit
 entries made meanwhile wait in `storage/logs/audit-pending.jsonl` and go in
@@ -551,10 +552,10 @@ with <?php".
 
 **anotoki-lib 0.6.3** (both halves), with the same upload: the family's
 footer - the build analyzer's top border and Terms · Privacy · Contact -
-under every page, the admin panel's too (no row above the links: the IAM has
-no version, What's new or feedback), and `/not-set-up` with nothing of the
+under every page, the admin panel's too (no row above the links then: the IAM
+had no version, What's new or feedback until 1.0.0, below), and `/not-set-up` with nothing of the
 IAM round it. Apply brings the library's translations 012 (the footer's four
-words, none of them on the IAM's footer); nothing on the IAM's pages waits
+words - the first three on the IAM's footer since 1.0.0); nothing on the IAM's pages waits
 for it. Before this upload, look at the server's `config/cloudflare.local.php`:
 from it on, a file there that names no usable secret - blank, a misspelt key,
 fewer than 32 characters, a placeholder left in - counts every visitor as
@@ -568,6 +569,24 @@ build analyzer, on the live IAM) then lists ADMIN and EARLY_ACCESS as allowed:
 untick EARLY_ACCESS there if it should stay ADMIN alone even once somebody is
 given it. The sites need nothing. It is no one-way step: a build from before
 023 still works on the database.
+
+**1.0.0** (the owner's decision of 2026-10-19): the footer's row - the
+version, What's new and Feedback - and the admin panel's Feedback page.
+Upload both halves - the frontend's `changelog.json` beside `index.html`,
+served `no-cache` by the web root's `.htaccess` (`npm run build:deploy`
+writes it) - then Apply: migration 024 brings What's new's six words. Until
+then the dialog shows its keys; everything else works. The feedback form
+needs no migration (the library's `anotoki_admin/002`, applied with 018) and
+nothing new in `config/` - its limits are counted in `storage/cache`, keyed
+by the master key. No mail is sent for a message: look at Admin panel →
+Feedback now and then. **Never change an account because a message asks** -
+clearing two-factor, resetting a password: a signed-out message's address is
+only what its sender typed, and anybody holding a stolen password can write
+one. Answer at the account's own address, and act only on what its owner
+proves there. **Once 1.0.0 has taken a message, no build from before it goes
+on the host again**: an older build neither takes a deleted person out of
+their messages nor prunes them, and its Privacy page says the IAM takes no
+feedback; fix forward.
 
 ### The family's library (anotoki/lib)
 
@@ -583,7 +602,7 @@ own words (a migration set of its own, `anotoki_translations`, applied after
 the IAM's), the checks of a string, the bundle and the admin routes, the
 command line's tools; the service, the switcher and the Translations and
 Languages pages -, the admin tools the IAM takes, both halves - the error log,
-the audit log and backups (a migration set of its own, `anotoki_admin`,
+the audit log, feedback (its form too) and backups (a migration set of its own, `anotoki_admin`,
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
 styles and palette, its components, the top bar and the frame, the legal

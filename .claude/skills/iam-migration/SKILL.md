@@ -121,8 +121,8 @@ runs after the IAM's files.
   `tests/translations.test.php` holds `en.ts`, `MAIL_FALLBACK` and the seeded
   English together, and `php translations.php --status` names a key a page uses
   that no migration wrote. It also counts what the migrations leave (after
-  022 and the library's sets of 0.6.3: 881 keys - 568 of the pages, 52 of the
-  mails, 261 of the library's - 1762 strings): a migration that adds or removes keys
+  024 and the library's sets of 0.6.3: 887 keys - 574 of the pages, 52 of the
+  mails, 261 of the library's - 1774 strings): a migration that adds or removes keys
   moves those numbers, and `tests/top-bar-strings.test.php` is the pattern for
   testing one on an installed IAM. A test that holds an IAM built through an
   earlier file to a fresh one leaves out what a later file rewords

@@ -6,6 +6,7 @@ import { ShellComponent, ShellNavItem } from '@anotoki/lib/shell';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { SessionService } from '../../core/auth/session.service';
+import { Changelog } from '../../core/changelog/changelog.service';
 import { IconName } from '../../core/kit/icons';
 import { AppTopBarComponent } from '../../layouts/top-bar/top-bar.component';
 
@@ -20,6 +21,7 @@ const NAV: readonly (ShellNavItem & { icon: IconName })[] = [
   { link: '/admin/emails', label: 'Email log', icon: 'mail' },
   { link: '/admin/audit', label: 'Audit log', icon: 'history' },
   { link: '/admin/errors', label: 'Error log', icon: 'alert' },
+  { link: '/admin/feedback', label: 'Feedback', icon: 'message' },
   { link: '/admin/settings', label: 'Settings', icon: 'sliders' },
   { link: '/admin/translations', label: 'Translations', icon: 'languages' },
   { link: '/admin/languages', label: 'Languages', icon: 'globe' },
@@ -47,9 +49,12 @@ const NAV: readonly (ShellNavItem & { icon: IconName })[] = [
  * else is told anything.
  *
  * Under every page, as in every anotoki admin panel (the owner, 2026-10-18):
- * the family's footer (@anotoki/lib/footer), in English like the panel -
- * Terms · Privacy · Contact, and no row above them: the IAM has no version,
- * no What's new and no feedback form.
+ * the family's footer (@anotoki/lib/footer), in English like the panel - the
+ * IAM's version, What's new and Feedback (the IAM never closes while an update
+ * waits, so its form always takes a message), then Terms · Privacy · Contact.
+ * What people sent through that form is the Feedback page's (the family's,
+ * `@anotoki/lib/admin/feedback`), which says what is new; the side navigation
+ * has no count beside it.
  */
 @Component({
   selector: 'app-admin-layout',
@@ -62,6 +67,8 @@ export class AdminLayoutComponent {
   private readonly _session = inject(SessionService);
 
   protected readonly nav = NAV;
+  /** The footer's version and What's new: the list the start asked for (app.config.ts). */
+  protected readonly changelog = inject(Changelog);
   protected readonly isAdmin = this._session.isAdmin;
   protected readonly deletionPending = computed(() => !!this._session.user()?.deletion_due_at);
 }

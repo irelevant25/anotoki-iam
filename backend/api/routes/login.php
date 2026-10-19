@@ -1,6 +1,7 @@
 <?php
 
 use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
+use Anotoki\Lib\Feedback\Http\FeedbackRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Anotoki\Lib\Translations\Translations;
@@ -275,6 +276,27 @@ TranslationsRoutes::bundle($app, static fn(): Translations => iamTranslations(),
 // by the session (optionalSession(): read, nothing changed). Its requests are
 // never written into the log as failures of their own.
 ErrorLogRoutes::client($app, '/api/client-errors', iamErrorLog(), iamAdminContext())->add(iamClientErrorRedaction())->add(optionalSession());
+
+// The feedback form - the anotoki family's (anotoki/lib's FeedbackRoutes::public(),
+// whose browser half is @anotoki/lib/feedback/form: the footer under every page
+// opens it, and the Contact page; the owner's decision of 2026-10-19): POST
+// {kind: bug | idea | other, subject?, message, email?, page?, language?,
+// anonymous?, website} -> 201 {ok: true}, kept for the admin panel's Feedback
+// page (iamFeedback(), api/admin_tools.php). Anybody may send one - the sign-in
+// pages have the footer too. Its sender is the account this browser's session
+// names, by its id alone (optionalSession(): read, nothing changed;
+// iamFeedbackSender()), or nobody - never a body's word; "without my name",
+// neither the account nor an address. The library's limits, counted by the
+// IAM's clientKey: 5 an hour and 20 a day from one sender - a signed-in person
+// by their account, anybody else by their address's bucket (an IPv6 address's
+// /64) - and 300 a day from the visitors together, as many from the people
+// signed in (429 too_many, retry_after). JSON only (415), 64 KB at most (413),
+// 422 for a message that is none or too long, an unknown kind, or a reply
+// address that is no plain one; the robots' field filled in: the same 201, and
+// nothing kept. Public and first-party: the CSRF header and the IAM's own
+// Origin like every write here, never an exemption, and in neither CORS list.
+// 503 feature_unavailable while the library's table is not there.
+FeedbackRoutes::public($app, '/api/feedback', iamFeedback(), iamAdminContext(), iamFeedbackSender(...))->add(optionalSession());
 
 // ── The pending authorization request ────────────────────────────────────────
 

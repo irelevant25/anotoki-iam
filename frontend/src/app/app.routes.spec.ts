@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, Routes, TitleStrategy, provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideAnotokiFeedback } from '@anotoki/lib/feedback';
 import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { SiteState, SiteStatus, provideAnotokiMigrations } from '@anotoki/lib/migrations';
 import { provideAnotokiShell } from '@anotoki/lib/shell';
@@ -16,6 +17,8 @@ import { AccountApi } from './core/api/account.api';
 import { LoginApi } from './core/api/login.api';
 import { AccountUser } from './core/api/models';
 import { SessionService } from './core/auth/session.service';
+import { CHANGELOG_URL, Changelog, ChangelogEntry } from './core/changelog/changelog.service';
+import { iamFeedbackConfig } from './core/feedback/feedback.config';
 import { en } from './core/i18n/en';
 import { IamTitleStrategy } from './core/i18n/title.strategy';
 import { iamTranslationsConfig } from './core/i18n/translations.config';
@@ -98,21 +101,26 @@ function held(answer: Omit<Answer, 'held'>): { answer: Answer; give: () => void 
   return { answer: { ...answer, held: settled }, give };
 }
 
+/** The IAM's versions as the start leaves them (core/changelog): the newest is the footer's version. */
+const VERSIONS: ChangelogEntry[] = [{ version: '1.0.0', date: '2026-10-19', changes: { added: ['One anotoki account for every anotoki site'] } }];
+
 /**
  * The frames of the IAM's pages, as app.routes.ts lays them out: the anotoki
  * family's footer (@anotoki/lib/footer) under the sign-in pages, the account
  * pages, the legal pages and - as in every anotoki admin panel (the owner,
  * 2026-10-18) - the admin panel; and the family's status page, /not-set-up,
  * as a page of its own, with nothing of the IAM round it (the owner's rule of
- * 2026-10-18: no header, no footer). The IAM has no version, no What's new and
- * no feedback form: its footer is the top border and Terms · Privacy ·
- * Contact alone.
+ * 2026-10-18: no header, no footer). The footer's row is the IAM's since the
+ * owner's decision of 2026-10-19: its version and What's new (the newest of
+ * public/changelog.json and the IAM's own dialog - neither while there is no
+ * list) and Feedback (the family's form), then Terms · Privacy · Contact.
  */
 describe("the IAM's frames: the family's footer under every page, and the status page bare", () => {
-  const user = signal<AccountUser | null>(null);
+  const user = signal<AccountUser | null | undefined>(null);
   let generation = 0;
   const session = {
     user,
+    known: computed(() => user() !== undefined),
     signedIn: computed(() => !!user()),
     isAdmin: computed(() => !!user()?.is_admin),
     ensure: () => of(user()),
@@ -165,6 +173,7 @@ describe("the IAM's frames: the family's footer under every page, and the status
         provideAnotokiMigrations(iamMigrationsConfig),
         { provide: SiteStatus, useValue: status },
         provideAnotokiLegal(iamLegalConfig),
+        provideAnotokiFeedback(iamFeedbackConfig),
       ],
     });
     fixture = TestBed.createComponent(AppComponent);
@@ -186,7 +195,17 @@ describe("the IAM's frames: the family's footer under every page, and the status
   }
 
   /** The footer as drawn - the family's, after the page and last in its frame, a landmark of its own - and what it holds. */
-  function footer(): { inside: string[]; links: string[]; label: string | null | undefined; lang: string | null } {
+  function footer(): {
+    inside: string[];
+    row: string[];
+    version: string | null;
+    versionSaid: string | null;
+    whatsNew: string | null;
+    feedback: string | null;
+    links: string[];
+    label: string | null | undefined;
+    lang: string | null;
+  } {
     const footers = host.querySelectorAll('anotoki-site-footer');
     expect(footers).toHaveLength(1);
     const drawn = footers[0];
@@ -195,17 +214,47 @@ describe("the IAM's frames: the family's footer under every page, and the status
     expect(main.compareDocumentPosition(drawn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(drawn.nextElementSibling).toBeNull();
     expect(host.querySelectorAll('footer')).toHaveLength(1);
+    // The row's parts in its order, the dots between them left out: the version, What's new, Feedback.
+    const part = (element: Element) =>
+      element.hasAttribute('data-version') ? 'version' : element.hasAttribute('data-whats-new') ? 'whatsNew' : element.hasAttribute('data-open-feedback') ? 'feedback' : element.tagName.toLowerCase();
     return {
-      inside: Array.from(drawn.querySelector('footer.anotoki-site-footer__footer')!.children).map((part) => part.tagName.toLowerCase()),
+      inside: Array.from(drawn.querySelector('footer.anotoki-site-footer__footer')!.children).map((child) => child.tagName.toLowerCase()),
+      row: Array.from(drawn.querySelector('.anotoki-site-footer__row')?.children ?? [])
+        .filter((child) => !child.classList.contains('anotoki-site-footer__dot'))
+        .map(part),
+      version: words(drawn.querySelector('[data-version] [aria-hidden="true"]')),
+      versionSaid: words(drawn.querySelector('[data-version] .anotoki-visually-hidden')),
+      whatsNew: words(drawn.querySelector('[data-whats-new]')),
+      feedback: words(drawn.querySelector('[data-open-feedback]')),
       links: Array.from(drawn.querySelectorAll<HTMLAnchorElement>('a.anotoki-legal-links__link')).map((link) => `${words(link)} ${link.getAttribute('href')}`),
       label: drawn.querySelector('nav.anotoki-legal-links__nav')?.getAttribute('aria-label'),
       lang: drawn.querySelector('anotoki-legal-links')!.getAttribute('lang'),
     };
   }
 
-  /** Terms · Privacy · Contact and nothing else: no version, no What's new, no Feedback, no fan clause - the IAM has none of them. */
-  const SLOVAK_FOOTER = { inside: ['anotoki-legal-links'], links: ['Podmienky /terms', 'Súkromie /privacy', 'Kontakt /contact'], label: 'Právne informácie', lang: null };
-  const ENGLISH_FOOTER = { inside: ['anotoki-legal-links'], links: ['Terms /terms', 'Privacy /privacy', 'Contact /contact'], label: 'Legal', lang: null };
+  /** The IAM's row - its version, What's new, Feedback - then Terms · Privacy · Contact; no fan clause. */
+  const SLOVAK_FOOTER = {
+    inside: ['div', 'anotoki-legal-links'],
+    row: ['version', 'whatsNew', 'feedback'],
+    version: 'v1.0.0',
+    versionSaid: 'Verzia 1.0.0',
+    whatsNew: 'Čo je nové',
+    feedback: 'Spätná väzba',
+    links: ['Podmienky /terms', 'Súkromie /privacy', 'Kontakt /contact'],
+    label: 'Právne informácie',
+    lang: null,
+  };
+  const ENGLISH_FOOTER = {
+    inside: ['div', 'anotoki-legal-links'],
+    row: ['version', 'whatsNew', 'feedback'],
+    version: 'v1.0.0',
+    versionSaid: 'Version 1.0.0',
+    whatsNew: "What's new",
+    feedback: 'Feedback',
+    links: ['Terms /terms', 'Privacy /privacy', 'Contact /contact'],
+    label: 'Legal',
+    lang: null,
+  };
 
   beforeEach(() => {
     user.set(null);
@@ -213,7 +262,8 @@ describe("the IAM's frames: the family's footer under every page, and the status
 
   afterEach(() => {
     if (fixture) {
-      // Neither the footer nor the status page asks the server anything (the status is asked of SiteStatus, faked here).
+      // Neither the footer nor the status page asks the server anything (the status is asked of SiteStatus, faked here) -
+      // but What's new, pressed, its list (flushed by its test).
       TestBed.inject(HttpTestingController).verify();
       host.remove();
       fixture = null;
@@ -222,18 +272,69 @@ describe("the IAM's frames: the family's footer under every page, and the status
   });
 
   describe('the footer', () => {
-    /** The pages in Slovak, as the database has them; English beside them for the admin panel. */
-    function configureFrames(values: Record<string, string> = {}): void {
+    /** The pages in Slovak, as the database has them; English beside them for the admin panel - and the IAM's versions as the start leaves them. */
+    function configureFrames(values: Record<string, string> = {}, versions: ChangelogEntry[] = VERSIONS): void {
       configure(FRAMES, provideTestTranslations({ ...en, ...values }, { language: 'sk', english: en }));
+      TestBed.inject(Changelog).entries.set(versions);
     }
 
-    it('under a sign-in page: the family’s, below the form in the sign-in pages’ column - Terms · Privacy · Contact alone, no row above them', async () => {
+    it('under a sign-in page: the family’s, below the form in the sign-in pages’ column - the IAM’s version, What’s new and Feedback, then Terms · Privacy · Contact', async () => {
       configureFrames();
       await at('/login');
       expect(host.querySelector('app-auth-layout')).not.toBeNull();
       expect(footer()).toEqual(SLOVAK_FOOTER);
       expect(Array.from(host.querySelector('.side')!.children).map(named)).toEqual(['div.controls', 'main.main', 'anotoki-site-footer.anotoki-site-footer']);
-      expect(host.querySelector('.anotoki-site-footer__row, [data-version], [data-whats-new], [data-open-feedback], [data-fan]')).toBeNull();
+      expect(host.querySelector('[data-fan]'), 'no fan clause: the IAM is no fan site').toBeNull();
+    });
+
+    it('before the list of versions came - or with none to be had: neither the version nor What’s new, and Feedback all the same', async () => {
+      configureFrames({}, []);
+      await at('/login');
+      expect(footer()).toEqual({ ...SLOVAK_FOOTER, row: ['feedback'], version: null, versionSaid: null, whatsNew: null });
+    });
+
+    it('What’s new opens the IAM’s own dialog, in the page’s language', async () => {
+      // jsdom draws a <dialog> but opens none as a modal: the kit's dialog opens as an open <dialog> here.
+      const dialogs = HTMLDialogElement.prototype as Partial<HTMLDialogElement>;
+      dialogs.showModal ??= function (this: HTMLDialogElement) {
+        this.setAttribute('open', '');
+      };
+      dialogs.close ??= function (this: HTMLDialogElement) {
+        this.removeAttribute('open');
+      };
+      configureFrames({ 'whatsNew.title': 'Čo je nové', 'whatsNew.version': 'Verzia {version}' });
+      await at('/login');
+      host.querySelector<HTMLButtonElement>('[data-whats-new]')!.click();
+      TestBed.inject(HttpTestingController).expectOne(CHANGELOG_URL).flush(VERSIONS);
+      // The dialog's code comes with the first press.
+      await vi.waitFor(async () => {
+        await settle();
+        expect(document.querySelector('anotoki-dialog h3.version')).not.toBeNull();
+      });
+      const dialog = document.querySelector('anotoki-dialog');
+      expect(words(dialog?.querySelector('h2'))).toBe('Čo je nové');
+      expect(words(dialog?.querySelector('h3.version'))).toBe('Verzia 1.0.0');
+      dialog?.querySelector<HTMLButtonElement>('.anotoki-dialog__footer button')?.click();
+      await settle();
+      expect(document.querySelector('anotoki-dialog')).toBeNull();
+    });
+
+    it('Feedback opens the family’s form in its dialog - for the person signed in, their address written in', async () => {
+      user.set({ ...MIRA });
+      configureFrames();
+      await at('/account/security');
+      host.querySelector<HTMLButtonElement>('[data-open-feedback]')!.click();
+      // The dialog's and the form's code come with the first press.
+      await vi.waitFor(async () => {
+        await settle();
+        expect(document.querySelector('anotoki-feedback-form [data-message]')).not.toBeNull();
+      });
+      const form = document.querySelector('anotoki-feedback-form');
+      expect(form?.querySelector('[data-anonymous]')).not.toBeNull();
+      expect(form?.querySelector<HTMLInputElement>('[data-email] input')?.value).toBe('mira@example.test');
+      form?.querySelector<HTMLButtonElement>('[data-cancel]')?.click();
+      await settle();
+      expect(document.querySelector('anotoki-feedback-form')).toBeNull();
     });
 
     it('under an account page: in the family’s frame, after the page', async () => {
@@ -272,16 +373,18 @@ describe("the IAM's frames: the family's footer under every page, and the status
     });
 
     it('says the database’s words: a rewording on the Translations page reaches the footer', async () => {
-      configureFrames({ 'anotoki.legalLinks.privacy': 'Ochrana súkromia' });
+      configureFrames({ 'anotoki.legalLinks.privacy': 'Ochrana súkromia', 'anotoki.footer.feedback': 'Napíš nám' });
       await at('/login');
       expect(footer().links).toEqual(['Podmienky /terms', 'Ochrana súkromia /privacy', 'Kontakt /contact']);
+      expect(footer().feedback).toBe('Napíš nám');
     });
   });
 
   describe('the status page, /not-set-up', () => {
-    /** The IAM's own routes and root, in English - the words an IAM that is not set up has (en.ts). */
+    /** The IAM's own routes and root, in English - the words an IAM that is not set up has (en.ts) - and its versions as the start leaves them. */
     function configureApp(): void {
       configure(routes, provideTestTranslations(en));
+      TestBed.inject(Changelog).entries.set(VERSIONS);
     }
 
     /** Nothing of the IAM round the page: no frame, no bar, no switches, no sky, no footer - one landmark, the page's own. */

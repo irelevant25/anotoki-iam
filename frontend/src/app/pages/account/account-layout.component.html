@@ -4,5 +4,5 @@
         <app-deletion-banner [due]="due" [takeFocus]="drawn()" />
     }
     <router-outlet />
-    <anotoki-site-footer shellFooter />
+    <anotoki-site-footer shellFooter [version]="changelog.current()" [whatsNew]="changelog.current() !== null" (whatsNew)="changelog.open()" feedback />
 </anotoki-shell>

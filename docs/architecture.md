@@ -256,7 +256,8 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `auth_codes`, `refresh_tokens` | Codes and refresh / personal tokens - hashes only; refresh tokens grouped into families for reuse detection. |
 | `signing_keys` | RSA key pairs; the private half **encrypted**. One active, retired ones published for a day. |
 | `settings` | The switches. |
-| `anotoki_audit_log` | What was done: every admin change and every security-relevant change an account made to itself - who, what, to what, the details, the address, the time. The anotoki library's table (its set `anotoki_admin`, 001), the IAM's own `audit_log` with three columns the IAM leaves empty (a session, a scope); migration 018 moved every entry there with its id, and kept the old table, unread, as `audit_log_before_018` until a later migration drops it. Kept for good, its person scrubbed out when an account is deleted. (`anotoki_feedback`, the set's 002, stays empty: the IAM takes no feedback.) |
+| `anotoki_audit_log` | What was done: every admin change and every security-relevant change an account made to itself - who, what, to what, the details, the address, the time. The anotoki library's table (its set `anotoki_admin`, 001), the IAM's own `audit_log` with three columns the IAM leaves empty (a session, a scope); migration 018 moved every entry there with its id, and kept the old table, unread, as `audit_log_before_018` until a later migration drops it. Kept for good, its person scrubbed out when an account is deleted. |
+| `anotoki_feedback` | What people sent through the family's feedback form (the library's table, its set `anotoki_admin`, 002; the IAM's since the owner's decision of 2026-10-19): the kind, the subject and the message, the page as a path, its language, the browser's name, the sender's account unless it was sent without a name, a reply address only as the sender left it, its status and who handled it. Nothing of where it came from. Spam 30 days and resolved 365 days after they were marked; when an account is deleted, its messages - and any whose reply address is its address - lose the address and the browser. |
 | `languages` | The languages the IAM speaks: `code` (`xx` or `xx-yy`, small letters), `name` in English, `native_name`, `enabled` (offered), `sort_order`. English and Slovak are seeded. |
 | `translation_keys` | Every key the pages and the mails ask for, with a description for the translator. Written by migrations only. |
 | `translations` | One string per key and language, who reworded it last (`updated_by`, null for a migration) and when. No empty string: a language without one has no row and reads the English. |
@@ -329,7 +330,8 @@ scans a code enable would refuse).
   account in a transaction of its own: everything of the person goes -
   sessions, tokens, devices, identities, roles, its sign-in attempts and
   mails - or is scrubbed, the events kept - the audit log's IP addresses,
-  names and addresses, an announcement's address - and the row becomes a
+  names and addresses, an announcement's address, a feedback message's reply
+  address and browser, its words kept - and the row becomes a
   placeholder, switched off, that nothing changes again: its id stays
   reserved. Once committed, the address it had gets the last mail. A request
   that read the account a moment before writes nothing back onto the row (its
@@ -459,9 +461,9 @@ site was opened. The family's footer links to them (`<anotoki-site-footer>`,
 anotoki-lib 0.6.3, the build analyzer's: a top border, the muted ink at
 13 px) under every sign-in, account and legal page and - as in every anotoki
 admin panel, the owner's decision of 2026-10-18 - in the admin panel, in
-English there: Terms · Privacy · Contact (`<anotoki-legal-links>`) with no
-row above them, the IAM having no version, no What's new and no feedback
-form. The not-set-up page has none of it.
+English there: Terms · Privacy · Contact (`<anotoki-legal-links>`), and
+above them the IAM's row (the owner's decision of 2026-10-19; "The version,
+What's new and feedback" below). The not-set-up page has none of it.
 
 The words are the library's (`anotoki.legal.*`, written by its translations
 set's 005); the facts are the IAM's - what it keeps, for how long, its
@@ -484,6 +486,33 @@ loaded from Google until somebody presses the IAM's own Google button
 owner's decision of 2026-10-14). The press fetches Google's script - once a
 visit - and draws Google's own button in its place, whose press opens Google's
 account chooser and hands the page the id token the server checks, as before.
+
+## The version, What's new and feedback
+
+The footer's row is the IAM's since the owner's decision of 2026-10-19, as on
+every anotoki site: the version, What's new and Feedback.
+
+- **The version** is the newest entry of `frontend/public/changelog.json` -
+  1.0.0 first - which `frontend/package.json` repeats, held to it by a spec.
+  The pages ask for the file once as they start, never waiting for it
+  (`core/changelog`); the web root serves it `no-cache`. Without it the
+  footer shows neither the version nor What's new.
+- **What's new** is the IAM's own dialog (`ui/changelog-dialog`, its code with
+  the first press): every version, newest first, with what it added, put
+  right and changed - the file's sentences, in the reader's language where the
+  file has them whole (English and informal Slovak), its own words page keys
+  (`whatsNew.*`, migration 024). It opens only when asked and keeps nothing in
+  the browser.
+- **Feedback** is the family's form (`@anotoki/lib/feedback/form`, configured
+  in `core/feedback`), which the footer and the Contact page open, sent to
+  `POST /api/feedback`: from anybody, the sender the account this browser's
+  session names - or nobody, or "without my name" -, the account's address
+  written in as the reply address until the person changes it, the CSRF
+  header like every write, the library's limits by the visitor's address
+  bucket or the account. The messages are the library's table
+  (`anotoki_feedback`), read on the admin panel's Feedback page ("The admin
+  panel's tools" below); an account's deletion takes the reply address and
+  the browser's name out of them, the words staying.
 
 ## The IAM's own words
 
@@ -533,7 +562,8 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   pages: its Privacy page says its own words for the account, its backups'
   keeping and its storage. 0.6.3's `012` writes the footer's four words
   (`anotoki.footer.*`: the version, What's new, Feedback, the fan clause) by
-  `002`'s rule - none of them on the IAM's footer, which has no row.
+  `002`'s rule - the first three on the IAM's footer since 2026-10-19, the
+  fan clause never.
   The IAM's language switcher said its two words as `lang.label` and
   `lang.button`; migration 017 moved them, with every string, writer and date,
   to `anotoki.language.label` and `anotoki.language.button`, and renamed
@@ -604,10 +634,11 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   before a link or Back leaves a page with drafts - not once nobody is signed
   in - and closing the tab is the browser's `beforeunload` question.
 
-## The admin panel's tools: the error log, the audit log, backups
+## The admin panel's tools: the error log, the audit log, feedback, backups
 
-Three pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
-owner's decision of 2026-10-11; 0.7.2 now, both halves): the same pages, routes and
+Four pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
+owner's decision of 2026-10-11 - feedback since the owner's decision of
+2026-10-19; 0.7.2 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and
@@ -649,6 +680,15 @@ shows it, and a header from anywhere else is never believed.
   cookies taken out first on every way in, down an exception's whole chain
   (`iamRedactSecrets()`) - a trace without arguments, an address as a hash of
   its bucket (an IPv6 address its /64) keyed by the master key.
+- **Feedback** (`/admin/feedback`) is `anotoki_feedback`: what people sent
+  through the family's form (`POST /api/feedback`, "The version, What's new
+  and feedback" above), by status, kind and words, each sender named as the
+  account is named now; a message opened is read, its status changed and its
+  delete audited - the delete inside its own transaction. The library's
+  limits are counted in `storage/cache` by a hash keyed by the master key,
+  never in the database; what it keeps no longer - spam after 30 days,
+  resolved after 365 - is pruned at most once a day after the answer,
+  housekeeping included.
 - **Backups** (`/admin/backups`) of the whole database, in
   `storage/backups`: COPY through PDO, every table in one snapshot, with the
   migrations it had applied; **encrypted** under a key derived from the master
@@ -767,7 +807,7 @@ written down, not a refactor.
 | `backend/config/` | `config.php` (reading `*.local.php` - cleanly or not at all, `readLocalConfigFile()` - and whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`, `cloudflare.php` (the zone's origin secret). |
 | `backend/api/index.php` | Front controller: requires, middleware order (the error log's outermost, the family's gate where "not set up" is answered), error handler; the library's after-the-answer runner after `$app->run()`. |
 | `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`: the library's admin set, the IAM's set, then the library's translations set; `iamMigrationLabel()` names a library file `set/name`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
-| `backend/api/admin_tools.php` | The IAM's configuration of the library's admin tools: `iamAdminContext()` (who acts, who the ADMIN is, the proof, the address and its bucket, the people's names, the error body), `iamErrorLog()` with the IAM's names of secrets (`IAM_SECRET_NAMES`, given to the library's redactor) and its own prefixes and cookies (`iamRedactSecrets()`, down an exception's chain; `iamClientErrorRedaction()` on the pages' own errors), `iamBackups()` (encrypted, never restored), `iamMigratorWithBackup()`. |
+| `backend/api/admin_tools.php` | The IAM's configuration of the library's admin tools: `iamAdminContext()` (who acts, who the ADMIN is, the proof, the address and its bucket, the people's names, the error body), `iamErrorLog()` with the IAM's names of secrets (`IAM_SECRET_NAMES`, given to the library's redactor) and its own prefixes and cookies (`iamRedactSecrets()`, down an exception's chain; `iamClientErrorRedaction()` on the pages' own errors), `iamFeedback()` (the feedback form's messages: the sender the session's account, `iamFeedbackSender()`; the limits' hashes keyed by the master key), `iamBackups()` (encrypted, never restored), `iamMigratorWithBackup()`. |
 | `backend/api/audit.php` | `audit()`, every route's one way into the audit log - the library's `AuditLog` (`iamAuditLog()`), waiting in a file until 018 has run (`auditMovedToLibrary()`). |
 | `backend/backup.php` | The backups from the command line - the library's command on the IAM's backups: list, make, inspect, extract; another IAM's with its master key. Never uploaded. |
 | `backend/account-deletions.php` | The record of deletions from the command line: list it, and replay it onto a database put back by hand (`--replay --since=`, `--dry-run`, `--record=` a copy). Never uploaded. |
@@ -792,6 +832,8 @@ written down, not a refactor.
 | `frontend/src/app/core/migrations/` | How the pages use `@anotoki/lib/migrations`: who is the IAM's ADMIN, the sign-in, the language and the IAM's own not-set-up words, the account's dates. |
 | `frontend/src/app/core/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the database (the IAM's own strings where it has one, `kit-words.ts`; the library's `anotoki.*` for the rest), the icons the IAM's templates name, the account's theme and the languages. |
 | `frontend/src/app/core/legal/` | How the pages use the family's legal pages (`@anotoki/lib/legal`): `legal.config.ts` (the language, the database's words - in the first load, for the footer's links) and `legal-facts.ts` (the IAM's facts and every address the pages link to, given by the pages' frame). |
-| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px), `legal-layout` (the legal pages' frame). The account pages, the legal pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`; every frame, the sign-in pages' too, has the family's footer under it (`<anotoki-site-footer>`, `@anotoki/lib/footer`: Terms · Privacy · Contact, no row). `/not-set-up` is on none of them (`app.routes.ts`). |
-| `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron. |
+| `frontend/src/app/core/changelog/`, `ui/changelog-dialog/` | The IAM's versions (`public/changelog.json`, asked for as the pages start): the footer's version, and What's new - the IAM's own dialog, its code with the first press. |
+| `frontend/src/app/core/feedback/` | How the pages use the family's feedback form (`@anotoki/lib/feedback`): the page's language, the database's words, the session's account and its address. |
+| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px), `legal-layout` (the legal pages' frame). The account pages, the legal pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`; every frame, the sign-in pages' too, has the family's footer under it (`<anotoki-site-footer>`, `@anotoki/lib/footer`: the IAM's version, What's new and Feedback, then Terms · Privacy · Contact). `/not-set-up` is on none of them (`app.routes.ts`). |
+| `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron; prunes the feedback kept no longer, at most daily. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

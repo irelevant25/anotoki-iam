@@ -3,6 +3,7 @@ import { ApplicationConfig, DOCUMENT, inject, provideAppInitializer, provideBrow
 import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { provideAnotokiAdmin } from '@anotoki/lib/admin';
 import { provideAnotokiErrorReport } from '@anotoki/lib/error-report';
+import { provideAnotokiFeedback } from '@anotoki/lib/feedback';
 import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { provideAnotokiMigrations, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { ThemeService, provideAnotokiShell } from '@anotoki/lib/shell';
@@ -11,6 +12,8 @@ import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { routes } from './app.routes';
 import { iamAdminToolsConfig } from './core/admin/admin-tools.config';
 import { SessionService } from './core/auth/session.service';
+import { Changelog } from './core/changelog/changelog.service';
+import { iamFeedbackConfig } from './core/feedback/feedback.config';
 import { iamInterceptor } from './core/http/iam.interceptor';
 import { IamTitleStrategy } from './core/i18n/title.strategy';
 import { TranslationService } from './core/i18n/translation.service';
@@ -52,28 +55,38 @@ export const appConfig: ApplicationConfig = {
     // its banner, the not-set-up page. No gate and no check at boot - the IAM
     // keeps working while an update waits (core/migrations/migrations.config.ts).
     provideAnotokiMigrations(iamMigrationsConfig),
-    // The family's admin tools: the admin panel's Error log, Audit log and
-    // Backups pages, English, for the IAM's ADMIN alone; what only the panel
-    // says and does is handed over by its routes (core/admin/admin-tools.config.ts).
+    // The family's admin tools: the admin panel's Error log, Audit log,
+    // Feedback and Backups pages, English, for the IAM's ADMIN alone; what
+    // only the panel says and does is handed over by its routes
+    // (core/admin/admin-tools.config.ts).
     provideAnotokiAdmin(iamAdminToolsConfig),
     // The family's legal pages - Terms, Privacy, Contact, on lazy routes - and
     // the links to them in the family's footer (@anotoki/lib/footer, which has
     // no configuration of its own - its links read this one; the IAM gives it
-    // no version, What's new or feedback): the library's words around the IAM's facts,
+    // its version and What's new, from public/changelog.json - core/changelog -,
+    // and Feedback): the library's words around the IAM's facts,
     // every address the pages link to in the code (core/legal/legal.config.ts;
     // the facts, which only the pages read, come with their frame:
     // core/legal/legal-facts.ts, layouts/legal-layout).
     // The IAM's Privacy page is the one every anotoki site links to.
     provideAnotokiLegal(iamLegalConfig),
+    // The family's feedback form (the owner's decision of 2026-10-19), which
+    // the footer opens under every page and the Contact page too - its code
+    // with the first press: the page's language, the database's words, the
+    // session's account and its address (core/feedback/feedback.config.ts).
+    provideAnotokiFeedback(iamFeedbackConfig),
     { provide: TitleStrategy, useClass: IamTitleStrategy },
     // The theme applies itself on construction; asking for it here makes that
     // happen before the first page renders, not on first use. The words are
     // waited for: the first page is drawn once its language's strings are in
     // memory - or, after three seconds at most, in the compiled English.
     // The start never rejects, so a server that cannot be reached still leaves
-    // a site that starts and says so.
+    // a site that starts and says so. The IAM's versions (public/changelog.json,
+    // core/changelog) are asked for beside it, once a page load and never
+    // waited for: the footer's version is there long before the words are.
     provideAppInitializer(() => {
       inject(ThemeService);
+      void inject(Changelog).load();
       return startTranslations(inject(SessionService), inject(TranslationService), inject(DOCUMENT).location?.pathname ?? '/');
     }),
   ],

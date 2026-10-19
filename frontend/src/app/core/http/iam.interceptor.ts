@@ -1,6 +1,7 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { ISSUED_AS } from '@anotoki/lib/auth/marker';
 import { ANOTOKI_ERROR_REPORT } from '@anotoki/lib/error-report';
 import { ANOTOKI_TRANSLATION_BUNDLE } from '@anotoki/lib/translations';
 import { catchError, throwError } from 'rxjs';
@@ -70,6 +71,13 @@ function fromMigrationsModule(url: string): boolean {
  * the console's alone: no page moves and no session is cleared for it, and it
  * goes back as it came, an HttpErrorResponse - the reporter reads a 429 to
  * stop reporting for the page load.
+ *
+ * So does the feedback form's message (`POST /api/feedback`, which the
+ * family's form marks as anybody's - ISSUED_AS 'anybody', @anotoki/lib/auth/marker:
+ * a request the server takes from anybody, whose failure is its maker's to
+ * say): the CSRF header, and its failure back as it came - the form reads the
+ * HttpErrorResponse's status, code, field and retry_after, and says each in
+ * the reader's words; no page is moved and no session cleared for it.
  */
 export const iamInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionService);
@@ -80,7 +88,7 @@ export const iamInterceptor: HttpInterceptorFn = (request, next) => {
 
   return next(outgoing).pipe(
     catchError((error: unknown) => {
-      if (request.context.get(ANOTOKI_ERROR_REPORT)) {
+      if (request.context.get(ANOTOKI_ERROR_REPORT) || request.context.get(ISSUED_AS) === 'anybody') {
         return throwError(() => error);
       }
 

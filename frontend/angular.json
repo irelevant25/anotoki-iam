@@ -73,7 +73,10 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  // 525 kB, not 500: the footer's row (2026-10-19) - the feedback form's words, which provideAnotokiFeedback()
+                  // registers with the translations module (~4 kB raw), the kit's dialog service What's new opens in (~2 kB),
+                  // the changelog whose newest version the footer shows (~2 kB) and the Angular they use (~2 kB): 509 kB.
+                  "maximumWarning": "525kB",
                   "maximumError": "1MB"
                 },
                 {

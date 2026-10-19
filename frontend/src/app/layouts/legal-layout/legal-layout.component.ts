@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { ANOTOKI_LEGAL_CONFIG } from '@anotoki/lib/legal';
 import { ShellComponent } from '@anotoki/lib/shell';
+import { Changelog } from '../../core/changelog/changelog.service';
 import { iamLegalPagesConfig } from '../../core/legal/legal-facts';
 import { AppTopBarComponent } from '../top-bar/top-bar.component';
 
@@ -10,10 +11,10 @@ import { AppTopBarComponent } from '../top-bar/top-bar.component';
  * The legal pages' frame - Terms, Privacy, Contact, the family's pages
  * (@anotoki/lib/legal/pages): the family's frame as the account pages have
  * it (the skip link, the bar, `<main>`) and the family's footer under it
- * (@anotoki/lib/footer: Terms · Privacy · Contact, no row - the IAM has no
- * version, no What's new and no feedback form) - and the IAM's facts, which
- * only these pages read, given to them here (core/legal/legal-facts.ts), out
- * of the first load.
+ * (@anotoki/lib/footer: the IAM's version, What's new and Feedback, then
+ * Terms · Privacy · Contact) - and the IAM's facts, which only these pages
+ * read, given to them here (core/legal/legal-facts.ts), out of the first
+ * load. The Contact page opens the feedback form too.
  *
  * Anybody may read them - every anotoki site links to the IAM's Privacy page
  * - so nothing here needs a session. The bar is the account pages' for
@@ -29,4 +30,7 @@ import { AppTopBarComponent } from '../top-bar/top-bar.component';
   templateUrl: './legal-layout.component.html',
   styleUrl: './legal-layout.component.scss',
 })
-export class LegalLayoutComponent {}
+export class LegalLayoutComponent {
+  /** The footer's version and What's new: the list the start asked for (app.config.ts). */
+  protected readonly changelog = inject(Changelog);
+}

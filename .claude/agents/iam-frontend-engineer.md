@@ -24,7 +24,13 @@ call exactly those endpoints and must handle exactly those refusal codes.
   writes; 401 outside the sign-in endpoints → `/login?next=…`; 503
   `not_set_up` → `/not-set-up`; the migrations module's own requests get their
   HttpErrorResponse back; the bundle's request, `ANOTOKI_TRANSLATION_BUNDLE`,
-  never moves the page), the anotoki family's migrations module wired in
+  never moves the page; a page's error report and the feedback form's message
+  - `ANOTOKI_ERROR_REPORT`, `ISSUED_AS 'anybody'` - keep the CSRF header and
+  get their failure back as it came), the IAM's versions (`changelog/`:
+  `public/changelog.json`, the footer's version and What's new), the family's
+  feedback form wired in (`feedback/feedback.config.ts`, `@anotoki/lib/feedback`:
+  the page's language, the database's words, the session's account - asked
+  first where a page never did - and its address written in), the anotoki family's migrations module wired in
   (`migrations/migrations.config.ts`, `@anotoki/lib/migrations`: the admin
   Migrations page, the update line in the admin layout, the not-set-up page's
   `<anotoki-site-status>` - no gate, the IAM never blocks), the family's
@@ -51,7 +57,7 @@ call exactly those endpoints and must handle exactly those refusal codes.
   themselves after a change; drafts and the unsaved-changes guard are the
   library's (`anotokiUnsavedChangesGuard`, the announcement pages' too).
 - `frontend/src/app/pages/admin/admin-tools.ts` - the admin panel's part of
-  the family's admin tools (`@anotoki/lib/admin/errors`, `/audit`, `/backups`,
+  the family's admin tools (`@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`,
   lazy routes in `admin.routes.ts`, which hand it over as the panel loads, as
   they do the localization): a refusal in `adminErrorText()`'s words, "Sign in
   again" for the proof a session alone cannot give (signs out, back to the
@@ -68,7 +74,8 @@ call exactly those endpoints and must handle exactly those refusal codes.
   one-off here. `frontend/src/app/ui/` holds only the IAM's own
   (`google-button`: its button in Google's branding first; Google's script
   and button only after a press - `GoogleSignInService.load()`, which nothing
-  else calls -, the owner's decision of 2026-10-14).
+  else calls -, the owner's decision of 2026-10-14; `changelog-dialog`: What's
+  new, lazy, in the kit's dialog).
 - `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame),
   `legal-layout` (the legal pages') and
   `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
@@ -77,9 +84,12 @@ call exactly those endpoints and must handle exactly those refusal codes.
   checks them on the real bar). The account pages, the legal pages and the
   admin panel are in the family's frame, `<anotoki-shell>`. Under every frame
   (the sign-in, account, legal and admin pages) the family's footer,
-  `<anotoki-site-footer>` (`@anotoki/lib/footer`): Terms · Privacy · Contact
-  with no row above them (the IAM has no version, What's new or feedback form:
-  give none, invent none). `app.routes.spec.ts` checks the frames.
+  `<anotoki-site-footer>` (`@anotoki/lib/footer`): the IAM's row - the
+  version and What's new from `Changelog` (neither before its list came) and
+  Feedback (the owner's decision of 2026-10-19) - then Terms · Privacy ·
+  Contact. A release adds its entry to `public/changelog.json` (English and
+  informal Slovak) and moves `package.json`'s version - a spec holds the two
+  together. `app.routes.spec.ts` checks the frames.
 - Pages: the sign-in flow (with `/error`), `/account/**`, `/admin/**`, the
   legal pages; `/not-set-up`, the family's status page, on a route of its own
   and no frame (no bar, no switches, no footer - the owner's rule of

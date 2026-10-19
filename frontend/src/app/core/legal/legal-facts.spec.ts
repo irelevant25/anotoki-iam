@@ -113,7 +113,7 @@ describe('the legal pages, as the IAM fills them in', () => {
     expect(host.querySelector('[data-section="what"] h2')?.textContent?.trim()).toBe('All about your anotoki account');
   });
 
-  it('the facts: the account itself in twelve parts, its audit log and encrypted backups in its words, no feedback and no visitors, its cookies by name', () => {
+  it('the facts: the account itself in twelve parts, the feedback form in the library’s words, its audit log and encrypted backups in its own, no visitors, its cookies by name', () => {
     configure();
     const i18n = TestBed.inject(TranslationService);
     const facts = iamLegalFacts(i18n, true);
@@ -134,7 +134,8 @@ describe('the legal pages, as the IAM fills them in', () => {
       'Approval of new accounts',
       'Deleting your account',
     ]);
-    expect(facts.feedback).toBeUndefined();
+    // The family's feedback form (the owner's decision of 2026-10-19): the library's words and keeping - iamFeedback() changes none.
+    expect(facts.feedback).toBe(true);
     expect(facts.visitors).toBeUndefined();
     expect(facts.errorLog).toBeUndefined();
     expect(facts.auditLog).toEqual({ what: en['legal.audit.what'], why: en['legal.audit.why'], kept: en['legal.audit.kept'] });
@@ -182,10 +183,22 @@ describe('the legal pages, as the IAM fills them in', () => {
       'data-9',
       'data-10',
       'data-11',
+      'feedback',
       'error-log',
       'audit-log',
       'backups',
     ]);
+    // What a feedback message keeps, what for and how long - the reply address only if the sender leaves one, and the
+    // account's deletion taking it and the browser out - true of the IAM's (iamFeedback(), scrubFeedback()).
+    const feedback = [host.querySelector('[data-kept="feedback"]'), host.querySelector('[data-duration="feedback"]')].map((part) => part?.textContent?.replace(/\s+/g, ' ') ?? '').join(' ');
+    for (const said of [
+      'a reply address only if the sender leaves one',
+      '365 days after it is resolved',
+      '30 days after it is marked as spam',
+      'the reply address and the browser go from their messages',
+    ]) {
+      expect(feedback).toContain(said);
+    }
     expect(texts(host, '[data-stored] code')).toEqual([
       'anotoki_signed_in',
       'anotoki_iam',
@@ -212,11 +225,11 @@ describe('the legal pages, as the IAM fills them in', () => {
     expect(links).not.toContain('https://evil.example');
   });
 
-  it('the Contact page: the address alone - the IAM takes no feedback - and the account page to delete the account', async () => {
+  it('the Contact page: the feedback form first - the IAM takes feedback since 2026-10-19 -, the address for everything else, and the account page to delete the account', async () => {
     configure();
     const host = await draw(ContactFrameComponent);
-    expect(host.querySelector('[data-open-feedback]')).toBeNull();
-    expect(host.querySelector('[data-section="email"] h2')?.textContent?.trim()).toBe('By e-mail');
+    expect(host.querySelector('[data-section="feedback"] [data-open-feedback]')?.textContent?.trim()).toBe('Send feedback');
+    expect(host.querySelector('[data-section="email"] h2')?.textContent?.trim()).toBe('Everything else');
     expect(host.querySelector('[data-section="email"] a')?.getAttribute('href')).toBe('mailto:support@anotoki.eu');
     expect(host.querySelector('[data-account-page]')?.getAttribute('href')).toBe('/account/security');
     expect(host.querySelector('[data-section="delete"]')?.textContent).toContain('each site then keeps what you did there without your name');

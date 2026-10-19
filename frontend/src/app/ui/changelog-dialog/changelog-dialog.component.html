@@ -1,0 +1,28 @@
+@for (version of versions(); track version.version; let first = $first) {
+    <section class="release" [class.latest]="first">
+        <header class="release-head">
+            <h3 class="version">{{ "whatsNew.version" | t: { version: version.version } }}</h3>
+            @if (first) {
+                <anotoki-badge tone="success">{{ "whatsNew.latest" | t }}</anotoki-badge>
+            }
+            <span class="date">{{ version.day | appDate: "date" }}</span>
+        </header>
+
+        <!-- The sentences are the changelog's: in the reader's language where it has them all, in English otherwise - and then they say so. -->
+        @for (list of version.lists; track list.kind) {
+            <h4 class="kind" [class]="'kind--' + list.kind">
+                <anotoki-icon [name]="list.icon" [size]="18" />
+                {{ list.key | t }}
+            </h4>
+            <ul class="changes" [attr.lang]="version.lang">
+                @for (sentence of list.sentences; track $index) {
+                    <li>{{ sentence }}</li>
+                }
+            </ul>
+        }
+    </section>
+}
+
+<ng-template anotokiDialogFooter>
+    <button anotokiButton variant="primary" (click)="ref.close()">{{ "common.close" | t }}</button>
+</ng-template>

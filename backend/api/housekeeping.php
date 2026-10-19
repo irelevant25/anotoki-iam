@@ -24,8 +24,13 @@
  *     (api/account_deletion.php): made nobody's, each in a transaction of its
  *     own, then mailed - an hour late at the most;
  *   - what a request on its way left of a deleted account's person after it
- *     went - a session, a token, a mail logged, an audit entry's IP or name
- *     (anonymizedLeftovers()), at every run.
+ *     went - a session, a token, a mail logged, an audit entry's IP or name,
+ *     a feedback message's reply address and browser (anonymizedLeftovers()),
+ *     at every run;
+ *   - the feedback messages the library keeps no longer - marked as spam 30
+ *     days before, resolved 365 days before -, at most once a day and after
+ *     the answer (iamFeedback()'s pruneIfDue()): a day nobody sends one or
+ *     opens the Feedback page prunes too.
  *
  * And what is made: the day's backup of the database, queued by the first run
  * of a UTC day and made after the answer (iamBackups(), the library's daily -
@@ -102,6 +107,16 @@ function iamHousekeeping(): void
     // the page that carried it.
     try {
         iamBackups()->dailyIfDue();
+    } catch (\Throwable $e) {
+        iamRecordError($e);
+    }
+
+    // Feedback kept no longer (api/admin_tools.php's iamFeedback(): spam 30
+    // days, resolved 365 - as the Privacy page says): claimed at most once a
+    // day by the library's own stamp, pruned after the answer on the same
+    // runner, nothing before its table is there.
+    try {
+        iamFeedback()->pruneIfDue();
     } catch (\Throwable $e) {
         iamRecordError($e);
     }

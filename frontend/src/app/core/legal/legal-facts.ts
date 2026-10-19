@@ -11,7 +11,7 @@ import { THEME_STORAGE_KEY } from '../kit/kit.config';
  * the IAM keeps or for how long - and the strings that say so (`legal.*`,
  * migration 020).
  */
-export const IAM_LEGAL_UPDATED = '2026-10-18';
+export const IAM_LEGAL_UPDATED = '2026-10-19';
 
 /** The hosting company the owner named on 2026-10-18: a name and an address of the code's, never a string's. */
 const WEB_HOST = { name: 'WebSupport s.r.o.', url: 'https://www.websupport.sk' } as const;
@@ -67,11 +67,20 @@ export function iamLegalPagesConfig(): AnotokiLegalConfig {
  * 0.6.0 review). So are the cookies' and stored items' names, and the days.
  *
  * What the IAM leaves to the library's words: the error log (its 30 days -
- * iamErrorLog() sets none of its own) and counting visits (the family's
- * Umami, index.html: umami.anotoki.eu, the query and the fragment left out).
+ * iamErrorLog() sets none of its own), counting visits (the family's Umami,
+ * index.html: umami.anotoki.eu, the query and the fragment left out) and
+ * feedback (the owner's decision of 2026-10-19; the backend's iamFeedback()):
+ * the message, its page as a path, its language and browser, the account
+ * unless it was sent without a name, a reply address only if the sender
+ * leaves one (the form writes the account's in, to keep or clear); read by
+ * the administrators; kept until dealt with, then spam 30 days and resolved
+ * 365 - the library's keeping, which iamFeedback() does not change, pruned
+ * once a day at housekeeping -, and on the account's deletion its messages
+ * lose the reply address and the browser, their words staying
+ * (scrubFeedback()). The Contact page opens the form, then gives the address.
  * No visitors part - nothing here is used without an account but signing in
- * and up, which the attempts part says - and no feedback: the IAM takes
- * none, so its Contact page gives the address alone.
+ * and up, which the attempts part says, and the feedback form, which its own
+ * part says.
  */
 export function iamLegalFacts(i18n: TranslationService, secure: boolean): LegalFacts {
   return {
@@ -93,6 +102,9 @@ export function iamLegalFacts(i18n: TranslationService, secure: boolean): LegalF
       { name: i18n.t('legal.approvals.name'), what: i18n.t('legal.approvals.what'), why: i18n.t('legal.approvals.why'), kept: i18n.t('legal.approvals.kept') },
       { name: i18n.t('legal.deletion.name'), what: i18n.t('legal.deletion.what'), why: i18n.t('legal.deletion.why'), kept: i18n.t('legal.deletion.kept') },
     ],
+    // The family's feedback form, in the library's words: what a message keeps and what for, and the library's keeping
+    // (spam 30 days, resolved 365) - iamFeedback() changes none of it; a deleted account's messages keep their words alone.
+    feedback: true,
     // The IAM's audit log keeps people's own security changes too, and the address (audit(), requestIp()).
     auditLog: { what: i18n.t('legal.audit.what'), why: i18n.t('legal.audit.why'), kept: i18n.t('legal.audit.kept') },
     // Encrypted under the master key, never restored here; 14 daily, 5 before an update, by hand until deleted (iamBackups()).

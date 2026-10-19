@@ -8,8 +8,9 @@
  *
  * Here: three sets of files, in this order. First the library's admin set,
  * anotoki_admin (vendor/anotoki/lib/backend/migrations/admin): the tables of the
- * family's admin tools - the audit log (001) and feedback (002, which the IAM
- * does not use: the set comes whole). It runs first because the IAM's 018
+ * family's admin tools - the audit log (001) and feedback (002: the messages
+ * of the family's feedback form, which the IAM takes since the owner's
+ * decision of 2026-10-19). It runs first because the IAM's 018
  * moves the IAM's audit_log into its anotoki_audit_log, and nothing else
  * makes a table named anotoki_*, so it never meets one of the IAM's. Then the
  * IAM's own, migrations/iam, recorded in the `migrations` table as it always

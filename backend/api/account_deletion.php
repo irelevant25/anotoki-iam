@@ -1,5 +1,7 @@
 <?php
 
+use Anotoki\Lib\Admin\Schema as AdminSchema;
+use Anotoki\Lib\Feedback\Feedback;
 use Anotoki\Lib\Support\GuardedDirectory;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -290,10 +292,11 @@ function anonymizeDueAccounts(PDO $pdo): int
  * log; a Google identity attached, a remembered device, recovery codes, a
  * role a new application or an administrator gave; an announcement's row
  * written back with the address; an audit entry with the person's IP or
- * name. None of it opens anything - the account is switched off, and every
- * write that would put a credential back on its row finds none
- * (liveAccountSql(), users_anonymized_check) - but all of it is the person's.
- * Swept with every run, through the anonymized ids' own index.
+ * name; a feedback message sent with its reply address and browser. None of
+ * it opens anything - the account is switched off, and every write that would
+ * put a credential back on its row finds none (liveAccountSql(),
+ * users_anonymized_check) - but all of it is the person's. Swept with every
+ * run, through the anonymized ids' own index.
  */
 function anonymizedLeftovers(PDO $pdo): void
 {
@@ -309,7 +312,9 @@ function anonymizedLeftovers(PDO $pdo): void
         'UPDATE announcement_recipients r SET email = u.email
            FROM users u WHERE u.id = r.user_id AND u.anonymized_at IS NOT NULL AND r.email <> u.email',
     );
-    scrubAuditLog($pdo, array_map('intval', $pdo->query($anonymized)->fetchAll(PDO::FETCH_COLUMN)));
+    $ids = array_map('intval', $pdo->query($anonymized)->fetchAll(PDO::FETCH_COLUMN));
+    scrubAuditLog($pdo, $ids);
+    scrubFeedback($pdo, $ids);
     $pdo->exec(
         'UPDATE users SET last_login_at = NULL, totp_last_step = NULL
           WHERE anonymized_at IS NOT NULL AND (last_login_at IS NOT NULL OR totp_last_step IS NOT NULL)',
@@ -384,6 +389,44 @@ function scrubAuditLog(PDO $pdo, array $ids): void
 }
 
 /**
+ * The feedback messages of deleted accounts (the library's anotoki_feedback,
+ * api/admin_tools.php's iamFeedback(); the owner's decision of 2026-10-19),
+ * with the person taken out and the words kept - as the Privacy page says,
+ * and as the audit log keeps its events: the messages an account sent - its
+ * id among `$ids`, the library's own rule (Feedback::forgetPeopleOn()) - and,
+ * while the account's address is still known (the anonymization's own call,
+ * `$addresses`), every message whose reply address is that address, whoever
+ * sent it (signed out, the address typed in), as the sign-in attempts and the
+ * mail log of an address go with its account: each loses its reply address
+ * and its browser's name. What a message says stays, under the placeholder's
+ * id or none - the site's to keep. Only messages that still hold one of the
+ * two are written. Nothing before the library's table is there.
+ *
+ * @param list<int> $ids
+ * @param list<string> $addresses
+ */
+function scrubFeedback(PDO $pdo, array $ids, array $addresses = []): void
+{
+    if (!AdminSchema::has($pdo, AdminSchema::FEEDBACK_TABLE)) {
+        return;
+    }
+
+    Feedback::forgetPeopleOn($pdo, $ids);
+
+    $byAddress = $pdo->prepare(
+        'UPDATE ' .
+            AdminSchema::FEEDBACK_TABLE .
+            ' SET contact_email = NULL, user_agent = NULL, updated_at = now()
+              WHERE lower(contact_email) = lower(?)',
+    );
+    foreach ($addresses as $address) {
+        if (trim($address) !== '') {
+            $byAddress->execute([trim($address)]);
+        }
+    }
+}
+
+/**
  * The audit entries that waited for migration 018 (storage/logs/audit-pending.jsonl)
  * into the log, with their own times - and then the people of every anonymized
  * account out of them at once (scrubAuditLog()): an entry may be about an
@@ -439,7 +482,9 @@ function flushWaitingAuditEntries(PDO $pdo): int
  *      names and addresses in their details (a username's change, an
  *      account's making); a personal token's name in its making's row
  *      (scrubAuditLog()). An announcement's row for the person keeps whether
- *      it went, not where.
+ *      it went, not where. The feedback messages the account sent, and any
+ *      whose reply address is its address, lose that address and the
+ *      browser's name, their words kept (scrubFeedback()).
  *   4. The row: a placeholder name and an undeliverable address, no password,
  *      two-factor, language, theme or news; switched off, unconfirmed, and
  *      anonymized_at - truncated to the second, the time the public list
@@ -449,7 +494,7 @@ function flushWaitingAuditEntries(PDO $pdo): int
  * Kept, being nobody's now: the row's id, when it was made, when the deletion
  * was asked and due; what others did that names the id (roles it granted,
  * strings it reworded, announcements it sent - an administrator's work); the
- * audit log's events themselves.
+ * audit log's events themselves; what its feedback messages say.
  *
  * Once committed, a line of the record beside the database
  * (recordAccountDeletionEvent()). With $replay - the record done again after
@@ -510,6 +555,7 @@ function anonymizeAccount(PDO $pdo, int $userId, bool $replay = false, ?string $
 
         $pdo->prepare('UPDATE announcement_recipients SET email = ? WHERE user_id = ?')->execute([$address, $userId]);
         scrubAuditLog($pdo, [$userId]);
+        scrubFeedback($pdo, [$userId], [$email]);
 
         // A row anonymized holds when it was asked and due (users_deletion_check): one done again
         // by a replay whose restored row has no request keeps the time it is done at.

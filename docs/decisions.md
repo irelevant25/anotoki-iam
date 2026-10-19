@@ -2066,3 +2066,119 @@ above, "the same roles everywhere", which were three. Migration 023:
   in the access token, the ID token and userinfo, an account without it
   refused on every way in -; the panel's lists; a new application's four
   roles; none in the IAM's entry; the window while 023 is pending.
+
+## 2026-10-19 - The owner's decision: feedback in the IAM, its version 1.0.0 and What's new
+
+The owner asked for the row the family's footer has on every other anotoki
+site - the version, What's new and Feedback - on the IAM too, starting at
+version 1.0.0. It changes two entries above: the admin tools' of 2026-10-11
+("not feedback (its visitors write to the sites)") and the footer's of
+2026-10-18 (the IAM "has none of the three ... so it gives none and invents
+no version"). What was decided with it:
+
+- **One version, one source**: the newest entry of the frontend's
+  `public/changelog.json` - 1.0.0 first, a short summary of what the IAM does
+  for people today - in the anotoki sites' changelog format, with the same
+  lists in the IAM's informal Slovak beside the English
+  (`translations.sk`). `frontend/package.json` (and `package-lock.json`'s
+  two) say 1.0.0 too, held to the file by a spec. The footer shows it
+  ("v1.0.0", read out "Version 1.0.0"); the list is asked for once a page
+  load as the IAM starts, never waited for, and a list that cannot be had
+  shows neither the version nor What's new. The web root's `.htaccess`
+  serves the file `no-cache`: it has no hash in its name.
+- **What's new is the IAM's own dialog** (`ui/changelog-dialog`, its code
+  with the first press), opened by the footer's What's new and never by
+  itself: nothing about what a browser has seen is kept, so nothing new is
+  stored in it. Its own words - the heading, a version's name, Latest, Added,
+  Fixed, Changed - are page keys (`whatsNew.*`, migration 024, English and
+  Slovak); the sentences are the file's, in the reader's language where the
+  file has them whole, else in English, marked so.
+- **Feedback is the family's** (anotoki-lib's `Feedback`, its form and its
+  admin page), as on the sites, under the IAM's rules:
+  - `POST /api/feedback` (`routes/login.php`) takes a message from anybody -
+    the sign-in pages have the footer too. Its sender is the account this
+    browser's session names, by its id alone - the session only read
+    (`optionalSession()`), never a body's word - or nobody; "send it without
+    my name" keeps neither the account nor an address. A first-party write:
+    the CSRF header and the IAM's own Origin, in neither CORS list, never an
+    exemption. The library's limits, counted by the IAM's `clientKey` (the
+    visitor's address through Cloudflare's ranges and the origin secret, an
+    IPv6 address by its /64): 5 an hour and 20 a day from one sender, a
+    signed-in person by their account and anybody else - and a message
+    without a name - by their address; 50 a day from the visitors together
+    and as many apart from the people signed in (the library's 300 lowered
+    after the security review: the IAM's feedback is rare, and a disk filled
+    with messages would stop every site's sign-in). The count is a file in
+    `storage/cache` - a keyed hash of each sender and when, gone a day later,
+    never in the database - under a key derived from the master key, as the
+    error log's client hashes are: no other key file. Nothing of where a
+    message came from is kept with it.
+  - The form writes the account's address in as the reply address, until the
+    person types their own or clears it - the IAM holds it already (the
+    survey, which keeps nobody's address, writes none in). The server takes
+    the sender from the session cookie whatever the page knows, so the form
+    asks for the session first where a page never needed it (a sign-in
+    page): its "without my name" and the address it writes in are then true
+    of the message that goes. The IAM's interceptor gives the message its
+    CSRF header and hands its failure back as it came - the library marks it
+    as anybody's (`ISSUED_AS 'anybody'`) - so the form says each refusal in
+    the reader's words and no page moves for it, as for the pages' own error
+    reports.
+  - The admin panel's Feedback page (`/admin/feedback`, the family's,
+    lazy; a link in the side navigation, which has no count beside it - the
+    page counts what is new; no mail is sent) and its routes, inside the
+    admin group like every admin tool: a status change and a delete audited
+    by the library's writer on the IAM's log (`iamAuditLog()`), the delete
+    inside its own transaction.
+  - **Kept** as the library keeps it - spam 30 days and resolved 365 days
+    after they were marked, anything else until an administrator deletes it
+    -, pruned at most once a day after the answer: when a message comes, when
+    the Feedback page is opened, and at housekeeping, so a day nobody does
+    either prunes too. Like every table, the messages are in the backups made
+    after them, encrypted, until those go; and a database put back by hand
+    from an older backup brings back a message an administrator deleted
+    since - its deletion's audit entry names it and when it was sent.
+  - **An account's deletion** takes the person out of their messages and
+    keeps the words, as the Privacy page says: the messages it sent lose the
+    reply address and the browser's name (the library's
+    `Feedback::forgetPeopleOn()`), and so does any message whose reply
+    address is the account's address - one sent signed out -, the IAM's own
+    rule beside the library's, as the sign-in attempts and the mails of the
+    address go with the account (`scrubFeedback()`, in the anonymization's
+    transaction, and again at every housekeeping for a message a request on
+    its way wrote). The words stay, under the placeholder's id. A message sent
+    "without my name" keeps its browser's name: nothing ties it to anybody.
+    What the address rule cannot reach (the security review of 2026-10-19),
+    as with the sign-in attempts and the mails: a signed-out message naming
+    an address the account had before a change, and one committed in the
+    very transaction of the anonymization - matched by id the sweep repairs
+    every message that was the account's own; one only typed with an address
+    keeps it. The Privacy page promises "their messages", those by id.
+- **The Privacy page** (`legal-facts.ts`) has the feedback part, the
+  library's words - what a message keeps, what for, how long, the reply
+  address only if the sender leaves one, what an account's deletion takes -
+  true of the code as it is: the IAM changes none of the library's keeping.
+  The Contact page offers the form first, the address for everything else.
+  `IAM_LEGAL_UPDATED` 2026-10-19.
+- **The first load** grows by 12.7 kB raw (4.6 kB sent): the form's words,
+  which `provideAnotokiFeedback()` registers with the translations module,
+  the kit's dialog service What's new opens in, the changelog's service. The
+  build's warning budget goes from 500 to 525 kB, its reason beside it.
+- **Tested**: `tests/feedback.test.php` - a visitor's message and a person's,
+  the sender from the session alone whatever the body names, without a name,
+  an account switched off sending as nobody, a page's query and the robots'
+  field; the CSRF header and the Origin (a path only spelt otherwise
+  included), no CORS answer, the refusals in the IAM's body; the limits - one
+  sender's hour by address and by account, a message without a name counted
+  by the address, an IPv6 network by its /64 through Cloudflare's edge, a
+  forged `CF-Connecting-IP` from outside the ranges counted as its
+  connection, the visitors' day apart from the people signed in -, nothing of
+  a message in the error log; the admin routes refused to nobody, an account,
+  a site's ADMIN and an administrator on the way out, every write's CSRF
+  header, then read, marked and deleted, each audited; the deletion's scrub
+  and the sweep after it; the prune at housekeeping; the table not there.
+  `tests/whats-new-strings.test.php` holds 024. In the frontend: the
+  changelog (its file against `package.json`, the Slovak, the service), the
+  dialog, the form as the IAM sets it up behind its interceptor, the
+  interceptor's handing back, the frames' footer and the Privacy and Contact
+  pages.

@@ -341,10 +341,11 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   file that names none).
 - **The admin panel's tools are the family's library's** (anotoki-lib 0.4.1,
   then 0.5.0 - the owner's decisions of 2026-10-11; `docs/decisions.md`): the
-  error log, the audit log and backups - one page each, the library's routes
+  error log, the audit log, feedback (since the owner's decision of
+  2026-10-19, below) and backups - one page each, the library's routes
   inside the admin group (the session, the IAM's ADMIN, the CSRF header; each
   group asks the library's own ADMIN check besides, `iamAdminContext()`); not
-  feedback, not the file explorer. The IAM's configuration is
+  the file explorer. The IAM's configuration is
   `api/admin_tools.php` and `api/audit.php`. **The audit log** is the library's `anotoki_audit_log`:
   `audit()` stays every route's one way in and keeps what it kept (who, what,
   to what, the details, `requestIp()`, the time), behind a savepoint, never
@@ -399,6 +400,39 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   each (the context's `names`). `php backup.php` reads one offline with the
   master key (`--inspect` the manifest alone, in memory). Backups are built
   only once the IAM is set up (their key is the master key's).
+- **The footer's row: the version, What's new and feedback** (the owner's
+  decision of 2026-10-19; `docs/decisions.md`), as on every anotoki site. The
+  version is the newest entry of `frontend/public/changelog.json` (1.0.0
+  first; English and informal Slovak, the sites' format), which
+  `frontend/package.json` and `package-lock.json`'s two repeat - a spec holds
+  them together, so a release adds its entry and moves the three; the pages
+  ask for it as they start, never waiting (`core/changelog`), the web root
+  serves it `no-cache`. What's new is the IAM's own dialog
+  (`ui/changelog-dialog`, lazy; its words `whatsNew.*`, migration 024),
+  opened only by the footer. Feedback is the family's: `POST /api/feedback`
+  (the library's `FeedbackRoutes::public()` in `routes/login.php`,
+  `iamFeedback()`): anybody's, the sender the account this browser's session
+  names by its id alone (`optionalSession()` reads it, `iamFeedbackSender()`;
+  never a body's word) or nobody, "without my name" neither; public and
+  first-party, under the CSRF header, in neither CORS list; the library's
+  limits by the IAM's `clientKey` (5 an hour and 20 a day a sender, 300 a day
+  from the visitors and as many from the people signed in), counted in
+  `storage/cache` under a key derived from the master key. The form
+  (`core/feedback`, `provideAnotokiFeedback()`) writes the account's address
+  in as the reply address until the person types their own, and asks for the
+  session first where a page never did (the server takes the sender from the
+  cookie). The Feedback page (`/admin/feedback`) and its routes sit in the
+  admin group, a status change and a delete audited by `iamAuditLog()`. Kept
+  as the library keeps it (spam 30 days, resolved 365), pruned at most daily
+  after the answer, housekeeping included; an account's deletion takes the
+  reply address and the browser's name out of its messages - and of any whose
+  reply address is its address - the words staying (`scrubFeedback()`). The
+  Privacy page says all of it (`feedback: true`). 50 messages a day from the
+  visitors together and as many from the people signed in (the library's 300
+  lowered). A signed-out message's address is only what its sender typed:
+  never change an account because a message asks. Once 1.0.0 has taken a
+  message, no build from before it goes on the host again (it would neither
+  scrub a deleted person's messages nor prune them); fix forward.
 
 ## Backend layout & conventions
 
@@ -408,7 +442,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   nothing answered (`iamRedactingMiddleware()`) → security headers → not set
   up → CORS → error
   handler (the IAM's, wrapped by the error log) → CSRF → body parsing →
-  routes; after `$app->run()`, the library's `AfterResponse` (the day's backup).
+  routes; after `$app->run()`, the library's `AfterResponse` (the day's backup,
+  the feedback's daily prune).
 - Routes by audience: `routes/oidc.php` (applications: discovery, JWKS,
   authorize, token, userinfo, preferences, logout, revoke), `routes/login.php` (the sign-in
   pages), `routes/account.php` (`requireSession()`), `routes/admin.php`
@@ -433,7 +468,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `createFirstAdmin()`), and `admin_tools.php` (the library's admin tools on
   the IAM: `iamAdminContext()`, `iamErrorLog()` with `IAM_SECRET_NAMES`,
   `iamRedactSecrets()` / `iamRedactException()` and `iamClientErrorRedaction()`,
-  `iamBackups()`, `iamMigratorWithBackup()`; `audit.php` is `audit()` over the
+  `iamFeedback()` / `iamFeedbackSender()`, `iamBackups()`,
+  `iamMigratorWithBackup()`; `audit.php` is `audit()` over the
   library's `AuditLog`, `iamAuditLog()`).
   `helpers.php` holds `requestIp()` (the library's `ClientAddress` over
   `config/iam.php`'s trusted proxies and `config/cloudflare.php`'s origin
@@ -478,10 +514,12 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   release. Its routes here: `GET /api/site-status` (first-party, public, no
   CORS), `/api/admin/migrations[/file|/apply]` inside the admin group, the
   bundle `GET /api/translations/{code}` (public, no cookie, no CORS), the
-  pages' own errors `POST /api/client-errors` (first-party, public, the CSRF
-  header, no CORS), the eight `/api/admin/languages|translations` routes, and
+  pages' own errors `POST /api/client-errors` and the feedback form's
+  `POST /api/feedback` (first-party, public, the CSRF header, no CORS), the
+  eight `/api/admin/languages|translations` routes, and
   the admin tools' `/api/admin/audit[/facets]`,
-  `/api/admin/errors[/{fingerprint}]` and `/api/admin/backups/**` (the
+  `/api/admin/errors[/{fingerprint}]`, `/api/admin/feedback/**` and
+  `/api/admin/backups/**` (the
   download `/{id}/file?ticket=` among them) - all inside the admin group.
 - **Tests** (`backend/tests/*.test.php`, `lib.php`, `setup_lib.php`) drive the
   real app and the installer in-process with a `Browser` that keeps cookies,
@@ -539,7 +577,14 @@ a decision for `docs/decisions.md`, not a refactor.
   in `app.config.ts`, beside `provideBrowserGlobalErrorListeners()`), the CSRF
   header like every write - never an exemption - and nothing else: no page
   moved, no session cleared, its HttpErrorResponse back as it came, a 429
-  stopping the reporter), the tab's title in the family's form
+  stopping the reporter; and the same to the feedback form's message, which
+  the library marks as anybody's (`ISSUED_AS 'anybody'`,
+  `@anotoki/lib/auth/marker`): the form reads its refusal), the IAM's
+  versions (`changelog/`: `public/changelog.json`, asked for as the pages
+  start, the footer's version and What's new), the family's feedback form
+  (`feedback/feedback.config.ts`: `provideAnotokiFeedback` - the page's
+  language, the database's words, the session's account, asked first where a
+  page never did, and its address written in), the tab's title in the family's form
   (`i18n/title.strategy.ts`: "Security · anotoki account", "Users · Admin
   panel · anotoki account"), the family's
   migrations module (`migrations/migrations.config.ts`:
@@ -574,7 +619,8 @@ a decision for `docs/decisions.md`, not a refactor.
   kit's markup is its own, BEM on its host class (`anotoki-top-bar__row`,
   `anotoki-button--primary`): a spec or a browser check reads those names.
   Build on it; a piece it lacks goes to the library.
-  `frontend/src/app/ui/` keeps the IAM's own (`google-button`).
+  `frontend/src/app/ui/` keeps the IAM's own (`google-button`,
+  `changelog-dialog` - What's new, lazy).
 - **Google only on a press** (the owner's decision of 2026-10-14;
   `docs/decisions.md`): the sign-in, sign-up and account pages draw the IAM's
   own button (`ui/google-button`: a real `<button>` in Google's branding, the
@@ -600,11 +646,12 @@ a decision for `docs/decisions.md`, not a refactor.
   `<anotoki-languages-page>` (`@anotoki/lib/translations/admin`, lazy; worded
   for the IAM - its mails, the accounts per language - by
   `pages/admin/localization.ts`, behind `anotokiUnsavedChangesGuard`, as the
-  announcement pages are); `/admin/audit`, `/admin/errors` and
-  `/admin/backups` are the family's admin tools (`@anotoki/lib/admin/audit`,
-  `/errors`, `/backups`, each lazy: the audit log - the IAM's own page is
-  gone; its filters are the address's query parameters -, the error log, and
-  the backups - encrypted, restoring off with the IAM's reason, each made,
+  announcement pages are); `/admin/audit`, `/admin/errors`, `/admin/feedback`
+  and `/admin/backups` are the family's admin tools (`@anotoki/lib/admin/audit`,
+  `/errors`, `/feedback`, `/backups`, each lazy: the audit log - the IAM's own page is
+  gone; its filters are the address's query parameters -, the error log, the
+  feedback form's messages (a link in the side navigation, no count beside
+  it), and the backups - encrypted, restoring off with the IAM's reason, each made,
   downloaded and deleted behind the password or a sign-in of the last 15
   minutes); `/admin/migrations` is the family's `<anotoki-migrations-page>`,
   and `<anotoki-update-banner>` sits above the panel's pages; the Migrations
@@ -617,9 +664,10 @@ a decision for `docs/decisions.md`, not a refactor.
   Under the sign-in pages, the account pages, the legal pages and - as in
   every anotoki admin panel, the owner's decision of 2026-10-18 - the admin
   panel: the family's footer (`<anotoki-site-footer>`, `@anotoki/lib/footer`,
-  in each frame), its top border and Terms · Privacy · Contact with no row
-  above them - the IAM has no version, no What's new and no feedback form,
-  so it gives none and invents none (`app.routes.spec.ts`). The facts are true of the
+  in each frame), its top border, the IAM's row - its version and What's new
+  (neither before the list of versions came) and Feedback (the owner's
+  decision of 2026-10-19) - and Terms · Privacy · Contact
+  (`app.routes.spec.ts`). The facts are true of the
   code as it is: a change to what the IAM keeps, or for how long, changes
   their `legal.*` strings (by a migration) and `IAM_LEGAL_UPDATED`; every
   address a page links to is in the code, never a string (the 0.6.0 review).

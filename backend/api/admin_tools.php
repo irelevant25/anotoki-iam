@@ -5,6 +5,7 @@ use Anotoki\Lib\Backups\Backups;
 use Anotoki\Lib\Backups\Copy;
 use Anotoki\Lib\ErrorLog\ErrorLog;
 use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
+use Anotoki\Lib\Feedback\Feedback;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Support\AfterResponse;
 use Anotoki\Lib\Support\ClientAddress;
@@ -19,9 +20,10 @@ use Slim\Psr7\Factory\StreamFactory;
 
 /**
  * The admin panel's tools from the anotoki family's library (anotoki-lib 0.5,
- * the owner's decisions of 2026-10-11): the error log, the audit log (its
- * writer is api/audit.php) and backups - one implementation, and one page
- * each, for every anotoki site. Here is what is the IAM's about them:
+ * the owner's decisions of 2026-10-11; feedback since the owner's decision of
+ * 2026-10-19): the error log, the audit log (its writer is api/audit.php),
+ * feedback and backups - one implementation, and one page each, for every
+ * anotoki site. Here is what is the IAM's about them:
  *
  *   - iamAdminContext(): who acts (the session's account), who the ADMIN is
  *     (the IAM's own entry's ADMIN, as requireAdmin() says), the proof a
@@ -33,6 +35,9 @@ use Slim\Psr7\Factory\StreamFactory;
  *     the IAM's own names of secrets (IAM_SECRET_NAMES) and, on every way in,
  *     its own prefixes and cookies (iamRedactSecrets()) - the pages' own
  *     errors too (iamClientErrorRedaction(), routes/login.php);
+ *   - iamFeedback(): what people tell the IAM through the family's feedback
+ *     form - anybody may send a message (routes/login.php), its sender the
+ *     account this browser's session names, or nobody (below);
  *   - iamBackups(): storage/backups, ENCRYPTED under a key derived from the
  *     master key, and never restored here (below).
  *
@@ -429,6 +434,83 @@ function iamInstallPhpHandlers(ErrorLog $log): void
 function iamErrorLogKey(): string
 {
     return iamSetUpProblems() === [] ? Keys::derive(iamMasterKey(), 'iam-error-log') : random_bytes(32);
+}
+
+/**
+ * Feedback - the family's (anotoki-lib's Feedback; the owner's decision of
+ * 2026-10-19, which ended "not feedback" here): what people tell the IAM
+ * through the library's form - the footer under every page opens it, and the
+ * Contact page - in the library's table anotoki_feedback (its set
+ * anotoki_admin, 002, which runs before the IAM's own files), read on the
+ * admin panel's Feedback page.
+ *
+ *   - Anybody may send a message (POST /api/feedback, routes/login.php). Its
+ *     sender is the account this browser's session names - its id, nothing
+ *     else (iamFeedbackSender()) - or nobody; never a body's word, and "send it
+ *     without my name" keeps neither the account nor an address. A reply
+ *     address only as the form sent it (the form writes the account's in, to
+ *     keep, change or clear; the server never adds one); the page as a path,
+ *     never its query; its language; the browser's name. Nothing of where it
+ *     came from.
+ *   - The library's limits: 5 an hour and 20 a day from one sender - a
+ *     signed-in person by their account, anybody else (and a message without
+ *     a name) by their address's bucket, the IAM's clientKey (requestIp(): the
+ *     visitor's through Cloudflare's ranges and the zone's origin secret; an
+ *     IPv6 address its /64) - and 50 a day from the visitors together, as
+ *     many from the people signed in: the library's 300 lowered, as the IAM's
+ *     feedback is rare and a disk filled with messages would stop every
+ *     site's sign-in (the security review of 2026-10-19). Counted in storage/cache (the library's
+ *     anotoki-feedback-limits.json: a keyed hash of each sender and when, gone
+ *     a day later - never in the database, so never in a backup), under a key
+ *     derived from the master key (iamFeedbackKey()).
+ *   - Kept: spam 30 days, resolved 365 days, anything else until an
+ *     administrator deletes it - pruned at most once a day, after the answer of
+ *     a message sent, the Feedback page opened or housekeeping (the library's
+ *     pruneIfDue()), so a day nobody sends one or opens the page prunes too.
+ *     An account's deletion takes the reply address and the browser's name out
+ *     of its messages, the words staying (scrubFeedback(),
+ *     api/account_deletion.php) - the Privacy page says all of it. No mail is
+ *     sent: the Feedback page counts what is new.
+ *
+ * Built once: the routes and housekeeping share it. Its prune runs after the
+ * answer on the library's runner, a failure the error log's (api/index.php).
+ */
+function iamFeedback(): Feedback
+{
+    static $feedback = null;
+
+    return $feedback ??= new Feedback(static fn(): PDO => iamDb(), [
+        'limits' => ['allPerDay' => 50],
+        'storage' => iamStorageDir(),
+        'key' => iamFeedbackKey(),
+        'defer' => AfterResponse::shared()->defer(...),
+    ]);
+}
+
+/**
+ * The key of the feedback limits' hashes, derived from the master key for this
+ * purpose alone (Keys::derive(): HKDF, its info naming the purpose), as the
+ * error log's is - so no other key file is kept (the library's own default
+ * would be one in storage). Before the IAM is set up there is no master key,
+ * and no message reaches the route either (the gate answers 503 not_set_up):
+ * a key for this process alone then.
+ */
+function iamFeedbackKey(): string
+{
+    return iamSetUpProblems() === [] ? Keys::derive(iamMasterKey(), 'iam-feedback') : random_bytes(32);
+}
+
+/**
+ * Who sent a feedback message: the account this browser's session names, as
+ * optionalSession() put it on the request - which only reads it - by its id
+ * and nothing else; null for nobody. Never what a body says: the library takes
+ * the sender from here alone, and a message "without my name" drops even this.
+ */
+function iamFeedbackSender(Request $request): ?array
+{
+    $user = $request->getAttribute('user');
+
+    return is_array($user) && isset($user['id']) ? ['id' => (int) $user['id']] : null;
 }
 
 /**

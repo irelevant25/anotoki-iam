@@ -40,16 +40,19 @@ Translations and Languages pages), `@anotoki/lib/migrations` (the
 not-set-up page, the admin panel's "A database update is waiting" line;
 `@anotoki/lib/migrations/page` is the Migrations page) and
 `@anotoki/lib/admin` (the admin tools' configuration; `@anotoki/lib/admin/errors`,
-`/audit` and `/backups` are the admin panel's Error log, Audit log and Backups
-pages), `@anotoki/lib/error-report` (the pages' own errors, reported to the
+`/audit`, `/feedback` and `/backups` are the admin panel's Error log, Audit
+log, Feedback and Backups pages), `@anotoki/lib/error-report` (the pages' own errors, reported to the
 backend's error log: `provideAnotokiErrorReport()` in `app.config.ts`),
 `@anotoki/lib/legal` (the legal pages' configuration and their links, Terms ·
-Privacy · Contact; `@anotoki/lib/legal/pages` is the three pages) and
+Privacy · Contact; `@anotoki/lib/legal/pages` is the three pages),
+`@anotoki/lib/feedback` (the feedback form's configuration,
+`provideAnotokiFeedback()`; `@anotoki/lib/feedback/form` is the form, which
+the footer and the Contact page load with the first press) and
 `@anotoki/lib/footer` (the family's footer, `<anotoki-site-footer>`, under the
 sign-in pages, the account pages, the legal pages and the admin panel - the
-IAM's with no row above its links: it has no version, no What's new and no
-feedback form, so it gives none). The
-IAM takes nothing of its auth, people or feedback modules: it is the IAM. Its PHP half is the
+IAM's version and What's new, from `public/changelog.json` and its own
+dialog, and Feedback, then Terms · Privacy · Contact). The
+IAM takes nothing of its auth or people modules: it is the IAM. Its PHP half is the
 backend's `anotoki/lib`. A new version: its release's URL in `package.json`,
 then `bun install` and `npm install --package-lock-only`, so that
 `package-lock.json` agrees - with the backend's half, where the version
@@ -77,7 +80,24 @@ signs nobody back in), the pages' own errors through the IAM's interceptor
 the CSRF header and is marked as the reporter's; a refusal of it moves no page
 and clears no session; a 429 reaches the reporter as it came, which stops it;
 a request of the person's own still sends an ended session to the sign-in
-page), the tab's title in the family's form (`core/i18n/title.strategy.spec.ts`:
+page; a request from anybody - the feedback form's message - carries the CSRF
+header and gets its refusal back as it came, no page moved, no session
+cleared), the feedback form as the IAM sets it up
+(`core/feedback/feedback.config.spec.ts`: the library's form drawn for real
+behind the IAM's interceptor and session - "without my name" and the
+account's address for the person signed in, neither for anybody else, the
+session asked first on a page that never needed it, the database's words in
+the page's language, the message to `/api/feedback` with the CSRF header, each
+refusal in the reader's words, no page moved), the IAM's versions
+(`core/changelog/changelog.service.spec.ts`: `public/changelog.json` - three
+numbers, newest first, dated, the newest `package.json`'s and
+`package-lock.json`'s version, 1.0.0 the first, whole in the IAM's informal
+Slovak, no address - the list asked for once, a list that cannot be had
+showing nothing and asked again, What's new in the kit's dialog) and What's
+new (`ui/changelog-dialog/changelog-dialog.component.spec.ts`: each version,
+its day in the account's order, Latest, the kinds, the sentences in the
+reader's language where whole and marked English where not, the admin
+panel's English, Close), the tab's title in the family's form (`core/i18n/title.strategy.spec.ts`:
 "Zabezpečenie · anotoki účet" on an account page in Slovak, "Users · Admin
 panel · anotoki account" in the admin panel, renamed with the language), the
 rule every save that answers with the account
@@ -95,8 +115,9 @@ failed sign-out said in a toast, restoring off with the IAM's reason, a person
 the log names linked to the Users page), the legal pages as the IAM fills
 them in (`core/legal/legal-facts.spec.ts`: the library's Privacy and Contact
 pages drawn for real in their frame's configuration - the IAM's twelve parts,
-its audit log and encrypted backups, its cookies by name, who else handles
-data, no feedback form, the root configuration with no facts of its own, and
+the feedback form's part in the library's words, its audit log and encrypted
+backups, its cookies by name, who else handles data, the Contact page
+offering the form first, the root configuration with no facts of its own, and
 every link where the code says: an administrator's rewording changes a
 link's words, never its address), the Google button
 (`ui/google-button/google-button.component.spec.ts`: the IAM's own button -
@@ -117,9 +138,11 @@ somebody signed in), and the translations' that the start asks for the
 account first on the legal pages, never on the sign-in pages. And the frames
 as `app.routes.ts` lays them out (`app.routes.spec.ts`): the family's footer
 under a sign-in page, an account page, a legal page and the admin panel (for
-somebody without access too) - Terms · Privacy · Contact alone, after the
-page and last in its frame, in the page's language (English in the admin
-panel) and the database's words -, and `/not-set-up` on a route of its own:
+somebody without access too) - the IAM's version, What's new and Feedback
+(neither of the first two before the list of versions came), then Terms ·
+Privacy · Contact, after the page and last in its frame, in the page's
+language (English in the admin panel) and the database's words; What's new
+opening the IAM's dialog and Feedback the family's form -, and `/not-set-up` on a route of its own:
 the family's status page in a `<main>` of its own with nothing of the IAM
 round it (never installed, installed and set up no more, the database out of
 reach, the moment's spinner), and once the IAM answers, back by `location` to
@@ -154,7 +177,7 @@ src/
     app.routes.ts          the lazy areas - sign-in pages, /account, /admin, the
                            legal pages, each with the family's footer under it -
                            and /not-set-up, on a route of its own (no frame)
-    app.routes.spec.ts     the frames: the footer under each area, /not-set-up bare
+    app.routes.spec.ts     the frames: the footer under each area (the IAM's row), /not-set-up bare
     core/
       api/                 models.ts (the shapes) and one typed service per area:
                            public.api.ts, login.api.ts, account.api.ts, admin.api.ts
@@ -164,8 +187,9 @@ src/
                            own, which it reads as they come); the words' own
                            request (ANOTOKI_TRANSLATION_BUNDLE) is never a reason
                            to move the page, nor is a report of the pages' own
-                           errors (ANOTOKI_ERROR_REPORT), which keeps its CSRF
-                           header and gets its failure back as it came
+                           errors (ANOTOKI_ERROR_REPORT) or the feedback form's
+                           message (ISSUED_AS 'anybody'), each of which keeps its
+                           CSRF header and gets its failure back as it came
       migrations/          the family's migrations module (@anotoki/lib/migrations)
                            wired in: who is ADMIN, the sign-in, the words, the dates.
                            No gate, no check at boot: the IAM keeps working while
@@ -202,11 +226,18 @@ src/
                            what it keeps and how long, its cookies by name, who else
                            handles data, every address the pages link to - given by
                            the pages' frame, out of the first load)
+      changelog/           the IAM's versions (public/changelog.json, asked for as the
+                           pages start): the footer's version, and What's new opened
+      feedback/            the family's feedback form wired in (feedback.config.ts):
+                           the page's language, the database's words, the session's
+                           account - asked first where a page never did - and its
+                           address written in
       google/              Google Identity Services, fetched only when somebody
                            presses the IAM's Google button - never as a page opens
     ui/                    google-button, the IAM's own (its button in Google's
-                           branding first, Google's own only after a press); the
-                           rest of the kit is the family's (@anotoki/lib/ui)
+                           branding first, Google's own only after a press), and
+                           changelog-dialog, What's new (lazy); the rest of the kit
+                           is the family's (@anotoki/lib/ui)
     layouts/               auth-layout (the night-sky sign-in pages' own frame, the
                            family's footer under the form), top-bar (the anotoki
                            family's one bar, worded and wired for the IAM - below),
@@ -231,11 +262,11 @@ src/
                            settings, keys; /admin/translations and /admin/languages
                            are the family's pages (@anotoki/lib/translations/admin),
                            worded for the IAM by localization.ts (its mails, the
-                           accounts per language); /admin/audit, /admin/errors and
-                           /admin/backups are the family's admin tools
-                           (@anotoki/lib/admin/*: the audit log, the error log, the
-                           backups - encrypted, restoring off, behind the password -,
-                           the panel's part in admin-tools.ts); and /admin/migrations
+                           accounts per language); /admin/audit, /admin/errors,
+                           /admin/feedback and /admin/backups are the family's admin
+                           tools (@anotoki/lib/admin/*: the audit log, the error log,
+                           feedback, the backups - encrypted, restoring off, behind
+                           the password -, the panel's part in admin-tools.ts); and /admin/migrations
                            is the family's (@anotoki/lib/migrations/page), whose
                            update line sits above them all - and the family's
                            footer under them all, in English
@@ -243,6 +274,10 @@ public/
   anotoki.png, favicon.png - and the build copies the family's theme-boot.js beside
                            them (angular.json): the stored theme before the first
                            paint, from a file (no inline script)
+  changelog.json           the IAM's versions, newest first - the newest the version
+                           the footer shows and package.json repeats (1.0.0 first) -,
+                           each in English and informal Slovak: a release adds its
+                           entry here and moves package.json with it
 scripts/
   prepare-deploy.mjs       writes dist/iam/browser/.htaccess
 ```
@@ -295,7 +330,7 @@ scripts/
   (between an upload and "Apply pending", or when the server cannot be
   reached). There is no Slovak in the build. The admin panel is English only,
   written in its templates; its Translations, Languages, Error log, Audit log,
-  Backups and Migrations pages are the family's.
+  Feedback, Backups and Migrations pages are the family's.
 - **The top bar** (`layouts/top-bar`) is the anotoki family's one bar -
   `<anotoki-top-bar>` from `@anotoki/lib/shell`, whose order, menus, keys and
   fold are the family's - worded and wired here. One row: the brand ("anotoki
@@ -354,7 +389,9 @@ the web root, next to the backend's `api/`. The `.htaccess` it writes:
   Content-Security-Policy that allows this origin plus Google Identity Services
   (its script, its frame and its style - fetched only after a press on the
   IAM's Google button) and the family's visitor counter
-  (`https://umami.anotoki.eu`, Umami), and nothing inline.
+  (`https://umami.anotoki.eu`, Umami), and nothing inline;
+- serves `changelog.json` - the IAM's versions, whose newest the footer shows
+  - `Cache-Control: no-cache`: it has no hash in its name.
 
 The policy is why `angular.json` turns off critical-CSS inlining in the
 production build: its stylesheet loader is an inline `onload` handler, which

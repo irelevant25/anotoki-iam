@@ -29,8 +29,9 @@ export function useAdminToolsPanel(part: AdminToolsPanel | null): void {
 /**
  * How the IAM plugs into the anotoki family's admin tools
  * (`@anotoki/lib/admin`, whose server half is the backend's anotoki/lib): the
- * admin panel's Error log, Audit log and Backups pages - the family's, English
- * as the whole panel, each on a lazy route (pages/admin/admin.routes.ts).
+ * admin panel's Error log, Audit log, Feedback and Backups pages - the
+ * family's, English as the whole panel, each on a lazy route
+ * (pages/admin/admin.routes.ts).
  * `provideAnotokiAdmin()` runs it in an injection context, the first time a
  * page asks for it.
  *
@@ -44,8 +45,9 @@ export function useAdminToolsPanel(part: AdminToolsPanel | null): void {
  *   (the backend's accountProof()): the password, asked in the page's dialog,
  *   or - for an account without one - a sign-in of the last fifteen minutes,
  *   whose refusal offers "Sign in again" (FreshSignInService).
- * - A person the logs name opens on the Users page; dates as the account
- *   writes them (`appDate`); the Migrations page while a table waits.
+ * - A person the logs or a feedback message name opens on the Users page;
+ *   dates as the account writes them (`appDate`); the Migrations page while a
+ *   table waits.
  */
 export function iamAdminToolsConfig(): AnotokiAdminConfig {
   const session = inject(SessionService);

@@ -602,6 +602,15 @@ export const en = {
   'tokens.created.how': 'Exchange it at the token endpoint for a short-lived access token, then call the site’s API with that. Exchange again when it expires.',
   'tokens.created.done': 'I have copied it',
 
+  // ── What's new: the dialog the footer opens (ui/changelog-dialog) ──────────
+  // Its own words around public/changelog.json's sentences, which are the file's.
+  'whatsNew.title': "What's new",
+  'whatsNew.version': 'Version {version}',
+  'whatsNew.latest': 'Latest',
+  'whatsNew.added': 'Added',
+  'whatsNew.fixed': 'Fixed',
+  'whatsNew.updated': 'Changed',
+
   // ── The legal pages: the anotoki account’s facts ───────────────────────────
   // Terms, Privacy and Contact are the library’s pages (@anotoki/lib/legal/pages)
   // around these facts (core/legal/legal-facts.ts): each must stay true of the

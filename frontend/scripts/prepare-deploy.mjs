@@ -34,6 +34,8 @@
 // cooperates: angular.json turns off critical-CSS inlining, whose loader is an
 // inline onload handler that this policy would block. (Component styles are
 // still injected as <style> elements at runtime, hence style-src 'unsafe-inline'.)
+// And changelog.json - the IAM's versions, whose newest the footer shows - asked
+// for again each time (no-cache): it has no hash in its name.
 //
 // Run by `npm run build:deploy` after `ng build`. Nothing here is used in dev.
 
@@ -167,6 +169,13 @@ Header always set X-Frame-Options "DENY"
 Header always set X-Content-Type-Options "nosniff"
 Header always set Referrer-Policy "strict-origin-when-cross-origin"
 Header always set Content-Security-Policy "${csp}"
+
+# The list of versions - the version the footer shows, and What's new - has no
+# hash in its name and changes with every release: asked again each time, so
+# the version shown is the release's.
+<FilesMatch "^changelog\\.json$">
+Header set Cache-Control "no-cache"
+</FilesMatch>
 </IfModule>
 `;
 
@@ -179,7 +188,7 @@ const shown = dist
   .replace(/\\/g, '/');
 console.log(`Prepared ${shown}/ for production (${files} entries; upload its contents to the web root, next to api/):`);
 console.log('  .htaccess  -> /api passed through, /.well-known -> api/index.php, config|migrations|storage|vendor refused, SPA fallback');
-console.log('               X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy');
+console.log('               X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Content-Security-Policy; changelog.json no-cache');
 console.log(
   `  checked    -> no inline script; @anotoki/lib's ${bundles.length} bundle${bundles.length === 1 ? '' : 's'} and ${scripts.length - bundles.length} boot script${scripts.length - bundles.length === 1 ? '' : 's'}: no string drawn as HTML`,
 );

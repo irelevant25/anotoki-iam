@@ -122,10 +122,22 @@ the ADMIN-only sites then list, and how to keep them ADMIN alone.
 
 anotoki-lib 0.6.3 brings the family's footer: the build analyzer's top border
 and Terms · Privacy · Contact under every page of the IAM, the admin panel's
-too (no row above them: the IAM has no version, What's new or feedback), and
-`/not-set-up` with nothing of the IAM round it. The same Apply brings the
-library's translations 012 (the footer's four words, none of them on the
-IAM's footer); nothing on the IAM's pages waits for it.
+too (no row above them then: the IAM had no version, What's new or feedback
+until 1.0.0, below), and `/not-set-up` with nothing of the IAM round it. The
+same Apply brings the library's translations 012 (the footer's four words,
+the first three on the IAM's footer since 1.0.0); nothing on the IAM's pages
+waits for it.
+
+1.0.0 (the owner's decision of 2026-10-19) brings the footer's row - the
+version, What's new and Feedback - and the admin panel's Feedback page. Upload
+both halves (the frontend's `changelog.json` beside `index.html`; the
+`.htaccess` `npm run build:deploy` writes serves it `no-cache`), then Apply:
+migration 024 brings What's new's six words (until then the dialog shows its
+keys). The feedback form needs no migration and nothing in `config/`. After
+the upload, check the footer reads "v1.0.0 · What's new · Feedback" and a
+message sent reaches Admin panel → Feedback. A later release adds its entry to
+`frontend/public/changelog.json` and moves `frontend/package.json`'s version
+(and `package-lock.json`'s two) with it.
 
 A migration that seeds a site (005, the survey site) leaves it on the live IAM
 with no address - never a `localhost` one there. Admin panel →

@@ -15,7 +15,8 @@ export const ADMIN_ROUTES: Routes = [
     component: AdminLayoutComponent,
     // The Translations and Languages pages as the IAM words them, handed to the family's translations as the
     // panel loads - before either page can be made - and kept out of the first load (core/i18n/translations.config.ts);
-    // the same for the family's admin tools - the Error log, Audit log and Backups pages (core/admin/admin-tools.config.ts).
+    // the same for the family's admin tools - the Error log, Audit log, Feedback and Backups pages
+    // (core/admin/admin-tools.config.ts).
     providers: [provideEnvironmentInitializer(() => useAdminPages(localizationPages(inject(SessionService)))), provideEnvironmentInitializer(() => useAdminToolsPanel(adminToolsPanel()))],
     children: [
       { path: '', title: 'Dashboard', loadComponent: () => import('./dashboard/dashboard.component').then((m) => m.DashboardComponent) },
@@ -61,6 +62,9 @@ export const ADMIN_ROUTES: Routes = [
       // Their filters are the address's query parameters: /admin/audit?target_type=user&target_id=42 is everything about one account.
       { path: 'audit', title: 'Audit log', loadComponent: () => import('@anotoki/lib/admin/audit').then((m) => m.AuditLogPageComponent) },
       { path: 'errors', title: 'Error log', loadComponent: () => import('@anotoki/lib/admin/errors').then((m) => m.ErrorLogPageComponent) },
+      // What people sent through the family's feedback form (the owner's decision of 2026-10-19): by status, kind and words,
+      // a message opened in a dialog - its words as text -, marked or deleted, each change audited.
+      { path: 'feedback', title: 'Feedback', loadComponent: () => import('@anotoki/lib/admin/feedback').then((m) => m.FeedbackPageComponent) },
       { path: 'settings', title: 'Settings', loadComponent: () => import('./settings/settings.component').then((m) => m.SettingsComponent) },
       // The anotoki family's Translations and Languages pages (@anotoki/lib, as the IAM words them:
       // ./localization.ts). They hold what is typed until it is saved: leaving one with something unsaved asks first.

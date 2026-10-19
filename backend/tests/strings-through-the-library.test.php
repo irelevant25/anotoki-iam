@@ -69,11 +69,12 @@ const MOVED_KEYS = [
 
 /**
  * The keys the IAM's own files after 017 write - 019's, the authenticator's
- * pause, 020's, the legal pages' facts, and 022's, the IAM's own Google
- * button: applying all that waits after 016 brings them too, and their own
- * files' tests hold them (authenticator-pause.test.php,
- * legal-pages-strings.test.php, google-button-strings.test.php). A later file
- * that adds keys adds them here - this test holds 017 and the library's set.
+ * pause, 020's, the legal pages' facts, 022's, the IAM's own Google button,
+ * and 024's, What's new: applying all that waits after 016 brings them too,
+ * and their own files' tests hold them (authenticator-pause.test.php,
+ * legal-pages-strings.test.php, google-button-strings.test.php,
+ * whats-new-strings.test.php). A later file that adds keys adds them here -
+ * this test holds 017 and the library's set.
  */
 const LATER_PAGE_KEYS = [
     'error.authenticatorPaused',
@@ -161,6 +162,12 @@ const LATER_PAGE_KEYS = [
     'google.frame',
     'google.ready',
     'google.failed',
+    'whatsNew.title',
+    'whatsNew.version',
+    'whatsNew.latest',
+    'whatsNew.added',
+    'whatsNew.fixed',
+    'whatsNew.updated',
 ];
 const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticatorPaused.greeting', 'mail.authenticatorPaused.intro', 'mail.authenticatorPaused.ignore'];
 

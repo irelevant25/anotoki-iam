@@ -36,7 +36,12 @@ API document is a contract the Angular frontend and all the sites depend on.
   IAM's names of secrets given to the library's redactor (`IAM_SECRET_NAMES`)
   and its own prefixes and cookies out first (`iamRedactSecrets()`, down an
   exception's chain; `iamClientErrorRedaction()` on the pages' own errors,
-  `POST /api/client-errors` in `routes/login.php`), `iamBackups()` - encrypted
+  `POST /api/client-errors` in `routes/login.php`), `iamFeedback()` - the
+  family's feedback form, `POST /api/feedback` in `routes/login.php`, its
+  sender the session's account alone (`iamFeedbackSender()` after
+  `optionalSession()`), the library's limits by the IAM's `clientKey`, keyed
+  by the master key; an account's deletion scrubs its messages
+  (`scrubFeedback()`, `account_deletion.php`) -, `iamBackups()` - encrypted
   under the master key, never restored -, `iamMigratorWithBackup()`; their
   routes in `routes/admin.php`), `audit.php` (`audit()` over the library's `AuditLog`,
   `iamAuditLog()`: `anotoki_audit_log`, entries waiting in

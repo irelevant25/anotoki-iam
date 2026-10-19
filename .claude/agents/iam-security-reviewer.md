@@ -169,7 +169,7 @@ the files you were given). You do not edit anything.
   (`anotoki_translations`) writes only the three tables, and a library key's
   strings only where it has none.
 - **The admin tools** (`api/admin_tools.php`, `api/audit.php`; the library's
-  `AuditRoutes`, `ErrorLogRoutes`, `BackupsRoutes` mounted in
+  `AuditRoutes`, `ErrorLogRoutes`, `FeedbackRoutes`, `BackupsRoutes` mounted in
   `routes/admin.php`): every group inside the admin group (`requireSession()`,
   `requireAdmin()`, the CSRF header on every write) and asking the library's
   own ADMIN check (`iamAdminContext()`'s `isAdmin`, the same rule: not while
@@ -209,7 +209,20 @@ the files you were given). You do not edit anything.
   `anotoki_audit_log` and in `audit_log_before_018`, and out of the entries
   that waited for 018 as they go in (`flushWaitingAuditEntries()`). Backups
   are kept until the owner deletes them (no maximum age - the owner's decision
-  of 2026-10-11).
+  of 2026-10-11). Feedback (the owner's decision of 2026-10-19,
+  `iamFeedback()`): `POST /api/feedback` public and first-party - the CSRF
+  header and the IAM's Origin, in no CORS list, never an exemption -, its
+  sender the account the session cookie names, only read
+  (`optionalSession()`, `iamFeedbackSender()`: the id alone), never a body's
+  word, "without my name" neither; the library's limits by the IAM's
+  `clientKey` (`requestIp()`'s bucket - a forged header from outside the
+  ranges is the connection), their hashes keyed by a key derived from the
+  master key, nothing of where a message came from kept with it; the reply
+  address only as sent; the admin routes inside the admin group, a status
+  change and a delete audited by `iamAuditLog()`; an account's deletion taking
+  the reply address and the browser's name out of its messages and of any
+  whose reply address is its address (`scrubFeedback()`, and the sweep); the
+  Privacy page's feedback part true of the code.
 - **Tests**: the change has them, including the attack a rule stops; `php
   tests/run.php` passes (you may run it - it uses throwaway databases).
 

@@ -3,6 +3,7 @@
 use Anotoki\Lib\Audit\Http\AuditRoutes;
 use Anotoki\Lib\Backups\Http\BackupsRoutes;
 use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
+use Anotoki\Lib\Feedback\Http\FeedbackRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
@@ -1198,13 +1199,14 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         })
         ->add(requireAnnouncements());
 
-    // ── The admin tools: audit log, error log, backups ──────────────────────
+    // ── The admin tools: audit log, error log, feedback, backups ────────────
     //
-    // The anotoki family's (anotoki-lib 0.4; api/admin_tools.php, api/audit.php),
-    // one page each in the admin panel. Their groups sit in this one, under its
-    // checks - the session, the IAM's ADMIN, the CSRF header on every write -
-    // and each asks the library's own ADMIN check (iamAdminContext()'s isAdmin,
-    // the same rule) before anything else besides.
+    // The anotoki family's (anotoki-lib 0.4; feedback since the owner's decision
+    // of 2026-10-19; api/admin_tools.php, api/audit.php), one page each in the
+    // admin panel. Their groups sit in this one, under its checks - the
+    // session, the IAM's ADMIN, the CSRF header on every write - and each asks
+    // the library's own ADMIN check (iamAdminContext()'s isAdmin, the same
+    // rule) before anything else besides.
 
     $tools = iamAdminContext();
 
@@ -1216,6 +1218,19 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     // GET /errors, /errors/{fingerprint}; DELETE /errors[?before=] - audited
     // errors.cleared. The log's own routes are never written into it.
     ErrorLogRoutes::admin($group, '/errors', iamErrorLog(), $tools, iamAuditLog());
+
+    // What people sent through the family's feedback form (POST /api/feedback,
+    // routes/login.php; iamFeedback()): GET /feedback?kind=&status=&section=
+    // &search=&page= (25 a page, newest first, the sender and whoever handled
+    // it by name - an anonymized account's placeholder), /feedback/facets,
+    // /feedback/unread, /feedback/{id} (a new one opened is read); PUT
+    // /feedback/{id}/status {status: new|read|resolved|spam} - audited
+    // feedback.status_changed; DELETE /feedback/{id} - audited feedback.deleted
+    // by the library's AuditLog inside the delete's own transaction, so no
+    // message goes without its entry (503 feature_unavailable while the audit
+    // log's table waits). 503 feature_unavailable while the library's table is
+    // not there.
+    FeedbackRoutes::admin($group, '/feedback', iamFeedback(), $tools, iamAuditLog());
 
     // Backups: encrypted under the master key, never restored here
     // (iamBackups()). Made, downloaded and deleted with the proof the account

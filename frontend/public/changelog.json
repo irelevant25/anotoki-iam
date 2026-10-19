@@ -1,0 +1,26 @@
+[
+  {
+    "version": "1.0.0",
+    "date": "2026-10-19",
+    "changes": {
+      "added": [
+        "One anotoki account for every anotoki site: sign in once, and the other anotoki sites sign you in without asking for your password again",
+        "Sign in with your password, a code sent to your email or Google, and keep your account safe with two-factor authentication: an authenticator app, with recovery codes for the day your phone is not at hand",
+        "Your account page: your name, your language, light or dark, how dates and times are written - the same on every anotoki site where you use your account -, where you are signed in, and the anotoki sites and what you may do on each",
+        "Delete your account yourself, on the account page's Security: it closes at once and is deleted 30 days later, and until then you can cancel it",
+        "At the foot of every page: the version, What's new - this list - and Feedback, to tell us about something that does not work, an idea or anything else"
+      ]
+    },
+    "translations": {
+      "sk": {
+        "added": [
+          "Jeden účet anotoki pre všetky stránky anotoki: prihlásiš sa raz a ostatné stránky anotoki ťa prihlásia bez toho, aby sa znova pýtali na heslo",
+          "Prihlásenie heslom, kódom poslaným na e-mail alebo cez Google a účet chránený dvojfaktorovým overením: overovacia aplikácia a záložné kódy na deň, keď nemáš telefón po ruke",
+          "Stránka tvojho účtu: tvoje meno, jazyk, svetlý alebo tmavý vzhľad, zápis dátumov a času - rovnaké na každej stránke anotoki, kde používaš svoj účet -, kde všade je tvoj účet prihlásený a stránky anotoki a čo na každej z nich smieš",
+          "Svoj účet si môžeš zmazať na stránke účtu v časti Zabezpečenie: hneď sa uzavrie a o 30 dní sa zmaže - dovtedy môžeš zmazanie zrušiť",
+          "V spodnej časti každej stránky: verzia, Čo je nové - tento zoznam - a Spätná väzba, kde nám napíšeš, čo nefunguje, aký máš nápad alebo čokoľvek iné"
+        ]
+      }
+    }
+  }
+]
