@@ -27,7 +27,7 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.7.2) - which every anotoki site
+its GitHub release, named in `package.json` (0.8.0) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
 tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,

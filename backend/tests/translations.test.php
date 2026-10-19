@@ -641,9 +641,9 @@ test('the two languages the IAM is released in, and every key - the IAM\'s and t
     );
     $library = count(LibraryWords::keys());
     same(
-        261,
+        288,
         $library,
-        'the library\'s words: 261 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 -, 004 - the feedback form\'s 31 -, 005 - the legal pages\' 122 -, 006 - the top bar\'s 1 -, 007 - the kit\'s pieces\' 4 -, 008 - the tabs\' 2 -, 009 - the input pieces\' 34 - and 012 - the footer\'s 4; 010 and 011 reword)',
+        'the library\'s words: 288 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 -, 004 - the feedback form\'s 31 -, 005 - the legal pages\' 122 -, 006 - the top bar\'s 1 -, 007 - the kit\'s pieces\' 4 -, 008 - the tabs\' 2 -, 009 - the input pieces\' 34 -, 012 - the footer\'s 4 - and 013 - the About and Support pages\', the footer\'s two links\' and the feedback form\'s Clear, 27; 010 and 011 reword)',
     );
     same(
         IAM_PAGE_KEYS + IAM_MAIL_KEYS,
@@ -1377,7 +1377,7 @@ test('the bundle: a language\'s strings with English underneath, the library\'s 
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 574 strings of the pages, and the library\'s 261');
+    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 574 strings of the pages, and the library\'s 288');
     same('Save', $english->json()['values']['common.save'], 'a string');
     same(
         ['Language', 'Language: {name} ({code})'],

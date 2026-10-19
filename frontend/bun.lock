@@ -10,7 +10,7 @@
         "@angular/core": "^21.2.0",
         "@angular/platform-browser": "^21.2.0",
         "@angular/router": "^21.2.0",
-        "@anotoki/lib": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.7.2/anotoki-lib-0.7.2.tgz",
+        "@anotoki/lib": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.8.0/anotoki-lib-0.8.0.tgz",
         "rxjs": "~7.8.0",
         "tslib": "^2.3.0",
       },
@@ -75,7 +75,7 @@
 
     "@angular/router": ["@angular/router@21.2.24", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "21.2.24", "@angular/core": "21.2.24", "@angular/platform-browser": "21.2.24", "rxjs": "^6.5.3 || ^7.4.0" } }, "sha512-E72AvyTRGv5rDa/SlfSztThJ+9SemjnblzB9jTb8LJOFPo7u4GlfytvRE8DnxwmTfnlZcA6Sr10zlSDnL4pmyw=="],
 
-    "@anotoki/lib": ["@anotoki/lib@https://github.com/irelevant25/anotoki-lib/releases/download/v0.7.2/anotoki-lib-0.7.2.tgz", { "dependencies": { "@fontsource-variable/manrope": "^5.3.0", "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.2.0", "@angular/core": "^21.2.0", "@angular/router": "^21.2.0", "rxjs": "^7.8.0" } }, "sha512-NPAt1OHX6SYqK/C9mEsyZ3ycKx7AhMVHkgEp2Lsx3YjHlY4jjl/xUGIEKv7L16vJB0GvJjG/ds1DFB0hulN6QQ=="],
+    "@anotoki/lib": ["@anotoki/lib@https://github.com/irelevant25/anotoki-lib/releases/download/v0.8.0/anotoki-lib-0.8.0.tgz", { "dependencies": { "@fontsource-variable/manrope": "^5.3.0", "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.2.0", "@angular/core": "^21.2.0", "@angular/router": "^21.2.0", "rxjs": "^7.8.0" } }, "sha512-lukiKpPfVhXBe6G2hQHKdzi4/CI8YO+fTzg77UwqSWGv2Yk9D7LrJ4qvHtl8a0MB+scmagL99o6P30NlSrz80w=="],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 

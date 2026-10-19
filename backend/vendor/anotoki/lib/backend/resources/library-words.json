@@ -475,8 +475,18 @@
       "en": "Leave this field empty",
       "sk": "Toto pole nechaj prázdne"
     },
+    "anotoki.feedback.clear": {
+      "description": "The anotoki library's feedback form: the button at the left of its row of buttons that empties every field. What was typed is kept otherwise - the dialog closed and opened again - until the message is sent or the page is loaded afresh. Short: it stands in one row with Cancel and Send. No placeholders.",
+      "en": "Clear",
+      "sk": "Vymazať"
+    },
+    "anotoki.feedback.clearName": {
+      "description": "The anotoki library's feedback form: what a screen reader says for the Clear button (anotoki.feedback.clear) - starting with that button's own words, so a person who speaks to the computer names the button by what it shows (WCAG 2.5.3, Label in Name). No placeholders.",
+      "en": "Clear the form",
+      "sk": "Vymazať formulár"
+    },
     "anotoki.legalLinks.label": {
-      "description": "The anotoki library's footer links to the legal pages (Terms, Privacy, Contact): the name of the group of the three links, which a screen reader announces. The legal pages' Slovak addresses nobody - no ty, no Vy - so that it fits every site, the informal ones and the formal survey alike. No placeholders.",
+      "description": "The anotoki library's footer links - About, Support and the legal pages (Terms, Privacy, Contact): the name of their group, which a screen reader announces. The links' Slovak addresses nobody - no ty, no Vy - so that it fits every site, the informal ones and the formal survey alike. No placeholders.",
       "en": "Legal",
       "sk": "Právne informácie"
     },
@@ -494,6 +504,16 @@
       "description": "The anotoki library's footer links: the link to the site's contact page. Short: it stands beside Terms and Privacy. No placeholders.",
       "en": "Contact",
       "sk": "Kontakt"
+    },
+    "anotoki.legalLinks.about": {
+      "description": "The anotoki library's footer links: the link to the About page - the same on every anotoki site: where the name anotoki comes from, who makes the projects, and each project. Short: it stands first, beside Support, Terms, Privacy and Contact. No placeholders.",
+      "en": "About",
+      "sk": "O projekte"
+    },
+    "anotoki.legalLinks.support": {
+      "description": "The anotoki library's footer links: the link to the Support page, where the anotoki projects can be supported on Ko-fi. Short: it stands beside About, Terms, Privacy and Contact. In Slovak a verb (\"Podporiť\"), never the noun. No placeholders.",
+      "en": "Support",
+      "sk": "Podporiť"
     },
     "anotoki.legal.updated": {
       "description": "The anotoki library's legal pages (Terms, Privacy): the line under the page's heading saying when the page last changed. {date}: the day, written as the page's language writes it (\"13 October 2026\"). Placeholders: {date}.",
@@ -1304,6 +1324,121 @@
       "description": "The anotoki library's footer, on a site that asks for it (the genshin site, the build analyzer): the fan clause, the last line under Terms · Privacy · Contact. Terms and Contact say it longer (anotoki.legal.fanHoyoverse). HoYoverse is the games' publisher, a name never translated. No placeholders.",
       "en": "This site is a fan-made project and is not affiliated with or endorsed by HoYoverse.",
       "sk": "Táto stránka je fanúšikovský projekt a nie je prepojená so spoločnosťou HoYoverse ani ňou schválená."
+    },
+    "anotoki.about.title": {
+      "description": "The anotoki library's About page - the same on every anotoki site, in the owner's own words: its heading. anotoki is the family's name, in small letters, never translated. The page's Slovak addresses nobody - no ty, no Vy - so that it fits every site; the owner speaks of himself, in the first person. No placeholders.",
+      "en": "About anotoki",
+      "sk": "O projekte anotoki"
+    },
+    "anotoki.about.nameTitle": {
+      "description": "The anotoki library's About page: the heading of the section on where the name anotoki comes from. No placeholders.",
+      "en": "The name",
+      "sk": "Názov"
+    },
+    "anotoki.about.nameText": {
+      "description": "The anotoki library's About page: where the name comes from, in the owner's words. {word}: the Japanese あの時, drawn in Japanese; {reading}: how it is read, ano toki, drawn in italics - each where the sentence needs it. Genshin Impact, the Build Analyzer, Japanese Academy and Piano Academy are the projects' names. Placeholders: {word}, {reading}.",
+      "en": "anotoki comes from the Japanese {word} ({reading}): \"back then\" – that time you look back on with a smile. I chose it for the nostalgic feeling I wanted the Genshin Impact project to carry, and the name stayed with everything that grew from it: the Build Analyzer, Japanese Academy and Piano Academy.",
+      "sk": "anotoki pochádza z japonského {word} ({reading}): „vtedy\" – čas, na ktorý sa spomína s úsmevom. Zvolil som ho pre nostalgický pocit, ktorý mal mať projekt Genshin Impact, a názov zostal všetkému, čo z neho vyrástlo: Build Analyzeru, Japanese Academy a Piano Academy."
+    },
+    "anotoki.about.authorTitle": {
+      "description": "The anotoki library's About page: the heading of the section on who makes the projects. No placeholders.",
+      "en": "Made by one person",
+      "sk": "Robí to jeden človek"
+    },
+    "anotoki.about.authorText": {
+      "description": "The anotoki library's About page: who makes the projects, and how, in the owner's words. Claude Code is a product's name, never translated. No placeholders.",
+      "en": "Every anotoki project is designed, built and run by me alone. I worked on the Genshin Impact project for almost two years and expected another year before it was done. Once Claude Code became part of the development, it was finished in a couple of months – and the other projects followed.",
+      "sk": "Každý projekt anotoki navrhujem, tvorím a prevádzkujem sám. Na projekte Genshin Impact som pracoval takmer dva roky a čakal som, že dokončiť ho potrvá ešte rok. Keď sa súčasťou vývoja stal Claude Code, bol hotový za pár mesiacov – a ďalšie projekty nasledovali."
+    },
+    "anotoki.about.projectsTitle": {
+      "description": "The anotoki library's About page: the heading of the list of the anotoki projects - each its name, a link to its site, and what it is. No placeholders.",
+      "en": "The projects",
+      "sk": "Projekty"
+    },
+    "anotoki.about.japaneseName": {
+      "description": "The anotoki library's About page: the name of the project at japanese.anotoki.eu, a link to it. A name, the same in every language. No placeholders.",
+      "en": "Japanese Academy",
+      "sk": "Japanese Academy"
+    },
+    "anotoki.about.japaneseText": {
+      "description": "The anotoki library's About page: what Japanese Academy is, and why it was made, in the owner's words. Duolingo and WaniKani are other apps' names; the JLPT is the Japanese-Language Proficiency Test. No placeholders.",
+      "en": "I wanted the daily habit of Duolingo and the careful kanji teaching of WaniKani in one place, but aimed at the JLPT exams. Kanji and vocabulary come in lessons, return in reviews just before you would forget them, and can be practised without limits; an exam of more than 11,000 questions, with listening, shows how much has stuck.",
+      "sk": "Chcel som na jednom mieste spojiť každodenný návyk z Duolinga a starostlivé učenie kandži z WaniKani, no so zameraním na skúšky JLPT. Kandži a slovná zásoba prichádzajú v lekciách, vracajú sa v opakovaniach tesne predtým, než by sa zabudli, a dajú sa precvičovať bez obmedzenia; test s viac ako 11 000 otázkami aj s počúvaním ukáže, koľko sa toho naozaj naučilo."
+    },
+    "anotoki.about.pianoName": {
+      "description": "The anotoki library's About page: the name of the project at piano.anotoki.eu, a link to it. A name, the same in every language. No placeholders.",
+      "en": "Piano Academy",
+      "sk": "Piano Academy"
+    },
+    "anotoki.about.pianoText": {
+      "description": "The anotoki library's About page: what Piano Academy is, in the owner's words. MIDI is how an electronic instrument talks to a computer. No placeholders.",
+      "en": "Something made for the piano itself: a simple learning path from the very first notes, in the browser with nothing to install. Plug a digital piano or MIDI keyboard into the computer, and the page shows the music, listens to what you play and keeps your progress.",
+      "sk": "Niečo priamo pre klavír: jednoduchá cesta učenia od úplne prvých nôt, v prehliadači a bez inštalovania. Stačí pripojiť digitálny klavír alebo MIDI klávesnicu k počítaču – stránka ukáže noty, počúva, čo sa hrá, a ukladá pokrok."
+    },
+    "anotoki.about.genshinName": {
+      "description": "The anotoki library's About page: the name of the project at genshin.anotoki.eu, a link to it - the game's name, never translated. No placeholders.",
+      "en": "Genshin Impact",
+      "sk": "Genshin Impact"
+    },
+    "anotoki.about.genshinText": {
+      "description": "The anotoki library's About page: what the Genshin Impact project is, in the owner's words. No placeholders.",
+      "en": "Simple databases of characters, weapons, materials and banners with filters that are easy to use, plus a daily quiz, more quizzes and small games – without the wall of ads that crowds most fan sites.",
+      "sk": "Jednoduché databázy postáv, zbraní, materiálov a bannerov s filtrami, ktoré sa ľahko používajú, k tomu denný kvíz, ďalšie kvízy a malé hry – bez záplavy reklám, ktorá zahlcuje väčšinu fanúšikovských stránok."
+    },
+    "anotoki.about.builderName": {
+      "description": "The anotoki library's About page: the name of the project at builder.anotoki.eu, a link to it. A name, the same in every language. No placeholders.",
+      "en": "Build Analyzer",
+      "sk": "Build Analyzer"
+    },
+    "anotoki.about.builderText": {
+      "description": "The anotoki library's About page: what the Build Analyzer is, and why it was made, in the owner's words. Genshin Impact and Honkai: Star Rail are games' names, never translated. No placeholders.",
+      "en": "I wanted to import my own characters' current builds automatically instead of typing them in, and then see where to go next: suggestions drawn from community builds and clear target stats for every character, for Genshin Impact and Honkai: Star Rail.",
+      "sk": "Chcel som svoje aktuálne buildy postáv importovať automaticky namiesto ich prepisovania a potom vidieť, kam ďalej: návrhy z buildov komunity a jasné cieľové štatistiky pre každú postavu, pre Genshin Impact aj Honkai: Star Rail."
+    },
+    "anotoki.about.surveyName": {
+      "description": "The anotoki library's About page: the name of the project at survey.anotoki.eu, a link to it - the surveys, in the page's language. No placeholders.",
+      "en": "Surveys",
+      "sk": "Prieskumy"
+    },
+    "anotoki.about.surveyText": {
+      "description": "The anotoki library's About page: what the surveys are for, in the owner's words. No placeholders.",
+      "en": "A place to ask the people who use these projects what they think, in one coordinated way – like the surveys games run at the end of a patch – so that what comes next is shaped by real feedback.",
+      "sk": "Miesto, kde sa dá jednotne opýtať ľudí, ktorí tieto projekty používajú, čo si myslia – ako prieskumy, ktoré hry robia na konci patchu – aby to, čo príde ďalej, vychádzalo zo skutočnej spätnej väzby."
+    },
+    "anotoki.about.fanLine": {
+      "description": "The anotoki library's About page: the line under the Genshin Impact project and under the Build Analyzer, smaller - the fan clause, short. HoYoverse is the games' publisher, a name never translated. No placeholders.",
+      "en": "A fan-made project, not affiliated with or endorsed by HoYoverse.",
+      "sk": "Fanúšikovský projekt, nie je prepojený so spoločnosťou HoYoverse ani ňou schválený."
+    },
+    "anotoki.about.closing": {
+      "description": "The anotoki library's About page: its last line. {support}: the link to the Support page, in the words of anotoki.about.closingLink - where the sentence needs it. Placeholders: {support}.",
+      "en": "anotoki is free to use. If it helps you or you simply enjoy it, you can {support}.",
+      "sk": "anotoki je zadarmo. Ak pomáha alebo jednoducho teší, dá sa {support}."
+    },
+    "anotoki.about.closingLink": {
+      "description": "The anotoki library's About page: the words of the link to the Support page in its last line (the {support} of anotoki.about.closing). No placeholders.",
+      "en": "support it",
+      "sk": "podporiť"
+    },
+    "anotoki.support.title": {
+      "description": "The anotoki library's Support page - the same on every anotoki site, in the owner's own words: its heading. anotoki is the family's name, in small letters, never translated. The page's Slovak addresses nobody - no ty, no Vy - so that it fits every site; the owner speaks of himself, in the first person. No placeholders.",
+      "en": "Support anotoki",
+      "sk": "Podporiť anotoki"
+    },
+    "anotoki.support.text": {
+      "description": "The anotoki library's Support page: why and where the projects can be supported, in the owner's words. Ko-fi is the service's name, never translated. No placeholders.",
+      "en": "anotoki is made and run by me alone, in my free time, and every project here is free to use. If something here helps you or you simply enjoy it, you can support its development on Ko-fi – every coffee helps pay for the hosting and the time new features take.",
+      "sk": "anotoki tvorím a prevádzkujem sám, vo voľnom čase, a každý projekt tu je zadarmo. Ak niečo z toho pomáha alebo jednoducho teší, vývoj sa dá podporiť na Ko-fi – každá káva pomôže zaplatiť hosting aj čas, ktorý nové funkcie zaberú."
+    },
+    "anotoki.support.button": {
+      "description": "The anotoki library's Support page: the button that opens the owner's page on Ko-fi, in a new tab. Ko-fi is the service's name, never translated. No placeholders.",
+      "en": "Support on Ko-fi",
+      "sk": "Podporiť na Ko-fi"
+    },
+    "anotoki.support.thanks": {
+      "description": "The anotoki library's Support page: the owner's thanks, the last line, under the button. No placeholders.",
+      "en": "Thank you!",
+      "sk": "Ďakujem!"
     }
   }
 }

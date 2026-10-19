@@ -291,8 +291,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   mails stay the IAM's (`MAIL_KEYS`, `MAIL_FALLBACK`, `mailWords()`,
   `mailFill()`, `mailMessage()`); their rules are `IamMailRules`, which the
   library's checks ask. `anotoki.` is the library's namespace: its own words
-  (261 keys since 0.6.3: the kit's, the status page's, the legal pages', the
-  footer's and more) come from its migration set
+  (288 keys since 0.8.0: the kit's, the status page's, the legal pages', the
+  footer's, the About and Support pages' and more) come from its migration set
   `anotoki_translations`, which runs after the IAM's set everywhere
   (`iamMigrator()`), is recorded in `migrations` as `set/name`, and writes a
   key's strings only where the key has none - but for 0.6.1's 010, which
@@ -506,7 +506,7 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): 0.7.2,
+  halves, updated together where both change (`docs/operations.md`): 0.8.0,
   both halves (the migrations module, the translations module, the UI kit,
   the admin tools, the pages' error reporter, the legal pages, the footer;
   never 0.4.0, which fails on PHP 8.2). Never
@@ -610,7 +610,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.7.2), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.8.0), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they
@@ -660,13 +660,15 @@ a decision for `docs/decisions.md`, not a refactor.
   `@anotoki/lib/legal/pages`, lazy, anybody's, in `layouts/legal-layout` -
   the family's frame, the top bar's `public` area - with the IAM's facts,
   `core/legal/legal-facts.ts`, given by that frame and out of the first load;
-  the Privacy page is the one every anotoki site links to for the account).
-  Under the sign-in pages, the account pages, the legal pages and - as in
+  the Privacy page is the one every anotoki site links to for the account),
+  with the family's About and Support pages beside them (`/about`,
+  `/support`: `@anotoki/lib/legal/about` and `/support`, anotoki-lib 0.8.0,
+  titled by the library's words). Under the sign-in pages, the account pages, the legal pages and - as in
   every anotoki admin panel, the owner's decision of 2026-10-18 - the admin
   panel: the family's footer (`<anotoki-site-footer>`, `@anotoki/lib/footer`,
   in each frame), its top border, the IAM's row - its version and What's new
   (neither before the list of versions came) and Feedback (the owner's
-  decision of 2026-10-19) - and Terms · Privacy · Contact
+  decision of 2026-10-19) - and About · Support · Terms · Privacy · Contact
   (`app.routes.spec.ts`). The facts are true of the
   code as it is: a change to what the IAM keeps, or for how long, changes
   their `legal.*` strings (by a migration) and `IAM_LEGAL_UPDATED`; every

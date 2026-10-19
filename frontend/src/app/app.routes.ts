@@ -51,6 +51,9 @@ export const routes: Routes = [
       { path: 'terms', title: 'legal.termsPageTitle', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.TermsPageComponent) },
       { path: 'privacy', title: 'legal.privacyPageTitle', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.PrivacyPageComponent) },
       { path: 'contact', title: 'legal.contactPageTitle', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.ContactPageComponent) },
+      // The family's About and Support pages (anotoki-lib 0.8.0), the same on every anotoki site; titled by the library's words.
+      { path: 'about', title: 'anotoki.about.title', loadComponent: () => import('@anotoki/lib/legal/about').then((m) => m.AboutPageComponent) },
+      { path: 'support', title: 'anotoki.support.title', loadComponent: () => import('@anotoki/lib/legal/support').then((m) => m.SupportPageComponent) },
     ],
   },
   {

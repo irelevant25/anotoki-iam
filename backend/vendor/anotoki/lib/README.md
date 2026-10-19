@@ -9,7 +9,7 @@ version:
 | PHP 8.2+, Slim 4, PostgreSQL | `anotoki/lib` (Composer) | `composer.json`, `backend/src/`, `backend/migrations/`, `backend/resources/`, `backend/testing/` |
 | Angular 21 (standalone, zoneless, signals) | `@anotoki/lib` (npm tarball) | `frontend/projects/lib/` |
 
-Version 0.7.2 holds:
+Version 0.8.0 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -34,13 +34,14 @@ Version 0.7.2 holds:
   (`@anotoki/lib/error-report`) (the section "Admin tools");
 - **the legal pages** (Angular, with their words in both halves; 0.6.0) -
   Terms, Privacy and Contact for every site, the family's
-  wording around each site's facts, and the footer's three links (the section
-  "Legal pages");
+  wording around each site's facts; the About and Support pages (0.8.0), the
+  same on every site, in the owner's words; and the footer's links to all five
+  (the sections "Legal pages" and "About and Support");
 - **the footer** (Angular, with its words in both halves; 0.6.3) -
   `<anotoki-site-footer>`, one footer under every page and admin panel of
-  every site: the version, What's new, Feedback, Terms · Privacy · Contact
-  and the fan clause; and the status page, with no header and no footer (the
-  section "Footer").
+  every site: the version, What's new, Feedback, About · Support · Terms ·
+  Privacy · Contact and the fan clause; and the status page, with no header and
+  no footer (the section "Footer").
 
 ## The behaviour
 
@@ -82,7 +83,7 @@ PHP - in `backend/composer.json`:
 
 ```json
 "repositories": [{ "type": "vcs", "url": "https://github.com/irelevant25/anotoki-lib" }],
-"require": { "anotoki/lib": "^0.7.0" }
+"require": { "anotoki/lib": "^0.8.0" }
 ```
 
 then `php composer.phar update anotoki/lib --prefer-dist` in `backend/`. Composer
@@ -243,14 +244,14 @@ uses is in the first load again.
 | `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, `/files` (0.4.0) | the admin tools' pages, one each | lazy admin routes |
 | `@anotoki/lib/admin/parts` (0.4.0) | what those pages share - their requests, failures, dates, question dialog and styles; the library's own, a site imports nothing of it | with the first of them |
 | `@anotoki/lib/feedback` (0.4.0) | the visitors' feedback form's configuration (`provideAnotokiFeedback`, which registers its words) and its words | yes, beside the translations module |
-| `@anotoki/lib/feedback/form` (0.4.0) | `<anotoki-feedback-form>`, on the kit's fields | loaded when the person opens it |
+| `@anotoki/lib/feedback/form` (0.4.0) | `<anotoki-feedback-form>`, on the kit's fields; `<anotoki-feedback-dialog>` (0.8.0), the form in the kit's dialog with its buttons in the dialog's footer - the footer's and the Contact page's | loaded when the person opens it |
 | `@anotoki/lib/error-report` (0.5.0) | `provideAnotokiErrorReport()`: the browser's errors in the site's error log ("Admin tools" below) | yes (every page) |
 | `@anotoki/lib/error-report/marker` (0.6.0) | `ANOTOKI_ERROR_REPORT` alone, the mark on a report's request an interceptor reads (the auth module's) - without the reporter; `@anotoki/lib/error-report` names it too | with the reporter, and the auth module |
-| `@anotoki/lib/legal` (0.6.0) | the legal pages' configuration (`provideAnotokiLegal`: the site's facts, its paths, the operator) and `<anotoki-legal-links>`, Terms · Privacy · Contact for a footer ("Legal pages" below) | yes (a footer on every page) |
+| `@anotoki/lib/legal` (0.6.0) | the legal pages' configuration (`provideAnotokiLegal`: the site's facts, its paths, the operator) and `<anotoki-legal-links>`, About · Support · Terms · Privacy · Contact for a footer ("Legal pages" below) | yes (a footer on every page) |
 | `@anotoki/lib/legal/pages` (0.6.0) | the Terms, Privacy and Contact pages, with their words | lazy routes |
-| `@anotoki/lib/footer` (0.6.3) | `<anotoki-site-footer>`, the family's footer: the version, What's new, Feedback, Terms · Privacy · Contact, the fan clause ("Footer" below) | yes (every page) |
-| `@anotoki/lib/footer/feedback` (0.6.3) | the footer's feedback dialog: the kit's dialog around the feedback form; the library's own, a site imports nothing of it | loaded with the press on Feedback |
-| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's), `/legal-links` (the footer's links, 0.6.0), `/legal` (the legal pages', 0.6.0 - read by those pages alone), `/chips`, `/progress`, `/stepper`, `/tabs`, `/date-field`, `/color-field`, `/file-picker`, `/combobox` and `/rich-text` (the kit's pieces', 0.6.0 - read by those pieces alone), `/footer` (the footer's, 0.6.3 - read by the footer itself) | with its module, which alone imports it and registers it with the translations module (the legal pages, the kit's pieces and the footer read theirs themselves) |
+| `@anotoki/lib/legal/about`, `/support` (0.8.0) | the About page and the Support page, the same on every site, each with its words ("About and Support" below) | lazy routes |
+| `@anotoki/lib/footer` (0.6.3) | `<anotoki-site-footer>`, the family's footer: the version, What's new, Feedback, About · Support · Terms · Privacy · Contact, the fan clause ("Footer" below) | yes (every page) |
+| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's), `/legal-links` (the footer's links, 0.6.0), `/legal` (the legal pages', 0.6.0 - read by those pages alone), `/chips`, `/progress`, `/stepper`, `/tabs`, `/date-field`, `/color-field`, `/file-picker`, `/combobox` and `/rich-text` (the kit's pieces', 0.6.0 - read by those pieces alone), `/footer` (the footer's, 0.6.3 - read by the footer itself), `/about` and `/support` (the About and Support pages', 0.8.0 - read by each page alone) | with its module, which alone imports it and registers it with the translations module (the legal pages, the About and Support pages, the kit's pieces and the footer read theirs themselves) |
 | `@anotoki/lib/words` (0.4.0, generated) | `LIBRARY_WORDS`, every module's words (the kit's and each namespace's) | never - a site's specs, the showcase |
 
 Every component is standalone, OnPush and zoneless-safe; colours only through
@@ -1170,7 +1171,12 @@ $migrator = new Migrator($pdo, [new MigrationSet('survey', __DIR__ . '/../migrat
   the Privacy page where they are still 005's words (CHANGELOG.md).
 - `012_footer_words.sql` (0.6.3) adds the footer's words (`anotoki.footer.*`: "Version {version}",
   "What's new", "Feedback" and the HoYoverse fan clause), 4 keys in English and impersonal Slovak,
-  by 002's rule - 261 library keys.
+  by 002's rule.
+- `013_about_and_support_words.sql` (0.8.0) adds the About and Support pages' words (`anotoki.about.*`,
+  19 keys, and `anotoki.support.*`, 4: the owner's own, in English and impersonal Slovak), the footer's
+  two new links (`anotoki.legalLinks.about` and `.support`) and the feedback form's Clear
+  (`anotoki.feedback.clear`, `.clearName`), by 002's rule - 288 library keys; and the links' group's
+  description, which names its five links now.
 - The house rules: every library file ends with `-- end of NNN` (Japanese
   Academy's draft rule accepts it), has LF line endings, one string a line with
   `''` for an apostrophe and nothing else escaped, names no site table, runs
@@ -1307,12 +1313,14 @@ import it:
   `provideAnotokiFeedback()`, `provideLibraryWords(LEGAL_LINKS_LIBRARY_WORDS)` in
   `provideAnotokiLegal()` (the multi provider `ANOTOKI_LIBRARY_WORDS` of
   `@anotoki/lib/ui/config`);
-- one namespace read by its pages alone, never registered: `@anotoki/lib/words/legal`
+- the namespaces read by their pages alone, never registered: `@anotoki/lib/words/legal`
   (the legal pages', 0.6.0) - pages of text, which a registration would bring
   with the eager configuration into every first load; `@anotoki/lib/legal/pages`
   alone imports it and reads it itself (the database's string through
   `translate`, then the built-in), and its Slovak addresses nobody (no "ty", no
-  "Vy"). The script knows both (`READ_BY_THEIR_PAGES`, `IMPERSONAL`);
+  "Vy"). So, 0.8.0, `@anotoki/lib/words/about` (by `legal/about`) and
+  `@anotoki/lib/words/support` (by `legal/support`). The script knows them
+  (`READ_BY_THEIR_PAGES`, `IMPERSONAL`);
 - the namespaces of the kit's pieces that are entry points of their own (0.6.0),
   read by those pieces alone, never registered: `@anotoki/lib/words/chips` (by
   `ui/chips`), `@anotoki/lib/words/progress` (by `ui/progress`),
@@ -1346,7 +1354,7 @@ words brings a namespace, an entry point of its own and its registration:
 first load to the namespaces its page says, and refuses a module that imports
 its words without registering them, and the translations module importing any -
 but for the words their readers alone read (`READ_BY_THEIR_PAGES`: the legal
-pages', the kit's pieces', the footer's), which only those readers may import and
+pages', the About and Support pages', the kit's pieces', the footer's), which only those readers may import and
 no first load may carry but their reader's own (the footer's).
 
 ### The Angular half: `@anotoki/lib/translations`
@@ -2687,8 +2695,10 @@ provideAnotokiFeedback(() => {
 }),
 
 // where it is opened - loaded then, so no first load carries the kit's fields
-const { FeedbackFormComponent } = await import('@anotoki/lib/feedback/form');
-// <anotoki-feedback-form [heading]="null" closable (sent)="..." (closed)="close()" />
+const { FeedbackDialogComponent, FeedbackFormComponent } = await import('@anotoki/lib/feedback/form');
+// in the kit's dialog, its buttons in the dialog's footer (0.8.0 - the family's footer and the Contact page open this):
+// <anotoki-feedback-dialog [heading]="'Feedback'" (closed)="close()" />
+// or the form alone, on a page of the site's: <anotoki-feedback-form (sent)="..." />
 ```
 
 - The kinds, a section, a subject, the message, the site's extra fields for the
@@ -2698,6 +2708,22 @@ const { FeedbackFormComponent } = await import('@anotoki/lib/feedback/form');
   now (`503`), too long (the field and its most), the network. The robots' field
   (`honeypot`) is off the screen, out of the tab order and hidden from screen
   readers. Sent, the thanks take the focus, with "Send another".
+- Nothing typed is lost (0.8.0) until the message is sent or the page is loaded
+  afresh: the fields are the page's draft, in memory alone (never the browser's
+  storage), so a form taken away - its dialog closed by Escape, a click outside
+  it, Cancel; its page left - and drawn again shows them, the footer's and the
+  Contact page's dialog alike. **Clear**, at the left of the buttons (the kit's
+  quiet red, outlined in red; "Clear the form" to a screen reader), empties every
+  field and the draft - a signed-in person's address is written in again - and
+  puts the focus on the message. A message sent empties the draft; "Send another"
+  keeps who sends it.
+- `<anotoki-feedback-dialog>` (0.8.0): the form in the kit's dialog, named by its
+  `heading`, the form with no heading of its own; its buttons - Clear at the left,
+  Cancel and Send at the right, Send another and Close after the thanks - are the
+  dialog's own footer (the form's `actions`, `actionsOutside`), always in view: only
+  the form scrolls when it is taller than the window, at 390 px too. Send names the
+  form (its `form` attribute), so Enter in a field still sends. `(closed)`: Escape,
+  the backdrop, its close button, Cancel, or Close.
 - Its words: the site's database's (`translate`), then the site's own (`words`),
   then the built-in English and informal Slovak (`feedbackWords()`); a language
   with none of them reads English, and the form says `lang="en"`.
@@ -2787,8 +2813,10 @@ public.
 
 - `@anotoki/lib/legal` - small, with the rest of a site's app:
   `provideAnotokiLegal()` (the site's facts, its paths, the operator) and
-  `<anotoki-legal-links>` (Terms · Privacy · Contact, for a footer), which
-  registers its four words (`anotoki.legalLinks.*`). 1.5 kB gzipped in a first
+  `<anotoki-legal-links>` (About · Support · Terms · Privacy · Contact, for a
+  footer - About and Support first since 0.8.0, "About and Support" below; on a
+  phone, under 28rem, two lines: About · Support, then the legal pages), which
+  registers its six words (`anotoki.legalLinks.*`). 1.6 kB gzipped in a first
   load beside the translations module.
 - `@anotoki/lib/legal/pages` - `TermsPageComponent`, `PrivacyPageComponent`,
   `ContactPageComponent`, each on a lazy route of the site's. Their words
@@ -2804,7 +2832,7 @@ provideAnotokiLegal(() => {
   return {
     language: () => i18n.language(),
     translate: (key) => i18n.libraryWord(key),            // an owner's rewording on the Translations page
-    // paths: { terms: '/terms', privacy: '/privacy', contact: '/contact' },   the defaults
+    // paths: { terms: '/terms', privacy: '/privacy', contact: '/contact', about: '/about', support: '/support' },   the defaults
     // operator: { name, url, email, details },          the family's: LEGAL_OPERATOR
     // formatDate: (day) => …,                           default: the language's long date
     facts: () => ({                                       // read as a page is drawn: signals are followed
@@ -2897,10 +2925,10 @@ whole for a harvester; the pages are drawn in the browser, so no page's HTML
 holds it either. The words say Slovakia (its law, its authority): an operator
 elsewhere rewords them.
 
-**Words**: `anotoki.legal.*` (118 keys) and `anotoki.legalLinks.*` (4), English
+**Words**: `anotoki.legal.*` (118 keys) and `anotoki.legalLinks.*` (6), English
 and Slovak - the Slovak impersonal, addressing nobody ("ty" or "Vy"), so the
 pages fit the informal sites and the formal survey alike - in every site's
-database through `anotoki_translations/005`, reworded on its Translations page.
+database through `anotoki_translations/005` (the links About and Support 013), reworded on its Translations page.
 A site's bundle carries them like every library word: about 10 kB of text a
 language.
 
@@ -2928,6 +2956,55 @@ site or a module changes:
 - The account: the IAM's deletion closes the account at once, deletes it 30
   days later and can be cancelled until then.
 
+## About and Support (0.8.0)
+
+Two more pages every anotoki site shows, the same on each, in the owner's own
+words (approved word for word, 2026-10-19): **About** - where the name anotoki
+comes from, who makes the projects, each project linked to its site - and
+**Support** - why and where the projects can be supported. The footer links to
+both, first (`<anotoki-legal-links>`: About · Support · Terms · Privacy ·
+Contact).
+
+- `@anotoki/lib/legal/about` - `AboutPageComponent` (3.0 kB gzipped, its words
+  2.4) and `@anotoki/lib/legal/support` - `SupportPageComponent` (1.7, its words
+  0.5): an entry point each, on a lazy route, anybody's, in the frame the legal
+  pages are in. Their words (`anotoki.about.*`, `anotoki.support.*`) come with
+  them alone, read by the pages themselves (`READ_BY_THEIR_PAGES`) - the
+  database's string through the legal configuration's `translate`, then the
+  built-in English and impersonal Slovak (the owner speaks of himself, in the
+  first person) - and are in every site's database through
+  `anotoki_translations/013`, reworded on its Translations page.
+- They read the legal configuration (`provideAnotokiLegal()`, "Legal pages"
+  above) for the page's language, an owner's rewording and the paths - none of
+  the site's facts - and work without it too (the page's own language, the
+  default paths).
+
+```ts
+// app.routes.ts - the paths of the legal configuration (paths.about, paths.support: '/about' and '/support' unless it says otherwise)
+{ path: 'about', loadComponent: () => import('@anotoki/lib/legal/about').then((m) => m.AboutPageComponent) },
+{ path: 'support', loadComponent: () => import('@anotoki/lib/legal/support').then((m) => m.SupportPageComponent) },
+```
+
+- **About**: one `<h1>` ("About anotoki"), a section per `<h2>` - "The name"
+  (あの時 drawn in Japanese, `lang="ja"`, its reading *ano toki* in italics,
+  `lang="ja-Latn"`: the sentence's `{word}` and `{reading}`), "Made by one
+  person", "The projects" (a card each, its name an `<h3>` linking to its site:
+  Japanese Academy, Piano Academy, Genshin Impact, Build Analyzer, Surveys; the
+  fan line under Genshin Impact and the Build Analyzer, smaller) - and the last
+  line, on the soft blue, whose "support it" links to the Support page (the
+  site's path; a rewording that leaves out `{support}` keeps its words, the link
+  after them).
+- **Support**: "Support anotoki", the owner's text, the kit's primary button that
+  is a link - "Support on Ko-fi", opened in a new tab with
+  `rel="noopener noreferrer"`, the kit's external-link icon beside its words -
+  and "Thank you!".
+- **Every address is the library's code, never a string**: the five sites
+  (`ANOTOKI_PROJECTS`: https://japanese.anotoki.eu, https://piano.anotoki.eu,
+  https://genshin.anotoki.eu, https://builder.anotoki.eu,
+  https://survey.anotoki.eu), the owner's Ko-fi page (`SUPPORT_URL`,
+  https://ko-fi.com/projectanotoki) and the Support page's path (the legal
+  configuration's). A rewording on a Translations page never moves a link.
+
 ## Footer (0.6.3)
 
 One footer for every anotoki site - the build analyzer's, its order, its words
@@ -2953,7 +3030,7 @@ provideAnotokiFeedback(() => ({ /* "The visitors' feedback form" above */ })),
 | --- | --- |
 | `version` | the version of the site the page runs (`'0.3'`): "Version 0.3", first in the row; null or empty - neither it nor its dot |
 | `whatsNew`, `(whatsNew)` | "What's new" after the version, a link button naming the dialog it opens (`aria-haspopup="dialog"`); pressed, `(whatsNew)`: the site opens its own What's new |
-| `feedback` | "Feedback", last in the row: the library's feedback form in the kit's dialog, named by the button's words, the form with its Cancel and - after the thanks - its Close (the site's `provideAnotokiFeedback()` as it is). The dialog's and the form's code come with the first press (`@anotoki/lib/footer/feedback`, the footer's own: no first load carries them), the button busy meanwhile; the focus is back on the button once the dialog goes. Left out on a site that takes no feedback (the IAM) |
+| `feedback` | "Feedback", last in the row: the library's feedback form in the kit's dialog, named by the button's words (the site's `provideAnotokiFeedback()` as it is) - `<anotoki-feedback-dialog>` (0.8.0, the Contact page's too): its buttons - Clear, Cancel, Send; Send another and Close after the thanks - in the dialog's own footer, and what was typed kept for the next press until it is sent ("The visitors' feedback form" above). The dialog's and the form's code come with the first press (`@anotoki/lib/feedback/form`: no first load carries them), the button busy meanwhile; the focus is back on the button once the dialog goes. Left out on a site that takes no feedback (the IAM) |
 | `fan` | `'hoyoverse'`: the fan clause, last (genshin, the build analyzer); Terms and Contact say it longer (`fanDisclaimer`) |
 
 - **Drawn**: a top border (`--anotoki-border`), everything centred in the muted
@@ -2961,8 +3038,9 @@ provideAnotokiFeedback(() => ({ /* "The visitors' feedback form" above */ })),
   on, a dot between two of them (drawn, `aria-hidden`: a part left out takes its
   dot with it, and with none the row is not drawn), the version's figures of one
   width, the kit's small link buttons (44 px where the pointer is a finger);
-  Terms · Privacy · Contact under it, always (`<anotoki-legal-links>`, to the
-  paths of the site's `provideAnotokiLegal()`); the fan clause at 0.75rem, at most
+  About · Support · Terms · Privacy · Contact under it, always (`<anotoki-legal-links>`, to the
+  paths of the site's `provideAnotokiLegal()`; on a phone, under 28rem, two lines -
+  About · Support, then the legal pages - so no line begins with a dot); the fan clause at 0.75rem, at most
   40rem wide. A `<footer>` landmark of its own, the dialog outside it; wraps at
   390 px; not printed, as the bar is not. Light and dark from the tokens.
 - **Words** (`anotoki.footer.*`): "Version {version}", "What's new",
@@ -2972,9 +3050,9 @@ provideAnotokiFeedback(() => ({ /* "The visitors' feedback form" above */ })),
   site's string first, through provideAnotokiUi's `lookup` (the translations
   module's `forKit()`: the database's), then the built-in words, in the kit's
   language (English in an admin panel); a part says its language where it is not
-  the page's. Terms · Privacy · Contact are the legal links' (`anotoki.legalLinks.*`).
-- **Weight**: 7.6 kB gzipped of a site's first load with the legal links and the
-  kit's button (8.0 beside lazy pages; the package check holds it to 9) - the
+  the page's. About · Support · Terms · Privacy · Contact are the legal links' (`anotoki.legalLinks.*`).
+- **Weight**: 7.8 kB gzipped of a site's first load with the legal links and the
+  kit's button (8.2 beside lazy pages; the package check holds it to 9) - the
   dialog and the form come with the press.
 
 A site's own footer goes for it - its version, What's new, Feedback, its legal
@@ -3056,7 +3134,8 @@ bun run showcase        # projects/showcase on http://localhost:4320: every piec
                         # a password as the proof ("secret"), ?signedin=1 for the form; /sign-in, the sign-in
                         # failure's screen (?code=state_mismatch, ..., unavailable); /terms, /privacy, /contact,
                         # the legal pages with a sample site's facts, linked from the footer (?iam=1 the anotoki
-                        # account's own, ?fan=1 the fan clause, ?feedback=0 a site without feedback); the family's
+                        # account's own, ?fan=1 the fan clause, ?feedback=0 a site without feedback); /about and
+                        # /support, the About and Support pages; the family's
                         # footer under every page (the library's version, What's new, Feedback; the same
                         # ?fan=1 and ?feedback=0) and its samples in the gallery; never published)
 bun run build:showcase  # the same, built into frontend/dist/showcase

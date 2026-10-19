@@ -42,7 +42,9 @@ export class IamTitleStrategy extends TitleStrategy {
     effect(() => {
       const raw = this._page();
       const site = this._i18n.t('brand.account');
-      const page = raw ? (isTranslationKey(raw) ? this._i18n.t(raw) : raw) : null;
+      // A library page (About, Support) is titled by the library's own key: its word from the bundle, or - before the
+      // words arrive - no page part at all, never the key.
+      const page = raw ? (isTranslationKey(raw) ? this._i18n.t(raw) : raw.startsWith('anotoki.') ? this._i18n.libraryWord(raw) : raw) : null;
       const parts = [page, this._admin() ? ADMIN_PANEL : null, site].filter((part): part is string => !!part);
       this._title.setTitle(parts.join(' · '));
     });

@@ -5,6 +5,70 @@ and the npm package `@anotoki/lib` (`frontend/projects/lib/package.json`). While
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.8.0 - 2026-10-19
+
+**The About and Support pages** (the owner's words of 2026-10-19, approved word for word): two pages every anotoki
+site shows, the same on each (README.md, "About and Support").
+
+- `@anotoki/lib/legal/about` (new), `<anotoki-about-page>`: "About anotoki" - "The name" (あの時 drawn in Japanese,
+  `lang="ja"`, its reading *ano toki* in italics, `lang="ja-Latn"`), "Made by one person", "The projects" (Japanese
+  Academy, Piano Academy, Genshin Impact, Build Analyzer, Surveys - each name a link to its site, the fan line under
+  Genshin Impact and the Build Analyzer) and the last line, whose "support it" links to the Support page.
+- `@anotoki/lib/legal/support` (new), `<anotoki-support-page>`: "Support anotoki", the owner's text, the kit's button
+  that is a link - "Support on Ko-fi", to https://ko-fi.com/projectanotoki in a new tab, `rel="noopener noreferrer"` -
+  and "Thank you!".
+- Every address they link to is the library's code, never a string: the five sites (`ANOTOKI_PROJECTS`), the Ko-fi
+  page (`SUPPORT_URL`) and the Support page's path. Their words, `anotoki.about.*` (19 keys) and `anotoki.support.*`
+  (4), English and impersonal Slovak, are read by the pages themselves (`READ_BY_THEIR_PAGES`, as `anotoki.legal.*`),
+  generated into `@anotoki/lib/words/about` and `/support`; the legal configuration gives the language, an owner's
+  rewording and the paths - `LegalPaths` gains `about` and `support` (`/about`, `/support` by default) - and they
+  work without it too.
+
+**The footer's links: About · Support · Terms · Privacy · Contact.** `<anotoki-legal-links>` - and so the family's
+footer - draws About and Support first, to the legal configuration's paths, in the words "About" / "O projekte" and
+"Support" / "Podporiť" (a verb, never "Podpora"): `anotoki.legalLinks.about`, `.support`. On a phone (under 28rem)
+the five are two lines - About · Support, then the legal pages - so no line begins with a dot (Slovak's five need 407
+px of a line).
+
+**The feedback dialog** (the footer's and the Contact page's; the owner's rules of 2026-10-19):
+
+- Nothing typed is lost until the message is sent or the page is loaded afresh: the form's fields are the page's
+  draft (`FeedbackDraft`, in memory alone - never the browser's storage), so a dialog closed - Escape, a click
+  outside it, Cancel - and opened again shows them. A message sent empties the draft ("Send another" keeps who sends
+  it, as before).
+- **Clear** ("Clear" / "Vymazať"; "Clear the form" / "Vymazať formulár" to a screen reader, `anotoki.feedback.clear`,
+  `.clearName`), at the left of the buttons, apart from Cancel and Send: the kit's quiet red outlined in the danger
+  red - an outline, never a filled ground; drawn in the form's own entry point, so no first load carries it. It
+  empties every field and the draft (a signed-in person's address is written in again, as on a new form) and puts
+  the focus on the message.
+- The buttons are the dialog's own footer, always in view: only the form scrolls when it is taller than the window,
+  at 390 px too. `<anotoki-feedback-dialog>` (new, `@anotoki/lib/feedback/form`) is the form in the kit's dialog with
+  the form's `actions` in the dialog's footer slot (`actionsOutside`); Send names the form (its `form` attribute), so
+  Enter in a field still sends. The footer and the Contact page both open it - the Contact page's dialog gains
+  Cancel - and `@anotoki/lib/footer/feedback`, the footer's own dialog of 0.6.3, is gone (a site imported nothing of
+  it). A form on a page of a site's own keeps its draft and has Clear too.
+
+- Words: `anotoki_translations/013_about_and_support_words.sql` writes the 27 new keys by 002's rule (only where a
+  key has no string; its gate names its own keys), and the footer links' group's description, which names five links
+  now - 288 library keys.
+- The package check: `@anotoki/lib/legal/about` 3.0 kB gzipped (its words 2.4), `@anotoki/lib/legal/support` 1.7
+  (0.5), each importing the legal configuration, the core's pieces and its own words; the feedback form 7.3 (6.0),
+  with the kit's dialog among what it may import; the footer and the Contact page take it by import() alone. Every
+  first load is as it was but the footer's (7.8 kB alone, 8.2 beside lazy pages; 7.6 and 8.1 before) and the legal
+  links' (7.6 and 8.4; 7.4 and 8.2): their two more links, their words and their two lines on a phone.
+- Tests: Vitest - the About and Support pages (their words in both languages, Slovak addressing nobody, the links to
+  the five sites, Ko-fi and the Support path, an owner's rewording, no address in a word, without the configuration),
+  the footer's five links, the dialog's buttons in its footer slot, Clear, the draft kept through Escape, Cancel, the
+  close button, the backdrop and a failed send, and emptied when sent; PHPUnit - 013's words, a site's own kept, the
+  links' group's description, its gate.
+
+What a site must do: take `anotoki/lib ^0.8.0` and the 0.8.0 tarball together (0.x: `^0.7` does not take 0.8.0).
+Route `/about` and `/support` - lazy, anybody's, in the frame its legal pages are in - as README.md shows, at the
+paths of its legal configuration: the footer links to them from this version on. Apply `anotoki_translations/013` on
+the Migrations page (until then the pages and the links say the library's built-in words). A site that opened the
+feedback form in a dialog of its own (`<anotoki-feedback-form closable>`) may take `<anotoki-feedback-dialog>`
+instead, for the buttons in the dialog's footer; one that typed a whole `LegalPaths` adds `about` and `support`.
+
 ## 0.7.2 - 2026-10-19
 
 **The feedback form says whom its message is for** (Angular). The form posted with a plain `http.post`, so

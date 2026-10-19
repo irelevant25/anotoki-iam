@@ -240,7 +240,7 @@ describe("the IAM's frames: the family's footer under every page, and the status
     versionSaid: 'Verzia 1.0.0',
     whatsNew: 'Čo je nové',
     feedback: 'Spätná väzba',
-    links: ['Podmienky /terms', 'Súkromie /privacy', 'Kontakt /contact'],
+    links: ['O projekte /about', 'Podporiť /support', 'Podmienky /terms', 'Súkromie /privacy', 'Kontakt /contact'],
     label: 'Právne informácie',
     lang: null,
   };
@@ -251,7 +251,7 @@ describe("the IAM's frames: the family's footer under every page, and the status
     versionSaid: 'Version 1.0.0',
     whatsNew: "What's new",
     feedback: 'Feedback',
-    links: ['Terms /terms', 'Privacy /privacy', 'Contact /contact'],
+    links: ['About /about', 'Support /support', 'Terms /terms', 'Privacy /privacy', 'Contact /contact'],
     label: 'Legal',
     lang: null,
   };
@@ -375,7 +375,7 @@ describe("the IAM's frames: the family's footer under every page, and the status
     it('says the database’s words: a rewording on the Translations page reaches the footer', async () => {
       configureFrames({ 'anotoki.legalLinks.privacy': 'Ochrana súkromia', 'anotoki.footer.feedback': 'Napíš nám' });
       await at('/login');
-      expect(footer().links).toEqual(['Podmienky /terms', 'Ochrana súkromia /privacy', 'Kontakt /contact']);
+      expect(footer().links).toEqual(['O projekte /about', 'Podporiť /support', 'Podmienky /terms', 'Ochrana súkromia /privacy', 'Kontakt /contact']);
       expect(footer().feedback).toBe('Napíš nám');
     });
   });
