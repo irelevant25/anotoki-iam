@@ -42,8 +42,10 @@
 
 // The library comes with Composer's autoloader. The installer and the command
 // line tools load this file without the API's front controller, so it brings
-// the autoloader itself.
+// the autoloader itself - and helpers.php, whose rule for a username
+// createFirstAdmin() keeps (create-admin.php loads nothing else).
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/helpers.php';
 
 use Anotoki\Lib\Admin\Schema as AdminSchema;
 use Anotoki\Lib\Migrations\Http\SiteState;
@@ -184,6 +186,14 @@ function ensureDatabase(array $config, string $name): bool
  * generated for the caller to show once; the account is then flagged to choose
  * its own at the first sign-in.
  *
+ * Its username keeps the rule every name keeps (letters and digits, the
+ * owner's decision of 2026-10-19). The installer and create-admin.php give
+ * none: it is made of the address before the @ as a Google sign-up's is
+ * (usernameFrom(): frantisek.pastorek@... frantisekpastorek), else "admin" -
+ * nobody else has a name yet, so it needs no number. One given is held to the
+ * rule, and one that does not fit is refused before anything is made
+ * (InvalidArgumentException, its sentence usernameRefusal()'s).
+ *
  * @return array{username: string, email: string, password: string, generated: bool}|null
  */
 function createFirstAdmin(PDO $pdo, string $email, ?string $password = null, ?string $username = null): ?array
@@ -192,9 +202,20 @@ function createFirstAdmin(PDO $pdo, string $email, ?string $password = null, ?st
         return null;
     }
 
+    if ($username !== null && $username !== '') {
+        $refusal = usernameRefusal($username);
+        if ($refusal !== null) {
+            throw new InvalidArgumentException($refusal);
+        }
+    } else {
+        $username = usernameFrom((string) strstr($email, '@', true));
+        if ($username === '') {
+            $username = 'admin';
+        }
+    }
+
     $generated = $password === null || $password === '';
     $password = $generated ? bin2hex(random_bytes(12)) : $password;
-    $username = $username ?: (strstr($email, '@', true) ?: 'admin');
 
     $pdo->beginTransaction();
     try {

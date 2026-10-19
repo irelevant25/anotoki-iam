@@ -3,7 +3,16 @@
         @if (formError()) {
             <anotoki-alert tone="danger" [announce]="true">{{ formError() }}</anotoki-alert>
         }
-        <anotoki-text-field label="Username" name="edit-username" autocomplete="off" [maxlength]="100" [(value)]="username" [error]="usernameError()" [autofocus]="true" />
+        <anotoki-text-field
+            label="Username"
+            name="edit-username"
+            autocomplete="off"
+            autocapitalize="off"
+            [maxlength]="100"
+            hint="Letters and digits only (a–z, A–Z, 0–9). An older name with other characters stays until it is changed."
+            [(value)]="username"
+            [error]="usernameError()"
+            [autofocus]="true" />
         <anotoki-text-field label="Email" type="email" name="edit-email" autocomplete="off" [(value)]="email" [error]="emailError()" />
         <anotoki-select label="Language" [options]="languageOptions()" [(value)]="language" />
         <anotoki-checkbox [(checked)]="emailConfirmed" hint="An unconfirmed account cannot sign in until the address is confirmed.">Email address confirmed</anotoki-checkbox>

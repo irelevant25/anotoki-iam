@@ -2208,3 +2208,74 @@ Tested: the GET leaves a message new and the count as it was, the PUT marks
 it and is refused like every admin write (`tests/feedback.test.php`); the
 count beside Feedback for an administrator, and none for whoever signs in
 after them in the same tab (`app.routes.spec.ts`).
+
+## 2026-10-19 - The owner's decision: usernames are letters and digits
+
+The same day's security review found (its Low 1) that a username could be
+anything but empty, longer than 100 characters or a control character
+(`usernameRefusal()`): it could look like an email address, or hold a
+character that turns the direction of the text (U+202E and the others). The
+admin panel's Feedback page names a signed-in sender by their username, so an
+account named `jan@example.com` showed as "From jan@example.com" - the lure
+anotoki-lib 0.8.1 took away from the messages sent signed out (above) - and
+every site shows the name too (`preferred_username`). The owner: "add
+validation so the username may contains only [a-zA-Z0-9]".
+
+- **The rule** (`usernameRefusal()`, `api/helpers.php`): letters and digits
+  only - `a-z`, `A-Z`, `0-9` -, at least one and at most 100. Anything else -
+  an address, a space, a dot, a dash, an accented letter, a letter of another
+  script (a Cyrillic a, U+0430, is no Latin one), a character that turns the
+  text - is `422 invalid_username`, its sentence saying what is allowed.
+  Uniqueness stays regardless of case (`usernameTaken()`).
+- **Every way a name is chosen**: registration, the account page, the admin
+  panel's create and edit. The installer and `create-admin.php` take no
+  username - the first administrator's is made (below) -, and
+  `createFirstAdmin()` holds one it is given to the rule.
+- **Names from before are kept** - no transition: the owner is the only user
+  today. A body that sends the account's own name back, unchanged (the spaces
+  round it aside), changes nothing and is not checked (`usernameUnchanged()`),
+  so an older name never stands in the way of saving the language, the theme
+  or an address; only a new name is held to the rule. The import from the
+  genshin site (`import-legacy.php`, the one-time move, done) moved the names
+  it found and is left as it is. A deleted account's placeholder keeps its
+  `deleted-{id}`: a dash no chosen name can have, so no account is named like
+  one. The mails keep their room for the longest name there can be, an older
+  one of 100 characters of four bytes each (`IamMailRules`).
+- **The names the IAM makes fit** (`usernameFrom()`): a Google sign-up's -
+  Google's name for the person, else the address before the `@`, else
+  `player`, then a number while it is taken (`availableUsername()`; the name
+  at most 90, so the number fits in 100) - and the first administrator's
+  default - the address before the `@`, else `admin` (`createFirstAdmin()`).
+  The Latin letters with a mark are written plain - Slovak's and Czech's
+  first (á ä č ď é ě í ĺ ľ ň ó ô ö ŕ ř š ť ú ů ü ý ž), the rest of Latin-1's
+  and Latin Extended-A's, Romanian's ș and ț; ß ss, æ ae, œ oe, þ th - by a
+  table in the code (`USERNAME_PLAIN_LETTERS`), not the intl extension, which
+  a host may lack; everything else is left out, spaces included. "František
+  Pastorek" is `FrantisekPastorek`, `frantisek.pastorek@…` `frantisekpastorek`;
+  a name of only another script's letters falls back to the address, then to
+  `player` or `admin`.
+- **The pages' words** (migration 025): `error.invalidUsername` says what is
+  allowed - "Use only letters and digits (a–z, A–Z, 0–9), at most 100." and
+  its informal Slovak - where it still says 006's "That username cannot be
+  used." and no administrator saved it; a new key, `common.usernameHint`
+  ("Letters and digits only (a–z, A–Z, 0–9).", the Slovak naming the accents
+  besides), is the line under the field on the register page and the account
+  page; and `register.usernameHint` - "What you would like to be called.",
+  which asked for a name as people write theirs - goes, with its strings. Once
+  025 is applied, no build from before it goes on the host again (it would
+  show `register.usernameHint` as a key); fix forward. The register page and
+  the account page ask the same rule before they send (`core/auth/username.ts`),
+  and so do the admin panel's create and edit, in its English; the server
+  stays the rule.
+- **Tested** (`tests/usernames.test.php`): `jan@example.com`, a right-to-left
+  override, a space, a dot, an accented letter, a dash, a Cyrillic look-alike
+  and a 101st character refused on registration, the account page's rename and
+  the admin panel's create and edit, nothing written; letters and digits
+  taken; an account with an older name saving its language and its theme with
+  its name sent back, and an administrator changing its address; a Google
+  sign-up's name and the first administrator's made to fit (the examples
+  above, an accent written apart, the fallbacks, the number, the length); the
+  legacy import keeping a name the rule refuses; 025 on a fresh IAM, on one
+  built through 024 as the files left it and as its owner left it, and its
+  gate failing loudly. In the frontend, the rule's spec
+  (`core/auth/username.spec.ts`).

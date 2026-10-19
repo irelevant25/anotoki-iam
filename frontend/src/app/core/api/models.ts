@@ -123,6 +123,7 @@ export interface RequestedResponse {
 }
 
 export interface RegisterBody {
+  /** Letters and digits only, at most 100 (`usernameFits()`); else `422 invalid_username`. */
   username: string;
   email: string;
   password: string;
@@ -269,6 +270,7 @@ export interface CreatedToken {
 }
 
 export interface ProfileBody {
+  /** A new name: letters and digits only, at most 100. The account's own sent back is no change, and is not checked. */
   username?: string;
   language?: string;
   /** The news from the sites, on or off. */
@@ -405,6 +407,7 @@ export interface AdminUserQuery {
 }
 
 export interface CreateUserBody {
+  /** Letters and digits only, at most 100; else `422 invalid_username`. */
   username: string;
   email: string;
   password: string;
@@ -414,6 +417,7 @@ export interface CreateUserBody {
 }
 
 export interface UpdateUserBody {
+  /** A new name: letters and digits only, at most 100. The account's own sent back is no change, and is not checked. */
   username?: string;
   email?: string;
   language?: string;

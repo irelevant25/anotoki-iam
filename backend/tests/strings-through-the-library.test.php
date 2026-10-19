@@ -70,11 +70,12 @@ const MOVED_KEYS = [
 /**
  * The keys the IAM's own files after 017 write - 019's, the authenticator's
  * pause, 020's, the legal pages' facts, 022's, the IAM's own Google button,
- * and 024's, What's new: applying all that waits after 016 brings them too,
- * and their own files' tests hold them (authenticator-pause.test.php,
- * legal-pages-strings.test.php, google-button-strings.test.php,
- * whats-new-strings.test.php). A later file that adds keys adds them here -
- * this test holds 017 and the library's set.
+ * 024's, What's new, and 025's, the line under the username field: applying
+ * all that waits after 016 brings them too, and their own files' tests hold
+ * them (authenticator-pause.test.php, legal-pages-strings.test.php,
+ * google-button-strings.test.php, whats-new-strings.test.php,
+ * usernames.test.php). A later file that adds keys adds them here - this test
+ * holds 017 and the library's set.
  */
 const LATER_PAGE_KEYS = [
     'error.authenticatorPaused',
@@ -168,6 +169,7 @@ const LATER_PAGE_KEYS = [
     'whatsNew.added',
     'whatsNew.fixed',
     'whatsNew.updated',
+    'common.usernameHint',
 ];
 const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticatorPaused.greeting', 'mail.authenticatorPaused.intro', 'mail.authenticatorPaused.ignore'];
 
@@ -175,22 +177,40 @@ const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticator
  * The strings of keys from before 017 that the IAM's own files after it
  * reword - 020's: the sign-in pages' sky made true beside the Privacy page;
  * 021's: the sign-in page's button that has a code emailed, in the informal
- * Slovak ("ty") - 'key language' => its words after them. Applying all that
- * waits after 016 brings them too, and their own files' tests hold them
- * (legal-pages-strings.test.php, informal-code-buttons.test.php); 017 keeps
- * every other string as it was. A later file that rewords a string adds it
- * here.
+ * Slovak ("ty"); 025's: what the pages say of a username the rule refuses -
+ * 'key language' => its words after them. Applying all that waits after 016
+ * brings them too, and their own files' tests hold them
+ * (legal-pages-strings.test.php, informal-code-buttons.test.php,
+ * usernames.test.php); 017 keeps every other string as it was. A later file
+ * that rewords a string adds it here.
  */
 const LATER_REWORDED = [
     'brand.point3 en' => 'Nothing is sold or used for ads; Privacy says who else handles data.',
     'brand.point3 sk' => 'Nič sa nepredáva ani nepoužíva na reklamu; kto ďalší spracúva údaje, nájdeš v Súkromí.',
     'login.useCode sk' => 'Radšej mi pošli kód e-mailom',
+    'error.invalidUsername en' => 'Use only letters and digits (a–z, A–Z, 0–9), at most 100.',
+    'error.invalidUsername sk' => 'Použi len písmená bez diakritiky a číslice (a–z, A–Z, 0–9), najviac 100.',
 ];
+
+/**
+ * Keys from before 017 that the IAM's own files after it delete, with their
+ * strings - 025's: the register page's old line under the username field,
+ * which asked for a name as people write theirs. Applying all that waits
+ * after 016 takes them away too, and their own files' tests hold it
+ * (usernames.test.php). A later file that deletes a key adds it here.
+ */
+const LATER_REMOVED = ['register.usernameHint'];
 
 /** Those keys' strings, as stringsOf() names them: 'key language', in English and Slovak. */
 function laterCells(): array
 {
     return array_merge(...array_map(static fn(string $key): array => ["$key en", "$key sk"], [...LATER_PAGE_KEYS, ...LATER_MAIL_KEYS]));
+}
+
+/** The strings of the keys a later file deletes, named the same way. */
+function laterRemovedCells(): array
+{
+    return array_merge(...array_map(static fn(string $key): array => ["$key en", "$key sk"], LATER_REMOVED));
 }
 
 const SITE_CALLBACK = 'http://localhost:4200/auth/callback';
@@ -291,7 +311,9 @@ function sameButRenamedAndLibrary(array $before, array $after, string $code): vo
             same(false, isset($after[$map]), "$code: no $map before, none after");
             continue;
         }
-        $expected = underNewNames($before[$map]);
+        // What a later file deletes is not there after it.
+        $expected = array_diff_key(underNewNames($before[$map]), array_flip(LATER_REMOVED));
+        same([], array_values(array_intersect(LATER_REMOVED, array_keys($after[$map]))), "$code $map: the keys a later file deletes, gone");
         // What a later file rewords reads its words: in this language's own strings (`values`), and an English
         // rewording in the English beside another language's (`english`) too.
         foreach (LATER_REWORDED as $cell => $words) {
@@ -442,8 +464,9 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
 
         // The strings: every one as it was - the four keys' under their new names - and the library's others added, written by nobody.
         $after = stringsOf($pdo);
-        $expected = array_diff_key(underNewNames($strings), LATER_REWORDED);
+        $expected = array_diff_key(underNewNames($strings), LATER_REWORDED, array_flip(laterRemovedCells()));
         same($expected, array_intersect_key($after, $expected), 'every string as it was: word, writer, time');
+        same([], array_values(array_intersect(laterRemovedCells(), array_keys($after))), 'but for the strings of the keys a later file deletes, gone with them');
         foreach (LATER_REWORDED as $cell => $words) {
             same([$words, null], array_slice($after[$cell] ?? [], 0, 2), "$cell: as the later file rewords it, by nobody");
         }
@@ -469,7 +492,9 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
         // The keys: the IAM's as they were - the renamed two with their descriptions and their age -, the library's with its descriptions.
         $keysAfter = keysOf($pdo);
         foreach ($keys as $name => $key) {
-            if (!isset(MOVED_KEYS[$name])) {
+            if (in_array($name, LATER_REMOVED, true)) {
+                same(null, $keysAfter[$name] ?? null, "$name deleted by a later file");
+            } elseif (!isset(MOVED_KEYS[$name])) {
                 same($key, $keysAfter[$name] ?? null, "$name as it was");
             }
         }
@@ -482,9 +507,9 @@ test('an IAM built through 016, as its owner left it: 017 moves every string exa
             same(LibraryWords::all()[$name]['description'], $keysAfter[$name][0] ?? null, "$name: the library's description");
         }
         same(
-            count($keys) - 2 + count(LibraryWords::keys()) + count(LATER_PAGE_KEYS) + count(LATER_MAIL_KEYS),
+            count($keys) - 2 + count(LibraryWords::keys()) + count(LATER_PAGE_KEYS) + count(LATER_MAIL_KEYS) - count(LATER_REMOVED),
             count($keysAfter),
-            'two keys gone, every key of the library\'s there - and the later files\' own',
+            'two keys gone, every key of the library\'s there - and the later files\' own, but for those they delete',
         );
 
         // The bundles the pages read: before and after differ by the four names and the library's words, nothing else.
@@ -564,7 +589,7 @@ test('the window: built through 016, the new code, nothing applied - the sign-in
         same(200, (new Browser('10.31.0.4'))->post('/api/login/code/verify', ['email' => 'person@example.test', 'code' => $code[1]])->status, 'and it signs in');
 
         $newcomer = new Browser('10.31.0.5');
-        $registered = $newcomer->post('/api/register', ['username' => 'Nováčik', 'email' => 'novacik@example.test', 'password' => 'a long password', 'language' => 'sk']);
+        $registered = $newcomer->post('/api/register', ['username' => 'Novacik', 'email' => 'novacik@example.test', 'password' => 'a long password', 'language' => 'sk']);
         same([201, true], [$registered->status, $registered->json()['sent'] ?? null], 'a registration, in Slovak: ' . $registered->body);
         same($seeded['mail.confirm.subject sk'][0], lastMailTo('novacik@example.test')['subject'] ?? null, 'its mail in the Slovak the database has');
         same(200, (new Browser('10.31.0.6'))->post('/api/password/forgot', ['email' => 'novacik@example.test'])->status, 'a reset is asked for');

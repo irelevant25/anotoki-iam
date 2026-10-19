@@ -74,7 +74,12 @@ $app->group('/api/account', function (\Slim\Routing\RouteCollectorProxy $group) 
         $pdo = iamDb();
         $changes = [];
 
-        if (array_key_exists('username', $body)) {
+        // A new name keeps the rule (letters and digits, usernameRefusal()).
+        // The name the account has, sent back with the rest, is no change:
+        // never checked, written or audited - a name from before 2026-10-19
+        // that does not fit must not stop the language or the theme saved
+        // beside it (usernameUnchanged()).
+        if (array_key_exists('username', $body) && !usernameUnchanged($body, $user)) {
             $username = field($body, 'username');
             if ($refusal = usernameRefusal($username)) {
                 return respondError($response, 422, 'invalid_username', $refusal);

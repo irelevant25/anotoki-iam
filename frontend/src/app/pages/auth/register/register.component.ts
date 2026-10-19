@@ -12,6 +12,7 @@ import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
 import { LoginRequest, PublicConfig } from '../../../core/api/models';
 import { PublicApi } from '../../../core/api/public.api';
+import { usernameFits } from '../../../core/auth/username';
 import { TranslationKey } from '../../../core/i18n/en';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
@@ -137,7 +138,8 @@ export class RegisterComponent implements OnInit {
 
     if (!username) {
       errors.username = this.t('common.required');
-    } else if (username.length > 100) {
+    } else if (!usernameFits(username)) {
+      // Letters and digits only, as the server will say: asked first so the slip is said before a request.
       errors.username = this.t('error.invalidUsername');
     }
     if (!email) {

@@ -276,22 +276,143 @@ function passwordRefusal(string $password): ?string
     return null;
 }
 
-/** Usernames: something, not too long, no control characters. */
+/** The longest a username may be: users.username is VARCHAR(100). */
+const USERNAME_MAX = 100;
+
+/**
+ * Usernames: letters and digits only - a-z, A-Z, 0-9 -, at least one and at
+ * most 100 (the owner's decision of 2026-10-19, closing Low 1 of that day's
+ * security review). Other people read a username: the admin panel's Feedback
+ * page names a signed-in sender by it, and every site shows it
+ * (preferred_username). One that looked like an email address ("From
+ * jan@example.com") or held a character that turns the direction of the text
+ * (U+202E) would be a lure in the IAM's own words; so would a letter of
+ * another script that looks like a Latin one, or a space nobody sees. The
+ * expression reads bytes: every one outside the 62 is refused, whatever it is
+ * part of. Uniqueness stays regardless of case (usernameTaken()).
+ *
+ * Every name chosen goes through it - registration, the account page, the
+ * admin panel's create and edit, a name given to createFirstAdmin() - and the
+ * names the IAM makes fit it (usernameFrom()). A name from before the rule is
+ * kept: sent back unchanged it is no change and is never asked here
+ * (usernameUnchanged()), and the import from the genshin site moved the names
+ * it found as they were.
+ */
 function usernameRefusal(string $username): ?string
 {
     if ($username === '') {
         return 'The username cannot be empty';
     }
 
-    if (mb_strlen($username) > 100) {
-        return 'The username can be at most 100 characters';
+    if (mb_strlen($username) > USERNAME_MAX) {
+        return 'The username can be at most ' . USERNAME_MAX . ' characters';
     }
 
-    if (preg_match('/[\x00-\x1F\x7F]/', $username)) {
-        return 'The username cannot contain control characters';
+    if (preg_match('/[^A-Za-z0-9]/', $username) === 1) {
+        return 'The username can have only letters and digits: a–z, A–Z and 0–9';
     }
 
     return null;
+}
+
+/**
+ * Whether a body sends the account's own username back - a client that sends
+ * every field it was shown does. That is no change of name, so it is never
+ * held to the rule (usernameRefusal()): a name from before 2026-10-19 that
+ * does not fit must not stop the language, the theme, an address or anything
+ * else saved beside it. The spaces round it do not make it another name; a
+ * name in another letters' case does.
+ */
+function usernameUnchanged(array $body, array $user): bool
+{
+    return array_key_exists('username', $body) && field($body, 'username') === trim((string) $user['username']);
+}
+
+/**
+ * The Latin letters with a mark, by the plain letters a username the IAM
+ * makes writes each with (usernameFrom()): Slovak's and Czech's first (á ä č
+ * ď é ě í ĺ ľ ň ó ô ö ŕ ř š ť ú ů ü ý ž), every other letter of Latin-1 and
+ * of Latin Extended-A - the languages of Europe written in Latin -, and
+ * Romanian's comma below (ș ț). A letter that plain ASCII writes as two stays
+ * two: ß ss, æ ae, œ oe, ĳ ij, þ th. Kra (ĸ), which nobody writes any more,
+ * is left out with every other character. A table rather than the intl
+ * extension, which a host may lack: the same on every PHP.
+ */
+const USERNAME_PLAIN_LETTERS = [
+    'A' => 'ÀÁÂÃÄÅĀĂĄ',
+    'a' => 'àáâãäåāăą',
+    'AE' => 'Æ',
+    'ae' => 'æ',
+    'C' => 'ÇĆĈĊČ',
+    'c' => 'çćĉċč',
+    'D' => 'ÐĎĐ',
+    'd' => 'ðďđ',
+    'E' => 'ÈÉÊËĒĔĖĘĚ',
+    'e' => 'èéêëēĕėęě',
+    'G' => 'ĜĞĠĢ',
+    'g' => 'ĝğġģ',
+    'H' => 'ĤĦ',
+    'h' => 'ĥħ',
+    'I' => 'ÌÍÎÏĨĪĬĮİ',
+    'i' => 'ìíîïĩīĭįı',
+    'IJ' => 'Ĳ',
+    'ij' => 'ĳ',
+    'J' => 'Ĵ',
+    'j' => 'ĵ',
+    'K' => 'Ķ',
+    'k' => 'ķ',
+    'L' => 'ĹĻĽĿŁ',
+    'l' => 'ĺļľŀł',
+    'N' => 'ÑŃŅŇŊ',
+    'n' => 'ñńņňŉŋ',
+    'O' => 'ÒÓÔÕÖØŌŎŐ',
+    'o' => 'òóôõöøōŏő',
+    'OE' => 'Œ',
+    'oe' => 'œ',
+    'R' => 'ŔŖŘ',
+    'r' => 'ŕŗř',
+    'S' => 'ŚŜŞŠȘ',
+    's' => 'śŝşšșſ',
+    'SS' => 'ẞ',
+    'ss' => 'ß',
+    'T' => 'ŢŤŦȚ',
+    't' => 'ţťŧț',
+    'TH' => 'Þ',
+    'th' => 'þ',
+    'U' => 'ÙÚÛÜŨŪŬŮŰŲ',
+    'u' => 'ùúûüũūŭůűų',
+    'W' => 'Ŵ',
+    'w' => 'ŵ',
+    'Y' => 'ÝŶŸ',
+    'y' => 'ýÿŷ',
+    'Z' => 'ŹŻŽ',
+    'z' => 'źżž',
+];
+
+/**
+ * A username made of what somebody wrote - Google's name for a person, an
+ * address before its @: each Latin letter with a mark written plain
+ * (USERNAME_PLAIN_LETTERS - "František Pastorek" FrantisekPastorek, "Straße"
+ * Strasse), everything else left out - spaces, dots, dashes, an @, a letter
+ * of another script, a mark written apart from its letter, a character that
+ * turns the text -, and at most $max of what is left: '' when nothing is.
+ * What is not UTF-8 goes with the rest: the last step reads bytes and keeps
+ * only ASCII letters and digits, so whatever it answers fits the rule.
+ */
+function usernameFrom(string $text, int $max = USERNAME_MAX): string
+{
+    static $plain = null;
+
+    if ($plain === null) {
+        $plain = [];
+        foreach (USERNAME_PLAIN_LETTERS as $written => $letters) {
+            foreach (preg_split('//u', $letters, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $letter) {
+                $plain[$letter] = (string) $written;
+            }
+        }
+    }
+
+    return substr((string) preg_replace('/[^A-Za-z0-9]+/', '', strtr($text, $plain)), 0, max(0, $max));
 }
 
 /**

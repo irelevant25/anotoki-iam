@@ -59,7 +59,7 @@ const GENSHIN_ORIGIN = 'http://localhost:4200';
 const ENGLISH = ['code' => 'en', 'name' => 'English', 'native_name' => 'English'];
 const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina'];
 
-/** The IAM's own keys, as the migrations leave them: 574 of the pages and 52 of the mails (019: the authenticator's pause, 9 and 4; 020: the legal pages' facts, 70 of the pages; 022: the IAM's own Google button, 6 of the pages; 024: What's new, 6 of the pages). */
+/** The IAM's own keys, as the migrations leave them: 574 of the pages and 52 of the mails (019: the authenticator's pause, 9 and 4; 020: the legal pages' facts, 70 of the pages; 022: the IAM's own Google button, 6 of the pages; 024: What's new, 6 of the pages; 025: the line under the username field, one of the pages in place of another). */
 const IAM_PAGE_KEYS = 574;
 const IAM_MAIL_KEYS = 52;
 
@@ -511,18 +511,18 @@ test(
 
             // Registration, in Slovak: the account is made with its language, and the mail goes out - in the English kept in the code.
             $newcomer = new Browser('10.8.0.2');
-            $registered = $newcomer->post('/api/register', ['username' => 'Nováčik', 'email' => 'novacik@example.test', 'password' => 'a long password', 'language' => 'sk']);
+            $registered = $newcomer->post('/api/register', ['username' => 'Novacik', 'email' => 'novacik@example.test', 'password' => 'a long password', 'language' => 'sk']);
             same([201, true], [$registered->status, $registered->json()['sent'] ?? null], 'registered, and the mail was sent: ' . $registered->body);
             same('sk', $pdo->query("SELECT language FROM users WHERE email = 'novacik@example.test'")->fetchColumn(), 'with the language the CHECK still allows');
             $mail = lastMailTo('novacik@example.test');
             same('Confirm your anotoki account', $mail['subject'] ?? null, 'the confirmation, in English');
-            check(str_starts_with($mail['body'], "Hello Nováčik,\n\nOpen the link below"), 'its body is the English one: ' . substr($mail['body'], 0, 60));
+            check(str_starts_with($mail['body'], "Hello Novacik,\n\nOpen the link below"), 'its body is the English one: ' . substr($mail['body'], 0, 60));
             check(preg_match('~^' . preg_quote(TEST_ISSUER, '~') . '/confirm-email\?token=([0-9a-f]{64})$~m', $mail['body'], $found) === 1, 'with the link on a line of its own');
             same(200, $newcomer->post('/api/register/confirm', ['token' => $found[1]])->status, 'and the link confirms the account');
             // The registration page has only its compiled English to show in the window, and sends the
             // language the visitor wished for all the same: the server keeps it, as it did before.
             same('sk', (new Browser('10.8.0.2'))->signIn('novacik@example.test', 'a long password')->json()['user']['language'] ?? null, 'the account is Slovak to whoever signs in to it');
-            $loud = (new Browser('10.8.0.9'))->post('/api/register', ['username' => 'Hlasný', 'email' => 'hlasny@example.test', 'password' => 'a long password', 'language' => ' SK ']);
+            $loud = (new Browser('10.8.0.9'))->post('/api/register', ['username' => 'Hlasny', 'email' => 'hlasny@example.test', 'password' => 'a long password', 'language' => ' SK ']);
             same([201, 'sk'], [$loud->status, $pdo->query("SELECT language FROM users WHERE email = 'hlasny@example.test'")->fetchColumn()], 'however the code was written');
             $german = (new Browser('10.8.0.10'))->post('/api/register', ['username' => 'Gretchen', 'email' => 'gretchen-early@example.test', 'password' => 'a long password', 'language' => 'de']);
             same(
@@ -1012,7 +1012,17 @@ test('a mail\'s words are held to more: exactly the code\'s placeholders, one sh
     ]);
     $lines = array_map('strlen', explode("\n", $message['body']));
     check(max($lines) <= 998, 'the longest line of that message has ' . max($lines) . ' bytes');
-    same(null, usernameRefusal(str_repeat("\u{1D11E}", 100)), 'and that username is one an account can have');
+    // No name is chosen like it since 2026-10-19 (letters and digits, a byte each) - but an account keeps a
+    // name from before, as the import from the genshin site brought it: the column holds it, so the room stays.
+    check(usernameRefusal(str_repeat("\u{1D11E}", 100)) !== null, 'that username is no longer one a person may choose');
+    $pdo = iamDb();
+    $pdo->beginTransaction();
+    try {
+        makeUser(str_repeat("\u{1D11E}", 100), 'longest-name@example.test');
+        same(str_repeat("\u{1D11E}", 100), $pdo->query("SELECT username FROM users WHERE email = 'longest-name@example.test'")->fetchColumn(), 'but an account from before it can have it');
+    } finally {
+        $pdo->rollBack();
+    }
 
     // The room is kept for every {username}, not once for the string: each one is filled. A greeting
     // that names its reader three times is 41 bytes as written - and over 998 as sent.
@@ -2641,9 +2651,9 @@ test('languages: renamed, reordered, switched off - English never; a switched-of
     same('de', $player->signIn('player@example.test', 'correct horse')->json()['user']['language'] ?? null, 'the account page still shows the stored code');
     same('invalid_language', $player->put('/api/account/profile', ['language' => 'de'])->code(), 'which can no longer be chosen');
     same('invalid_language', $admin->put('/api/admin/users/' . $GLOBALS['adminId'], ['language' => 'de'])->code(), 'nor given to an account that does not have it');
-    $kept = $admin->put("/api/admin/users/$playerId", ['language' => 'de', 'username' => 'player-renamed']);
+    $kept = $admin->put("/api/admin/users/$playerId", ['language' => 'de', 'username' => 'playerRenamed']);
     same(
-        [200, 'de', 'player-renamed'],
+        [200, 'de', 'playerRenamed'],
         [$kept->status, $kept->json()['language'] ?? null, $kept->json()['username'] ?? null],
         'an account that has it can still be edited: its own language is no change',
     );

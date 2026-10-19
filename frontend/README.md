@@ -106,7 +106,10 @@ and the language's all go through `SessionService.setFrom()` or `refresh()`,
 so an answer after Sign out signs nobody back in; only a sign-in's answer and
 the probe's are the session as they are), the admin panel's "Cannot sign in" rule
 (`pages/admin/users/sign-in-check.ts`, the same as the server's `blocked_in`;
-`sign-in-check.spec.ts`), the family's admin tools as the IAM wires them
+`sign-in-check.spec.ts`), the usernames' rule as the forms ask it before they
+send (`core/auth/username.ts`, the same as the server's `usernameRefusal()`:
+letters and digits, at most 100 - an address, a turn of the text, a space, a
+dot, an accent or a look-alike of another script refused; `username.spec.ts`), the family's admin tools as the IAM wires them
 (`core/admin/admin-tools.config.spec.ts`: the library's Backups and Audit log
 pages drawn for real behind the IAM's interceptor and session - the IAM's
 ADMIN alone, a refusal in the panel's words, the CSRF header on every write,

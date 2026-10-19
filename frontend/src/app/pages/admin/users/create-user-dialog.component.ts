@@ -7,6 +7,7 @@ import { IconComponent } from '@anotoki/lib/ui/icon';
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AdminUser, FilterApplication } from '../../../core/api/models';
+import { usernameFits } from '../../../core/auth/username';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { GENERATED_PASSWORD_LENGTH, randomPassword } from '../../../core/util/random-password';
 import { adminErrorText } from '../admin-errors';
@@ -72,6 +73,9 @@ export class CreateUserDialogComponent {
 
     if (!username) {
       this.usernameError.set('A username is needed.');
+    } else if (!usernameFits(username)) {
+      // The server's rule, said before a request.
+      this.usernameError.set('Only letters and digits: a–z, A–Z and 0–9, at most 100.');
     }
     if (!email.includes('@')) {
       this.emailError.set('That does not look like an email address.');

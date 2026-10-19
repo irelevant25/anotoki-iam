@@ -491,14 +491,23 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         $changes = [];
 
         if (array_key_exists('username', $body)) {
-            $username = field($body, 'username');
-            if ($refusal = usernameRefusal($username)) {
-                return respondError($response, 422, 'invalid_username', $refusal);
+            if (usernameUnchanged($body, $target)) {
+                // The name the account has, sent back: no change, so never
+                // held to the rule - a name from before 2026-10-19 that does
+                // not fit must not stop an administrator changing anything
+                // else. Written as it is, as every field sent is.
+                $changes['username'] = (string) $target['username'];
+            } else {
+                // A new name keeps the rule (letters and digits, usernameRefusal()).
+                $username = field($body, 'username');
+                if ($refusal = usernameRefusal($username)) {
+                    return respondError($response, 422, 'invalid_username', $refusal);
+                }
+                if (usernameTaken($pdo, $username, $id)) {
+                    return respondError($response, 409, 'username_taken', 'That username is already taken');
+                }
+                $changes['username'] = $username;
             }
-            if (usernameTaken($pdo, $username, $id)) {
-                return respondError($response, 409, 'username_taken', 'That username is already taken');
-            }
-            $changes['username'] = $username;
         }
 
         if (array_key_exists('email', $body)) {

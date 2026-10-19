@@ -419,7 +419,7 @@ test('an account no site lets in has no hint: one waiting for approval gets none
     check(hintUntouched($refused), 'no session, no hint');
 
     $newcomer = new Browser('10.18.3.2');
-    same(201, $newcomer->post('/api/register', ['username' => 'newcomer-waits', 'email' => 'newcomer-waits@example.test', 'password' => 'a long password', 'language' => 'en'])->status, 'registered');
+    same(201, $newcomer->post('/api/register', ['username' => 'newcomerWaits', 'email' => 'newcomer-waits@example.test', 'password' => 'a long password', 'language' => 'en'])->status, 'registered');
     iamDb()
         ->prepare('UPDATE users SET approved = FALSE WHERE email = ?')
         ->execute(['newcomer-waits@example.test']);

@@ -360,6 +360,13 @@ copy of `preferred_username` refreshed from the token as requests arrive. It
 never stores passwords, and never decides who someone is from anything but a
 verified token.
 
+A username chosen or made since 2026-10-19 is letters and digits only
+(`a-z`, `A-Z`, `0-9`, at most 100: the owner's decision, so that no name looks
+like an email address or turns the direction of the text), but an account
+keeps a name from before, which may hold other characters. So a site shows
+`preferred_username` as text - escaped, like anything a person typed - and
+never reads it as an address or an id: `sub` is the id.
+
 Revocation: an access token is good until it expires (10 minutes by default).
 Signing out at the IAM, disabling an account, asking for its deletion, or
 taking away the last role it holds there that may sign in (its MEMBER,

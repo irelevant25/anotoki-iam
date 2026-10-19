@@ -4,7 +4,16 @@
             <anotoki-alert tone="danger" [announce]="true">{{ formError() }}</anotoki-alert>
         }
         <div class="form-grid">
-            <anotoki-text-field label="Username" name="new-username" autocomplete="off" [maxlength]="100" [(value)]="username" [error]="usernameError()" [autofocus]="true" />
+            <anotoki-text-field
+                label="Username"
+                name="new-username"
+                autocomplete="off"
+                autocapitalize="off"
+                [maxlength]="100"
+                hint="Letters and digits only (a–z, A–Z, 0–9)."
+                [(value)]="username"
+                [error]="usernameError()"
+                [autofocus]="true" />
             <anotoki-text-field label="Email" type="email" name="new-email" autocomplete="off" [(value)]="email" [error]="emailError()" />
             <anotoki-text-field label="Password" name="new-password" autocomplete="off" [(value)]="password" [error]="passwordError()" [hint]="'At least ' + passwordMin() + ' characters.'">
                 <span fieldSuffix>

@@ -35,6 +35,19 @@ the IAM frontend. The examples use the development one:
 - Times are ISO-8601 strings in UTC (`2026-09-27T10:15:00Z`).
 - User ids are integers. In tokens the same id is the `sub` claim, as a decimal
   string (`"1"`).
+- **Usernames** are letters and digits only - `a-z`, `A-Z`, `0-9`, at least
+  one and at most 100 (the owner's decision of 2026-10-19) - wherever one is
+  chosen: `POST /api/register`, `PUT /api/account/profile`,
+  `POST /api/admin/users` and `PUT /api/admin/users/{id}`. Anything else - an
+  address, a space, a dot, a dash, an accented letter, a letter of another
+  script, a character that turns the direction of the text - is
+  `422 invalid_username`, its `error` saying what is allowed; a name another
+  account has, regardless of case, `409 username_taken`. A body that sends the
+  account's own name back unchanged (the spaces round it aside) changes
+  nothing and is not checked: an account keeps a name from before the rule -
+  one brought over from the genshin site, or made earlier - and it never
+  stands in the way of a change to anything else. The names the IAM makes
+  itself fit the rule (a Google sign-up's, the first administrator's).
 - **Before the installer has run** - and whenever a `config/*.local.php` is
   missing or wrong - every endpoint but `/api/site-status` (below) -
   discovery and the protocol endpoints included, whatever the method - answers
@@ -415,6 +428,13 @@ testers, let in while the site's `MEMBER` may not sign in - and is to a site
 what `MEMBER` is: it opens no admin area. `sid` names the
 IAM session; it is not a secret. Lifetime is the application's
 `access_token_ttl` (600 seconds unless changed).
+
+`preferred_username` (with the `profile` scope, in both tokens and in
+userinfo) is the account's username: letters and digits for every name chosen
+or made since 2026-10-19 (Conventions, above), but an account keeps a name
+from before, which may hold other characters. A site shows it as text,
+escaped like anything a person typed, and never reads it as an address or an
+id: `sub` is the id.
 
 `locale` (with the `profile` scope, in both tokens and in userinfo) is the
 account's language while the IAM offers it, else `en`. The account keeps a
@@ -962,7 +982,10 @@ account's owner is mailed once a pause. Before 019 is applied, no pause.
 `{ credential, totp?, device_token?, remember_device?, remember?, language?, news_mail? }` -
 `credential` is the Google Identity Services id token. Signs in the account that
 Google identity is attached to; attaches it to the account with the same verified
-address; or makes a new account (`201`, `"created": true`) - with the news from
+address; or makes a new account (`201`, `"created": true`) - its username made
+of Google's name for the person, else of the address before the `@`, else
+`player`, to fit the rule (Conventions, above: "František Pastorek" is
+`FrantisekPastorek`), with a number while it is taken -, and with the news from
 the sites only when `news_mail` is `true`: the register page's box, handed over
 with the credential (from the sign-in page nobody was asked, and anything else
 is no; for an account that is there already it changes nothing). Answer as
@@ -992,7 +1015,9 @@ No session: the account works once the emailed link is opened - and, when
 administrator has approved it as well. `request`, when
 the registration started from an application, is remembered so the confirmation
 can offer the way back. `409` for a taken username or address (named),
-`422` for invalid input, `403 registration_disabled`, `429 too_many_attempts`.
+`422` for invalid input - `invalid_username` for a username that is not
+letters and digits (Conventions, above) -, `403 registration_disabled`,
+`429 too_many_attempts`.
 `language` (here and on `POST /api/login/google`) is lower-cased and trimmed; one
 the IAM does not offer makes an English account rather than a refusal.
 
@@ -1095,7 +1120,7 @@ interface AccountUser {
 | Method + path | Body | Answer |
 | --- | --- | --- |
 | `GET /api/account` | | `AccountUser` |
-| `PUT /api/account/profile` | `{ username?, language?, news_mail?, theme?, date_format?, time_format? }` | `AccountUser` (409 username taken; `422 invalid_language` for a language not on offer; `news_mail` is true or false - `422 invalid_input` otherwise, `503 announcements_unavailable` while 013 is pending; the three preferences take the values of `POST /api/oidc/preferences` - `422 invalid_preference` otherwise, `503 preferences_unavailable` while 015 is pending) |
+| `PUT /api/account/profile` | `{ username?, language?, news_mail?, theme?, date_format?, time_format? }` | `AccountUser` (a new username letters and digits - `422 invalid_username` otherwise -, `409 username_taken`; the account's own name sent back is no change and is not checked, so a name from before the rule never stops the rest of the save; `422 invalid_language` for a language not on offer; `news_mail` is true or false - `422 invalid_input` otherwise, `503 announcements_unavailable` while 013 is pending; the three preferences take the values of `POST /api/oidc/preferences` - `422 invalid_preference` otherwise, `503 preferences_unavailable` while 015 is pending) |
 | `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; a forced change done sets a new sign-in hint (above), so the sites that met `interaction_required` try again; `422 wrong_password` for a wrong current password, each one counted by the sign-in limiter: `429 too_many_attempts` past it (ten from one address in 15 minutes), the right one included |
 | `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change, and then sets a new sign-in hint. Asks for the proof below - for an account with no password, a sign-in of the last 15 minutes: `403 reauthentication_required` otherwise. `409 password_already_set`, `422 invalid_password` |
 | `PUT /api/account/password/enabled` | `{ enabled, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, to switch password sign-in off; a sign-in of the last 15 minutes to switch it on. `409 would_lock_account` / `no_password` first |
@@ -1332,8 +1357,8 @@ endpoint here.
 | `GET /api/admin/users/filters` | `{ total, disabled, admins, languages, applications: FilterApplication[], passwordMinLength }` |
 | `GET /api/admin/users/{id}` | `AdminUser` |
 | `GET /api/admin/users/{id}/detail` | `AdminUserDetail` |
-| `POST /api/admin/users` | `{ username, email, password, language?, force_password_change?, roles?: RoleGrant[] }` → `201 AdminUser` |
-| `PUT /api/admin/users/{id}` | `{ username?, email?, language?, email_confirmed?, force_password_change? }` → `AdminUser` |
+| `POST /api/admin/users` | `{ username, email, password, language?, force_password_change?, roles?: RoleGrant[] }` → `201 AdminUser` - the username letters and digits (`422 invalid_username` otherwise; Conventions, above) |
+| `PUT /api/admin/users/{id}` | `{ username?, email?, language?, email_confirmed?, force_password_change? }` → `AdminUser` - a new username letters and digits (`422 invalid_username` otherwise); the account's own name sent back is not checked, so an account with a name from before the rule can still be edited |
 | `PUT /api/admin/users/{id}/password` | `{ password, force_password_change? }` → `{ message, note }` - every session of the account ends |
 | `PUT /api/admin/users/{id}/enabled` | `{ enabled }` → `AdminUser` - disabling ends every session and refresh token |
 | `DELETE /api/admin/users/{id}/2fa` | turn two-factor off for somebody locked out → `AdminUser` |

@@ -6,6 +6,7 @@ import { CheckboxComponent, SelectComponent, TextFieldComponent } from '@anotoki
 import { AdminApi } from '../../../core/api/admin.api';
 import { ApiError } from '../../../core/api/api-error';
 import { AdminUser, UpdateUserBody } from '../../../core/api/models';
+import { usernameFits } from '../../../core/auth/username';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { adminErrorText } from '../admin-errors';
 import { languageOptions } from './language-options';
@@ -61,8 +62,17 @@ export class EditUserDialogComponent implements OnInit {
     const username = this.username().trim();
     const email = this.email().trim();
 
+    // The name the account has is no change, and is not held to the rule: an
+    // account keeps a name from before it (2026-10-19), whatever else changes.
+    const renamed = username !== user.username.trim();
+
     if (!username) {
       this.usernameError.set('A username is needed.');
+      return;
+    }
+    if (renamed && !usernameFits(username)) {
+      // The server's rule, said before a request.
+      this.usernameError.set('Only letters and digits: a–z, A–Z and 0–9, at most 100.');
       return;
     }
     if (!email.includes('@')) {
@@ -70,7 +80,7 @@ export class EditUserDialogComponent implements OnInit {
       return;
     }
 
-    if (username !== user.username) {
+    if (renamed) {
       body.username = username;
     }
     if (email !== user.email) {

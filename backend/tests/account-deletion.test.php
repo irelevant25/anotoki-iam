@@ -827,7 +827,7 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
                 ]),
         );
     }
-    same(200, $browsers['gone']->put('/api/account/profile', ['username' => 'gone-renamed'])->status, 'a new name');
+    same(200, $browsers['gone']->put('/api/account/profile', ['username' => 'goneRenamed'])->status, 'a new name');
     $announcement = (int) $pdo
         ->query(
             "INSERT INTO announcements (template, sender_address, sender_name, content, audience, created_by)
@@ -886,7 +886,7 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     $last = end($mails);
     same('Tvoj účet anotoki je zmazaný', $last['subject'], 'the "deleted" mail, in Slovak');
     same(
-        "Ahoj gone-renamed,\n\nAko si požiadal, tvoj účet anotoki je zmazaný: jeho meno, adresa, heslo aj prihlásenia sú preč. Stránky anotoki si to, čo sa na nich vytvorilo, ponechajú bez mena.\n\n" .
+        "Ahoj goneRenamed,\n\nAko si požiadal, tvoj účet anotoki je zmazaný: jeho meno, adresa, heslo aj prihlásenia sú preč. Stránky anotoki si to, čo sa na nich vytvorilo, ponechajú bez mena.\n\n" .
             "Toto je posledný e-mail, ktorý na túto adresu posielame. Ďakujeme, že si bol s nami.\n",
         $last['body'],
         'its name and its address, before they went - and no link',
@@ -992,7 +992,7 @@ test('when it is due, housekeeping deletes it: everything of the person goes or 
     same([401, 'invalid_credentials'], [($r = (new Browser('10.16.8.6'))->signIn('Gone@Example.test', PASSWORD))->status, $r->code()], 'the old address signs in to nothing');
     same(
         201,
-        ($r = (new Browser('10.16.8.7'))->post('/api/register', ['username' => 'gone again', 'email' => 'Gone@Example.test', 'password' => 'a long password', 'language' => 'en']))->status,
+        ($r = (new Browser('10.16.8.7'))->post('/api/register', ['username' => 'goneAgain', 'email' => 'Gone@Example.test', 'password' => 'a long password', 'language' => 'en']))->status,
         'and makes a new account: ' . $r->body,
     );
     check((int) userByEmail($pdo, 'Gone@Example.test')['id'] !== $goneId, 'with an id of its own');

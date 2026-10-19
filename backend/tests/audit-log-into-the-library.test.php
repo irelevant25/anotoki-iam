@@ -326,12 +326,12 @@ test('the window: an installed IAM, the new code, nothing applied - every way in
         $person = new Browser('10.41.0.2');
         same(200, $person->signIn('somebody@example.test', PASSWORD)->status, 'a password');
         same([200, 'somebody'], [($r = $person->get('/api/account'))->status, $r->json()['username'] ?? null], 'the account page');
-        same(200, $person->put('/api/account/profile', ['username' => 'somebody else'])->status, 'a change of name - audited');
+        same(200, $person->put('/api/account/profile', ['username' => 'somebodyElse'])->status, 'a change of name - audited');
         $tokens = signInToTheSite(new Browser('10.41.0.3'), 'somebody@example.test');
         same(200, $tokens->status, 'a site\'s sign-in, through to its tokens: ' . $tokens->body);
         same(['MEMBER'], verifyLikeAnApp(new Browser(), (string) ($tokens->json()['access_token'] ?? ''), 'genshin')['roles'] ?? null, 'with a token the site accepts');
         same(200, (new Browser('10.41.0.4'))->post('/api/login/code', ['email' => 'somebody@example.test'])->status, 'an emailed code');
-        $registered = (new Browser('10.41.0.5'))->post('/api/register', ['username' => 'Nováčik', 'email' => 'novacik@example.test', 'password' => 'a long password', 'language' => 'sk']);
+        $registered = (new Browser('10.41.0.5'))->post('/api/register', ['username' => 'Novacik', 'email' => 'novacik@example.test', 'password' => 'a long password', 'language' => 'sk']);
         same(201, $registered->status, 'a registration - audited: ' . $registered->body);
         same(200, (new Browser('10.41.0.6'))->post('/api/password/forgot', ['email' => 'novacik@example.test'])->status, 'a reset asked for');
 

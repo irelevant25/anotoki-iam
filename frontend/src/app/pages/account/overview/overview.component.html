@@ -25,7 +25,9 @@
                                     [label]="'overview.changeUsername' | t"
                                     name="nickname"
                                     autocomplete="nickname"
+                                    autocapitalize="off"
                                     [maxlength]="100"
+                                    [hint]="'common.usernameHint' | t"
                                     [(value)]="username"
                                     [error]="usernameError()"
                                     [autofocus]="true" />

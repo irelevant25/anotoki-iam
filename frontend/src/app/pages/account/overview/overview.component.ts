@@ -14,6 +14,7 @@ import { AccountApi } from '../../../core/api/account.api';
 import { ApiError } from '../../../core/api/api-error';
 import { DateFormatChoice, TimeFormatChoice } from '../../../core/api/models';
 import { SessionService } from '../../../core/auth/session.service';
+import { usernameFits } from '../../../core/auth/username';
 import { AppDatePipe } from '../../../core/i18n/app-date.pipe';
 import { DATE_FORMATS, TIME_FORMATS, formatClock, formatDatePattern } from '../../../core/i18n/date-patterns';
 import { TranslationKey } from '../../../core/i18n/en';
@@ -168,8 +169,15 @@ export class OverviewComponent {
       this.usernameError.set(this._i18n.t('common.required'));
       return;
     }
-    if (username === this.user()?.username) {
+    // The name the account has is no change - a name from before the rule
+    // (2026-10-19) that does not fit included: nothing to send, nothing to say.
+    if (username === (this.user()?.username ?? '').trim()) {
       this.editingUsername.set(false);
+      return;
+    }
+    // A new name keeps the rule (letters and digits), as the server will say.
+    if (!usernameFits(username)) {
+      this.usernameError.set(this._i18n.t('error.invalidUsername'));
       return;
     }
 

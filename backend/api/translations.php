@@ -92,10 +92,11 @@ const TRANSLATION_MAIL_VALUE_MAX = 400;
  * do not hold the line.
  *
  * A greeting is filled with the username, which is not the string's to bound:
- * at most 100 characters (usernameRefusal(), users.username), which can be
- * 400 bytes. That room is kept for every {username} the string has, not once
- * for the string: mailFill() fills each one, and nothing stops a greeting from
- * naming its reader twice. So the bytes a mail string may have are the first
+ * at most 100 characters (users.username). A name chosen since 2026-10-19 is
+ * letters and digits, a byte each (usernameRefusal()), but an account keeps a
+ * name from before, and that can be 400 bytes. That room is kept for every
+ * {username} the string has, not once for the string: mailFill() fills each
+ * one, and nothing stops a greeting from naming its reader twice. So the bytes a mail string may have are the first
  * number less the second for each {username} in it - 500 with one, 100 with
  * two, and with three there is no room left at all. A {date} (the deletion
  * mail's day, mailDate()) is ten bytes at most - "2026-11-06" - and its ten

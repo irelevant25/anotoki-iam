@@ -416,20 +416,25 @@ function accountPayload(PDO $pdo, array $user): array
 }
 
 /**
- * A username nobody else has, from what Google offered: the display name,
- * else the local part of the address, then a number. Whoever becomes "peter2"
- * can change it afterwards, which is a smaller annoyance than being asked to
- * invent one before being let in.
+ * A username nobody else has, for a Google sign-up, made to fit the rule every
+ * name keeps (letters and digits, usernameRefusal()) by usernameFrom(): from
+ * the display name Google offered ("František Pastorek" FrantisekPastorek),
+ * else the address before its @ (frantisek.pastorek@... frantisekpastorek) -
+ * a name of only another script's letters leaves nothing, and the next is
+ * tried -, else "player"; then a number while it is taken, regardless of case.
+ * At most 90 letters, so the number fits within the 100. Whoever becomes
+ * "peter2" can change it afterwards, which is a smaller annoyance than being
+ * asked to invent one before being let in.
  */
 function availableUsername(PDO $pdo, string $preferred, string $email): string
 {
-    $base = trim((string) preg_replace('/\s+/', ' ', $preferred));
+    $room = USERNAME_MAX - 10;
+    $base = usernameFrom($preferred, $room);
 
     if ($base === '') {
-        $base = (string) strstr($email, '@', true);
+        $base = usernameFrom((string) strstr($email, '@', true), $room);
     }
 
-    $base = mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $base)), 0, 90);
     if ($base === '') {
         $base = 'player';
     }
