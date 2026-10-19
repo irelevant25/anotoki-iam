@@ -85,8 +85,10 @@ the files you were given). You do not edit anything.
   check of ADMIN / EDITOR in the token. MEMBER is every account's in every
   application (010's triggers - the only grant made without the admin panel
   besides those, to every account alike). Roles are fixed (011): the admin
-  API changes only `may_sign_in`; a new application's ADMIN and EDITOR, and
-  those 011 added, are held by nobody.
+  API changes only `may_sign_in`; a new application's ADMIN, EDITOR and
+  EARLY_ACCESS, and those 011 and 023 added, are held by nobody. EARLY_ACCESS
+  (023) is a site's way in for chosen people while its MEMBER may not sign
+  in - never the IAM's entry's, never an admin area.
 - **Who may sign in to a site** (010): `applicationAccessRefusal()` on every
   way in (authorize, accept, the code exchange, every refresh, personal
   tokens) needs a held role with `may_sign_in`; the IAM's own entry is never

@@ -361,16 +361,17 @@ test('a live IAM that made `survey` by hand keeps it as it is through 005, only 
     same([$owner, $second], $survey['admins'], 'each administrator still holds survey ADMIN once');
 
     // And the rest: 010 gives it MEMBER, which both accounts hold, and keeps
-    // it requiring signing in - an 'everyone' site lets every account in.
+    // it requiring signing in - an 'everyone' site lets every account in; 023
+    // gives it EARLY_ACCESS, which nobody holds.
     $result = applyPendingMigrations($pdo, 'iam');
     same(null, $result['failed'], 'nothing after 007 fails (' . ($result['error'] ?? '') . ')');
     same([], pendingMigrations($pdo, 'iam'), 'nothing left pending');
     $survey = surveyIn($pdo);
-    same(['ADMIN', 'EDITOR', 'MEMBER'], $survey['roles'], '010 adds MEMBER');
+    same(['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'MEMBER'], $survey['roles'], '010 adds MEMBER, 023 EARLY_ACCESS');
     same([$owner, $second], $survey['members'], 'which every account holds');
     same(true, asBool($pdo->query("SELECT login_required FROM applications WHERE client_id = 'survey'")->fetchColumn()), 'and the survey site requires signing in');
     same(
-        ['ADMIN', 'EDITOR', 'MEMBER'],
+        ['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'MEMBER'],
         $pdo
             ->query(
                 "SELECT r.name FROM application_roles r JOIN applications a ON a.id = r.application_id

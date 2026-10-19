@@ -682,9 +682,9 @@ export interface ApplicationRole {
 
 /**
  * An application as the admin panel shows it. Every application is a public
- * client (PKCE, no secret), and its roles are fixed - ADMIN, EDITOR and MEMBER
- * (the IAM's own entry ADMIN and MEMBER), plus any made before they were: the
- * panel changes only whether each may sign in.
+ * client (PKCE, no secret), and its roles are fixed - ADMIN, EDITOR,
+ * EARLY_ACCESS and MEMBER (the IAM's own entry ADMIN and MEMBER), plus any
+ * made before they were: the panel changes only whether each may sign in.
  */
 export interface AdminApplication {
   id: number;

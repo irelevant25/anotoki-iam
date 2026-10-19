@@ -1261,9 +1261,10 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         }
 
         // Last in the list (there are no landing page settings to place it).
-        // The database gives it ADMIN, EDITOR and MEMBER, and MEMBER to every
-        // account (011's trigger); the insert below covers the minutes between
-        // an upload and Apply, when 010's trigger made MEMBER alone.
+        // The database gives it ADMIN, EDITOR, EARLY_ACCESS and MEMBER, and
+        // MEMBER to every account (023's trigger); the insert below covers the
+        // minutes between an upload and Apply, when an older trigger made fewer
+        // (010's MEMBER alone, 011's three).
         $insert = $pdo->prepare('INSERT INTO applications (client_id, name, sort_order)
                                  VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM applications)) RETURNING id');
         $insert->execute([$clientId, field($body, 'name') ?: $clientId]);
@@ -1548,14 +1549,16 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The roles every site has, in the words migration 011's trigger gives a new
- * application (the IAM's own entry: ADMIN and MEMBER). Roles are fixed
- * (the owner's decision, 2026-10-05): the admin panel says only whether each
- * may sign in.
+ * The roles every site has, in the words the database's trigger gives a new
+ * application (011's three, and 023's EARLY_ACCESS - the owner's decision of
+ * 2026-10-19: chosen people let in while the site's MEMBER may not sign in;
+ * the IAM's own entry: ADMIN and MEMBER). Roles are fixed (the owner's
+ * decision, 2026-10-05): the admin panel says only whether each may sign in.
  */
 const SITE_ROLES = [
     'ADMIN' => "Everything in the site's admin panel",
     'EDITOR' => "Edits the site's content in its admin panel",
+    'EARLY_ACCESS' => 'Uses the site while it lets in only chosen people (a beta, a test); given by an administrator',
     'MEMBER' => 'Uses the site',
 ];
 

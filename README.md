@@ -115,12 +115,14 @@ hosting:
   `/api/public/applications/{client_id}`). The admin panel shows both on an
   application's page, and who is blocked where. Since migration 011 every
   application is a public client (PKCE, no secret) with the same fixed roles -
-  ADMIN, EDITOR, MEMBER - and no landing page settings. ADMIN in every site was given to
-  the installer's administrator, `create-admin.php`'s, one brought over from
-  the genshin site, and every administrator there when 007 ran - a grant at
-  those moments: promoting or removing an administrator later changes no
-  site's roles. 007 goes on an installed IAM after the sites are updated.
-- Migrations 001-022, applied by the engine every anotoki site shares - the
+  ADMIN, EDITOR, MEMBER, and since migration 023 EARLY_ACCESS, which lets in
+  chosen people while a site's MEMBER may not sign in - and no landing page
+  settings. ADMIN in every site was given to the installer's administrator,
+  `create-admin.php`'s, one brought over from the genshin site, and every
+  administrator there when 007 ran - a grant at those moments: promoting or
+  removing an administrator later changes no site's roles. 007 goes on an
+  installed IAM after the sites are updated.
+- Migrations 001-023, applied by the engine every anotoki site shares - the
   family's library, anotoki-lib (`anotoki/lib` in `backend/vendor/`,
   `@anotoki/lib` in the frontend); an installed IAM gets the later ones through
   the admin panel's Migrations page (or setup.php / `php migration.php` on

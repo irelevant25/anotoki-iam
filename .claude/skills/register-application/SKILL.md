@@ -24,8 +24,8 @@ Decide, with the owner where it is not obvious:
 | redirect URIs | exactly where the callback lands: `{frontend}/auth/callback`, the SPA route every anotoki site uses |
 | post-logout URIs | the site's `{frontend}/` |
 | web origins | the site's origin, `{frontend}` - scheme + host (+ port) |
-| roles | fixed, nothing to choose: every site has `ADMIN`, `EDITOR` and `MEMBER`, made with the application (migrations 010 and 011) - EDITOR opens its admin area, ADMIN all of it (the site's own split; `docs/integrating-an-app.md`); every account holds MEMBER. The admin panel neither adds, removes, renames nor rewords a role |
-| roles that may sign in | each role's tick (`may_sign_in`), all yes: a sign-in needs a held role that may. "Make Y members-only" = untick Y's MEMBER (Applications -> Y -> Settings -> Roles), then give its people ADMIN or EDITOR by hand. "Block somebody from Y" = take Y's MEMBER from them (Users -> the person -> Roles); the users list then says "Cannot sign in: Y", and Y's Members tab lists them |
+| roles | fixed, nothing to choose: every site has `ADMIN`, `EDITOR`, `EARLY_ACCESS` and `MEMBER`, made with the application (migrations 010, 011 and 023) - EDITOR opens its admin area, ADMIN all of it (the site's own split; `docs/integrating-an-app.md`); every account holds MEMBER; EARLY_ACCESS is whom an administrator gives it - a beta's testers -, to the site a signed-in person like MEMBER, no admin area. The admin panel neither adds, removes, renames nor rewords a role |
+| roles that may sign in | each role's tick (`may_sign_in`), all yes: a sign-in needs a held role that may. "Make Y members-only" = untick Y's MEMBER (Applications -> Y -> Settings -> Roles), then give its people EARLY_ACCESS (a beta, a test) or ADMIN or EDITOR by hand. "Block somebody from Y" = take Y's MEMBER from them (Users -> the person -> Roles); the users list then says "Cannot sign in: Y", and Y's Members tab lists them |
 | sign-in required | `login_required`, a switch on the application's page: on (the default) - the site sends everybody to sign in; off - it lets visitors in (genshin and the build analyzer). The site reads it within about a minute |
 | access token TTL | 600 s unless there is a reason |
 
@@ -38,9 +38,9 @@ gets its row.
 **For a first-party site that belongs in every installation**, write a
 migration (see the iam-migration skill) inserting the application, its
 development URIs, origin and home, and its roles' own words if it wants them
-(the trigger gives ADMIN, EDITOR and MEMBER generic words as the application
-is inserted; the migration rewords them with an `UPDATE` where they still
-have those words - the iam-migration skill) - model it on
+(the trigger gives ADMIN, EDITOR, EARLY_ACCESS and MEMBER generic words as
+the application is inserted; the migration rewords them with an `UPDATE`
+where they still have those words - the iam-migration skill) - model it on
 `backend/migrations/iam/005_survey_application.sql`, `DO $$` check included.
 Unlike 002, which seeded the first sites before any IAM was installed, it also
 reaches IAMs that are installed already (the Migrations page), one of them
@@ -92,9 +92,9 @@ The site vendors `sdk/js/anotoki-auth.mjs` (or `.js` for classic scripts) and
 - A URI that is off by one character is refused with `/error?code=invalid_redirect_uri`.
 - An account given no role signs in to a first-party site and gets a token
   with `roles: ["MEMBER"]`.
-- The application's page shows ADMIN, EDITOR and MEMBER, ticked, and the
-  sign-in switch as decided; the public `GET /api/public/applications/{client_id}`
-  says the same `login_required`.
+- The application's page shows ADMIN, EARLY_ACCESS, EDITOR and MEMBER,
+  ticked, and the sign-in switch as decided; the public
+  `GET /api/public/applications/{client_id}` says the same `login_required`.
 - With the site's MEMBER unticked: an account holding only MEMBER gets
   `access_denied`; granting a role that may sign in lets it in; taking that
   role away stops the next refresh.

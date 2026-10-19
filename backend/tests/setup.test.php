@@ -376,7 +376,11 @@ test('a fresh database arrives with the sites\' development addresses, as in the
     same(true, asBool($survey['show_on_landing']), 'and it has a card on the landing page');
     $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? AND may_sign_in ORDER BY name');
     $roles->execute([$survey['id']]);
-    same(['ADMIN', 'EDITOR', 'MEMBER'], $roles->fetchAll(PDO::FETCH_COLUMN), 'the roles the survey site asks for, and the MEMBER every account holds - each may sign in');
+    same(
+        ['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'MEMBER'],
+        $roles->fetchAll(PDO::FETCH_COLUMN),
+        'the roles the survey site asks for, the MEMBER every account holds and EARLY_ACCESS (023) - each may sign in',
+    );
 });
 
 test(

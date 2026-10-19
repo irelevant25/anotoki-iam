@@ -409,7 +409,10 @@ Applications' backends verify it; see [integrating-an-app.md](integrating-an-app
 `roles` are the account's roles **in the application the token is for**, and
 nothing else. Every account holds `MEMBER` in every application (migration
 010), so an ordinary signed-in person's list is `["MEMBER"]` - treat it as
-nobody in particular, as an empty list was before 010. `sid` names the
+nobody in particular, as an empty list was before 010. `EARLY_ACCESS`
+(migration 023) is given by an administrator to chosen people - a beta's
+testers, let in while the site's `MEMBER` may not sign in - and is to a site
+what `MEMBER` is: it opens no admin area. `sid` names the
 IAM session; it is not a secret. Lifetime is the application's
 `access_token_ttl` (600 seconds unless changed).
 
@@ -1582,9 +1585,10 @@ interface AdminApplication {
   redirect_uris: string[];
   post_logout_redirect_uris: string[];
   web_origins: string[];           // allowed to call the token endpoint from a browser
-  // Fixed (migration 011): ADMIN, EDITOR and MEMBER - `iam` ADMIN and MEMBER -
-  // plus any role made before 011, kept read-only. MEMBER is held by every
-  // account (migration 010). may_sign_in: holding this role lets an account
+  // Fixed (migrations 011 and 023): ADMIN, EDITOR, EARLY_ACCESS and MEMBER -
+  // `iam` ADMIN and MEMBER - plus any role made before 011, kept read-only.
+  // MEMBER is held by every account (migration 010), the others by those they
+  // are given to. may_sign_in: holding this role lets an account
   // sign in to the site; one holding none that may is refused (access_denied).
   // Meaningless for `iam`.
   roles: { name: string; description: string | null; may_sign_in: boolean; members: number }[];
@@ -1598,8 +1602,10 @@ Every application is a public client and there are no landing page settings
 (migration 011): the shape carries no `type`, secret, `show_on_landing` or
 `sort_order`. A new application goes last (`sort_order` the largest + 1) and
 gets ADMIN ("Everything in the site's admin panel"), EDITOR ("Edits the site's
-content in its admin panel") and MEMBER ("Uses the site") from the database,
-MEMBER for every account, its ADMIN and EDITOR for nobody.
+content in its admin panel"), EARLY_ACCESS ("Uses the site while it lets in
+only chosen people (a beta, a test); given by an administrator") and MEMBER
+("Uses the site") from the database, MEMBER for every account, its ADMIN,
+EDITOR and EARLY_ACCESS for nobody.
 
 `ApplicationInput` is the writable subset: `client_id` (create only), `name`,
 `description`, `home_url`, `logo_url`, `enabled`, `login_required` (a boolean;

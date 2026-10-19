@@ -116,6 +116,10 @@ origin secret's: fails closed) instead of a 500 on every request, and PHP's
 error log names it ("does not start with <?php") - save it again as plain
 UTF-8 starting with `<?php`.
 
+Migration 023 brings EARLY_ACCESS to every site's application (upload, then
+Apply): nobody holds it, so nobody new gets in; `docs/operations.md` says what
+the ADMIN-only sites then list, and how to keep them ADMIN alone.
+
 anotoki-lib 0.6.3 brings the family's footer: the build analyzer's top border
 and Terms · Privacy · Contact under every page of the IAM, the admin panel's
 too (no row above them: the IAM has no version, What's new or feedback), and

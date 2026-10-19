@@ -33,11 +33,13 @@ interface RoleRow {
 type FieldErrors = Partial<Record<'client_id' | 'name' | 'description' | 'home_url' | 'logo_url' | 'ttl' | 'lists' | 'roles', string>>;
 
 /**
- * The roles a new application gets from the database (migration 011), in its
- * words - shown on /new so the form says what the application will have.
+ * The roles a new application gets from the database (migrations 011 and
+ * 023), in its words and in the order the server lists them - shown on /new
+ * so the form says what the application will have.
  */
 const NEW_APPLICATION_ROLES: readonly RoleRow[] = [
   { name: 'ADMIN', description: "Everything in the site's admin panel", maySignIn: true, members: 0 },
+  { name: 'EARLY_ACCESS', description: 'Uses the site while it lets in only chosen people (a beta, a test); given by an administrator', maySignIn: true, members: 0 },
   { name: 'EDITOR', description: "Edits the site's content in its admin panel", maySignIn: true, members: 0 },
   { name: 'MEMBER', description: 'Uses the site', maySignIn: true, members: 0 },
 ];
@@ -49,11 +51,12 @@ const NOBODY_MAY_SIGN_IN = 'At least one role must be allowed to sign in - switc
  * application is allowed to ask for.
  *
  * Every application is a public client (PKCE, no secret), and its roles are
- * fixed - ADMIN, EDITOR and MEMBER, the IAM's own entry ADMIN and MEMBER (the
- * owner's decision, 2026-10-05): the form shows them read-only, with a tick
- * for whether each may sign in. Whether the site requires signing in is a
- * switch. The lists (redirect URIs, logout URIs, origins) are sent whole: the
- * backend replaces each as a set, in one transaction.
+ * fixed - ADMIN, EDITOR, EARLY_ACCESS and MEMBER, the IAM's own entry ADMIN
+ * and MEMBER (the owner's decisions of 2026-10-05 and 2026-10-19): the form
+ * shows them read-only, with a tick for whether each may sign in. Whether the
+ * site requires signing in is a switch. The lists (redirect URIs, logout URIs,
+ * origins) are sent whole: the backend replaces each as a set, in one
+ * transaction.
  *
  * The IAM's own entry (`system`) cannot be switched off or deleted, and has
  * no sign-in switch or checklist - Settings -> Signing in is its gate - so
@@ -129,7 +132,7 @@ export class ApplicationFormComponent {
     this.system()
       ? "The IAM's own roles. ADMIN makes somebody an administrator here; who signs in to these pages is Settings → Signing in."
       : this.creating()
-        ? 'A new application gets these three, the same in every site. Tick the ones whose holders may sign in.'
+        ? 'A new application gets these four, the same in every site. Tick the ones whose holders may sign in.'
         : 'Every site has the same roles. Tick the ones whose holders may sign in.',
   );
   /** MEMBER may not sign in here: only the holders of the ticked roles get in (the Members tab says so). */

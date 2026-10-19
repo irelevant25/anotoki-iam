@@ -138,11 +138,23 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **Public clients only, the same roles everywhere** (migration 011, the
   owner's words of 2026-10-05): every application proves each sign-in with
   PKCE and has no secret (a request carrying one is refused); every site has
-  ADMIN, EDITOR and MEMBER, the IAM's entry ADMIN and MEMBER, made with the
-  application - the admin panel only ticks which may sign in, never adds,
-  removes, renames or rewords a role; there are no landing page settings
-  (the public list is every site switched on). The panel shows who is
-  blocked where by one rule (`blockedFromSql()`, `sign-in-check.ts`).
+  ADMIN, EDITOR, EARLY_ACCESS (since 023, below) and MEMBER, the IAM's entry
+  ADMIN and MEMBER, made with the application - the admin panel only ticks
+  which may sign in, never adds, removes, renames or rewords a role; there
+  are no landing page settings (the public list is every site switched on).
+  The panel shows who is blocked where by one rule (`blockedFromSql()`,
+  `sign-in-check.ts`).
+- **Early access** (migration 023, the owner's decision of 2026-10-19;
+  `docs/decisions.md`): EARLY_ACCESS, the fourth role of every site - never
+  the IAM's entry -, "Uses the site while it lets in only chosen people (a
+  beta, a test); given by an administrator": it may sign in, and nobody holds
+  it until an IAM ADMIN gives it (Users -> the person -> Roles), as ADMIN and
+  EDITOR are given. For a beta the owner unticks the site's MEMBER and gives
+  the testers EARLY_ACCESS. It rides in the token's `roles` like any role; a
+  site treats it as MEMBER - a signed-in person, no admin area. The trigger
+  (`roles_for_application()`, 023's) makes the four with a site, its words
+  the same in `SITE_ROLES` (`routes/admin.php`) and the panel's
+  `NEW_APPLICATION_ROLES`. 023 changed no existing role or grant.
 - **New accounts may wait for approval** (migration 012, the owner's decision
   of 2026-10-06): Settings -> New accounts need approval, one switch for the
   whole IAM - never per site: accounts are shared by every site. While on, an

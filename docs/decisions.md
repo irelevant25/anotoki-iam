@@ -2013,3 +2013,56 @@ nor header nor footer to be there." anotoki-lib 0.6.3 made both the family's.
   the old routes and the old admin panel put back, eight of its tests fail.
   The browser check looked at all of it at 1280 and 390 px, light and dark,
   English and Slovak.
+
+## 2026-10-19 - The owner's decision: EARLY_ACCESS, a fourth role in every site
+
+The owner: "Need to add another role like: Early access. With same
+permissions as Member. The idea is, that when I will have a new project and
+will allow specific people to participate in the Early access or beta version
+or for testing purposes, I need to separate them from members so they will
+have access there without making them admins or editors. This apply for every
+website so far except the iam of course." It changes the rule of 2026-10-05
+above, "the same roles everywhere", which were three. Migration 023:
+
+- **EARLY_ACCESS in every site** - the first-party ones, the owner's own, every
+  one made later -, "Uses the site while it lets in only chosen people (a
+  beta, a test); given by an administrator". It may sign in, and nobody holds
+  it until an administrator of the IAM gives it (Users → the person → Roles),
+  as ADMIN and EDITOR are given and taken; MEMBER stays the one role every
+  account holds. A fourth fixed role, not one the owner adds per site: 011
+  took adding roles out of the admin panel, and the sites read one
+  vocabulary.
+- **A beta**: untick the site's MEMBER and give the testers EARLY_ACCESS. They
+  sign in; an account holding only the MEMBER everybody holds is refused on
+  every way in (`access_denied`), as on any members-only site. When the beta
+  is over, tick MEMBER again; EARLY_ACCESS unticked lets nobody in by it, and
+  its holders are then listed as blocked there.
+- **Never the IAM's own entry** ("except the iam of course"): it keeps ADMIN
+  and MEMBER, and the admin API refuses an EARLY_ACCESS there, as any role
+  it does not have.
+- **In the token's `roles` like any role.** A site treats it as it treats
+  MEMBER - an ordinary signed-in person -, and it opens no admin area, which
+  stays ADMIN's and EDITOR's (the family's `Person::isStaff()` is ADMIN or
+  EDITOR): the sites need nothing new.
+- **Who is blocked where counts it as every role** (`blockedFromSql()`,
+  `sign-in-check.ts`, unchanged): a way in where it may sign in, an
+  invitation where it may not.
+- **Like every role since 011** it is never removed from a site, renamed or
+  reworded in the admin panel; a site that wants no early access gives it to
+  nobody, or unticks it. 016's `roles_for_application()` is made again with
+  the fourth role, and a system entry still gets MEMBER alone.
+- **On the installed IAM** 023 adds an EARLY_ACCESS nobody holds to every
+  site that has none, and changes no role and no grant: Japanese Academy,
+  Piano Academy and the build analyzer, which let only ADMIN in since
+  2026-10-06, let in exactly whom they did. Not a one-way step like 010: a
+  build from before it runs on the database as before - every rule reads the
+  roles from the database -, and the build that brings it gives an
+  application made before Apply the fourth role itself.
+- **Tested** (`tests/early-access.test.php`, and the frontend's
+  `sign-in-check.spec.ts`): 023 on a fresh IAM and on one built through 022 as
+  its owner left it - every role, grant and way in as before, an
+  EARLY_ACCESS of the owner's own kept -, its gate failing loudly and leaving
+  nothing; a beta through the real endpoints - the testers in, with the role
+  in the access token, the ID token and userinfo, an account without it
+  refused on every way in -; the panel's lists; a new application's four
+  roles; none in the IAM's entry; the window while 023 is pending.

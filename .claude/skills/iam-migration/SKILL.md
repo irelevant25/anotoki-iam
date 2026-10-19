@@ -73,16 +73,23 @@ code that reads what a migration makes checks for it first (`*Ready()`).
   `buildIamThrough()` / `applyMigrationsThrough()` (`tests/lib.php`) build a
   database up to a file and no further - a migration's own test asserts the
   state its file leaves, not what 010 makes of it.
-- **Every site has the same roles, ADMIN, EDITOR and MEMBER**
-  (`011_public_clients_static_roles.sql`; the IAM's entry ADMIN and MEMBER):
-  011's trigger makes all three with an application, in generic words, and
-  gives none of ADMIN / EDITOR to anybody. A seeding migration that wants its
-  site's own words rewords them after the application's insert (the trigger
-  has run by then, so an `INSERT ... ON CONFLICT DO NOTHING` of the roles, as
-  005 does, changes nothing): `UPDATE ... WHERE description = <the trigger's
-  words>`, which leaves a rewording of the owner's alone. Never add a
-  fourth role: the admin panel cannot remove one. Every application is a
-  public client: never seed `type` or a secret.
+- **Every site has the same roles, ADMIN, EDITOR, EARLY_ACCESS and MEMBER**
+  (`011_public_clients_static_roles.sql`, and `023_early_access_role.sql`, the
+  owner's decision of 2026-10-19; the IAM's entry ADMIN and MEMBER): the
+  trigger (`roles_for_application()`, 023's) makes all four with an
+  application, in generic words, and gives none of ADMIN / EDITOR /
+  EARLY_ACCESS to anybody. A seeding migration that wants its site's own
+  words rewords them after the application's insert (the trigger has run by
+  then, so an `INSERT ... ON CONFLICT DO NOTHING` of the roles, as 005 does,
+  changes nothing): `UPDATE ... WHERE description = <the trigger's words>`,
+  which leaves a rewording of the owner's alone. Never add another role
+  without the owner's decision - the admin panel cannot remove one; when the
+  owner decides one, 023 is the pattern: the role to every site that lacks
+  it, held by nobody, an existing one of that name left as it is, the
+  trigger's function made again, `SITE_ROLES` (`routes/admin.php`) and the
+  panel's `NEW_APPLICATION_ROLES` with the same words, and a test on an IAM
+  shaped like the installed one (`tests/early-access.test.php`). Every
+  application is a public client: never seed `type` or a secret.
 - **An anonymized account's row stays one** (`users_anonymized_check`, 016):
   switched off, unconfirmed, with no password, no password sign-in, no TOTP
   secret and no two-factor. A migration that updates those columns

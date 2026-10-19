@@ -33,7 +33,12 @@ grantRole($adminId, 'iam', 'ADMIN');
 
 const RULES_MIGRATION = '010_sign_in_per_site.sql';
 const STATIC_MIGRATION = '011_public_clients_static_roles.sql';
-const SITE_ROLE_WORDS = ['ADMIN' => "Everything in the site's admin panel", 'EDITOR' => "Edits the site's content in its admin panel", 'MEMBER' => 'Uses the site'];
+const SITE_ROLE_WORDS = [
+    'ADMIN' => "Everything in the site's admin panel",
+    'EDITOR' => "Edits the site's content in its admin panel",
+    'EARLY_ACCESS' => 'Uses the site while it lets in only chosen people (a beta, a test); given by an administrator',
+    'MEMBER' => 'Uses the site',
+];
 const SURVEY_FRONTEND = 'http://localhost:4700';
 const SURVEY_CALLBACK = 'http://localhost:4700/auth/callback';
 const PIANO_CALLBACK = 'http://localhost:4500/auth/callback';
@@ -280,9 +285,9 @@ test('a fresh IAM: MEMBER everywhere, every role may sign in, genshin and the an
 
     foreach ($pdo->query('SELECT client_id, system FROM applications ORDER BY client_id')->fetchAll() as $application) {
         same(
-            asBool($application['system']) ? ['ADMIN', 'MEMBER'] : ['ADMIN', 'EDITOR', 'MEMBER'],
+            asBool($application['system']) ? ['ADMIN', 'MEMBER'] : ['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'MEMBER'],
             array_keys(rolesWith($pdo, $application['client_id'])),
-            "{$application['client_id']}: the fixed roles (011)",
+            "{$application['client_id']}: the fixed roles (011, and 023's EARLY_ACCESS)",
         );
     }
     same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE type <> 'public' OR secret_hash IS NOT NULL")->fetchColumn(), 'every client public, no secret');
@@ -481,7 +486,7 @@ test('every way an account is made gives it MEMBER everywhere: the installer\'s 
     same(['made'], holders(iamDb(), 'survey', 'EDITOR'), 'and the role given beside it');
 });
 
-test('a new application in the admin panel: ADMIN, EDITOR and MEMBER by themselves, MEMBER every account\'s, last in the list, a public client', function () {
+test('a new application in the admin panel: ADMIN, EDITOR, EARLY_ACCESS and MEMBER by themselves, MEMBER every account\'s, last in the list, a public client', function () {
     $admin = admin();
     $everybody = (int) iamDb()->query('SELECT count(*) FROM users')->fetchColumn();
 
@@ -514,18 +519,19 @@ test('a new application in the admin panel: ADMIN, EDITOR and MEMBER by themselv
     same(201, $created->status, 'made, naming only the roles whose tick it sets: ' . $created->body);
     $started = lastAuditOf('application.created');
     ksort($started);
-    same(['login_required' => true, 'sign_in_roles' => ['ADMIN', 'EDITOR']], $started, 'the audit says who may sign in from the start');
+    same(['login_required' => true, 'sign_in_roles' => ['ADMIN', 'EARLY_ACCESS', 'EDITOR']], $started, 'the audit says who may sign in from the start');
     same(['application'], array_keys($created->json()), 'and no client secret in the answer');
     $application = $created->json()['application'];
     same(true, $application['login_required'], 'a new site requires signing in');
     same(
         [
             ['name' => 'ADMIN', 'description' => SITE_ROLE_WORDS['ADMIN'], 'may_sign_in' => true, 'members' => 0],
+            ['name' => 'EARLY_ACCESS', 'description' => SITE_ROLE_WORDS['EARLY_ACCESS'], 'may_sign_in' => true, 'members' => 0],
             ['name' => 'EDITOR', 'description' => SITE_ROLE_WORDS['EDITOR'], 'may_sign_in' => true, 'members' => 0],
             ['name' => 'MEMBER', 'description' => SITE_ROLE_WORDS['MEMBER'], 'may_sign_in' => false, 'members' => $everybody],
         ],
         $application['roles'],
-        'the family\'s three roles in the family\'s words, MEMBER every account\'s, ticked as asked',
+        'the family\'s four roles in the family\'s words, MEMBER every account\'s, ticked as asked',
     );
     same([], array_intersect(['access', 'type', 'has_secret', 'show_on_landing', 'sort_order'], array_keys($application)), 'no access, type, secret or landing page settings in the panel\'s shape');
     same(['public', null], array_values(iamDb()->query("SELECT type, secret_hash FROM applications WHERE client_id = 'newsite'")->fetch(PDO::FETCH_NUM)), 'a public client without a secret');
@@ -588,7 +594,11 @@ test('MEMBER unticked for a site: its holders are refused on every way in, a rol
     $saved = surveyMaySignIn(admin(), ['MEMBER' => false]);
     same(200, $saved->status, 'MEMBER unticked in the admin panel: ' . $saved->body);
     same(false, array_column($saved->json()['roles'], 'may_sign_in', 'name')['MEMBER'], 'and said so');
-    same(['sign_in_roles' => ['after' => ['ADMIN', 'EDITOR'], 'before' => ['ADMIN', 'EDITOR', 'MEMBER']]], lastAuditOf('application.sign_in_changed'), 'audited, before and after');
+    same(
+        ['sign_in_roles' => ['after' => ['ADMIN', 'EARLY_ACCESS', 'EDITOR'], 'before' => ['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'MEMBER']]],
+        lastAuditOf('application.sign_in_changed'),
+        'audited, before and after',
+    );
 
     $start = startSignIn($memberBrowser);
     $request = queryOf($start['location'])['request'] ?? null;
@@ -792,22 +802,22 @@ test('the admin panel: the roles are fixed, MEMBER stays, some role may sign in,
     $admin = admin();
     [$id, $application] = surveyInPanel($admin);
     same(true, $application['login_required'], 'the survey site requires signing in');
-    same(['ADMIN', 'EDITOR', 'GUEST', 'MEMBER'], array_column($application['roles'], 'name'), 'its three, and the GUEST made before the roles were fixed');
+    same(['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'GUEST', 'MEMBER'], array_column($application['roles'], 'name'), 'its four, and the GUEST made before the roles were fixed');
     $roles = static fn(array $names): array => array_map(static fn(string $name): array => ['name' => $name], $names);
     $fixed = static fn(TestResponse $answer): bool => $answer->status === 422 && str_starts_with($answer->json()['error'] ?? '', 'The roles are fixed - ');
 
-    $refused = $admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EDITOR', 'GUEST'])]);
+    $refused = $admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'GUEST'])]);
     same(
         [422, 'Every application keeps its MEMBER role - take it from people instead (Users -> the person -> Roles)'],
         [$refused->status, $refused->json()['error'] ?? null],
         'MEMBER cannot be removed',
     );
-    check($fixed($admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EDITOR', 'GUEST', 'MEMBERS'])])), 'nor renamed');
-    $refused = $admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'GUEST', 'MEMBER'])]);
+    check($fixed($admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'GUEST', 'MEMBERS'])])), 'nor renamed');
+    $refused = $admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EARLY_ACCESS', 'GUEST', 'MEMBER'])]);
     same([422, 'The roles are fixed - EDITOR cannot be removed; only whether each may sign in can change'], [$refused->status, $refused->json()['error'] ?? null], 'no role can be removed');
-    check($fixed($admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EDITOR', 'GUEST', 'MEMBER', 'READER'])])), 'nor one added');
-    $reworded = $roles(['ADMIN', 'EDITOR', 'GUEST', 'MEMBER']);
-    $reworded[1]['description'] = 'Something else';
+    check($fixed($admin->put("/api/admin/applications/{$id}", ['roles' => $roles(['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'GUEST', 'MEMBER', 'READER'])])), 'nor one added');
+    $reworded = $roles(['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'GUEST', 'MEMBER']);
+    $reworded[2]['description'] = 'Something else';
     same(
         [422, 'The roles are fixed - EDITOR keeps its description; only whether each may sign in can change'],
         [($r = $admin->put("/api/admin/applications/{$id}", ['roles' => $reworded]))->status, $r->json()['error'] ?? null],
@@ -846,7 +856,7 @@ test('the admin panel: the roles are fixed, MEMBER stays, some role may sign in,
     $kept = array_map(static fn(array $role): array => ['name' => $role['name'], 'description' => $role['description']], $application['roles']);
     $saved = $admin->put("/api/admin/applications/{$id}", ['roles' => $kept, 'access' => 'members']);
     same(200, $saved->status, 'a body that names no may_sign_in, and the old access: ' . $saved->body);
-    same(['ADMIN' => true, 'EDITOR' => true, 'GUEST' => false, 'MEMBER' => true], array_column($saved->json()['roles'], 'may_sign_in', 'name'), 'keeps what each role had');
+    same(['ADMIN' => true, 'EARLY_ACCESS' => true, 'EDITOR' => true, 'GUEST' => false, 'MEMBER' => true], array_column($saved->json()['roles'], 'may_sign_in', 'name'), 'keeps what each role had');
     intoSurvey(new Browser('10.5.5.1'), 'member@example.test');
 
     $refused = $admin->put("/api/admin/applications/{$id}", ['roles' => [['name' => 'MEMBER', 'may_sign_in' => 'no']]]);
@@ -874,11 +884,11 @@ test('two saves of one application at the same moment run one after the other, s
     $admin = admin();
     [$id] = surveyInPanel($admin);
 
-    // Another administrator's save, half done: ADMIN and EDITOR unticked, not yet committed.
+    // Another administrator's save, half done: ADMIN, EARLY_ACCESS and EDITOR unticked, not yet committed.
     $other = connectDatabase(testServer(), testEnvironment()['db'], false);
     $other->beginTransaction();
     $other->prepare('SELECT enabled FROM applications WHERE id = ? FOR UPDATE')->execute([$id]);
-    $other->prepare("UPDATE application_roles SET may_sign_in = FALSE WHERE application_id = ? AND name IN ('ADMIN', 'EDITOR')")->execute([$id]);
+    $other->prepare("UPDATE application_roles SET may_sign_in = FALSE WHERE application_id = ? AND name IN ('ADMIN', 'EARLY_ACCESS', 'EDITOR')")->execute([$id]);
 
     iamDb()->exec("SET lock_timeout = '300ms'");
     try {
@@ -904,7 +914,7 @@ test('two saves of one application at the same moment run one after the other, s
         [$refused->status, $refused->json()['error'] ?? null],
         'once the other is in, unticking MEMBER as well is refused',
     );
-    same(200, surveyMaySignIn($admin, ['ADMIN' => true, 'EDITOR' => true])->status, 'ADMIN and EDITOR ticked again');
+    same(200, surveyMaySignIn($admin, ['ADMIN' => true, 'EARLY_ACCESS' => true, 'EDITOR' => true])->status, 'ADMIN, EARLY_ACCESS and EDITOR ticked again');
     intoSurvey(new Browser('10.5.5.2'), 'surveyeditor@example.test');
 });
 
@@ -928,7 +938,7 @@ test('the admin panel\'s lists: blocked_in on each account, the Members tab\'s h
         static fn(array $role): array => ['name' => $role['name'], 'may_sign_in' => $maySignIn[$role['name']] ?? true],
         $admin->get("/api/admin/applications/{$pianoId}")->json()['roles'],
     );
-    same(200, $admin->put("/api/admin/applications/{$pianoId}", ['roles' => $pianoRoles(['MEMBER' => false, 'EDITOR' => false])])->status, 'Piano: only ADMIN may sign in');
+    same(200, $admin->put("/api/admin/applications/{$pianoId}", ['roles' => $pianoRoles(['MEMBER' => false, 'EDITOR' => false, 'EARLY_ACCESS' => false])])->status, 'Piano: only ADMIN may sign in');
 
     try {
         $users = array_column($admin->get('/api/admin/users')->json(), null, 'username');
@@ -940,7 +950,7 @@ test('the admin panel\'s lists: blocked_in on each account, the Members tab\'s h
 
         $filters = array_column($admin->get('/api/admin/users/filters')->json()['applications'], null, 'client_id');
         same(
-            [false, ['ADMIN', 'EDITOR', 'MEMBER'], ['ADMIN']],
+            [false, ['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'MEMBER'], ['ADMIN']],
             [$filters['piano-academy']['system'], $filters['piano-academy']['roles'], $filters['piano-academy']['sign_in_roles']],
             'the filters: Piano\'s roles, and which may sign in',
         );

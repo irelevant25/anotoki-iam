@@ -37,7 +37,7 @@ and the survey site by `005_survey_application.sql` beside it):
 | `post_logout_redirect_uris` | where to land after signing out: `{frontend}/` |
 | `web_origins` | the site's origin, `{frontend}` - allowed to call the token endpoint |
 | `login_required` | whether the site sends everybody to sign in (on), or lets visitors in without an account (off): genshin and the build analyzer off, every other site on |
-| `roles` | fixed: `ADMIN`, `EDITOR` and `MEMBER` in every site, made with the application (migration 011) - only whether each may sign in is chosen |
+| `roles` | fixed: `ADMIN`, `EDITOR`, `EARLY_ACCESS` and `MEMBER` in every site, made with the application (migrations 011 and 023) - only whether each may sign in is chosen. `EARLY_ACCESS` is given to chosen people (a beta, a test) and is to the site what `MEMBER` is: a signed-in person, no admin area |
 | roles that may sign in | each role's `may_sign_in`; all of them, unless the admin panel says otherwise |
 
 **Every first-party site is open to every account, and has ADMIN and EDITOR**
@@ -49,8 +49,10 @@ unticks MEMBER for the site (letting in only the roles given by hand).
 Anybody signed in gets a token - with `roles: ["MEMBER"]`, for most people -
 and the site decides what a visitor or a signed-in person may do there:
 treat MEMBER as an ordinary signed-in person; no check needs it and none
-should refuse it. The other roles are for its admin area: EDITOR or ADMIN opens it,
-ADMIN alone the deleting and system pages. What each may do is the site's own
+should refuse it. ADMIN and EDITOR are for its admin area: EDITOR or ADMIN opens it,
+ADMIN alone the deleting and system pages. Check them by name, never "anything
+but MEMBER": any other role - EARLY_ACCESS (023) and whatever the owner adds
+later - is an ordinary signed-in person too. What each may do is the site's own
 split - genshin's and the survey's as they were; in Japanese Academy, Piano
 Academy and the build analyzer EDITOR rewords the site's strings (the
 analyzer's also runs the syncs), and ADMIN does all that and adds and deletes
@@ -59,8 +61,9 @@ a person's data. An administrator of the IAM holds ADMIN in every
 application that has one - those there when 007 ran, the one the installer or
 `create-admin.php` makes, and an ADMIN brought over from the genshin site.
 
-An application for a few people - one registered in the admin panel - unticks
-MEMBER under the roles that may sign in, and gives ADMIN or EDITOR by hand (what
+An application for a few people - a beta, a test, one registered in the admin
+panel - unticks MEMBER under the roles that may sign in, and gives EARLY_ACCESS
+by hand to the people it is for; ADMIN or EDITOR only to those who run it (what
 `access: members` was before 010; the column is still there, unread).
 
 The first-party sites arrive registered with their development addresses - the

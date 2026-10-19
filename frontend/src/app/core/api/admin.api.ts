@@ -224,7 +224,7 @@ export class AdminApi {
     return this._http.get<AdminApplication>(`/api/admin/applications/${id}`);
   }
 
-  /** The database gives it ADMIN, EDITOR and MEMBER; every application is a public client (no secret). */
+  /** The database gives it ADMIN, EDITOR, EARLY_ACCESS and MEMBER; every application is a public client (no secret). */
   createApplication(input: ApplicationInput): Observable<CreatedApplication> {
     return this._http.post<CreatedApplication>('/api/admin/applications', input);
   }

@@ -286,7 +286,7 @@ test('the composer starts from the templates in every language, the senders, the
         'the installation\'s senders',
     );
     $genshin = array_values(array_filter($json['applications'], static fn(array $application): bool => $application['client_id'] === 'genshin'))[0] ?? null;
-    same(['ADMIN', 'EDITOR', 'MEMBER'], $genshin['roles'] ?? null, 'a site with its roles');
+    same(['ADMIN', 'EARLY_ACCESS', 'EDITOR', 'MEMBER'], $genshin['roles'] ?? null, 'a site with its roles');
     same('admin@example.test', $json['email'], 'where a test goes');
     same(150, $json['limits']['subject'], 'the limits');
     same(['driver' => 'file', 'hourly_limit' => null], $json['pacing'], 'how fast it may go: as fast as the page sends it, no limit named');

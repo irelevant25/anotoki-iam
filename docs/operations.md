@@ -560,6 +560,15 @@ from it on, a file there that names no usable secret - blank, a misspelt key,
 fewer than 32 characters, a placeholder left in - counts every visitor as
 their edge. Put the zone's value in, or delete the file.
 
+Migration **023** (the owner's decision of 2026-10-19): upload, then Apply.
+Every site's application gains EARLY_ACCESS - it may sign in, and nobody holds
+it until an administrator gives it - so who gets in where does not change; a
+site that lets only ADMIN sign in (Japanese Academy, Piano Academy and the
+build analyzer, on the live IAM) then lists ADMIN and EARLY_ACCESS as allowed:
+untick EARLY_ACCESS there if it should stay ADMIN alone even once somebody is
+given it. The sites need nothing. It is no one-way step: a build from before
+023 still works on the database.
+
 ### The family's library (anotoki/lib)
 
 What the anotoki sites share lives in one library,
@@ -612,9 +621,9 @@ would hand a code to whatever listens on the visitor's own machine. Anything
 after that - a new site, one a later migration seeded (above), a renamed
 domain, a site left blank at install - is the admin panel's **Applications**
 page: exact redirect URIs, post-logout URIs, web origins, which of its roles
-may sign in (the roles themselves are fixed: ADMIN, EDITOR, MEMBER), whether
-the site requires signing in (sites pick a change up within about a minute),
-and the access token lifetime.
+may sign in (the roles themselves are fixed: ADMIN, EDITOR, EARLY_ACCESS,
+MEMBER), whether the site requires signing in (sites pick a change up within
+about a minute), and the access token lifetime.
 
 ### The words across an update
 
@@ -842,7 +851,7 @@ gets a line for every 500, its message redacted the same way.
 | --- | --- |
 | Give somebody a role on a site | Admin panel → Users → the person → Roles: the site's EDITOR opens its admin area, ADMIN all of it |
 | Let every account use a members-only application | Tick its MEMBER: Admin panel → Applications → the application → Settings → Roles (every account holds MEMBER everywhere, migration 010) |
-| Make a site members-only (or admins only) | Untick its MEMBER (and EDITOR) there; then give the people who should get in a role by hand (Users → the person → Roles). The Members tab lists who holds a role beyond MEMBER, and who cannot sign in |
+| Make a site members-only (or admins only) | Untick its MEMBER there - for admins only, its EDITOR and EARLY_ACCESS too; then give the people who should get in a role by hand (Users → the person → Roles): EARLY_ACCESS for a beta's or a test's people, who are neither editors nor administrators. The Members tab lists who holds a role beyond MEMBER, and who cannot sign in |
 | Let visitors use a site without an account, or stop that | Admin panel → Applications → the site → Settings → **Sign-in required**. The site picks it up within about a minute |
 | See who is blocked where | Users: a "Cannot sign in: {site}" badge per site; an application's Members tab: "Cannot sign in" |
 | Block somebody from one site | Take that site's MEMBER (and any other role there that may sign in) from them: Admin panel → Users → the person → Roles. Their next sign-in and refresh are refused; the access token they hold works until it expires (minutes). A site that does not require signing in still lets them in as a visitor - blocking stops signing in, not visiting |

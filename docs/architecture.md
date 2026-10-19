@@ -50,12 +50,13 @@ installer sets to the IAM's address. On a live IAM it arrives with neither, and
 the admin panel gives it its https address.
 
 Every one of these sites is open to every account and has the roles ADMIN and
-EDITOR, nothing else (migration 007, the owner's decision): signing in never
-asks for a role, and each site keeps its admin area for the two, checked on
-its own server against the token's `roles`. An administrator of the IAM holds
-ADMIN in every application that has one - the installer's and
-`create-admin.php`'s (`createFirstAdmin()`), an ADMIN brought over from the
-genshin site, and every administrator there when 007 ran.
+EDITOR (migration 007, the owner's decision), beside MEMBER - every account's,
+the role that lets everybody in (010) - and EARLY_ACCESS, which lets in chosen
+people while MEMBER may not sign in (023). Each site keeps its admin area for
+ADMIN and EDITOR, checked on its own server against the token's `roles`. An
+administrator of the IAM holds ADMIN in every application that has one - the
+installer's and `create-admin.php`'s (`createFirstAdmin()`), an ADMIN brought
+over from the genshin site, and every administrator there when 007 ran.
 
 ## Configuration and the installer
 
@@ -249,7 +250,7 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
 | `sessions` | A signed-in browser at the IAM: the cookie's hash, a public `sid`, how it signed in, sliding expiry with an absolute cap. |
 | `login_attempts`, `email_log` | The limiter's memory and the history; the mail log keeps no bodies. An attempt's `outcome` says how it went (`bad_totp` - a wrong authenticator code, which the pause counts by account; `totp_paused` - one refused unchecked during a pause; `bad_email_code` - a wrong code by email beside the password during a pause, five of which end the mailbox's standing in until it ends; `email_code_paused` - one refused unchecked then; ...). The pause itself is `users.totp_paused_until`, and `totp_count_from` where the count starts again (019). |
-| `applications` (+ `application_redirect_uris`, `application_origins`, `application_roles`) | The sites: exact redirect URIs, the origins allowed to call the token endpoint, whether the site requires signing in (`login_required`, published to the sites' backends at `GET /api/public/applications/{client_id}`), token lifetime, their roles and which of them may sign in (`may_sign_in`). Every application is a public client and has the same roles - ADMIN, EDITOR, MEMBER (the IAM's own entry ADMIN, MEMBER) - and every account holds MEMBER everywhere: triggers of migrations 010 and 011 keep it so for every account and application made later. `type`, `secret_hash`, `show_on_landing` and `access` stay, unread (`access` only while 010 is pending), until a later migration drops them - not a way back: once 010 is applied no build from before it goes on the host (`decisions.md`). `sort_order` is the order of the public list. |
+| `applications` (+ `application_redirect_uris`, `application_origins`, `application_roles`) | The sites: exact redirect URIs, the origins allowed to call the token endpoint, whether the site requires signing in (`login_required`, published to the sites' backends at `GET /api/public/applications/{client_id}`), token lifetime, their roles and which of them may sign in (`may_sign_in`). Every application is a public client and has the same roles - ADMIN, EDITOR, EARLY_ACCESS, MEMBER (the IAM's own entry ADMIN, MEMBER; EARLY_ACCESS since migration 023) - and every account holds MEMBER everywhere: triggers of migrations 010 and 011 keep it so for every account and application made later. `type`, `secret_hash`, `show_on_landing` and `access` stay, unread (`access` only while 010 is pending), until a later migration drops them - not a way back: once 010 is applied no build from before it goes on the host (`decisions.md`). `sort_order` is the order of the public list. |
 | `user_roles` | Who holds which application role, and who granted it. |
 | `auth_requests` | What an application asked for while the person signs in (and logouts waiting for confirmation). |
 | `auth_codes`, `refresh_tokens` | Codes and refresh / personal tokens - hashes only; refresh tokens grouped into families for reuse detection. |
