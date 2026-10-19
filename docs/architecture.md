@@ -683,7 +683,8 @@ shows it, and a header from anywhere else is never believed.
 - **Feedback** (`/admin/feedback`) is `anotoki_feedback`: what people sent
   through the family's form (`POST /api/feedback`, "The version, What's new
   and feedback" above), by status, kind and words, each sender named as the
-  account is named now; a message opened is read, its status changed and its
+  account is named now; a new one opened is marked read by a PUT under the
+  CSRF header, never by the GET (anotoki-lib 0.8.1); its status changed and its
   delete audited - the delete inside its own transaction. The library's
   limits are counted in `storage/cache` by a hash keyed by the master key,
   never in the database; what it keeps no longer - spam after 30 days,

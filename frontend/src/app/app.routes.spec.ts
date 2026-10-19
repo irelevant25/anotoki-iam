@@ -370,6 +370,16 @@ describe("the IAM's frames: the family's footer under every page, and the status
       const shell = host.querySelector('app-admin-layout anotoki-shell')!;
       expect(shell.querySelector('nav.anotoki-shell__sidenav')).not.toBeNull();
       expect(Array.from(shell.querySelectorAll('.anotoki-shell__nav-badge')).map((badge) => [badge.closest('a')?.getAttribute('href'), words(badge)])).toEqual([['/admin/feedback', '3']]);
+      // Somebody else signed in, in the same tab (no reload): nothing of the administrator's count is left beside Feedback, and nothing is asked.
+      user.set({ ...MIRA, is_admin: false });
+      await settle();
+      expect(shell.querySelector('.anotoki-shell__nav-badge')).toBeNull();
+      // An administrator again: asked afresh (one request - none was made meanwhile).
+      user.set({ ...MIRA });
+      await settle();
+      TestBed.inject(HttpTestingController).expectOne('/api/admin/feedback/unread').flush({ unread: 5 });
+      await settle();
+      expect(words(shell.querySelector('a[href="/admin/feedback"] .anotoki-shell__nav-badge'))).toBe('5');
       expect(shell.lastElementChild?.tagName.toLowerCase()).toBe('anotoki-site-footer');
       expect(footer()).toEqual(ENGLISH_FOOTER);
     });

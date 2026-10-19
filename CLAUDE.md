@@ -652,8 +652,8 @@ a decision for `docs/decisions.md`, not a refactor.
   and `/admin/backups` are the family's admin tools (`@anotoki/lib/admin/audit`,
   `/errors`, `/feedback`, `/backups`, each lazy: the audit log - the IAM's own page is
   gone; its filters are the address's query parameters -, the error log, the
-  feedback form's messages (a link in the side navigation, no count beside
-  it), and the backups - encrypted, restoring off with the IAM's reason, each made,
+  feedback form's messages (a link in the side navigation, the new ones
+  counted beside it for an administrator), and the backups - encrypted, restoring off with the IAM's reason, each made,
   downloaded and deleted behind the password or a sign-in of the last 15
   minutes); `/admin/migrations` is the family's `<anotoki-migrations-page>`,
   and `<anotoki-update-banner>` sits above the panel's pages; the Migrations

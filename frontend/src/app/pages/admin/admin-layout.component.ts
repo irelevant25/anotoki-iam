@@ -70,8 +70,15 @@ export class AdminLayoutComponent {
 
   private readonly _unread = inject(FeedbackUnread);
 
-  /** The panel's sections, the count of new feedback beside Feedback (none at 0, or before the server said). */
-  protected readonly nav = computed(() => NAV.map((item) => (item.link === '/admin/feedback' ? { ...item, badge: this._unread.count() } : item)));
+  /**
+   * The panel's sections, the count of new feedback beside Feedback (none at 0, or before the server said) - for an
+   * administrator alone: the count lives as long as the tab, and an administrator's would otherwise stay beside
+   * Feedback for whoever signs in after them without a reload.
+   */
+  protected readonly nav = computed(() => {
+    const unread = this._session.isAdmin() ? this._unread.count() : null;
+    return NAV.map((item) => (item.link === '/admin/feedback' ? { ...item, badge: unread } : item));
+  });
   /** The footer's version and What's new: the list the start asked for (app.config.ts). */
   protected readonly changelog = inject(Changelog);
   protected readonly isAdmin = this._session.isAdmin;

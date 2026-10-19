@@ -63,7 +63,8 @@ export const ADMIN_ROUTES: Routes = [
       { path: 'audit', title: 'Audit log', loadComponent: () => import('@anotoki/lib/admin/audit').then((m) => m.AuditLogPageComponent) },
       { path: 'errors', title: 'Error log', loadComponent: () => import('@anotoki/lib/admin/errors').then((m) => m.ErrorLogPageComponent) },
       // What people sent through the family's feedback form (the owner's decision of 2026-10-19): by status, kind and words,
-      // a message opened in a dialog - its words as text -, marked or deleted, each change audited.
+      // a message opened in a dialog - its words as text; a new one marked read by a PUT of its own, unaudited -, its status
+      // changed or it deleted, those audited.
       { path: 'feedback', title: 'Feedback', loadComponent: () => import('@anotoki/lib/admin/feedback').then((m) => m.FeedbackPageComponent) },
       { path: 'settings', title: 'Settings', loadComponent: () => import('./settings/settings.component').then((m) => m.SettingsComponent) },
       // The anotoki family's Translations and Languages pages (@anotoki/lib, as the IAM words them:

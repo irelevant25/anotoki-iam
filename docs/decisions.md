@@ -2182,3 +2182,29 @@ no version"). What was decided with it:
   dialog, the form as the IAM sets it up behind its interceptor, the
   interceptor's handing back, the frames' footer and the Privacy and Contact
   pages.
+
+## 2026-10-19 - The owner's decision: the new feedback counted beside Feedback (anotoki-lib 0.8.1)
+
+Later the same day the owner took the count the entry above left out: beside
+Feedback in the admin panel's side navigation, the number of messages nobody
+has opened yet - the library's `FeedbackUnread`, asked once as an
+administrator opens the panel and kept up by the Feedback page, drawn for an
+administrator alone (the count lives as long as the tab, so whoever signs in
+after an administrator without a reload never sees theirs).
+
+The same release closes two findings of that day's security review:
+
+- **Opening a message changes nothing on a GET.** The GET of a message marked
+  a new one read, and a page on a sibling subdomain is same-site: its `<img>`
+  went with the Lax session cookie. The GET is read-only now; the page marks
+  a new message read by `PUT /api/admin/feedback/{id}/read`, a write of the
+  admin group under the CSRF header, unaudited as the GET's marking was.
+- **The Feedback page names only a proven sender.** A message sent signed out
+  says "Not signed in", its reply address on a line of its own, marked as
+  typed by the sender and not confirmed - the form takes any address anybody
+  types.
+
+Tested: the GET leaves a message new and the count as it was, the PUT marks
+it and is refused like every admin write (`tests/feedback.test.php`); the
+count beside Feedback for an administrator, and none for whoever signs in
+after them in the same tab (`app.routes.spec.ts`).
