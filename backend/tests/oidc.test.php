@@ -167,6 +167,71 @@ test('prompt=none without a session answers login_required, prompt=login asks ag
     check(str_contains(authorize($browser, ['prompt' => 'login'])['location'], '/login?request='), 'prompt=login shows the form');
 });
 
+test(
+    'asked to sign in again - prompt=login, max_age=0, a max_age the sign-in is older than: the page signs in and accept goes on, with the new sign-in\'s auth_time; the session from before the request never answers it',
+    function () {
+        // A site's "Sign in again" (2026-10-19, before its backups): the accept after the sign-in page met prompt=login as
+        // the authorize did and refused for ever, whoever had just signed in.
+        $cases = ['prompt=login' => ['prompt' => 'login'], 'max_age=0' => ['max_age' => '0'], 'max_age=600, signed in 20 minutes ago' => ['max_age' => '600']];
+        foreach ($cases as $label => $asked) {
+            $browser = new Browser();
+            signInToGenshin($browser, 'player@example.test');
+            if ($label === 'max_age=600, signed in 20 minutes ago') {
+                iamDb()->exec("UPDATE sessions SET auth_time = auth_time - INTERVAL '20 minutes' WHERE user_id = (SELECT id FROM users WHERE email = 'player@example.test')");
+            }
+
+            $start = authorize($browser, $asked);
+            $request = queryOf($start['location'])['request'] ?? '';
+            check($request !== '', "$label: the sign-in page, not straight back: " . $start['location']);
+            $requestedAt = (int) iamDb()
+                ->query("SELECT floor(extract(epoch FROM created_at)) FROM auth_requests WHERE id = '$request'")
+                ->fetchColumn();
+
+            // The session from before the request is no answer to it, whoever calls accept.
+            $early = $browser->post("/api/login/request/{$request}/accept");
+            same([403, 'login_required'], [$early->status, $early->code()], "$label: accept before signing in again");
+
+            same(200, $browser->signIn('player@example.test', 'correct horse')->status, "$label: signed in again");
+            $accept = $browser->post("/api/login/request/{$request}/accept");
+            same(200, $accept->status, "$label: accept after signing in again: " . $accept->body);
+
+            $callback = queryOf($accept->json()['redirect']);
+            $tokens = exchangeCode($browser, $callback['code'], $start['verifier']);
+            same(200, $tokens->status, "$label: the code exchanges: " . $tokens->body);
+            $authTime = (int) (jwtVerifyOwn($tokens->json()['id_token'], 'JWT')['auth_time'] ?? 0);
+            check($authTime >= $requestedAt, "$label: the ID token's auth_time is the new sign-in's ($authTime), not before the request ($requestedAt)");
+        }
+    },
+);
+
+test(
+    'a positive max_age keeps its measure after the sign-in page: an accept left waiting longer asks again; prompt=none with max_age=0 shows no page; a max_age bigger than its column is refused, never a 500',
+    function () {
+        // The security review of 2026-10-19: a sign-in after the request answers prompt=login and max_age=0, never a
+        // positive max_age by itself - an accept from a tab left open, or the history, past it is asked again.
+        $browser = new Browser();
+        signInToGenshin($browser, 'player@example.test');
+        iamDb()->exec("UPDATE sessions SET auth_time = auth_time - INTERVAL '20 minutes' WHERE user_id = (SELECT id FROM users WHERE email = 'player@example.test')");
+        $start = authorize($browser, ['max_age' => '60']);
+        $request = queryOf($start['location'])['request'] ?? '';
+        check($request !== '', 'max_age=60, a sign-in 20 minutes old: the sign-in page');
+        same(200, $browser->signIn('player@example.test', 'correct horse')->status, 'signed in on the page');
+        iamDb()->exec("UPDATE sessions SET auth_time = auth_time - INTERVAL '15 minutes' WHERE user_id = (SELECT id FROM users WHERE email = 'player@example.test')");
+        $late = $browser->post("/api/login/request/{$request}/accept");
+        same([403, 'login_required'], [$late->status, $late->code()], 'the accept 15 minutes after that sign-in, past max_age=60: asked again');
+
+        // prompt=none never shows a page: max_age=0 with a session a moment old is interaction_required, not a code.
+        $fresh = new Browser();
+        signInToGenshin($fresh, 'player@example.test');
+        same('interaction_required', queryOf(authorize($fresh, ['prompt' => 'none', 'max_age' => '0'])['location'])['error'] ?? null, 'prompt=none, max_age=0');
+
+        // auth_requests.max_age is an INT: anything bigger is the site's mistake, said as one.
+        same('invalid_request', queryOf(authorize($fresh, ['max_age' => '2147483648'])['location'])['error'] ?? null, 'max_age past an INT');
+        same('invalid_request', queryOf(authorize($fresh, ['max_age' => str_repeat('9', 30)])['location'])['error'] ?? null, 'max_age of thirty digits');
+        check(str_starts_with(authorize($fresh, ['max_age' => '2147483647'])['location'], GENSHIN_CALLBACK . '?code='), 'the biggest INT is a max_age like any: straight back');
+    },
+);
+
 test('a code works once; the second exchange revokes what the first produced', function () {
     $browser = new Browser();
     signInToGenshin($browser, 'player@example.test');

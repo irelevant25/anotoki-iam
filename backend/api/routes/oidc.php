@@ -146,7 +146,8 @@ $app->get('/api/oidc/authorize', function (Request $request, Response $response)
         $challenge !== '' && ($challengeMethod !== 'S256' || !preg_match('/^[A-Za-z0-9_-]{43}$/', $challenge)) => ['invalid_request', 'code_challenge must be an S256 challenge'],
         array_diff($prompts, ['none', 'login', 'create', 'consent']) !== [] => ['invalid_request', 'Unknown prompt value'],
         in_array('none', $prompts, true) && count($prompts) > 1 => ['invalid_request', 'prompt=none cannot be combined'],
-        $maxAge !== '' && !ctype_digit($maxAge) => ['invalid_request', 'max_age must be a number of seconds'],
+        // At most what auth_requests.max_age (an INT) holds: a bigger one failed the insert, a 500.
+        $maxAge !== '' && (!ctype_digit($maxAge) || strlen(ltrim($maxAge, '0')) > 10 || (int) $maxAge > 2147483647) => ['invalid_request', 'max_age must be a number of seconds'],
         default => null,
     };
 

@@ -285,9 +285,9 @@ A top-level browser navigation, never an XHR.
 | `nonce` | echoed in the ID token; required |
 | `code_challenge` | base64url(SHA-256(code_verifier)); required for public clients |
 | `code_challenge_method` | `S256` |
-| `prompt` | optional: `none` (never show a page), `login` (ask again even if signed in), `create` (open on the registration form) |
+| `prompt` | optional: `none` (never show a page), `login` (ask again even if signed in: only a sign-in after the request answers it, so the ID token's `auth_time` is at or after the request - a site that needs a recent sign-in checks `auth_time` itself), `create` (open on the registration form) |
 | `login_hint` | optional: an email to prefill |
-| `max_age` | optional: seconds; an older sign-in is asked again |
+| `max_age` | optional: seconds (at most 2147483647); an older sign-in is asked again, and so is one the accept comes too late for; `0` asks what `prompt=login` asks |
 | `ui_locales` | optional: space-separated language tags, the site's first choice first, for the pages shown. The first one the IAM offers is used - by its lower-cased whole (`pt-BR` for `pt-br`), else by its first subtag (`sk-SK` for `sk`); the rest are ignored |
 
 What happens:
@@ -883,6 +883,7 @@ Refusals, all `403` unless noted:
 | `request_expired` (404) | too old, or used | "Back to {app}" (`home_url`) |
 | `email_not_confirmed` | account not confirmed yet | resend the confirmation |
 | `password_change_required` | an admin set this password | the change-password form, then accept again |
+| `login_required` | the request asked for a sign-in again (`prompt=login`, `max_age=0`) and this session began before it - or its sign-in is older than a positive `max_age` | the sign-in form, then accept again: a sign-in after the request answers it |
 | `access_denied` | this account holds no role in this application that may sign in (its MEMBER taken away, or MEMBER not allowed to sign in there and no other role) | "Use another account" / "Back to {app}" |
 | `account_deletion_pending` | the account's deletion is asked for (`POST /api/account/deletion`): nothing is issued to any site until it is cancelled | "Go to your account" (where it is cancelled) / "Use another account" / "Back to {app}" |
 | `application_disabled` | switched off in the admin panel | "Back" |

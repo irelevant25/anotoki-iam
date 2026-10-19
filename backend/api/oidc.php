@@ -135,21 +135,52 @@ function errorRedirect(array $request, string $error, ?string $description = nul
 }
 
 /**
- * Whether a session is good enough for this request: `prompt=login` asks for
- * credentials again whatever the session, and `max_age` for credentials
- * presented recently enough.
+ * Whether a session is good enough for this request: `prompt=login` and a
+ * `max_age` of 0 ask for credentials presented after the request was made -
+ * the sign-in page's own, before its accept -, and a positive `max_age` for
+ * credentials presented recently enough, whenever that was.
  */
 function sessionSatisfiesRequest(array $session, array $request): bool
 {
-    if (in_array('login', explode(' ', (string) ($request['prompt'] ?? '')), true)) {
+    $maxAge = $request['max_age'] === null ? null : (int) $request['max_age'];
+
+    // A session begun after the request: every sign-in begins a session of
+    // its own, stamped by the database's clock as the request is. Asking for
+    // that - rather than refusing prompt=login whatever the session - is what
+    // lets the accept after the sign-in page go on: it met prompt=login as the
+    // authorize did and refused whoever had just signed in again, for ever
+    // (2026-10-19: a site's "Sign in again" before its backups). A max_age of
+    // 0 asks the same, never "within the same second" - which whole seconds,
+    // and the PHP server's clock against the database's, would make of it.
+    $afresh = $maxAge === 0 || in_array('login', explode(' ', (string) ($request['prompt'] ?? '')), true);
+    if ($afresh && !sessionBegunSince($session, (string) ($request['created_at'] ?? ''))) {
         return false;
     }
 
-    if ($request['max_age'] !== null && strtotime((string) $session['auth_time']) + (int) $request['max_age'] < time()) {
+    // A positive max_age keeps its own measure even after the sign-in page: an
+    // accept left waiting longer than it, from a tab or the history, asks again
+    // (the security review of 2026-10-19).
+    return $maxAge === null || $maxAge === 0 || strtotime((string) $session['auth_time']) + $maxAge >= time();
+}
+
+/**
+ * Whether the session's credentials were presented at or after $moment (a
+ * TIMESTAMPTZ as PostgreSQL writes it), to the microsecond - strtotime()
+ * would drop them. Nothing to compare (no time, or one that does not read)
+ * is never "since": an empty string would otherwise read as now.
+ */
+function sessionBegunSince(array $session, string $moment): bool
+{
+    $authTime = trim((string) ($session['auth_time'] ?? ''));
+    $moment = trim($moment);
+    if ($authTime === '' || $moment === '') {
         return false;
     }
 
-    return true;
+    $presented = date_create_immutable($authTime);
+    $since = date_create_immutable($moment);
+
+    return $presented !== false && $since !== false && $presented >= $since;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
