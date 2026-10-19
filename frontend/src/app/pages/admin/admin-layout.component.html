@@ -1,4 +1,4 @@
-<anotoki-shell [nav]="nav" navLabel="Admin panel">
+<anotoki-shell [nav]="nav()" navLabel="Admin panel">
     <app-top-bar topBar area="admin" />
     @if (isAdmin()) {
         <!-- The family's one line while a database update waits (@anotoki/lib): the IAM keeps working meanwhile, and says so only here. -->

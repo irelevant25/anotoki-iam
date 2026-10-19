@@ -5,6 +5,52 @@ and the npm package `@anotoki/lib` (`frontend/projects/lib/package.json`). While
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.8.1 - 2026-10-19
+
+Two findings of the IAM's security review of 2026-10-19, and the count the IAM's admin panel puts beside Feedback.
+
+**The admin Feedback page names only a proven sender.** A message sent without an account showed the address it
+carried as its sender - "From jan@example.com", in the list and the dialog - though the form takes any address
+anybody types: somebody with a stolen password could post "please clear my two-factor" signed out, under the
+victim's address, and an administrator might believe the "From". Now "From" is the account the sender's token proved
+(its name, linked to the person's page as before; "Person 42" where the site has no name for it), else "Not signed
+in". The address stands apart, on a line of its own: "Reply address (typed by the sender, not confirmed)" - for a
+signed-in account's message too, as the form lets anybody change the address it writes in. Its mail link is as it was.
+
+**Opening a message changes nothing on a GET.** `FeedbackRoutes::admin()`'s `GET $base/{id}` marked a new message
+read, and a page on a sibling subdomain is same-site: its `<img src=".../api/admin/feedback/12">` went with the Lax
+session cookie and marked messages read under a signed-in administrator. The GET is read-only now, and
+`PUT $base/{id}/read` (new; no body needed, or `{}`) marks a new message read and answers `{message}` as the GET does -
+one that is not new stays as it is; nobody named, nothing audited, as before. It is a write of the admin group, so the
+site's own middleware on the group guards it as every admin write (the IAM's CSRF header). The Feedback page asks the
+GET, then the PUT for a new message; a refused PUT is said in the dialog, and the message stays new.
+
+**A count beside a section of the frame's side navigation.** `<anotoki-shell [nav]>`'s sections (`ShellNavItem`, the
+side navigation the IAM's admin panel draws) take `badge` and `badgeLabel`, as the top bar's links and
+`@anotoki/lib/ui/side-nav`'s (which has had them since 0.6.0): the number drawn as the top bar draws it, filled, at the
+row's end, `aria-hidden`; heard after the label with what it counts - the kit's `topbar.linkCount` ("Feedback, 3 new",
+"Feedback, nové: 3"; marked as the kit's language on a page whose language has no kit words) or the site's
+`badgeLabel` ("Reviews, 12 reviews due"). A 0, null, `''` or `'0'` shows nothing. The unread feedback beside the
+admin panel's Feedback: `{ link: '/admin/feedback', label: 'Feedback', badge: unread.count() }`, with
+`FeedbackUnread` (`refresh()` once; the Feedback page keeps it in step).
+
+- No new words: the Feedback page's are the administrators' English, written in the page - none is a key; the count
+  says the kit's `anotoki.topbar.linkCount`, in the database since 006. Nothing to apply.
+- The package check weighs what the release builds, on Linux: a Windows checkout's CRLF, baked into a template's or a
+  stylesheet's string as an escaped `\r\n`, is taken out before an entry point is weighed - it weighed the shell about
+  0.1 kB more on such a checkout than in CI. No limit changed: the shell is 13.96 kB of 14 with the count, ui + shell
+  28.38 of 28.5, and every first load is as it was (the bar's takes no frame).
+- Tests: PHPUnit - a GET (an image's request too) leaves a message new and the unread count as it was, the PUT marks
+  it and the count follows, again it changes nothing, it never takes a resolved message back to read, it is the
+  ADMIN's alone, and 404, 422 and 503 as every route; Vitest - both kinds of sender in the list and the dialog, the PUT
+  as a new message opens and none for one already read, a refused PUT, and the shell's count (heard in English and
+  Slovak, in the site's words, nothing at 0, the kit's English marked on a page in another language).
+
+What a site must do: take `anotoki/lib` 0.8.1 and the 0.8.1 tarball together (Composer's `^0.8.0` reaches 0.8.1) -
+the page's PUT needs the PHP half's route, and a 0.8.0 page against the new GET marks nothing read. Nothing else, where
+the site's admin group already guards its writes (the IAM's CSRF header; the sites' bearer token). A site that draws
+its admin navigation in `<anotoki-shell [nav]>` may put the unread count beside Feedback, as above.
+
 ## 0.8.0 - 2026-10-19
 
 **The About and Support pages** (the owner's words of 2026-10-19, approved word for word): two pages every anotoki

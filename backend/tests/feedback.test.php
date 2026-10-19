@@ -336,6 +336,7 @@ test('who may read: nobody 401, an account or a site\'s ADMIN and EDITOR 403, an
         ['GET', '/api/admin/feedback/facets'],
         ['GET', '/api/admin/feedback/unread'],
         ['GET', "/api/admin/feedback/{$id}"],
+        ['PUT', "/api/admin/feedback/{$id}/read"],
         ['PUT', "/api/admin/feedback/{$id}/status"],
         ['DELETE', "/api/admin/feedback/{$id}"],
     ];
@@ -388,7 +389,15 @@ test('the IAM\'s ADMIN reads, marks and deletes - each sender by name, a status 
 
     $id = (int) $item['id'];
     $before = $new();
-    same([200, 'read'], [($r = $admin->get("/api/admin/feedback/{$id}"))->status, $r->json()['message']['status'] ?? null], 'opened: read');
+    // Opening a message only reads it (anotoki-lib 0.8.1): a GET changes nothing - a page on a sibling host could make
+    // one through the Lax cookie. Marking it read is a write of its own, under the CSRF header.
+    same([200, 'new'], [($r = $admin->get("/api/admin/feedback/{$id}"))->status, $r->json()['message']['status'] ?? null], 'opened: still new');
+    same($before, $new(), 'a GET marks nothing read');
+    same(
+        [200, 'read'],
+        [($r = $admin->request('PUT', "/api/admin/feedback/{$id}/read", ['json' => new stdClass()]))->status, $r->json()['message']['status'] ?? null],
+        'marked read by its own write, sent as the page sends it ({})',
+    );
     same($before - 1, $new(), 'one fewer to read');
 
     $marked = $admin->put("/api/admin/feedback/{$id}/status", ['status' => 'resolved']);

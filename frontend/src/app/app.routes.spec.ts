@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, Routes, TitleStrategy, provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideAnotokiAdmin } from '@anotoki/lib/admin';
 import { provideAnotokiFeedback } from '@anotoki/lib/feedback';
 import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { SiteState, SiteStatus, provideAnotokiMigrations } from '@anotoki/lib/migrations';
@@ -13,6 +14,7 @@ import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { Observable, defer, of, tap } from 'rxjs';
 import { AppComponent } from './app.component';
 import { routes } from './app.routes';
+import { iamAdminToolsConfig } from './core/admin/admin-tools.config';
 import { AccountApi } from './core/api/account.api';
 import { LoginApi } from './core/api/login.api';
 import { AccountUser } from './core/api/models';
@@ -174,6 +176,7 @@ describe("the IAM's frames: the family's footer under every page, and the status
         { provide: SiteStatus, useValue: status },
         provideAnotokiLegal(iamLegalConfig),
         provideAnotokiFeedback(iamFeedbackConfig),
+        provideAnotokiAdmin(iamAdminToolsConfig),
       ],
     });
     fixture = TestBed.createComponent(AppComponent);
@@ -332,7 +335,10 @@ describe("the IAM's frames: the family's footer under every page, and the status
       const form = document.querySelector('anotoki-feedback-form');
       expect(form?.querySelector('[data-anonymous]')).not.toBeNull();
       expect(form?.querySelector<HTMLInputElement>('[data-email] input')?.value).toBe('mira@example.test');
-      form?.querySelector<HTMLButtonElement>('[data-cancel]')?.click();
+      // The form's buttons are drawn in the dialog's own footer (anotoki-lib 0.8.0), outside the form's element.
+      const cancel = document.querySelector<HTMLButtonElement>('[data-feedback-dialog] [data-cancel]');
+      expect(cancel).not.toBeNull();
+      cancel!.click();
       await settle();
       expect(document.querySelector('anotoki-feedback-form')).toBeNull();
     });
@@ -358,8 +364,12 @@ describe("the IAM's frames: the family's footer under every page, and the status
       user.set({ ...MIRA });
       configureFrames();
       await at('/admin/users');
+      // The new feedback, asked once as an administrator opens the panel, is counted beside Feedback (anotoki-lib 0.8.1).
+      TestBed.inject(HttpTestingController).expectOne('/api/admin/feedback/unread').flush({ unread: 3 });
+      await settle();
       const shell = host.querySelector('app-admin-layout anotoki-shell')!;
       expect(shell.querySelector('nav.anotoki-shell__sidenav')).not.toBeNull();
+      expect(Array.from(shell.querySelectorAll('.anotoki-shell__nav-badge')).map((badge) => [badge.closest('a')?.getAttribute('href'), words(badge)])).toEqual([['/admin/feedback', '3']]);
       expect(shell.lastElementChild?.tagName.toLowerCase()).toBe('anotoki-site-footer');
       expect(footer()).toEqual(ENGLISH_FOOTER);
     });

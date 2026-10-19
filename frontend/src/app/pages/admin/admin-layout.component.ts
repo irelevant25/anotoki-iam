@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
+import { FeedbackUnread } from '@anotoki/lib/admin';
 import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { UpdateBannerComponent } from '@anotoki/lib/migrations';
 import { ShellComponent, ShellNavItem } from '@anotoki/lib/shell';
@@ -54,7 +55,8 @@ const NAV: readonly (ShellNavItem & { icon: IconName })[] = [
  * waits, so its form always takes a message), then Terms · Privacy · Contact.
  * What people sent through that form is the Feedback page's (the family's,
  * `@anotoki/lib/admin/feedback`), which says what is new; the side navigation
- * has no count beside it.
+ * counts it beside Feedback (the library's FeedbackUnread, anotoki-lib 0.8.1:
+ * asked once as an administrator opens the panel, kept up by that page).
  */
 @Component({
   selector: 'app-admin-layout',
@@ -66,9 +68,21 @@ const NAV: readonly (ShellNavItem & { icon: IconName })[] = [
 export class AdminLayoutComponent {
   private readonly _session = inject(SessionService);
 
-  protected readonly nav = NAV;
+  private readonly _unread = inject(FeedbackUnread);
+
+  /** The panel's sections, the count of new feedback beside Feedback (none at 0, or before the server said). */
+  protected readonly nav = computed(() => NAV.map((item) => (item.link === '/admin/feedback' ? { ...item, badge: this._unread.count() } : item)));
   /** The footer's version and What's new: the list the start asked for (app.config.ts). */
   protected readonly changelog = inject(Changelog);
   protected readonly isAdmin = this._session.isAdmin;
   protected readonly deletionPending = computed(() => !!this._session.user()?.deletion_due_at);
+
+  constructor() {
+    // Asked only for an administrator: anybody else's ask would be refused anyway.
+    effect(() => {
+      if (this.isAdmin()) {
+        untracked(() => void this._unread.refresh());
+      }
+    });
+  }
 }

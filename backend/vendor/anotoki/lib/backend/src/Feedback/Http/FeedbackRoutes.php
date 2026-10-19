@@ -33,7 +33,9 @@ use Throwable;
  *   GET    $base?kind=&status=&section=&search=&page=   {total, page, pageSize: 25, items}
  *   GET    $base/facets                                {kinds, statuses, sections, fields, byStatus, byKind}
  *   GET    $base/unread                                {unread} - the admin panel's badge
- *   GET    $base/{id}                                  {message} - opening a new one makes it read
+ *   GET    $base/{id}                                  {message} - read-only (0.8.1): a GET changes nothing
+ *   PUT    $base/{id}/read                             {message} - a new one marked read, as the page opens it (0.8.1;
+ *                                                      no body needed); nobody named, nothing audited: no decision
  *   PUT    $base/{id}/status {status}                  {message} - audited feedback.status_changed
  *   DELETE $base/{id}                                  {deleted: true} - audited feedback.deleted (details: kind,
  *                                                      status, created_at - the message's, for a restore's replay);
@@ -122,8 +124,31 @@ final class FeedbackRoutes
                 }),
             );
 
+            // Opening a message reads it and changes nothing (0.8.1, the IAM's security review of 2026-10-19): a page
+            // on a sibling subdomain is same-site, so a Lax session cookie goes along with its <img src> of this
+            // address - and a GET that marked messages read would do so under a signed-in administrator. The page
+            // marks a new one read with the PUT below, a write the site's own middleware on the group guards (the
+            // IAM's CSRF header) as every admin write.
             Routes::plain(
                 $group->get('/{id:[0-9]{1,18}}', function (ServerRequestInterface $request, ResponseInterface $response) use ($feedback, $context, $names): ResponseInterface {
+                    if (!$feedback->ready()) {
+                        return $context->refuse($response, Feedback::unavailable());
+                    }
+                    $message = $feedback->get((int) $request->getAttribute('id'));
+                    if ($message === null) {
+                        return $context->refuse($response, self::notFound());
+                    }
+
+                    return JsonResponse::write($response, 200, ['message' => self::named([$message], $names)[0]]);
+                }),
+            );
+
+            Routes::plain(
+                $group->put('/{id:[0-9]{1,18}}/read', function (ServerRequestInterface $request, ResponseInterface $response) use ($feedback, $context, $names): ResponseInterface {
+                    $body = Routes::body($request, 4096, true);
+                    if ($body instanceof Refusal) {
+                        return $context->refuse($response, $body);
+                    }
                     if (!$feedback->ready()) {
                         return $context->refuse($response, Feedback::unavailable());
                     }

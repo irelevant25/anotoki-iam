@@ -312,7 +312,10 @@ final class Feedback
         return is_array($row) ? self::item($row) : null;
     }
 
-    /** A new message opened: read. Not a decision anybody made, so nobody is named for it. */
+    /**
+     * A new message opened: read - one that is not new stays as it is. Not a decision anybody made, so nobody is
+     * named for it. A write (FeedbackRoutes' PUT {id}/read), never a GET's doing.
+     */
     public function markRead(int $id): void
     {
         ($this->pdo)()

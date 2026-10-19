@@ -1971,7 +1971,8 @@ owner's decision of 2026-10-19).
 | `GET /api/admin/feedback?kind=&status=&section=&search=&page=` | `{ total, page, pageSize: 25, items: FeedbackMessage[] }`, newest first; `search` in the subject, the message, the reply address and the extra fields |
 | `GET /api/admin/feedback/facets` | `{ kinds, statuses, sections, fields, byStatus, byKind }` - the page's choices and counts |
 | `GET /api/admin/feedback/unread` | `{ unread }` - how many nobody opened yet |
-| `GET /api/admin/feedback/{id}` | `{ message: FeedbackMessage }` - a new one opened is `read`; `404 not_found` |
+| `GET /api/admin/feedback/{id}` | `{ message: FeedbackMessage }` - reading changes nothing (anotoki-lib 0.8.1); `404 not_found` |
+| `PUT /api/admin/feedback/{id}/read` | no body (or `{}`) → `{ message }`: a `new` one becomes `read`, any other status stays as it is; no audit entry - the page sends it as it opens a new message; `404 not_found` |
 | `PUT /api/admin/feedback/{id}/status` | `{ status: 'new' \| 'read' \| 'resolved' \| 'spam' }` → `{ message }`; `422 status_unknown`; audited `feedback.status_changed` |
 | `DELETE /api/admin/feedback/{id}` | `{ deleted: true }`; audited `feedback.deleted` inside the delete's own transaction - no message goes without its entry (`503 feature_unavailable` while the audit log's table waits) |
 

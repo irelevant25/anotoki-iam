@@ -421,8 +421,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   (`core/feedback`, `provideAnotokiFeedback()`) writes the account's address
   in as the reply address until the person types their own, and asks for the
   session first where a page never did (the server takes the sender from the
-  cookie). The Feedback page (`/admin/feedback`) and its routes sit in the
-  admin group, a status change and a delete audited by `iamAuditLog()`. Kept
+  cookie). The Feedback page (`/admin/feedback`, the new ones counted beside
+  it in the side navigation) and its routes sit in the admin group, a status
+  change and a delete audited by `iamAuditLog()`; a message opened is marked
+  read by a PUT of its own, never by the GET (anotoki-lib 0.8.1). Kept
   as the library keeps it (spam 30 days, resolved 365), pruned at most daily
   after the answer, housekeeping included; an account's deletion takes the
   reply address and the browser's name out of its messages - and of any whose
@@ -506,7 +508,7 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): 0.8.0,
+  halves, updated together where both change (`docs/operations.md`): 0.8.1,
   both halves (the migrations module, the translations module, the UI kit,
   the admin tools, the pages' error reporter, the legal pages, the footer;
   never 0.4.0, which fails on PHP 8.2). Never
@@ -610,7 +612,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.8.0), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.8.1), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they

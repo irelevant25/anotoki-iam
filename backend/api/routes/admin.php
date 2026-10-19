@@ -1223,7 +1223,9 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     // routes/login.php; iamFeedback()): GET /feedback?kind=&status=&section=
     // &search=&page= (25 a page, newest first, the sender and whoever handled
     // it by name - an anonymized account's placeholder), /feedback/facets,
-    // /feedback/unread, /feedback/{id} (a new one opened is read); PUT
+    // /feedback/unread, /feedback/{id} (reading changes nothing - anotoki-lib
+    // 0.8.1); PUT /feedback/{id}/read (a new one becomes read, as the page opens
+    // it, under the CSRF header); PUT
     // /feedback/{id}/status {status: new|read|resolved|spam} - audited
     // feedback.status_changed; DELETE /feedback/{id} - audited feedback.deleted
     // by the library's AuditLog inside the delete's own transaction, so no
