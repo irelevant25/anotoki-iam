@@ -24,6 +24,13 @@
  * Now the server never puts a confirmed account's session in place of another
  * account's this browser has: it confirms the address and says so (and the
  * page asks for a press first: frontend confirm-email.component.spec.ts).
+ *
+ * And the review of that change (d0e34fb): "only while the address waits" is
+ * decided in the write that confirms it, so a link whose request read the
+ * account a moment before something else confirmed it opens nothing; a link
+ * notes the address it went to, so one of an account an administrator moved
+ * elsewhere says nothing of it; a session the hole opened already ends with
+ * 026, rather than saying `mfa` for its thirty days.
  */
 
 declare(strict_types=1);
@@ -54,7 +61,10 @@ const CONFIRM_WORDS = [
         'Tento prehliadač je prihlásený k inému účtu a tak aj ostane. Ak chceš používať účet s práve potvrdenou adresou, odhlás sa a prihlás sa doň.',
     ],
     'confirm.signOutAndIn' => ['Sign out and sign in', 'Odhlásiť sa a prihlásiť'],
+    'confirm.signedInAs' => ['Signed in as {name} ({email}).', 'Prihlásený účet: {name} ({email}).'],
 ];
+/** The one of them with placeholders, and which. */
+const CONFIRM_PLACEHOLDERS = ['confirm.signedInAs' => ['{name}', '{email}']];
 
 /** Registers with the form, from a browser of its own address. */
 function register(string $ip, string $username, ?string $request = null): TestResponse
@@ -682,41 +692,214 @@ test('a link opened in a browser with no session signs it in, as ever; one signe
     same([2, 1], sessionsOf($id), 'its old session replaced by the new one');
 });
 
+// ── The review of d0e34fb ────────────────────────────────────────────────────
+
+test(
+    'the attack, timed: a link whose request read the account a moment before something else confirmed the address opens nothing - the write that confirms asks that the address still waits',
+    function () {
+        $pdo = iamDb();
+        same(201, register('10.26.12.1', 'racer')->status, 'registered');
+        $id = userIdOf('racer@example.test');
+        $link = newestLink('racer@example.test', 'confirm-email');
+
+        // Between the request's read and its write, the address is confirmed by something else - a reset, Google,
+        // another link: here, at the moment the request spends its link.
+        $pdo->exec('CREATE FUNCTION test_confirm_between() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE users SET email_confirmed = TRUE WHERE id = NEW.user_id; RETURN NEW; END $$');
+        $pdo->exec(
+            "CREATE TRIGGER test_confirm_between AFTER UPDATE OF consumed_at ON user_tokens FOR EACH ROW
+           WHEN (NEW.user_id = {$id} AND OLD.consumed_at IS NULL AND NEW.consumed_at IS NOT NULL) EXECUTE FUNCTION test_confirm_between()",
+        );
+        try {
+            $browser = new Browser('10.26.12.2');
+            $answer = $browser->post('/api/register/confirm', ['token' => $link]);
+            same(
+                [[0, 0], []],
+                [sessionsOf($id), array_values(array_intersect(array_keys($browser->cookies), ['anotoki_iam', 'anotoki_signed_in', 'anotoki_iam_device']))],
+                'no session, no cookie - the answer ' . $answer->body,
+            );
+            same([200, false, 'already_confirmed'], [$answer->status, $answer->json()['signed_in'] ?? null, $answer->json()['reason'] ?? null], 'the address confirmed meanwhile: said so');
+        } finally {
+            $pdo->exec('DROP TRIGGER test_confirm_between ON user_tokens');
+            $pdo->exec('DROP FUNCTION test_confirm_between()');
+        }
+    },
+);
+
+test('two-factor switched on while a link was on its way: the address confirmed, and nobody signed in - the link never stands in for a code no request checked', function () {
+    $pdo = iamDb();
+    same(201, register('10.26.13.1', 'midway')->status, 'registered');
+    $id = userIdOf('midway@example.test');
+
+    // Two-factor comes on in the very write that confirms the address: the read before it saw it off.
+    $pdo->exec('CREATE FUNCTION test_two_factor_with_confirm() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.totp_enabled := TRUE; RETURN NEW; END $$');
+    $pdo->exec(
+        "CREATE TRIGGER test_two_factor_with_confirm BEFORE UPDATE OF email_confirmed ON users FOR EACH ROW
+           WHEN (NEW.id = {$id} AND NOT OLD.email_confirmed AND NEW.email_confirmed) EXECUTE FUNCTION test_two_factor_with_confirm()",
+    );
+    try {
+        $browser = new Browser('10.26.13.2');
+        $answer = $browser->post('/api/register/confirm', ['token' => newestLink('midway@example.test', 'confirm-email')]);
+        same(
+            [[0, 0], []],
+            [sessionsOf($id), array_values(array_intersect(array_keys($browser->cookies), ['anotoki_iam', 'anotoki_signed_in', 'anotoki_iam_device']))],
+            'no session, no cookie - the answer ' . $answer->body,
+        );
+        same([200, false, 'sign_in'], [$answer->status, $answer->json()['signed_in'] ?? null, $answer->json()['reason'] ?? null], 'confirmed; signing in takes the account\'s own way in');
+        same([true, true], [confirmedNow($id), asBool(userById($pdo, $id)['totp_enabled'])], 'the address confirmed, two-factor on');
+    } finally {
+        $pdo->exec('DROP TRIGGER test_two_factor_with_confirm ON users');
+        $pdo->exec('DROP FUNCTION test_two_factor_with_confirm()');
+    }
+});
+
+test(
+    'a link notes the address it went to - a mark, beside the site the registration came from; one of an account moved to another address says nothing of it, spent or live, and confirms nothing',
+    function () {
+        $pdo = iamDb();
+        $context = static function (string $token) use ($pdo): array {
+            $row = $pdo->prepare('SELECT context FROM user_tokens WHERE token_hash = ?');
+            $row->execute([sha256($token)]);
+            $found = json_decode((string) $row->fetchColumn(), true);
+            ksort($found);
+
+            return $found;
+        };
+
+        // Confirmed, then moved by an administrator: the old address's link says nothing of the account.
+        same(201, register('10.26.14.4', 'mover')->status, 'registered');
+        $moverId = userIdOf('mover@example.test');
+        $old = newestLink('mover@example.test', 'confirm-email');
+        same(200, (new Browser('10.26.14.5'))->post('/api/register/confirm', ['token' => $old])->status, 'confirmed by its link');
+        same(200, admin()->put("/api/admin/users/{$moverId}", ['email' => 'mover-elsewhere@example.test'])->status, 'moved to another address');
+        same(
+            [400, 'invalid_token'],
+            [($r = (new Browser('10.26.14.6'))->post('/api/register/confirm', ['token' => $old]))->status, $r->code()],
+            'the old address\'s link: did not work, nothing said of the account',
+        );
+
+        // Its address written in other letters is still its address: the link says it is confirmed.
+        same(201, register('10.26.14.7', 'casey')->status, 'registered');
+        $caseyId = userIdOf('casey@example.test');
+        $kept = newestLink('casey@example.test', 'confirm-email');
+        same(200, (new Browser('10.26.14.8'))->post('/api/register/confirm', ['token' => $kept])->status, 'confirmed');
+        same(200, admin()->put("/api/admin/users/{$caseyId}", ['email' => 'Casey@Example.test'])->status, 'the same address in other letters');
+        same([200, 'already_confirmed'], [($r = (new Browser('10.26.14.9'))->post('/api/register/confirm', ['token' => $kept]))->status, $r->json()['reason'] ?? null], 'still said confirmed');
+
+        // A live link whose account's address changed under it (as a race with the panel would leave it): it confirms nothing, and goes.
+        same(201, register('10.26.14.10', 'drifter')->status, 'registered');
+        $drifterId = userIdOf('drifter@example.test');
+        $live = newestLink('drifter@example.test', 'confirm-email');
+        $pdo->prepare('UPDATE users SET email = ? WHERE id = ?')->execute(['drifter-elsewhere@example.test', $drifterId]);
+        $answer = (new Browser('10.26.14.11'))->post('/api/register/confirm', ['token' => $live]);
+        same([400, 'invalid_token'], [$answer->status, $answer->code()], 'a live link to the old address: did not work');
+        same([false, 'spent', [0, 0]], [confirmedNow($drifterId), linkState($live), sessionsOf($drifterId)], 'the new address unconfirmed, the link spent, nobody signed in');
+
+        // Where a link went, noted: a registration from a site, and a link sent again.
+        $site = new Browser('10.26.14.1');
+        [$request] = authorize($site);
+        same(201, register('10.26.14.2', 'Noted', $request)->status, 'registered from the site');
+        same(
+            ['address' => sha256('noted@example.test'), 'client_id' => 'genshin'],
+            $context(newestLink('Noted@example.test', 'confirm-email')),
+            'the mark of the address - lower case, hashed - and the site',
+        );
+        same(200, (new Browser('10.26.14.3'))->post('/api/register/resend', ['email' => 'noted@example.test'])->status, 'sent again');
+        same(['address' => sha256('noted@example.test')], $context(newestLink('Noted@example.test', 'confirm-email')), 'the mark alone');
+    },
+);
+
 // ── Migration 026 ────────────────────────────────────────────────────────────
 
-test('a fresh IAM has run 026: the confirmation page\'s six keys, each described, in English and Slovak, by nobody - no placeholder, no address', function () {
-    $pdo = iamDb();
-    check(in_array(LINKS_MIGRATION, appliedMigrations($pdo), true), '026 recorded');
-    foreach (CONFIRM_WORDS as $key => [$english, $slovak]) {
-        [$description, $en, $sk] = keyStrings($pdo, $key);
-        check(trim((string) $description) !== '' && str_contains((string) $description, 'No placeholders.'), "$key: described, with no placeholders");
-        same([[$english, null], [$slovak, null]], [$en, $sk], "$key: its English (en.ts's) and its Slovak, by nobody");
-        check(preg_match('~https?:|://|www\.|@|\{~i', $english . $slovak) !== 1, "$key: no address in it, no placeholder");
-    }
-});
+test(
+    'a fresh IAM has run 026: the confirmation page\'s seven keys, each described, in English and Slovak, by nobody - no address, and only the account\'s name and address for placeholders',
+    function () {
+        $pdo = iamDb();
+        check(in_array(LINKS_MIGRATION, appliedMigrations($pdo), true), '026 recorded');
+        foreach (CONFIRM_WORDS as $key => [$english, $slovak]) {
+            [$description, $en, $sk] = keyStrings($pdo, $key);
+            $placeholders = CONFIRM_PLACEHOLDERS[$key] ?? [];
+            $said = $placeholders === [] ? 'No placeholders.' : 'Placeholders: ' . implode(', ', $placeholders) . '.';
+            check(trim((string) $description) !== '' && str_contains((string) $description, $said), "$key: described, saying {$said}");
+            same([[$english, null], [$slovak, null]], [$en, $sk], "$key: its English (en.ts's) and its Slovak, by nobody");
+            check(preg_match('~https?:|://|www\.|@~i', $english . $slovak) !== 1, "$key: no address in it");
+            foreach ([$english, $slovak] as $words) {
+                preg_match_all('~\{[a-z]+\}~', $words, $found);
+                same($placeholders, $found[0], "$key: its placeholders, once each, in both languages");
+            }
+        }
+    },
+);
 
-test('an IAM built through 025 with links an older build left: 026 spends every link of an address confirmed, leaves an unconfirmed one\'s live, and adds the keys as on a fresh IAM', function () {
-    $pdo = buildThrough025('_before_links');
-    $insert = $pdo->prepare('INSERT INTO users (username, email, password, email_confirmed) VALUES (?, ?, ?, ?) RETURNING id');
-    $insert->execute(['confirmedone', 'confirmedone@example.test', password_hash(PASSWORD, PASSWORD_DEFAULT), 'true']);
-    $confirmedId = (int) $insert->fetchColumn();
-    $insert->execute(['waitingone', 'waitingone@example.test', password_hash(PASSWORD, PASSWORD_DEFAULT), 'false']);
-    $waitingId = (int) $insert->fetchColumn();
-    $link = $pdo->prepare("INSERT INTO user_tokens (user_id, purpose, token_hash, expires_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP + INTERVAL '48 hours')");
-    foreach ([[$confirmedId, 'email_confirm', 'a'], [$confirmedId, 'email_confirm', 'b'], [$waitingId, 'email_confirm', 'c'], [$confirmedId, 'password_reset', 'd']] as [$user, $purpose, $mark]) {
-        $link->execute([$user, $purpose, str_repeat($mark, 64)]);
-    }
+test(
+    'an IAM built through 025 with links an older build left, and sessions they opened: 026 spends every link of an address confirmed, leaves an unconfirmed one\'s live, ends the link sessions that say mfa on an account with two-factor on, and adds the keys as on a fresh IAM',
+    function () {
+        $pdo = buildThrough025('_before_links');
+        $insert = $pdo->prepare('INSERT INTO users (username, email, password, email_confirmed, totp_enabled) VALUES (?, ?, ?, ?, ?) RETURNING id');
+        $insert->execute(['confirmedone', 'confirmedone@example.test', password_hash(PASSWORD, PASSWORD_DEFAULT), 'true', 'true']);
+        $confirmedId = (int) $insert->fetchColumn();
+        $insert->execute(['waitingone', 'waitingone@example.test', password_hash(PASSWORD, PASSWORD_DEFAULT), 'false', 'false']);
+        $waitingId = (int) $insert->fetchColumn();
+        $insert->execute(['plainone', 'plainone@example.test', password_hash(PASSWORD, PASSWORD_DEFAULT), 'true', 'false']);
+        $plainId = (int) $insert->fetchColumn();
+        $link = $pdo->prepare("INSERT INTO user_tokens (user_id, purpose, token_hash, expires_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP + INTERVAL '48 hours')");
+        foreach ([[$confirmedId, 'email_confirm', 'a'], [$confirmedId, 'email_confirm', 'b'], [$waitingId, 'email_confirm', 'c'], [$confirmedId, 'password_reset', 'd']] as [$user, $purpose, $mark]) {
+            $link->execute([$user, $purpose, str_repeat($mark, 64)]);
+        }
 
-    $result = applyMigrationsThrough($pdo, LINKS_MIGRATION);
-    same([[LINKS_MIGRATION], null], [$result['applied'], $result['failed']], '026 applied, its gate passed (' . ($result['error'] ?? '') . ')');
-    same(
-        ['a' => true, 'b' => true, 'c' => false, 'd' => false],
-        array_map('asBool', array_column($pdo->query('SELECT substr(token_hash, 1, 1) AS mark, consumed_at IS NOT NULL AS spent FROM user_tokens ORDER BY token_hash')->fetchAll(), 'spent', 'mark')),
-        'the confirmed address\'s two links spent; the unconfirmed one\'s link, and a reset link, left live',
-    );
-    same(true, asBool($pdo->query("SELECT to_regclass('google_id_tokens_used') IS NOT NULL")->fetchColumn()), 'the Google tokens\' table made');
-    same(confirmStrings(iamDb()), confirmStrings($pdo), 'every key, description and string as on a fresh IAM');
-});
+        // Sessions as builds from before left them: `mfa` written as the account's switch.
+        $session = $pdo->prepare(
+            "INSERT INTO sessions (user_id, token_hash, sid, method, mfa, expires_at, absolute_expires_at, revoked_at, revoked_reason)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP + INTERVAL '30 days', CURRENT_TIMESTAMP + INTERVAL '90 days', ?, ?) RETURNING id",
+        );
+        $sessions = [];
+        foreach (
+            [
+                'the hole\'s' => [$confirmedId, 'email_link', 'true', null, null],
+                'a password\'s with its code' => [$confirmedId, 'password', 'true', null, null],
+                'a link\'s that says no mfa' => [$confirmedId, 'email_link', 'false', null, null],
+                'a link\'s ended before' => [$confirmedId, 'email_link', 'true', '2026-10-01 10:00:00+00', 'signed_out'],
+                'a link\'s on an account without two-factor' => [$plainId, 'email_link', 'true', null, null],
+            ]
+            as $what => [$user, $method, $mfa, $revokedAt, $reason]
+        ) {
+            $session->execute([$user, randomHex(32), randomHex(16), $method, $mfa, $revokedAt, $reason]);
+            $sessions[$what] = (int) $session->fetchColumn();
+        }
+        $pdo->prepare(
+            "INSERT INTO refresh_tokens (token_hash, kind, family_id, application_id, user_id, session_id, scope, expires_at)
+             SELECT ?, 'rotating', ?, a.id, ?, ?, 'openid', CURRENT_TIMESTAMP + INTERVAL '30 days' FROM applications a WHERE a.client_id = 'genshin'",
+        )->execute([randomHex(32), randomHex(16), $confirmedId, $sessions['the hole\'s']]);
+
+        $result = applyMigrationsThrough($pdo, LINKS_MIGRATION);
+        same([[LINKS_MIGRATION], null], [$result['applied'], $result['failed']], '026 applied, its gate passed (' . ($result['error'] ?? '') . ')');
+        same(
+            ['a' => true, 'b' => true, 'c' => false, 'd' => false],
+            array_map(
+                'asBool',
+                array_column($pdo->query('SELECT substr(token_hash, 1, 1) AS mark, consumed_at IS NOT NULL AS spent FROM user_tokens ORDER BY token_hash')->fetchAll(), 'spent', 'mark'),
+            ),
+            'the confirmed address\'s two links spent; the unconfirmed one\'s link, and a reset link, left live',
+        );
+        $reasons = [];
+        foreach ($sessions as $what => $id) {
+            $reasons[$what] = $pdo->query("SELECT revoked_reason FROM sessions WHERE id = {$id}")->fetchColumn() ?: null;
+        }
+        same(
+            [
+                'the hole\'s' => 'security_change',
+                'a password\'s with its code' => null,
+                'a link\'s that says no mfa' => null,
+                'a link\'s ended before' => 'signed_out',
+                'a link\'s on an account without two-factor' => null,
+            ],
+            $reasons,
+            'the live link session saying mfa on an account with two-factor on ended for a security change - nothing else',
+        );
+        same('security_change', $pdo->query("SELECT revoked_reason FROM refresh_tokens WHERE session_id = {$sessions['the hole\'s']}")->fetchColumn(), 'and the refresh token issued under it');
+        check(googleTokensReady($pdo), 'the Google tokens\' table made, with its hold');
+        same(confirmStrings(iamDb()), confirmStrings($pdo), 'every key, description and string as on a fresh IAM');
+    },
+);
 
 test('an IAM built through 025 as its owner left it: a Slovak string blanked elsewhere stays blank, and the gate passes', function () {
     $pdo = buildThrough025('_owned_links');
@@ -724,7 +907,7 @@ test('an IAM built through 025 as its owner left it: a Slovak string blanked els
 
     $result = applyMigrationsThrough($pdo, LINKS_MIGRATION);
     same([[LINKS_MIGRATION], null], [$result['applied'], $result['failed']], '026 applied, its gate passed - a blank elsewhere is no failure (' . ($result['error'] ?? '') . ')');
-    same(confirmStrings(iamDb()), confirmStrings($pdo), 'the six keys as on a fresh IAM');
+    same(confirmStrings(iamDb()), confirmStrings($pdo), 'the seven keys as on a fresh IAM');
     same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name = 'common.save' AND language_code = 'sk'")->fetchColumn(), 'and the Slovak string the owner blanked stays blank');
 });
 
@@ -763,6 +946,21 @@ test('a 026 whose gate fails - a Slovak string that did not arrive, or a link le
     check(str_contains((string) $result['error'], 'confirmation link'), 'its gate says why: ' . $result['error']);
     $pdo->exec('DROP TRIGGER test_026_keep ON user_tokens');
     $pdo->exec('DROP FUNCTION test_026_keep()');
+
+    // Something keeps a link's session that says mfa live: the gate must see that too.
+    $insert = $pdo->prepare('INSERT INTO users (username, email, password, email_confirmed, totp_enabled) VALUES (?, ?, ?, TRUE, TRUE) RETURNING id');
+    $insert->execute(['lingering', 'lingering@example.test', password_hash(PASSWORD, PASSWORD_DEFAULT)]);
+    $pdo->prepare(
+        "INSERT INTO sessions (user_id, token_hash, sid, method, mfa, expires_at, absolute_expires_at)
+             VALUES (?, ?, ?, 'email_link', TRUE, CURRENT_TIMESTAMP + INTERVAL '30 days', CURRENT_TIMESTAMP + INTERVAL '90 days')",
+    )->execute([(int) $insert->fetchColumn(), randomHex(32), randomHex(16)]);
+    $pdo->exec("CREATE FUNCTION test_026_linger() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN NEW.revoked_at := NULL; RETURN NEW; END \$\$");
+    $pdo->exec('CREATE TRIGGER test_026_linger BEFORE UPDATE ON sessions FOR EACH ROW EXECUTE FUNCTION test_026_linger()');
+    $result = applyMigrationsThrough($pdo, LINKS_MIGRATION);
+    same([[], LINKS_MIGRATION], [$result['applied'], $result['failed']], '026 fails');
+    check(str_contains((string) $result['error'], 'still says mfa'), 'its gate says why: ' . $result['error']);
+    $pdo->exec('DROP TRIGGER test_026_linger ON sessions');
+    $pdo->exec('DROP FUNCTION test_026_linger()');
 
     $result = applyMigrationsThrough($pdo, LINKS_MIGRATION);
     same([[LINKS_MIGRATION], null], [$result['applied'], $result['failed']], 'the causes gone, the next Apply runs it (' . ($result['error'] ?? '') . ')');

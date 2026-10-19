@@ -553,8 +553,8 @@ $app->post('/api/login/code/verify', function (Request $request, Response $respo
 
 /**
  * A Google token that is none: not Google's, not for this IAM, run out, more
- * than five minutes old, or spent here before - told none of them apart
- * (googleVerifyIdToken()). The page asks Google for another.
+ * than five minutes old, or used here before - spent, or held for another
+ * sign-in - told none of them apart. The page asks Google for another.
  */
 function googleTokenRefused(Response $response): Response
 {
@@ -571,11 +571,15 @@ function googleTokenRefused(Response $response): Response
  * it would be a way into somebody else's account. Else it is a new account,
  * confirmed on arrival, with no password.
  *
- * A token is good once (the security review of 2026-10-19): spent just before
- * the first thing it changes - a session, an account claimed or made, an
- * identity attached - and refused ever after (spendGoogleIdToken()). Not
- * before: a sign-in stopped for the second factor, or refused before anything
- * changed, leaves it as it was, and the page sends it again with the code.
+ * A token is good once (the security review of 2026-10-19), and from the
+ * moment it names an account here it is that account's sign-in's alone (the
+ * review of d0e34fb): held for it (holdGoogleIdToken()) while the sign-in
+ * stops for the second factor or is refused before anything changed - so the
+ * page sends it again with the code, and nothing else takes it - and spent
+ * just before the first thing it changes: a session, an account claimed, an
+ * identity attached (spendGoogleIdToken()). One that names no account is
+ * spent at once: a new account is made of it, or it is refused in a way no
+ * second try cures (`unverified_email`, `registration_disabled`).
  */
 $app->post('/api/login/google', function (Request $request, Response $response) {
     if (!googleLoginEnabled()) {
@@ -584,7 +588,8 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
 
     $body = requestBody($request);
     $credential = (string) ($body['credential'] ?? '');
-    $claims = googleVerifyIdToken($credential);
+    // Google's checks; whether it was used here is asked below, of the account it names.
+    $claims = googleIdTokenClaims($credential);
 
     if ($claims === null) {
         return googleTokenRefused($response);
@@ -595,11 +600,21 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
     $email = strtolower(trim((string) ($claims['email'] ?? '')));
     $verified = !empty($claims['email_verified']);
     $owner = identityOwner($pdo, IDENTITY_GOOGLE, $subject);
+    // The account this sign-in is for: the identity's, else the one whose address Google vouches for.
+    $account = $owner ?? ($verified && $email !== '' ? userByEmail($pdo, $email) : null);
+
+    // Held for that account's sign-in, or - with no account to hold it for -
+    // spent now: whatever is answered from here on, the token is free for
+    // nothing else. Refused when it was spent already, or is held for the
+    // sign-in of another account.
+    if (!($account !== null ? holdGoogleIdToken($pdo, $credential, $claims, (int) $account['id']) : spendGoogleIdToken($pdo, $credential, $claims))) {
+        return googleTokenRefused($response);
+    }
 
     // The same limiter as every other way in, keyed on the account's own
     // address where there is one: a Google token is not a licence to guess at
     // somebody's authenticator codes.
-    if (loginAttemptsExceeded($pdo, $request, $owner !== null ? (string) $owner['email'] : $email)) {
+    if (loginAttemptsExceeded($pdo, $request, $account !== null ? (string) $account['email'] : $email)) {
         return tooManyAttempts($response);
     }
 
@@ -611,32 +626,32 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
         if ($stop = signInRefusalResponse($response, $user)) {
             return $stop;
         }
-        if (!spendGoogleIdToken($pdo, $credential, $claims)) {
+        // The hold claimed by this sign-in: a request racing it with the same token loses here.
+        if (!spendGoogleIdToken($pdo, $credential, $claims, (int) $user['id'])) {
             return googleTokenRefused($response);
         }
         return completeSignIn($request, $response, $user, SESSION_METHOD_GOOGLE, $secondFactor, $body, 200, ['created' => false]);
     }
 
-    if ($verified && $email !== '' && ($user = userByEmail($pdo, $email))) {
+    if ($user = $account) {
         $secondFactor = false;
-        if (asBool($user['email_confirmed'])) {
+        $wasConfirmed = asBool($user['email_confirmed']);
+        if ($wasConfirmed) {
             // Before attaching anything: an account with two-factor on must
             // not gain a new way in on the strength of a Google token alone.
             $secondFactor = secondFactorAnswer($request, $response, $pdo, $user, $body['totp'] ?? null, $body['device_token'] ?? null, SESSION_METHOD_GOOGLE);
             if ($secondFactor instanceof Response) {
                 return $secondFactor;
             }
-        }
-        // Spent before the first thing it changes - a registrant's settings
-        // gone, an identity attached, the address confirmed.
-        if (!spendGoogleIdToken($pdo, $credential, $claims)) {
-            return googleTokenRefused($response);
-        }
-        if (!asBool($user['email_confirmed'])) {
+        } else {
             // Never confirmed: whoever registered it may not own the address
             // Google has just vouched for, so everything they set goes before
             // the owner is let in - their two-factor included, which would
-            // otherwise lock the owner out of their own address.
+            // otherwise lock the owner out of their own address. That is the
+            // first thing the token changes: it is spent first.
+            if (!spendGoogleIdToken($pdo, $credential, $claims, (int) $user['id'])) {
+                return googleTokenRefused($response);
+            }
             claimUnconfirmedAccount($pdo, $request, $user);
             $user = userById($pdo, (int) $user['id']);
         }
@@ -644,10 +659,15 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
         // leaves Google's word standing: the address is this person's, as a
         // confirmation link would say, so the identity is attached and the
         // address confirmed before the answer - and the approval, when it
-        // comes, can be mailed to it. Any other refusal stops before either.
+        // comes, can be mailed to it. Any other refusal stops before either -
+        // for an account confirmed all along, with the token still held.
         $stop = signInRefusal($user);
         if ($stop !== null && $stop['code'] !== 'approval_pending') {
             return respondError($response, $stop['status'], $stop['code'], $stop['error']);
+        }
+        // An account confirmed all along: the identity attached is the first thing the token changes.
+        if ($wasConfirmed && !spendGoogleIdToken($pdo, $credential, $claims, (int) $user['id'])) {
+            return googleTokenRefused($response);
         }
 
         attachIdentity($pdo, (int) $user['id'], IDENTITY_GOOGLE, $subject, $email);
@@ -669,16 +689,14 @@ $app->post('/api/login/google', function (Request $request, Response $response) 
         return completeSignIn($request, $response, userById($pdo, (int) $user['id']), SESSION_METHOD_GOOGLE, $secondFactor, $body, 200, ['created' => false]);
     }
 
+    // No account names it: the token was spent above, so neither of these
+    // refusals - which no second try with it cures - leaves it to anybody.
     if (!$verified || $email === '') {
         return respondError($response, 422, 'unverified_email', 'Google did not confirm an email address for that account');
     }
 
     if (!registrationEnabled() || !loginEnabled()) {
         return respondError($response, 403, 'registration_disabled', 'New accounts cannot be made at the moment');
-    }
-
-    if (!spendGoogleIdToken($pdo, $credential, $claims)) {
-        return googleTokenRefused($response);
     }
 
     // The news from the sites: a yes only from the registration page's box,
@@ -766,7 +784,7 @@ $app->post('/api/register', function (Request $request, Response $response) {
     audit($request, $userId, 'account.created', 'user', $userId, ['via' => 'register'] + ($made['waits'] ? ['waits' => true] : []) + ($newsMail ? ['news_mail' => true] : []));
 
     $user = userById($pdo, $userId);
-    $token = issueOneTimeToken($pdo, $userId, TOKEN_EMAIL_CONFIRM, MAIL_CONFIRM_HOURS * 3600, contextFromRequestId($pdo, field($body, 'request')));
+    $token = issueOneTimeToken($pdo, $userId, TOKEN_EMAIL_CONFIRM, MAIL_CONFIRM_HOURS * 3600, confirmationLinkContext($email, contextFromRequestId($pdo, field($body, 'request'))));
     $sent = $token !== null && sendConfirmationMail($user, $token);
 
     // No session: the account is unusable until somebody opens the link, which
@@ -775,7 +793,11 @@ $app->post('/api/register', function (Request $request, Response $response) {
     return respondJson($response, ['email' => $email, 'sent' => $sent, 'approval_pending' => $made['waits']], 201);
 });
 
-/** A confirmation link that is none: never mailed, run out with its address unconfirmed, swept, or its account deleted. */
+/**
+ * A confirmation link that is none: never mailed, run out with its address
+ * unconfirmed, swept, mailed to an address its account no longer has, or its
+ * account deleted.
+ */
 function confirmationLinkRefused(Response $response): Response
 {
     return respondError($response, 400, 'invalid_token', 'That link is no longer valid');
@@ -806,7 +828,13 @@ function confirmedWithoutSession(Response $response, string $reason): Response
  *     used before - opens no session, and says the address is confirmed:
  *     otherwise whoever holds the mailbox signs in by it for 48 hours, past
  *     two-factor switched on meanwhile. Every link of the account is spent
- *     once its address is confirmed, by any way (spendConfirmationLinks()).
+ *     once its address is confirmed, by any way (spendConfirmationLinks()),
+ *     and the write that confirms it asks that it still waits - so a link
+ *     whose request read the account a moment before a reset, Google or
+ *     another link confirmed it opens nothing either (the review of d0e34fb).
+ *   - Only for the address it was mailed to (confirmationLinkToAddress()):
+ *     one whose account an administrator moved to another address confirms
+ *     nothing, and says nothing of the account.
  *   - Never in place of another account's session this browser has. Somebody
  *     else's link - an attacker's own new account's, sent to a victim -
  *     signed the victim's browser in to it and ended the victim's session; a
@@ -838,6 +866,14 @@ $app->post('/api/register/confirm', function (Request $request, Response $respon
 
     $before = userById($pdo, (int) $token['user_id']);
     if ($before === null || accountAnonymized($before)) {
+        return confirmationLinkRefused($response);
+    }
+
+    // Mailed to an address the account no longer has: it confirms nothing,
+    // says nothing of the account, and goes.
+    if (confirmationLinkToAddress($token, (string) $before['email']) === false) {
+        consumeOneTimeToken($pdo, (int) $token['id']);
+
         return confirmationLinkRefused($response);
     }
 
@@ -873,12 +909,21 @@ $app->post('/api/register/confirm', function (Request $request, Response $respon
         return asBool(userById($pdo, (int) $before['id'])['email_confirmed'] ?? false) ? confirmedWithoutSession($response, 'already_confirmed') : confirmationLinkRefused($response);
     }
 
-    // An account deleted since the link was mailed has no address to confirm.
-    $confirmed = $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ?' . liveAccountSql($pdo));
+    // Confirmed by this write, and only while the address still waits - the
+    // read above is a moment old: a reset, Google, an administrator or another
+    // link may have confirmed it since, and then this link opens nothing. An
+    // account deleted since the link was mailed has no address to confirm.
+    $confirmed = $pdo->prepare('UPDATE users SET email_confirmed = TRUE WHERE id = ? AND NOT email_confirmed' . liveAccountSql($pdo));
     $confirmed->execute([(int) $token['user_id']]);
     $user = userById($pdo, (int) $token['user_id']);
 
     if ($user === null || $confirmed->rowCount() === 0) {
+        if ($user !== null && !accountAnonymized($user) && asBool($user['email_confirmed'])) {
+            spendConfirmationLinks($pdo, (int) $user['id']);
+
+            return confirmedWithoutSession($response, 'already_confirmed');
+        }
+
         return confirmationLinkRefused($response);
     }
     // Confirmed: the other links mailed for it go with this one.
@@ -916,7 +961,7 @@ $app->post('/api/register/resend', function (Request $request, Response $respons
     $user = userByEmail($pdo, $email);
 
     if ($user !== null && !asBool($user['email_confirmed']) && !asBool($user['disabled'])) {
-        $token = issueOneTimeToken($pdo, (int) $user['id'], TOKEN_EMAIL_CONFIRM, MAIL_CONFIRM_HOURS * 3600);
+        $token = issueOneTimeToken($pdo, (int) $user['id'], TOKEN_EMAIL_CONFIRM, MAIL_CONFIRM_HOURS * 3600, confirmationLinkContext((string) $user['email']));
         if ($token !== null) {
             sendConfirmationMail($user, $token);
         }

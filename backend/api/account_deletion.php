@@ -289,7 +289,8 @@ function anonymizeDueAccounts(PDO $pdo): int
  * account a moment before the anonymization, and wrote a moment after: a
  * sign-in's session (an IP address, a user agent), its attempt and the time
  * on the row; a reset link or a sign-in code asked for, with its mail in the
- * log; a Google identity attached, a remembered device, recovery codes, a
+ * log; a Google identity attached, or a Google token held for its sign-in, a
+ * remembered device, recovery codes, a
  * role a new application or an administrator gave; an announcement's row
  * written back with the address; an audit entry with the person's IP or
  * name; a feedback message sent with its reply address and browser. None of
@@ -307,6 +308,11 @@ function anonymizedLeftovers(PDO $pdo): void
     $pdo->exec("DELETE FROM sessions WHERE user_id IN ($anonymized)");
     foreach (['user_sign_in_devices', 'user_trusted_devices', 'user_tokens', 'user_recovery_codes', 'user_identities', 'user_roles', 'login_attempts', 'email_log'] as $table) {
         $pdo->exec("DELETE FROM {$table} WHERE user_id IN ($anonymized)");
+    }
+    // A Google token held for its sign-in names it no more: spent, so that
+    // nothing takes it up instead (api/google_identity.php, 026).
+    if (googleTokensReady($pdo)) {
+        $pdo->exec("UPDATE google_id_tokens_used SET held_for_user = NULL WHERE held_for_user IN ($anonymized)");
     }
     $pdo->exec(
         'UPDATE announcement_recipients r SET email = u.email

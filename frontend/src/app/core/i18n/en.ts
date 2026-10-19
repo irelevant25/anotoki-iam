@@ -268,6 +268,7 @@ export const en = {
   'confirm.signInText': 'Sign in to use your account.',
   'confirm.otherAccountText': 'This browser is signed in to another account, and stays so. To use the account whose address you have just confirmed, sign out and sign in to it.',
   'confirm.signOutAndIn': 'Sign out and sign in',
+  'confirm.signedInAs': 'Signed in as {name} ({email}).',
 
   // ── Forgotten password ─────────────────────────────────────────────────────
   'forgot.pageTitle': 'Forgotten password',

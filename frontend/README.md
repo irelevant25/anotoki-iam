@@ -135,7 +135,8 @@ went meanwhile), the confirmation page
 (`pages/auth/confirm-email/confirm-email.component.spec.ts`, the security
 review of 2026-10-19: nothing sent as the link opens - the token out of the
 address bar, "Confirm my address" asked for -; the press sending it under the
-CSRF header, a sign-in made the session's; another account signed in here
+CSRF header, a sign-in made the session's and the account named before the way
+on to the site; another account signed in here
 left as it is, with a way to sign out and sign in with the confirmed one; an
 address confirmed already offering the sign-in page; two-factor's code asked
 for and sent with the same link; a dead link's way to a new one), and the

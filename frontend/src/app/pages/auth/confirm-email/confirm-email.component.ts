@@ -8,7 +8,7 @@ import { IconComponent } from '@anotoki/lib/ui/icon';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ApiError } from '../../../core/api/api-error';
 import { LoginApi } from '../../../core/api/login.api';
-import { ContinueTo } from '../../../core/api/models';
+import { AccountUser, ContinueTo } from '../../../core/api/models';
 import { SessionService } from '../../../core/auth/session.service';
 import { errorText } from '../../../core/i18n/error-text';
 import { TPipe } from '../../../core/i18n/t.pipe';
@@ -29,9 +29,9 @@ type Step = 'ready' | 'working' | 'totp' | 'done' | 'pending' | 'confirmed' | 'o
  * confirm it and sign that browser in to it, whatever it was signed in to.
  *
  * The press confirms the address and signs the person in (holding the mailbox
- * is the proof), and the page offers the way back to the application the
- * registration started from, if any - unless the server says otherwise, and
- * it is the rule:
+ * is the proof), names the account it signed in to, and offers the way back
+ * to the application the registration started from, if any - unless the
+ * server says otherwise, and it is the rule:
  *   - `other_account`: this browser was signed in to another account, which
  *     stays signed in - the page offers to sign out and sign in with the
  *     account just confirmed, or to stay;
@@ -64,6 +64,12 @@ export class ConfirmEmailComponent implements OnInit {
 
   protected readonly step = signal<Step>('ready');
   protected readonly continueTo = signal<ContinueTo | null>(null);
+  /**
+   * The account the link signed this browser in to, named on the page: one
+   * pressed for a stranger's link shows whose account it is before a site's
+   * waiting sign-in takes it (the review of d0e34fb).
+   */
+  protected readonly signedInAs = signal<AccountUser | null>(null);
   protected readonly failure = signal('');
   protected readonly formError = signal<string | null>(null);
   protected readonly totp = signal('');
@@ -107,6 +113,7 @@ export class ConfirmEmailComponent implements OnInit {
         this._token = '';
         if (response.signed_in) {
           this._session.set(response.user);
+          this.signedInAs.set(response.user);
           this.continueTo.set(response.continue_to);
           this.step.set('done');
         } else {

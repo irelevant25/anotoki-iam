@@ -11,14 +11,20 @@
  * remembered by the SHA-256 of what Google signed, until it runs out. It is
  * spent at the moment it changes something - a session opened, an account
  * made or claimed, an identity attached, Google connected on the account page
- * - never before: a sign-in stopped for its second factor spends nothing, and
- * the page sends the same token again with the code.
+ * - never before. And from the moment the Google sign-in finds the account it
+ * names, it is held for that account's sign-in (the review of d0e34fb): a
+ * sign-in stopped for its second factor, or refused before anything changed,
+ * keeps it for the same account to finish with the code, and nothing else
+ * takes it; one that names no account is spent at once.
  *
  * The attacks: a token used once, sent again from another browser within its
  * hour - its signature written another way too (base64 leaves bits of the
  * last character unread: the same signature, another string); one made long
  * ago; one spent on the account page then sent to the sign-in, and the other
- * way round; two requests with one token at once.
+ * way round; two requests with one token at once; and a token left waiting
+ * for its code - or refused `unverified_email`, `registration_disabled` -
+ * taken by somebody who saw it, to connect the victim's Google to an account
+ * of their own.
  */
 
 declare(strict_types=1);
@@ -117,14 +123,40 @@ function newestSession(int $userId): array
     return [$row['method'] ?? null, asBool($row['mfa'] ?? false)];
 }
 
-/** Whether a token is among the ones spent here: by the hash of what Google signed. */
-function spentHere(string $token): bool
+/** What is kept here of a token, by the hash of what Google signed: 'none', 'spent', or 'held for {account id}'. */
+function tokenUse(string $token): string
 {
     [$header, $payload] = explode('.', $token);
-    $statement = iamDb()->prepare('SELECT count(*) FROM google_id_tokens_used WHERE token_hash = ?');
+    $statement = iamDb()->prepare("SELECT COALESCE('held for ' || held_for_user, 'spent') FROM google_id_tokens_used WHERE token_hash = ?");
     $statement->execute([sha256("{$header}.{$payload}")]);
+    $use = $statement->fetchColumn();
 
-    return (int) $statement->fetchColumn() === 1;
+    return $use === false ? 'none' : (string) $use;
+}
+
+/** A Google sign-in's account signed in on the account page, from a browser of its own address. */
+function accountPage(string $ip, string $username): Browser
+{
+    makeUser($username, "{$username}@example.test");
+    $page = new Browser($ip);
+    same(200, $page->signIn("{$username}@example.test", PASSWORD)->status, "{$username} signed in");
+
+    return $page;
+}
+
+/** Connecting Google on the account page, with the password as the proof. */
+function connectGoogle(Browser $page, string $token): TestResponse
+{
+    return $page->post('/api/account/google', ['credential' => $token, 'password' => PASSWORD]);
+}
+
+/** A setting, as the admin panel saves it. */
+function setting(string $name, string $value): void
+{
+    iamDb()
+        ->prepare('UPDATE settings SET value = ? WHERE name = ?')
+        ->execute([$value, $name]);
+    settingsAll(true);
 }
 
 /** An account with two-factor on: its secret. */
@@ -183,16 +215,134 @@ function useIamDatabase(string $name): void
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('a fresh IAM has 026: the table of the Google tokens spent here - a hash and when it runs out, nothing of the person - and nothing in it', function () {
+test('a fresh IAM has 026: the table of the Google tokens used here - a hash, when it runs out, and the account whose sign-in holds it - and nothing in it', function () {
     $pdo = iamDb();
     check(in_array(GOOGLE_ONCE_MIGRATION, appliedMigrations($pdo), true), '026 recorded');
     check(googleTokensReady($pdo), 'the table is there');
     same(
-        ['expires_at', 'token_hash'],
+        ['expires_at', 'held_for_user', 'token_hash'],
         $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'google_id_tokens_used' ORDER BY column_name")->fetchAll(PDO::FETCH_COLUMN),
-        'its two columns',
+        'its three columns',
     );
     same(0, (int) $pdo->query('SELECT count(*) FROM google_id_tokens_used')->fetchColumn(), 'and nothing in it');
+});
+
+test(
+    'the attack (the review of d0e34fb): a token stopped for its second factor is held for that account\'s sign-in - the account page refuses it to anybody who saw it, so the victim\'s Google is connected to nobody else - and the account finishes its sign-in with it',
+    function () {
+        // The victim: two-factor on, no Google yet - Google names the account by its address.
+        $victimId = makeUser('victim', 'victim@example.test');
+        $secret = twoFactorOn($victimId);
+        $token = googleToken('google-victim', 'victim@example.test');
+        same([403, 'totp_required'], [($r = googleSignIn('10.27.9.1', $token))->status, $r->code()], 'the victim\'s sign-in stops for the code');
+
+        // Whoever saw the token, signed in to an account of their own, connects it there.
+        $attacker = accountPage('10.27.9.2', 'attacker');
+        $connect = connectGoogle($attacker, $token);
+        same([400, 'invalid_token'], [$connect->status, $connect->code()], 'the account page refuses a token held for another account\'s sign-in - ' . $connect->body);
+        same(null, identityOwner(iamDb(), IDENTITY_GOOGLE, 'google-victim'), 'the victim\'s Google connected to nobody');
+        same("held for {$victimId}", tokenUse($token), 'still held for the victim\'s sign-in');
+
+        // The victim, back with the code: signed in, the identity theirs.
+        $through = googleSignIn('10.27.9.1', $token, ['totp' => rightCode($victimId, $secret)]);
+        same(200, $through->status, 'the same token with the code signs the victim in - ' . $through->body);
+        same($victimId, (int) (identityOwner(iamDb(), IDENTITY_GOOGLE, 'google-victim')['id'] ?? 0), 'Google attached to the victim\'s account');
+        same('spent', tokenUse($token), 'and spent');
+        same([400, 'invalid_token'], [($r = connectGoogle($attacker, $token))->status, $r->code()], 'refused to the account page for good');
+    },
+);
+
+test('a refusal no second try cures spends the token at once - `unverified_email`, `registration_disabled` - so nothing takes it up after', function () {
+    $attacker = accountPage('10.27.10.1', 'taker');
+
+    $unverified = googleToken('google-unverified', 'unverified@example.test', ['email_verified' => false]);
+    same([422, 'unverified_email'], [($r = googleSignIn('10.27.10.2', $unverified))->status, $r->code()], 'Google vouches for no address');
+    same([400, 'invalid_token'], [($r = connectGoogle($attacker, $unverified))->status, $r->code()], 'the account page refuses it - ' . $r->body);
+    same('spent', tokenUse($unverified), 'spent at once');
+
+    setting('registration_enabled', 'false');
+    try {
+        $closed = googleToken('google-closed', 'closed@example.test');
+        same([403, 'registration_disabled'], [($r = googleSignIn('10.27.10.3', $closed))->status, $r->code()], 'no new accounts at the moment');
+        same([400, 'invalid_token'], [($r = connectGoogle(accountPage('10.27.10.4', 'othertaker'), $closed))->status, $r->code()], 'the account page refuses it - ' . $r->body);
+        same('spent', tokenUse($closed), 'spent at once');
+    } finally {
+        setting('registration_enabled', 'true');
+    }
+    same(null, identityFor(iamDb(), (int) (userByEmail(iamDb(), 'taker@example.test')['id'] ?? 0), IDENTITY_GOOGLE), 'nothing connected to the one who saw them');
+});
+
+test(
+    'a refusal of the account holds the token too - nothing else takes it - and the same account\'s sign-in finishes with it once the refusal lifts; a held token naming another account by then is refused',
+    function () {
+        // An account switched off, its Google attached: the sign-in refused, the token held.
+        $offId = makeUser('switchedoff', 'switchedoff@example.test');
+        attachIdentity(iamDb(), $offId, IDENTITY_GOOGLE, 'google-switchedoff', 'switchedoff@example.test');
+        iamDb()->exec("UPDATE users SET disabled = TRUE WHERE id = {$offId}");
+        $token = googleToken('google-switchedoff', 'switchedoff@example.test');
+        same([403, 'account_disabled'], [($r = googleSignIn('10.27.11.1', $token))->status, $r->code()], 'switched off');
+        same("held for {$offId}", tokenUse($token), 'held for its sign-in');
+        same([400, 'invalid_token'], [($r = connectGoogle(accountPage('10.27.11.2', 'bystander'), $token))->status, $r->code()], 'the account page refuses it');
+        iamDb()->exec("UPDATE users SET disabled = FALSE WHERE id = {$offId}");
+        same(200, googleSignIn('10.27.11.1', $token)->status, 'switched on again: the same token signs it in');
+        same('spent', tokenUse($token), 'and is spent');
+
+        // Held for one account, then naming another - the first account's address moved, another account's took it.
+        $firstId = makeUser('firstholder', 'moving@example.test');
+        $secret = twoFactorOn($firstId);
+        $moving = googleToken('google-moving', 'moving@example.test');
+        same([403, 'totp_required'], [($r = googleSignIn('10.27.11.3', $moving))->status, $r->code()], 'held for the first account\'s sign-in');
+        iamDb()->exec("UPDATE users SET email = 'moved-away@example.test' WHERE id = {$firstId}");
+        $secondId = makeUser('secondholder', 'moving@example.test');
+        $refused = googleSignIn('10.27.11.4', $moving, ['totp' => rightCode($firstId, $secret)]);
+        same([400, 'invalid_token'], [$refused->status, $refused->code()], 'naming another account now: refused - ' . $refused->body);
+        same([null, "held for {$firstId}"], [identityFor(iamDb(), $secondId, IDENTITY_GOOGLE), tokenUse($moving)], 'nothing attached, the hold as it was');
+    },
+);
+
+test('the hold is claimed once, by the account it is held for; an account deleted - or a row of it deleted outright - leaves it spent', function () {
+    $pdo = iamDb();
+    $heldId = makeUser('heldone', 'heldone@example.test');
+    $otherId = makeUser('otherone', 'otherone@example.test');
+    $token = googleToken('google-heldone', 'heldone@example.test');
+    $claims = googleIdTokenClaims($token);
+    check($claims !== null, 'a token that verifies');
+
+    same(
+        [true, true, false],
+        [holdGoogleIdToken($pdo, $token, $claims, $heldId), holdGoogleIdToken($pdo, $token, $claims, $heldId), holdGoogleIdToken($pdo, $token, $claims, $otherId)],
+        'held for one account - again for it, never for another',
+    );
+    same(null, googleVerifyIdToken($token), 'held, it verifies for nothing else');
+    same(
+        [false, false, true, false],
+        [
+            spendGoogleIdToken($pdo, $token, $claims, $otherId),
+            spendGoogleIdToken($pdo, $token, $claims),
+            spendGoogleIdToken($pdo, $token, $claims, $heldId),
+            spendGoogleIdToken($pdo, $token, $claims, $heldId),
+        ],
+        'spent neither for another account nor as a new token - by its own account\'s sign-in, once',
+    );
+
+    // An account deleted: its holds spent, nothing taking them up.
+    $gone = googleToken('google-goneone', 'goneone@example.test');
+    $goneId = makeUser('goneone', 'goneone@example.test');
+    check(holdGoogleIdToken($pdo, $gone, (array) googleIdTokenClaims($gone), $goneId), 'held for an account');
+    $pdo->prepare(
+        "UPDATE users SET disabled = TRUE, password = NULL, password_login_enabled = FALSE, email_confirmed = FALSE,
+                    deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '30 days', deletion_due_at = CURRENT_TIMESTAMP, anonymized_at = CURRENT_TIMESTAMP
+              WHERE id = ?",
+    )->execute([$goneId]);
+    anonymizedLeftovers($pdo);
+    same('spent', tokenUse($gone), 'deleted: the hold spent');
+
+    $erased = googleToken('google-erased', 'erased@example.test');
+    $erasedId = makeUser('erasedone', 'erased@example.test');
+    check(holdGoogleIdToken($pdo, $erased, (array) googleIdTokenClaims($erased), $erasedId), 'held for another');
+    $pdo->prepare('DELETE FROM user_roles WHERE user_id = ?')->execute([$erasedId]);
+    $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$erasedId]);
+    same('spent', tokenUse($erased), 'its row deleted outright: spent, not freed');
 });
 
 test('the attack: a Google token that signed somebody in signs nobody in again - from another browser within its hour, nor with its signature written another way', function () {
@@ -208,7 +358,7 @@ test('the attack: a Google token that signed somebody in signs nobody in again -
     same([], $thief->cookies, 'no cookie of any kind');
     same([400, 'invalid_token'], [($r = googleSignIn('10.27.1.3', rewrittenSignature($token)))->status, $r->code()], 'its signature written another way: refused too');
     same(1, sessionsOf($id), 'no session opened by either');
-    check(spentHere($token), 'the token kept as spent');
+    same('spent', tokenUse($token), 'the token kept as spent');
 
     // Written another way the signature is Google's all the same - one is the other: whichever comes first spends both.
     $fresh = googleToken('google-replayed', 'replayed@example.test');
@@ -254,25 +404,28 @@ test('a token older than five minutes is refused - at the sign-in and on the acc
     same([300, 60], [GOOGLE_ID_TOKEN_MAX_AGE, GOOGLE_CLOCK_SKEW], 'the code\'s five minutes, and a minute either way');
 });
 
-test('a sign-in stopped for its second factor spends nothing: the page sends the same token again with the code - and once that opens a session, it is spent', function () {
-    $id = makeUser('guarded', 'guarded@example.test');
-    attachIdentity(iamDb(), $id, IDENTITY_GOOGLE, 'google-guarded', 'guarded@example.test');
-    $secret = twoFactorOn($id);
-    $token = googleToken('google-guarded', 'guarded@example.test');
+test(
+    'a sign-in stopped for its second factor spends nothing - it holds the token for that account: the page sends the same token again with the code - and once that opens a session, it is spent',
+    function () {
+        $id = makeUser('guarded', 'guarded@example.test');
+        attachIdentity(iamDb(), $id, IDENTITY_GOOGLE, 'google-guarded', 'guarded@example.test');
+        $secret = twoFactorOn($id);
+        $token = googleToken('google-guarded', 'guarded@example.test');
 
-    same([403, 'totp_required'], [($r = googleSignIn('10.27.3.1', $token))->status, $r->code()], 'the code asked for');
-    same([403, 'totp_invalid'], [($r = googleSignIn('10.27.3.1', $token, ['totp' => wrongCode($secret)]))->status, $r->code()], 'a wrong one');
-    check(!spentHere($token), 'nothing spent yet');
-    same(0, sessionsOf($id), 'nor a session');
+        same([403, 'totp_required'], [($r = googleSignIn('10.27.3.1', $token))->status, $r->code()], 'the code asked for');
+        same([403, 'totp_invalid'], [($r = googleSignIn('10.27.3.1', $token, ['totp' => wrongCode($secret)]))->status, $r->code()], 'a wrong one');
+        same("held for {$id}", tokenUse($token), 'nothing spent yet: held for this account\'s sign-in');
+        same(0, sessionsOf($id), 'nor a session');
 
-    $through = googleSignIn('10.27.3.1', $token, ['totp' => rightCode($id, $secret)]);
-    same(200, $through->status, 'the same token with the right code: signed in - ' . $through->body);
-    same(['google', true], newestSession($id), 'a session of two factors');
-    $again = googleSignIn('10.27.3.2', $token, ['totp' => rightCode($id, $secret)]);
-    same([400, 'invalid_token'], [$again->status, $again->code()], 'and never again, whatever code comes with it');
-    same(1, sessionsOf($id), 'one session');
-    check(spentHere($token), 'spent by the sign-in');
-});
+        $through = googleSignIn('10.27.3.1', $token, ['totp' => rightCode($id, $secret)]);
+        same(200, $through->status, 'the same token with the right code: signed in - ' . $through->body);
+        same(['google', true], newestSession($id), 'a session of two factors');
+        $again = googleSignIn('10.27.3.2', $token, ['totp' => rightCode($id, $secret)]);
+        same([400, 'invalid_token'], [$again->status, $again->code()], 'and never again, whatever code comes with it');
+        same(1, sessionsOf($id), 'one session');
+        same('spent', tokenUse($token), 'spent by the sign-in');
+    },
+);
 
 test(
     'every way a token changes something spends it - an account made, an identity attached by its address, Google connected on the account page - and spent one way, it is spent for the others',
@@ -306,7 +459,7 @@ test(
         // Refusals that change nothing spend nothing: Google already connected, then on another account.
         $spare = googleToken('google-connector', 'elsewhere@example.test');
         same([409, 'google_taken'], [($r = $other->post('/api/account/google', ['credential' => $spare, 'password' => PASSWORD]))->status, $r->code()], 'connected to another account already');
-        check(!spentHere($spare), 'not spent by a refusal');
+        same('none', tokenUse($spare), 'not spent by a refusal');
         same(200, googleSignIn('10.27.4.7', $spare)->status, 'so it still signs its owner in');
     },
 );

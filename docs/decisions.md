@@ -2371,9 +2371,10 @@ loosens a rule; each adds to one (`docs/architecture.md`, rules 4, 12, 13).
   base64 leaves bits of the signature's last character unread, so the same
   signature can be written several ways, each verifying, and a hash of the
   whole would take each for a new token (`tests/google-tokens.test.php` writes
-  one so). The row says nothing of the person - no account, no address - and
-  lives an hour at most, so the Privacy page, which lists what the IAM keeps
-  of a person, is unchanged. Before 026 is applied a token is held to its five
+  one so). The row says nothing of the person - no address; an account only
+  while a sign-in holds it (the review below) - and lives an hour at most, so
+  the Privacy page, which lists what the IAM keeps of a person, is
+  unchanged. Before 026 is applied a token is held to its five
   minutes alone (`googleTokensReady()`). A nonce bound to the page was not
   added: the freshness and the single use are what was asked, and Google's
   script still loads only on a press.
@@ -2418,3 +2419,83 @@ loosens a rule; each adds to one (`docs/architecture.md`, rules 4, 12, 13).
   frontend's `confirm-email.component.spec.ts`: nothing sent as the page
   opens, the press, `other_account` leaving the session and offering sign-out,
   `already_confirmed`, the code's step.
+
+## 2026-10-20 - The review of that change: a Google token held for its sign-in, and six smaller things
+
+The security review of d0e34fb (the entry above) found one Low and six Nits,
+no more; all are fixed, and migration 026 - applied on no live IAM yet - was
+amended rather than followed by a 027.
+
+- **Low: a Google token left unspent at the second-factor stop could be spent
+  elsewhere.** The Google sign-in spent a token only at its first change, so
+  one stopped at `totp_required` - or refused `unverified_email`,
+  `registration_disabled` - stayed free for its five minutes, and
+  `POST /api/account/google` took any fresh, unspent token: whoever saw a
+  victim's token (two-factor on, no Google yet) connected the victim's Google
+  to an account of their own, the victim's code then failed, and every later
+  sign-in with that Google account landed in the attacker's account - a
+  site's waiting sign-in too. Now, from the moment the Google sign-in finds the
+  account a token names - by its identity, else by the address Google vouches
+  for - the token is held for that account's sign-in (`held_for_user` in
+  `google_id_tokens_used`, `holdGoogleIdToken()`), before anything else is
+  asked, the limiter included: so every answer after that leaves it held or
+  spent, never free. Held, it is refused to everything else - the account
+  page's connect (`googleVerifyIdToken()` refuses any token used here,
+  however) and another account's sign-in - and the same account's sign-in
+  claims the hold when it spends it (`UPDATE ... WHERE held_for_user = ?`,
+  one row: a racing request loses). A token that names no account is spent at
+  once, since nothing a second try with it could cure follows: an account
+  made of it, or `unverified_email`, `registration_disabled`. The hold names
+  the account for the token's hour at most - an attempt in progress, which the
+  sign-in attempts already record -, so the Privacy page stays as it is; an
+  account deleted meanwhile leaves its holds spent (`anonymizedLeftovers()`),
+  and a `users` row deleted outright too (`ON DELETE SET NULL`). The
+  alternative, Google's nonce bound to the browser by a cookie, was not
+  simpler: it needs a cookie and a round trip before every press, and still
+  the hold for the code's step.
+- **The confirmation's "only while the address waits" is decided in the
+  write**: `UPDATE users SET email_confirmed = TRUE WHERE id = ? AND NOT
+  email_confirmed`. A link whose request read the account a moment before a
+  reset, Google, an administrator or another link confirmed it opened a
+  session all the same - after a reset, one that could outlive "a reset
+  takes an account back completely"; two racing links gave two sessions. Now
+  the write finds the address confirmed, the links are spent, and the answer
+  is `already_confirmed`.
+- **The docs said a refusal of the account spends nothing**, while the
+  sign-in by the address spent the token before it: for an account confirmed
+  all along the token is now spent just before the identity is attached, its
+  first change - a refusal before that leaves it held -, and for one never
+  confirmed just before the registrant's settings are taken.
+- **Sessions the hole had opened kept saying `mfa`**: `amrFor()` reads
+  `sessions.mfa` at every mint, so a session a leftover link opened went on
+  minting `["email","otp","mfa"]` for up to 30 days. 026 ends the live
+  `email_link` sessions of accounts with two-factor on whose `mfa` is true,
+  with their refresh tokens, for a `security_change` - as the IAM ends one.
+  A reset's session among them had its code asked: its owner signs in once
+  more, the cost of telling the two apart nowhere else.
+- **`already_confirmed` for a link of an account moved elsewhere** told the
+  old address's holder that the account lived on, confirmed. A confirmation
+  link now notes the address it was mailed to - the SHA-256 of it, lower
+  case, in the link's context, never the address -, and confirms that
+  address, or says it is confirmed, only while it is still the account's;
+  otherwise `invalid_token`. Links mailed before the mark are not taken as
+  confirmed (`invalid_token`), a cost of a few days' old mail at most.
+- **The confirmation page names the account it signed in to** ("Signed in as
+  {name} ({email}).", `confirm.signedInAs`, 026's seventh key, in English and
+  informal Slovak): somebody who pressed a stranger's link sees whose account
+  it is before a site's waiting sign-in takes it.
+- **Tests** (`tests/google-tokens.test.php`, `tests/confirmation-links.test.php`,
+  `confirm-email.component.spec.ts`): the Low's attack - a token stopped at
+  `totp_required` refused by the account page (failing against d0e34fb), then
+  finishing the victim's own sign-in -; `unverified_email` and
+  `registration_disabled` spending at once, refused by the account page
+  after (failing against d0e34fb); a refusal of the account holding the token
+  until it lifts, and a held token naming another account by then refused;
+  the hold claimed once, by its own account; a deleted account's and a deleted
+  row's holds spent. The write's race - the address confirmed between the
+  read and the write, by a trigger at the moment the link is spent (failing
+  against d0e34fb) -; two-factor switched on in the very write that confirms
+  (`sign_in`); the mark of the address, and a link of a moved account,
+  spent or live, saying nothing (failing against d0e34fb); 026 ending the
+  sessions that say `mfa` - and nothing else - and its gate failing on one
+  left; the page naming the account.

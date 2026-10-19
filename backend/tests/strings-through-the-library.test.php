@@ -177,6 +177,7 @@ const LATER_PAGE_KEYS = [
     'confirm.signInText',
     'confirm.otherAccountText',
     'confirm.signOutAndIn',
+    'confirm.signedInAs',
 ];
 const LATER_MAIL_KEYS = ['mail.authenticatorPaused.subject', 'mail.authenticatorPaused.greeting', 'mail.authenticatorPaused.intro', 'mail.authenticatorPaused.ignore'];
 

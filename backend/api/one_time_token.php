@@ -145,16 +145,20 @@ function spendConfirmationLinks(PDO $pdo, int $userId): void
 
 /**
  * Whether a confirmation link was mailed for an account whose address is
- * confirmed now - the link spent, run out or live. Not for a link never
- * mailed, one swept (a month after it ran out), or one of an address not
- * confirmed now - an anonymized account's never is (016).
+ * confirmed now - the link spent, run out or live - and to that very address
+ * (confirmationLinkToAddress()). Not for a link never mailed, one swept (a
+ * month after it ran out), one of an address not confirmed now - an
+ * anonymized account's never is (016) -, one mailed to an address the account
+ * no longer has, or one from before links noted where they went.
  *
  * What the confirmation answers a link with that confirms nothing any more:
  * "the address is confirmed" - rather than "that link did not work" - to the
  * mailbox's owner opening an older mail. findOneTimeToken() tells no failure
  * apart, so that a near guess learns nothing; this tells apart only a link
  * that was mailed - 256 random bits nobody guesses - and says nothing of its
- * account but that its address is confirmed.
+ * account but that the address it went to is confirmed. Nothing to the holder
+ * of an address the account has left: whether it lives on, confirmed
+ * somewhere else, is none of theirs (the review of d0e34fb).
  */
 function linkOfConfirmedAddress(PDO $pdo, string $token): bool
 {
@@ -162,10 +166,45 @@ function linkOfConfirmedAddress(PDO $pdo, string $token): bool
         return false;
     }
 
-    $statement = $pdo->prepare('SELECT 1 FROM user_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ? AND t.purpose = ? AND u.email_confirmed');
+    $statement = $pdo->prepare('SELECT t.context, u.email FROM user_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ? AND t.purpose = ? AND u.email_confirmed');
     $statement->execute([sha256($token), TOKEN_EMAIL_CONFIRM]);
+    $link = $statement->fetch();
 
-    return $statement->fetchColumn() !== false;
+    return $link !== false && confirmationLinkToAddress($link, (string) $link['email']) === true;
+}
+
+/**
+ * A mark of the address a confirmation link is mailed to: its SHA-256, lower
+ * case - kept in the link's context (confirmationLinkContext()), never the
+ * address itself.
+ */
+function confirmationAddressMark(string $email): string
+{
+    return sha256(strtolower(trim($email)));
+}
+
+/**
+ * What a confirmation link carries in its context: the mark of the address it
+ * is mailed to, beside the application a registration came from ($context).
+ * A link confirms an address - and says it is confirmed - only while that is
+ * still the account's address (confirmationLinkToAddress()).
+ */
+function confirmationLinkContext(string $email, ?array $context = null): array
+{
+    return ['address' => confirmationAddressMark($email)] + ($context ?? []);
+}
+
+/**
+ * Whether a confirmation link (its row) was mailed to `$email`, the account's
+ * address now: true; false when the account's address is another since - an
+ * administrator changed it -; null for a link from before links noted where
+ * they went (2026-10-20), of which nobody can tell.
+ */
+function confirmationLinkToAddress(array $link, string $email): ?bool
+{
+    $mark = tokenContext($link)['address'] ?? null;
+
+    return is_string($mark) ? hash_equals($mark, confirmationAddressMark($email)) : null;
 }
 
 function tokenContext(array $token): array

@@ -35,6 +35,9 @@
                 <span class="auth-icon is-success"><anotoki-icon name="checkCircle" [size]="22" /></span>
                 <h1 tabindex="-1" anotokiAutofocus>{{ "confirm.doneTitle" | t }}</h1>
                 <p>{{ "confirm.doneText" | t }}</p>
+                @if (signedInAs(); as account) {
+                    <p class="signed-in-as">{{ "confirm.signedInAs" | t: { name: account.username, email: account.email } }}</p>
+                }
             </header>
             <div class="actions">
                 @if (continueTo(); as target) {

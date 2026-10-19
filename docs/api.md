@@ -1012,13 +1012,28 @@ somebody in, made an account, claimed one or attached an identity here, or
 connected Google on the account page, is remembered until it runs out and is
 `400 invalid_token` ever after, from any browser, however its signature is
 written. The same `invalid_token` as one that does not verify - the page tells
-none apart and asks Google for a new one. A sign-in stopped before anything
-changed - `totp_required`, `totp_invalid`, `authenticator_paused`, a refusal of
-the account - spends nothing: the page sends the same credential again with the
-code, within those five minutes. What is kept is the SHA-256 of what Google
-signed (its header and claims) and when the token runs out - nothing of the
-person; housekeeping sweeps it after that. Before 026 is applied a credential
-is held to its five minutes alone.
+none apart and asks Google for a new one.
+
+**From the moment it names an account it is that account's sign-in's alone**
+(the review of d0e34fb). The account it names - the one its Google identity is
+attached to, else the one whose address Google vouches for - holds it: a
+sign-in stopped before anything changed (`totp_required`, `totp_invalid`,
+`authenticator_paused`, `429 too_many_attempts`, a refusal of an account
+confirmed all along: switched off, signing in off) spends nothing, so the page
+sends the same credential again with the code, within those five minutes - and
+nothing else takes it meanwhile: `POST /api/account/google` refuses it
+`invalid_token`, and so does this endpoint should it name another account by
+then. Left free, a credential waiting for its code was anybody's who saw it,
+to connect the victim's Google to an account of their own. It is spent just
+before the first thing it changes: the registrant's settings taken from an
+account never confirmed, the identity attached, the session opened. A
+credential that names no account is spent at once - an account is made of it,
+or it is refused in a way no second try cures (`unverified_email`,
+`registration_disabled`). What is kept is the SHA-256 of what Google signed
+(its header and claims), when the token runs out and, while it is held, the
+account whose sign-in holds it; housekeeping sweeps it after that, and an
+account deleted meanwhile leaves its holds spent. Before 026 is applied a
+credential is held to its five minutes alone.
 
 Attaching to an account whose address was never confirmed first removes
 everything its registrant set - password, two-factor, recovery codes,
@@ -1055,12 +1070,18 @@ spent with this one; then:
 
 - `{ "signed_in": true, "user": AccountUser, "device_token": null, "continue_to": { "name", "url" } | null }`
   and the session cookie is set - the link signed in (method `email_link`;
-  `amr` `["email"]`, or `["email", "otp", "mfa"]` with the code below).
+  `amr` `["email"]`, or `["email", "otp", "mfa"]` with the code below). The
+  page names the account (`user.username`, `user.email`), so somebody who
+  pressed a stranger's link sees whose account it is before a site's waiting
+  sign-in takes it.
 - `{ "signed_in": false, "reason": "..." }` - the address is confirmed and
   nobody is signed in by the link; nothing of the account is in the answer:
   - `already_confirmed` - the address was confirmed before this link: an older
     one (a second was mailed by "send it again"), this one opened again, one
-    left over from a build before 026. It opens nothing and is spent; the page
+    left over from a build before 026 - or by something else while this
+    request was on its way: the write that confirms asks that the address
+    still waits (the review of d0e34fb), so a link racing a reset, Google or
+    another link opens nothing. It opens nothing and is spent; the page
     offers the sign-in page.
   - `other_account` - confirmed now, while this browser is signed in to another
     account, which stays signed in: the link never puts its account's session
@@ -1083,9 +1104,15 @@ spent, confirmed or opened until it passes, so the same press goes again with
 the code. No remembered browser stands in, as on a reset; no code is asked
 where the link opens no session (`other_account`).
 
+A link notes the address it was mailed to (a SHA-256 of it, lower case, in
+its context; links mailed since the review of d0e34fb): it confirms that
+address, and says it is confirmed, only while it is still the account's.
+
 `400 invalid_token` for a link that does not work: never mailed, run out with
-its address still unconfirmed, swept a month after it ran out, or of an
-account deleted since. An account waiting for approval, switched off, or
+its address still unconfirmed, swept a month after it ran out, mailed to an
+address the account no longer has (an administrator moved it - nothing is said
+of the account to whoever holds the old address), or of an account deleted
+since. An account waiting for approval, switched off, or
 while signing in is off, has its address confirmed and the link spent all the
 same, and is answered as at every way in - `403 approval_pending`,
 `account_disabled`, `login_disabled` - with no session.
@@ -1187,7 +1214,7 @@ interface AccountUser {
 | `PUT /api/account/password` | `{ current_password, new_password }` | `{ message }` - other sessions and remembered devices end; a forced change done sets a new sign-in hint (above), so the sites that met `interaction_required` try again; `422 wrong_password` for a wrong current password, each one counted by the sign-in limiter: `429 too_many_attempts` past it (ten from one address in 15 minutes), the right one included |
 | `POST /api/account/password/set` | `{ password }` | `AccountUser` - first password on an account without one; also clears a forced change, and then sets a new sign-in hint. Asks for the proof below - for an account with no password, a sign-in of the last 15 minutes: `403 reauthentication_required` otherwise. `409 password_already_set`, `422 invalid_password` |
 | `PUT /api/account/password/enabled` | `{ enabled, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, to switch password sign-in off; a sign-in of the last 15 minutes to switch it on. `409 would_lock_account` / `no_password` first |
-| `POST /api/account/google` | `{ credential, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, while password sign-in is on; else a sign-in of the last 15 minutes. `400 invalid_token` for a credential that does not verify - more than five minutes old or used before included (`POST /api/login/google`): connecting spends it -, `409` already connected elsewhere |
+| `POST /api/account/google` | `{ credential, password? }` | `AccountUser` - asks for the proof below: `password`, the current one, while password sign-in is on; else a sign-in of the last 15 minutes. `400 invalid_token` for a credential that does not verify - more than five minutes old, used before, or held for an account's sign-in waiting for its code included (`POST /api/login/google`): connecting spends it -, `409` already connected elsewhere |
 | `DELETE /api/account/google` | | `AccountUser` - `409 would_lock_account` |
 | `POST /api/account/2fa/setup` | | `{ secret, uri }` (otpauth URI for the QR code) - a new secret each time, replacing one still waiting; nothing changes until enable confirms it. `409 totp_already_on` first; then, for an account whose password is not a way in, `403 reauthentication_required` while its sign-in is more than 15 minutes old - before a secret is made, since enable would refuse that sign-in (the proof below). An account whose password is a way in sets up from a sign-in of any age |
 | `POST /api/account/2fa/enable` | `{ code, password? }` | `{ recovery_codes: string[] }` - other sessions, remembered devices and any confirmation link still out end. `409 totp_already_on` / `totp_not_started` first; then the proof below, before the code is read: `password`, the current one, while password sign-in is on, else a sign-in of the last 15 minutes (`429 too_many_attempts`, `422 wrong_password`, `403 reauthentication_required`); then `400 totp_invalid` for a wrong code |

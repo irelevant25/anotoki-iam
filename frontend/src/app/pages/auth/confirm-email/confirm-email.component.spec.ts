@@ -115,6 +115,18 @@ describe('the confirmation page: nothing sent before the press, and another acco
     expect(control(host, 'Continue to Genshin Impact')).not.toBeNull();
   });
 
+  it('signed in, the page names the account - a stranger’s link shows whose account it is before a site’s waiting sign-in takes it', async () => {
+    const host = await open();
+    (await press(host)).flush({ signed_in: true, user: account(8, 'stranger@example.test'), device_token: null, continue_to: { name: 'Genshin Impact', url: 'http://localhost:4200/' } });
+    await settled();
+
+    expect(host.querySelector('.signed-in-as')?.textContent?.trim()).toBe('Signed in as stranger (stranger@example.test).');
+    // Named before the way on to the site, which comes after it.
+    const named = host.querySelector('.signed-in-as')!;
+    const onward = control(host, 'Continue to Genshin Impact')!;
+    expect(named.compareDocumentPosition(onward) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('another account signed in here: the address confirmed, and this browser stays signed in to it - the session untouched, and a way to sign in with the confirmed one', async () => {
     const session = TestBed.inject(SessionService);
     const signedIn = account(3, 'victim@example.test');
@@ -128,6 +140,7 @@ describe('the confirmation page: nothing sent before the press, and another acco
     expect(session.user()).toEqual(signedIn);
     expect(heading(host)).toBe(en['confirm.doneTitle']);
     expect(host.textContent).toContain(en['confirm.otherAccountText']);
+    expect(host.querySelector('.signed-in-as')).toBeNull();
     expect(control(host, en['common.goToAccount'])?.getAttribute('href')).toBe('/account');
 
     control(host, en['confirm.signOutAndIn'])!.click();
@@ -149,6 +162,7 @@ describe('the confirmation page: nothing sent before the press, and another acco
     expect(session.user()).toBeUndefined();
     expect(heading(host)).toBe(en['confirm.doneTitle']);
     expect(host.textContent).toContain(en['confirm.signInText']);
+    expect(host.querySelector('.signed-in-as')).toBeNull();
     expect(control(host, en['common.signIn'])?.getAttribute('href')).toBe('/login');
   });
 

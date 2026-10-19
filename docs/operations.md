@@ -622,17 +622,22 @@ on the host again**: an older build neither takes a deleted person out of
 their messages nor prunes them, and its Privacy page says the IAM takes no
 feedback; fix forward.
 
-Migration **026** (the security review of 2026-10-19, `docs/decisions.md`):
-upload both halves, then Apply. It spends every confirmation link an address
-already confirmed still holds, makes the table that keeps a Google sign-in
-from being used twice, and brings the confirmation page's six new words - the
-page now asks for a press ("Confirm my address") before it confirms anything.
-Until Apply the page shows those words as keys and a Google token is held to
-its five minutes alone; everything else works. The sites need nothing: an
-`amr` says `mfa` only where a second factor was checked, which is what it
-always claimed. **Once 026 is applied, no build from before it goes on the
-host again** - it would open the three holes again, and its confirmation page
-would read a confirmation that signs nobody in as a sign-in; fix forward.
+Migration **026** (the security review of 2026-10-19 and the review of its
+change, `docs/decisions.md`): upload both halves, then Apply. It spends every
+confirmation link an address already confirmed still holds, ends the live
+sessions a confirmation or reset link opened on an account with two-factor on
+that say `mfa` (with their refresh tokens - their owners sign in once more;
+the account page lists them "Ended by a security change"), makes the table
+that keeps a Google sign-in from being used twice or taken by anybody else,
+and brings the confirmation page's seven new words - the page now asks for a
+press ("Confirm my address") before it confirms anything, and names the
+account it signed in to. Until Apply the page shows those words as keys and a
+Google token is held to its five minutes alone; everything else works. The
+sites need nothing: an `amr` says `mfa` only where a second factor was
+checked, which is what it always claimed. **Once 026 is applied, no build
+from before it goes on the host again** - it would open the three holes
+again, and its confirmation page would read a confirmation that signs nobody
+in as a sign-in; fix forward.
 
 ### The family's library (anotoki/lib)
 

@@ -12,12 +12,17 @@
  * `aud` is what says this one was minted for us.
  *
  * And two more since the security review of 2026-10-19: the token is fresh -
- * issued in the last five minutes - and new - not spent here before. Google
+ * issued in the last five minutes - and new - not used here before. Google
  * signs a token for an hour, and the IAM took it as often as it came within
  * that hour: whoever saw one (a log, a tab's memory, a proxy) signed in with
  * it again, a site's "Sign in again" (prompt=login) answered too. A token is
  * spent (spendGoogleIdToken()) the moment it changes something, and is
- * remembered until it runs out (google_id_tokens_used, migration 026).
+ * remembered until it runs out (google_id_tokens_used, migration 026). Before
+ * that, from the moment the Google sign-in finds the account it names, it is
+ * held for that account's sign-in (holdGoogleIdToken()): back with the second
+ * factor's code there, refused everywhere else - a token left waiting for its
+ * code was once free for anybody who saw it to connect to an account of their
+ * own (the review of d0e34fb).
  *
  * The client id is config/google.local.php's (googleClientId(), in
  * config/google.php). No file means no Google: the button is not drawn and the
@@ -148,13 +153,26 @@ function googleSigningKeys(bool $ignoreCache = false): array
  * The caller is told none of them apart.
  *
  * Fresh and new as well as Google's: one issued more than five minutes ago
- * (googleIdTokenFresh()) is none, nor is one spent here before
- * (googleIdTokenSpent()). Checking spends nothing: the caller spends the token
- * (spendGoogleIdToken()) just before the first thing it changes, so a sign-in
- * that stops to ask for the second factor takes the same token again with the
- * code.
+ * (googleIdTokenFresh()) is none, nor is one used here before - spent, or held
+ * for an account's sign-in (googleIdTokenSeen()). Checking spends nothing: the
+ * caller spends the token (spendGoogleIdToken()) just before the first thing
+ * it changes. Everything but the Google sign-in asks this; the sign-in alone
+ * takes back a token held for its own account, and asks googleIdTokenClaims().
  */
 function googleVerifyIdToken(string $idToken): ?array
+{
+    $claims = googleIdTokenClaims($idToken);
+
+    return $claims !== null && !googleIdTokenSeen(iamDb(), $idToken) ? $claims : null;
+}
+
+/**
+ * Google's own checks of an id token, and its freshness: its claims, or null
+ * for every way it fails them. Nothing about whether it was used here - the
+ * Google sign-in asks that itself, of the account it finds (holdGoogleIdToken(),
+ * spendGoogleIdToken()); everything else asks googleVerifyIdToken().
+ */
+function googleIdTokenClaims(string $idToken): ?array
 {
     $clientId = googleClientId();
     $parts = explode('.', $idToken);
@@ -189,8 +207,7 @@ function googleVerifyIdToken(string $idToken): ?array
         ($claims['aud'] ?? '') !== $clientId ||
         (int) ($claims['exp'] ?? 0) + GOOGLE_CLOCK_SKEW < time() ||
         !googleIdTokenFresh($claims) ||
-        empty($claims['sub']) ||
-        googleIdTokenSpent(iamDb(), $idToken)
+        empty($claims['sub'])
     ) {
         return null;
     }
@@ -229,18 +246,23 @@ function googleIdTokenKey(string $idToken): string
 }
 
 /**
- * Whether the database has migration 026's google_id_tokens_used. A catalog
- * question that cannot fail, asked afresh every time like the others: a build
- * is uploaded before its migrations, Google's sign-in works in between, and
- * the admin panel's Apply runs in the same process as the requests after it.
+ * Whether the database has migration 026's google_id_tokens_used, with its
+ * hold (`held_for_user`). A catalog question that cannot fail, asked afresh
+ * every time like the others: a build is uploaded before its migrations,
+ * Google's sign-in works in between, and the admin panel's Apply runs in the
+ * same process as the requests after it. A table without the hold - 026's
+ * first version, which only a development database ever ran - counts as none.
  */
 function googleTokensReady(PDO $pdo): bool
 {
-    return asBool($pdo->query("SELECT to_regclass('google_id_tokens_used') IS NOT NULL")->fetchColumn());
+    return asBool($pdo->query("SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('google_id_tokens_used') AND attname = 'held_for_user' AND NOT attisdropped)")->fetchColumn());
 }
 
-/** Whether the token was spent here before (spendGoogleIdToken()). Before 026, never: its five minutes alone hold it then. */
-function googleIdTokenSpent(PDO $pdo, string $idToken): bool
+/**
+ * Whether the token was used here before - spent, or held for an account's
+ * sign-in. Before 026, never: its five minutes alone hold it then.
+ */
+function googleIdTokenSeen(PDO $pdo, string $idToken): bool
 {
     if (!googleTokensReady($pdo)) {
         return false;
@@ -252,32 +274,100 @@ function googleIdTokenSpent(PDO $pdo, string $idToken): bool
     return $statement->fetchColumn() !== false;
 }
 
+/** The account whose sign-in a token is held for (holdGoogleIdToken()), or null: never seen, or spent. */
+function googleIdTokenHeldFor(PDO $pdo, string $idToken): ?int
+{
+    if (!googleTokensReady($pdo)) {
+        return null;
+    }
+
+    $statement = $pdo->prepare('SELECT held_for_user FROM google_id_tokens_used WHERE token_hash = ?');
+    $statement->execute([googleIdTokenKey($idToken)]);
+    $heldFor = $statement->fetchColumn();
+
+    return $heldFor === false || $heldFor === null ? null : (int) $heldFor;
+}
+
 /**
- * Spends a token googleVerifyIdToken() took, and answers whether this call is
- * the one that did: the hash is the table's key and the insert steps aside for
- * a row that is there, so two requests racing with one token cannot both be
- * told they won. The Google sign-in and the account page's connect call it
- * just before the first thing the token changes - a session opened, an
- * account made or claimed, an identity attached - never before.
+ * Holds a token googleIdTokenClaims() took for the sign-in of one account -
+ * the one the Google sign-in finds it names - and answers whether that sign-in
+ * may go on: a token never seen here is held for it now; one held for it
+ * already - the same sign-in, back with its code - goes on; one spent, or held
+ * for another account, does not.
  *
- * Remembered until the token runs out (its `exp`, with the clocks' leeway):
- * after that it is refused as expired anyway, and housekeeping sweeps the row.
- * Only the hash and that moment are kept - nothing of the person. Before 026
- * there is nowhere to remember it: true, as before it.
+ * From the moment the account is found, every answer leaves the token held or
+ * spent, never free: a sign-in stopped for the second factor, or refused
+ * before anything changed, keeps it for the same account's sign-in to finish,
+ * and googleVerifyIdToken() refuses it to everything else. Free, a token left
+ * waiting for its code was anybody's who saw it - to connect, on the account
+ * page, to an account of their own, which every later sign-in with that
+ * Google account then landed in (the review of d0e34fb).
+ *
+ * The hold names the account until the token runs out, as the spent row
+ * keeps its time; an account deleted meanwhile leaves its holds spent
+ * (anonymizedLeftovers()). Before 026: true, as before it.
  */
-function spendGoogleIdToken(PDO $pdo, string $idToken, array $claims): bool
+function holdGoogleIdToken(PDO $pdo, string $idToken, array $claims, int $userId): bool
 {
     if (!googleTokensReady($pdo)) {
         return true;
+    }
+
+    $held = $pdo->prepare(
+        "INSERT INTO google_id_tokens_used (token_hash, expires_at, held_for_user) VALUES (?, TIMESTAMPTZ 'epoch' + (? * INTERVAL '1 second'), ?)
+         ON CONFLICT (token_hash) DO NOTHING",
+    );
+    $held->execute([googleIdTokenKey($idToken), googleIdTokenKeptUntil($claims), $userId]);
+
+    return $held->rowCount() === 1 || googleIdTokenHeldFor($pdo, $idToken) === $userId;
+}
+
+/**
+ * Spends a token, and answers whether this call is the one that did - so two
+ * requests racing with one token cannot both be told they won. Called just
+ * before the first thing the token changes - a session opened, an account made
+ * or claimed, an identity attached or connected - never before.
+ *
+ * With `$heldFor`, the hold of that account's sign-in is claimed: the update
+ * asks that it is still that account's hold (one held before 026 was applied,
+ * by nothing, is spent by an insert as a new one is). Without, a token never
+ * seen here is spent by an insert that steps aside for a row that is there:
+ * the account page's connect, and a Google sign-in that found no account to
+ * hold it for - one making an account, or refused in a way no second try
+ * cures (`unverified_email`, `registration_disabled`).
+ *
+ * Remembered until the token runs out (its `exp`, with the clocks' leeway):
+ * after that it is refused as expired anyway, and housekeeping sweeps the row.
+ * Only the hash and that moment are kept. Before 026 there is nowhere to
+ * remember it: true, as before it.
+ */
+function spendGoogleIdToken(PDO $pdo, string $idToken, array $claims, ?int $heldFor = null): bool
+{
+    if (!googleTokensReady($pdo)) {
+        return true;
+    }
+
+    if ($heldFor !== null) {
+        $claimed = $pdo->prepare('UPDATE google_id_tokens_used SET held_for_user = NULL WHERE token_hash = ? AND held_for_user = ?');
+        $claimed->execute([googleIdTokenKey($idToken), $heldFor]);
+        if ($claimed->rowCount() === 1) {
+            return true;
+        }
     }
 
     $spent = $pdo->prepare(
         "INSERT INTO google_id_tokens_used (token_hash, expires_at) VALUES (?, TIMESTAMPTZ 'epoch' + (? * INTERVAL '1 second'))
          ON CONFLICT (token_hash) DO NOTHING",
     );
-    $spent->execute([googleIdTokenKey($idToken), (int) ($claims['exp'] ?? time()) + GOOGLE_CLOCK_SKEW]);
+    $spent->execute([googleIdTokenKey($idToken), googleIdTokenKeptUntil($claims)]);
 
     return $spent->rowCount() === 1;
+}
+
+/** Until when a used token is remembered, in seconds since the epoch: its `exp`, with the clocks' leeway - refused as expired after that anyway. */
+function googleIdTokenKeptUntil(array $claims): int
+{
+    return (int) ($claims['exp'] ?? time()) + GOOGLE_CLOCK_SKEW;
 }
 
 /** The account an identity belongs to, or null. Disabled accounts included - the caller decides. */

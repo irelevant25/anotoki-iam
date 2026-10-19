@@ -1,1 +1,9 @@
 @use "../auth-page";
+
+// Whose account the link signed in to: said plainly, in the text's own ink rather than the muted lead's, and
+// a long address broken where it must on a phone.
+.auth-head .signed-in-as {
+  color: var(--anotoki-text);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}

@@ -246,8 +246,8 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `users` | Accounts: username and address (unique regardless of case; a username chosen or made since 2026-10-19 is letters and digits only - `usernameRefusal()` -, one from before is kept), the password hash (nullable), whether password sign-in is on, the TOTP secret **encrypted**, the flags (confirmed, forced change, disabled, approved - false while it waits for an administrator, news_mail - whether it gets the announcements), the language and how every site is to look - `theme`, `date_format`, `time_format` (015), and a deletion its owner asked for - `deletion_requested_at`, `deletion_due_at`, then `anonymized_at` (016). The id is the `sub` every site keys its data on: a deleted account's row stays, a placeholder, so it is never anybody else's. |
 | `user_sign_in_devices` | The browsers an account signed in from at the IAM (016): the SHA-256 of the account's id and the browser's device cookie, first and last seen, the browser in a few words. Decides whether a sign-in is mailed; opens nothing. |
 | `user_identities` | Who an account is at Google: provider + permanent subject. |
-| `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). A confirmation link is good only while its address waits to be confirmed: every one of the account's is spent once the address is confirmed, by any way, and when two-factor is switched on (026). |
-| `google_id_tokens_used` | The Google id tokens that changed something here - a session opened, an account made or claimed, an identity attached or connected (026): the SHA-256 of what Google signed and when the token runs out, nothing of the person, so a token is good once; housekeeping sweeps it once it has run out. |
+| `user_tokens` | One-time mailed secrets: confirmation link, reset link, six-digit sign-in code - hashes only, with `context` (which application a registration came from). A confirmation link is good only while its address waits to be confirmed: every one of the account's is spent once the address is confirmed, by any way, and when two-factor is switched on (026); and only for the address it was mailed to, a SHA-256 of which its context keeps. |
+| `google_id_tokens_used` | The Google id tokens used here (026): the SHA-256 of what Google signed, when the token runs out, and - while the Google sign-in of the account it names waits for its second factor or was refused before anything changed - that account (`held_for_user`): held, the token is that sign-in's alone; spent the moment it changes something (a session opened, an account made or claimed, an identity attached or connected), so it is good once. Housekeeping sweeps it once it has run out; an account deleted leaves its holds spent. |
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
 | `sessions` | A signed-in browser at the IAM: the cookie's hash, a public `sid`, how it signed in, sliding expiry with an absolute cap. |
 | `login_attempts`, `email_log` | The limiter's memory and the history; the mail log keeps no bodies. An attempt's `outcome` says how it went (`bad_totp` - a wrong authenticator code, which the pause counts by account; `totp_paused` - one refused unchecked during a pause; `bad_email_code` - a wrong code by email beside the password during a pause, five of which end the mailbox's standing in until it ends; `email_code_paused` - one refused unchecked then; ...). The pause itself is `users.totp_paused_until`, and `totp_count_from` where the count starts again (019). |
@@ -717,9 +717,11 @@ written down, not a refactor.
 4. **The algorithm is pinned** (RS256) wherever a token is read - here and in
    the SDK. `typ` separates access tokens from ID tokens. A Google id token is
    taken only when it is Google's, for this IAM's client id, issued in the
-   last five minutes, and never used here before: spent the moment it changes
-   something, and remembered until it runs out (the security review of
-   2026-10-19).
+   last five minutes, and never used here before: from the moment the Google
+   sign-in finds the account it names it is that sign-in's alone - held for it
+   while it waits for its code -, spent the moment it changes something, and
+   remembered until it runs out (the security review of 2026-10-19, and the
+   review of its change).
 5. **Refresh tokens rotate; reuse ends the family.** A spent token gets one
    sibling within a minute (two tabs racing), never a second.
 6. **Only hashes** of secrets that open things; **only ciphertext** of secrets
@@ -773,12 +775,14 @@ written down, not a refactor.
     registrant set survives the owner's arrival. **A reset takes an account back
     completely** - sessions, personal tokens, devices, outside identities, the
     browsers it signed in from. **A confirmation link signs in only while its
-    address waits to be confirmed**, never past two-factor, and never in place
-    of another account's session this browser has: every link of the account
-    is spent once the address is confirmed, by any way, and when two-factor is
-    switched on; one of an address confirmed already opens nothing, and the
-    page sends a link only when the person presses its button (the security
-    review of 2026-10-19).
+    address waits to be confirmed** - decided in the write that confirms it -,
+    only for the address it was mailed to, never past two-factor, and never in
+    place of another account's session this browser has: every link of the
+    account is spent once the address is confirmed, by any way, and when
+    two-factor is switched on; one of an address confirmed already opens
+    nothing, and the page sends a link only when the person presses its
+    button, and names the account it signed in to (the security review of
+    2026-10-19, and the review of its change).
 14. **Plain http only for this computer** in redirect URIs and web origins, and
     **no loopback address survives a real host's install**: the development
     addresses a fresh database is seeded with go as the production ones arrive,
