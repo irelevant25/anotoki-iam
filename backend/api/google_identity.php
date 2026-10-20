@@ -150,24 +150,6 @@ function googleSigningKeys(bool $ignoreCache = false): array
 }
 
 /**
- * The claims of a Google id token, or null for every way it can fail to be one.
- * The caller is told none of them apart.
- *
- * Fresh and new as well as Google's: one issued more than five minutes ago
- * (googleIdTokenFresh()) is none, nor is one used here before - spent, or held
- * for an account (googleIdTokenSeen()). Checking spends nothing. For a way of
- * taking a token that does not hold it first: the Google sign-in and the
- * account page's connect hold it for their account the moment they know it
- * (holdGoogleIdToken()), and ask googleIdTokenClaims() before that.
- */
-function googleVerifyIdToken(string $idToken): ?array
-{
-    $claims = googleIdTokenClaims($idToken);
-
-    return $claims !== null && !googleIdTokenSeen(iamDb(), $idToken) ? $claims : null;
-}
-
-/**
  * Google's own checks of an id token, and its freshness: its claims, or null
  * for every way it fails them. Nothing about whether it was used here - the
  * caller asks that by holding it for its account (holdGoogleIdToken()): the

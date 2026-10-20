@@ -534,18 +534,21 @@ test(
     },
 );
 
-test('a live link an older build left on an address confirmed already opens no session - with two-factor on too - and is spent by being opened', function () {
-    $id = makeUser('livelink', 'livelink@example.test');
-    twoFactorOn($id);
-    $link = issueOneTimeToken(iamDb(), $id, TOKEN_EMAIL_CONFIRM, 48 * 3600);
-    check(is_string($link), 'a live link');
+test(
+    'a live link an older build left - noting no address - opens no session and confirms nothing, with two-factor on too: since 026 it is no link of ours, refused as one, and spent by being opened',
+    function () {
+        $id = makeUser('livelink', 'livelink@example.test');
+        twoFactorOn($id);
+        $link = issueOneTimeToken(iamDb(), $id, TOKEN_EMAIL_CONFIRM, 48 * 3600);
+        check(is_string($link), 'a live link');
 
-    $browser = new Browser('10.26.4.1');
-    $answer = $browser->post('/api/register/confirm', ['token' => $link]);
-    same([[0, 0], []], [sessionsOf($id), $browser->cookies], 'no session, no cookie - the answer ' . $answer->body);
-    same([200, false, 'already_confirmed'], [$answer->status, $answer->json()['signed_in'] ?? null, $answer->json()['reason'] ?? null], 'the address is confirmed already');
-    same('spent', linkState($link), 'and the link is spent');
-});
+        $browser = new Browser('10.26.4.1');
+        $answer = $browser->post('/api/register/confirm', ['token' => $link]);
+        same([[0, 0], []], [sessionsOf($id), $browser->cookies], 'no session, no cookie - the answer ' . $answer->body);
+        same([400, 'invalid_token'], [$answer->status, $answer->code()], 'a link that notes no address is refused, not told the address is confirmed (the review of 62af218)');
+        same('spent', linkState($link), 'and the link is spent');
+    },
+);
 
 test(
     'a link that would sign in an account with two-factor on asks for its code, as a reset does - nothing spent or confirmed before it, every wrong one counted, five pausing the account\'s codes, a recovery code standing in - and its session says mfa',

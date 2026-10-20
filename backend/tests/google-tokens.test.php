@@ -101,6 +101,19 @@ function rewrittenSignature(string $token): string
     return "{$header}.{$payload}.{$rewritten}";
 }
 
+/**
+ * Google's checks of a token and "never used here": its claims, or null. The
+ * server's own once (api/google_identity.php); no route asks it since the
+ * account page's connect holds its token first (the review of 62af218), so it
+ * lives here, where the tests still ask what it answers.
+ */
+function googleVerifyIdToken(string $idToken): ?array
+{
+    $claims = googleIdTokenClaims($idToken);
+
+    return $claims !== null && !googleIdTokenSeen(iamDb(), $idToken) ? $claims : null;
+}
+
 /** The Google sign-in, from a browser of its own address. */
 function googleSignIn(string $ip, string $token, array $extra = []): TestResponse
 {
@@ -427,6 +440,34 @@ test(
         same([400, 'invalid_token'], [$again->status, $again->code()], 'and never again, whatever code comes with it');
         same(1, sessionsOf($id), 'one session');
         same('spent', tokenUse($token), 'spent by the sign-in');
+    },
+);
+
+test(
+    'a token held for an account is that account\'s on either way in (the review of 62af218): stopped at its own sign-in\'s code, its own account page connects it; held by its own account page, its own sign-in takes it',
+    function () {
+        // The sign-in finds the account by the address Google vouches for - no Google yet -, holds the token, asks the code.
+        $id = makeUser('either', 'either@example.test');
+        $secret = twoFactorOn($id);
+        $token = googleToken('google-either', 'either@example.test');
+        same([403, 'totp_required'], [($r = googleSignIn('10.27.16.1', $token))->status, $r->code()], 'the code asked for');
+        same("held for {$id}", tokenUse($token), 'held for this account');
+        $page = new Browser('10.27.16.2');
+        same(200, $page->signIn('either@example.test', PASSWORD, ['totp' => rightCode($id, $secret)])->status, 'the same account, signed in elsewhere');
+        $connected = $page->post('/api/account/google', ['credential' => $token, 'password' => PASSWORD]);
+        same(200, $connected->status, 'its own account page connects the token its sign-in holds: ' . $connected->body);
+        same(['google-either', 'spent'], [identityFor(iamDb(), $id, IDENTITY_GOOGLE)['subject'] ?? null, tokenUse($token)], 'connected, and spent');
+
+        // The other way: the account page holds a token sent with a wrong password; the account's own sign-in takes it.
+        $otherId = makeUser('eithertoo', 'eithertoo@example.test');
+        $own = new Browser('10.27.16.3');
+        same(200, $own->signIn('eithertoo@example.test', PASSWORD)->status, 'signed in');
+        $held = googleToken('google-eithertoo', 'eithertoo@example.test');
+        same([422, 'wrong_password'], [($r = $own->post('/api/account/google', ['credential' => $held, 'password' => 'not the password']))->status, $r->code()], 'a wrong password');
+        same("held for {$otherId}", tokenUse($held), 'held for the account that sent it');
+        $in = googleSignIn('10.27.16.4', $held);
+        same(200, $in->status, 'its own Google sign-in takes it: ' . $in->body);
+        same(['google-eithertoo', 'spent'], [identityFor(iamDb(), $otherId, IDENTITY_GOOGLE)['subject'] ?? null, tokenUse($held)], 'attached by the address, and spent');
     },
 );
 

@@ -2441,7 +2441,10 @@ amended rather than followed by a 027.
   `google_id_tokens_used`, `holdGoogleIdToken()`), before anything else is
   asked, the limiter included: so every answer after that leaves it held or
   spent, never free. Held, it is refused to everything else - the account
-  page's connect (`googleVerifyIdToken()` refuses any token used here,
+  page's connect (which, since the review of 632a464, holds it for its own
+  account first; the check of "used here" that once stood for it,
+  `googleVerifyIdToken()`, no route asks any more and only the tests keep -
+  it refused any token used here,
   however) and another account's sign-in - and the same account's sign-in
   claims the hold when it spends it (`UPDATE ... WHERE held_for_user = ?`,
   one row: a racing request loses). A token that names no account is spent at
@@ -2587,3 +2590,14 @@ once more rather than followed by a 027.
   notes no address - the one to an address its account left confirming
   nothing after, a waiting address's noted link confirming it - and its gate
   failing on one left (both failing against 632a464).
+- **The review of 62af218** (2026-10-20, four optional nits; the owner: "You
+  can do the optional as well"). A confirmation link is taken only when it
+  notes the address it was mailed to and that address is the account's: one
+  noting none - or noting it as anything but the mark - is `invalid_token`,
+  never `already_confirmed` (026 spent every such link; the route now says it
+  is none of ours, which also makes 026's looser test of a note - its SQL asks
+  `->> 'address' IS NULL`, the code `is_string()` - moot). `googleVerifyIdToken()`,
+  which no route asked any more, went into the tests (`google-tokens.test.php`),
+  so no future way in can reach for a check of "used here" that holds nothing.
+  026 itself is applied and stays as it is; its note on a development database
+  that ran an earlier version of it holds for every earlier version.

@@ -1114,7 +1114,9 @@ the address read): an address moved at that very moment is neither confirmed
 nor said to be (the review of 632a464). Migration 026 spends every live link
 that notes no address - one mailed by a build from before the note, which
 might have gone to an address its account has left: somebody in the middle of
-signing up asks for a new one ("send it again").
+signing up asks for a new one ("send it again"); and since then the route
+takes a link only when it notes the address and that address is the
+account's - one noting none is `invalid_token`, never `already_confirmed`.
 
 `400 invalid_token` for a link that does not work: never mailed, run out with
 its address still unconfirmed, swept a month after it ran out, mailed to an

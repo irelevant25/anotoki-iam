@@ -819,11 +819,12 @@ function confirmedWithoutSession(Response $response, string $reason): Response
  * Whether a link that confirmed nothing - its account's address confirmed a
  * moment ago by something else - may say `already_confirmed`: only while the
  * address is still the one it was mailed to (confirmationLinkToAddress()),
- * never to the holder of an address the account has just left.
+ * never to the holder of an address the account has just left, nor for a
+ * link that notes no address.
  */
 function confirmedMeanwhileFor(array $token, ?array $user): bool
 {
-    return $user !== null && !accountAnonymized($user) && asBool($user['email_confirmed']) && confirmationLinkToAddress($token, (string) $user['email']) !== false;
+    return $user !== null && !accountAnonymized($user) && asBool($user['email_confirmed']) && confirmationLinkToAddress($token, (string) $user['email']) === true;
 }
 
 /**
@@ -880,9 +881,12 @@ $app->post('/api/register/confirm', function (Request $request, Response $respon
         return confirmationLinkRefused($response);
     }
 
-    // Mailed to an address the account no longer has: it confirms nothing,
-    // says nothing of the account, and goes.
-    if (confirmationLinkToAddress($token, (string) $before['email']) === false) {
+    // Mailed to an address the account no longer has - or noting none: only
+    // builds from before 026 mailed such a link, and 026 spent every one, so
+    // whatever notes none, or notes it as anything but the mark, is no link of
+    // ours (the review of 62af218) -: it confirms nothing, says nothing of the
+    // account, and goes.
+    if (confirmationLinkToAddress($token, (string) $before['email']) !== true) {
         consumeOneTimeToken($pdo, (int) $token['id']);
 
         return confirmationLinkRefused($response);
