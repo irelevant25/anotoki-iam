@@ -666,8 +666,8 @@ the audit log, feedback (its form too) and backups (a migration set of its own, 
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
 styles and palette, its components, the top bar and the frame, the legal
-pages and the footer. The IAM is on 0.9.1, both halves (`composer.json`'s `^0.9.0`, the lock
-on v0.9.1, and the 0.9.1 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+pages and the footer. The IAM is on 0.9.2, both halves (`composer.json`'s `^0.9.0`, the lock
+on v0.9.2, and the 0.9.2 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/backend/migrations`, `/backend/resources`),
 which a release carries with the rest of `vendor/` and which are denied

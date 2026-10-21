@@ -13,7 +13,7 @@ Beside the two halves, in neither of them: **the deploy tool** `@anotoki/deploy`
 same release; 0.9.0) - a tool of the computer that builds a site, never part of a site's upload (the section
 "Deploying a site").
 
-Version 0.9.1 holds:
+Version 0.9.2 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -23,7 +23,8 @@ Version 0.9.1 holds:
   points, the core a file per piece - since 0.6.0 also chips, cards that are
   links, stat tiles, progress bars, disclosures, steppers, labelled groups,
   link tabs, side navigation, and the date, slider, colour, file, combobox and
-  rich-text pieces, each its own entry point) and its top bar and frame
+  rich-text pieces, each its own entry point; since 0.9.2 the code editor and
+  its JSON and SQL highlighters) and its top bar and frame
   (`@anotoki/lib/shell`);
 - **translations** (both halves) - a site's words, its languages and their admin
   pages, one implementation for every site (the section "Translations" below);
@@ -752,6 +753,58 @@ is sent again, as from any form.
   markup in, and the editor's text is the site's**: the site cleans it before it shows it (its own allow-list)
   and **its server cleans every text it keeps**. Words: `anotoki.richText.*`.
 
+**0.9.2's code editor** - a field for code, an entry point of its own like the input pieces, lazy (no first load
+takes it):
+
+- `ui/code-editor` - `<anotoki-code-editor label [(value)] language [rows] readonly placeholder (blurred)>`, and the
+  field's `hint`, `error`, `invalid`, `required`, `optional`, `disabled`, `hideLabel`, `autofocus`, `focus()`, `name`.
+  **A native `<textarea>`** - typing, pasting, undo, IME, selecting and copying are the browser's own - over a layer
+  that draws the same text coloured: the textarea's letters are transparent, its caret and its selection (a tint of
+  the ring's colour) seen over the layer, which has its font, size, padding and line height (ligatures off in both)
+  and follows its scrolling. The layer is a span a piece, its text drawn as text - never markup - and
+  `aria-hidden`: screen readers read the textarea, its label and its hint or error. **Tab moves the focus on**, as
+  from every field (no keyboard trap); spell checking, capitals and corrections are off; lines never wrap - a long
+  one scrolls; in forced colours the layer gives way to the textarea's own text. `language`: `'json'` - keys apart
+  from string values, numbers, `true` / `false` / `null`, punctuation; anything invalid plain, so a text half typed
+  draws as it stands (a string not closed runs to its line's end) - `'sql'` - the Migrations page's highlighting,
+  PostgreSQL as the family writes it - or `'text'` (the default), which colours nothing. `rows` (8): the lines it
+  shows; more scroll, and the reader may draw it taller. **The value is the textarea's**, two-way like every field
+  of the kit's (a `model()`; the library has no `@angular/forms`, which five of the six sites lack - a site that
+  has a form binds `[value]` and `(valueChange)` to its control, `(blurred)` to `markAsTouched()`); its line ends
+  are `\n`, as a textarea gives them. The colours are the family's inks, AA on the field in both themes - the
+  Migrations page's SQL's: keywords and JSON's keys `primary`, types and `true` / `false` / `null` `success-text`,
+  strings `warning-text`, numbers `danger-text`, comments, operators and punctuation `muted`. No words of its own.
+- `ui/code-json` - `jsonPieces(text)` - and `ui/code-sql` - `sqlPieces(text)` (0.9.1's, the Migrations page's too):
+  the kit's highlighters, an entry point each that imports nothing. A text in pieces `{ kind, text }` (`kind` null:
+  plain text), which joined are the text, character for character - for a site that draws code of its own, a span
+  a piece, its text as text.
+
+```ts
+// genshin's Quiz levels page: the levels in force, as JSON - said while they are no JSON
+import { CodeEditorComponent } from '@anotoki/lib/ui/code-editor';
+
+readonly text = signal('');
+readonly syntaxError = computed(() => {
+  try {
+    JSON.parse(this.text());
+    return null;
+  } catch (error) {
+    return `Not JSON yet: ${error instanceof Error ? error.message : String(error)}`;
+  }
+});
+```
+
+```html
+<anotoki-code-editor
+  label="The levels, as JSON"
+  language="json"
+  hint="Six quizzes, each with its levels 1 (Easy), 2 (Medium) and 3 (Hard)."
+  [rows]="22"
+  [disabled]="busy()"
+  [error]="syntaxError()"
+  [(value)]="text" />
+```
+
 ### `@anotoki/lib/shell`
 
 `provideAnotokiShell(factory)`: `theme` (`storageKey` - the same as the boot
@@ -899,7 +952,7 @@ provideAppInitializer(() => inject(SiteStatus).check()),   // early in the boot;
   other with its set (`anotoki_translations/003_sign_in_words.sql`; genshin's
   two sets, `users/041_news.sql`). A name breaks after its slash or between its
   words (`<wbr>`, which adds nothing to its text), never inside a word. A
-  file's SQL is coloured (0.9.1) by the library's own highlighter, no package:
+  file's SQL is coloured (0.9.1) by the kit's highlighter (`@anotoki/lib/ui/code-sql`), no package:
   PostgreSQL as the family writes it - comments, strings (`E'...'` too), dollar
   quotes whose body (a `DO $$` gate's PL/pgSQL) is coloured as code, quoted
   names, numbers, keywords in capitals (a word in small letters is a name: a

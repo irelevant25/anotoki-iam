@@ -5,6 +5,60 @@ and the npm package `@anotoki/lib` (`frontend/projects/lib/package.json`). While
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.9.2 - 2026-10-21
+
+A code editor in the kit (the owner's decision of 2026-10-21): genshin's Quiz levels page edits JSON in a plain
+textarea, and the owner wants it coloured - a piece the kit lacks goes to the library. Only the Angular half changes;
+there is no migration and there are no new words.
+
+**`@anotoki/lib/ui/code-editor` (new): `<anotoki-code-editor>`, a field for code.** An entry point of its own, lazy as
+the input pieces are (no first load takes it):
+
+- A native `<textarea>` - typing, pasting, undo, IME, selecting and copying are the browser's own - over a layer that
+  draws the same text coloured. The textarea's letters are transparent, its caret and its selection (a tint of the
+  ring's colour) seen over the layer, which has its font, size, padding and line height (ligatures off in both) and
+  follows its scrolling: each letter of the layer lies under the textarea's own. The layer is a span a piece, its text
+  drawn as text through `@for` - never markup - and `aria-hidden`: screen readers read the textarea, its label and its
+  hint or error. Tab moves the focus on, as from every field (nothing traps it); spell checking, capitals and
+  corrections are off; a line never wraps - a long one scrolls; in forced colours the layer gives way to the textarea's
+  own text.
+- `language`: `'json'`, `'sql'` - the Migrations page's highlighting - or `'text'` (the default), which colours
+  nothing. `rows` (8), `readonly`, `placeholder`, `(blurred)`, and every field's inputs (`label`, `hint`, `error`,
+  `invalid`, `required`, `optional`, `disabled`, `hideLabel`, `autofocus`, `name`, `focus()`). **The value is two-way,
+  `[(value)]`**, a `model()` as every field of the kit's - the library has no `@angular/forms` (five of the six sites
+  have none): a site with a form binds `[value]` and `(valueChange)` to its control, `(blurred)` to
+  `markAsTouched()`. The value is the textarea's: its line ends `\n`, as a textarea gives them.
+- The colours are the Migrations page's SQL's - the family's inks, now one internal Sass mixin both include: keywords
+  and JSON's keys `primary`, types and `true` / `false` / `null` `success-text`, strings and dollar quotes
+  `warning-text`, numbers `danger-text`, comments, operators and punctuation `muted`; AA on the field (`surface`) in
+  both themes - light 5.6:1 at the least, dark 5.4:1.
+
+**The highlighters, an entry point each that imports nothing:**
+
+- `@anotoki/lib/ui/code-json` (new) - `jsonPieces(text)`: keys apart from string values, numbers, `true` / `false` /
+  `null`, punctuation; anything invalid plain text, so a text half typed draws as it stands - a string not closed runs
+  to its line's end, never into the next line.
+- `@anotoki/lib/ui/code-sql` - `sqlPieces(text)`: 0.9.1's, moved out of the Migrations page's entry point (where it
+  was not exported) so that the page and the editor both take it. The page draws as it did; its own file is lighter
+  (6.2 kB gzipped, 8.5 at 0.9.1) and its load the same.
+
+Each gives pieces `{ kind, text }` (`kind` null: plain), which joined are the text, character for character.
+
+- The package check: `@anotoki/lib/ui/code-editor` 3.4 kB gzipped, `ui/code-sql` 2.4, `ui/code-json` 0.5 - each held
+  to a limit of its own (`LAZY_LIMITS`: 4, 3, 1), the editor importing the core's pieces, `ui/field` and the two
+  highlighters, the Migrations page `ui/code-sql` alone. No first load changed.
+- Tests: Vitest - the JSON highlighter (each kind, invalid and half-typed text, 2,000 random texts and a large one
+  joined back, markup as characters); the editor (its label, hint and rows; the value in and out; the layer the text,
+  in spans alone; markup as text; SQL, read-only, plain text, disabled, an error; Tab left alone; the scrolling
+  followed). The SQL highlighter's tests moved with it. The showcase's gallery shows the editor (JSON, said while it
+  is no JSON, and a migration's SQL, read-only).
+
+What a site must do: nothing, unless it uses the code editor. A site that does takes `anotoki/lib` 0.9.2 and the
+0.9.2 tarball together, as every release (Composer's `^0.9.0` reaches 0.9.2; the PHP half has not changed), and on a
+lazy page imports `CodeEditorComponent` from `@anotoki/lib/ui/code-editor` - for a JSON field
+`<anotoki-code-editor label="..." language="json" [rows]="22" [(value)]="text" />`, the same inputs as
+`<anotoki-textarea>` (`spellcheck` is always off). The deploy tool is 0.9.0's, under the release's number.
+
 ## 0.9.1 - 2026-10-21
 
 The Migrations page colours a file's SQL (the owner's request of 2026-10-21). Only the Angular half changes; there is
