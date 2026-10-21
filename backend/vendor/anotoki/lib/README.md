@@ -9,7 +9,11 @@ version:
 | PHP 8.2+, Slim 4, PostgreSQL | `anotoki/lib` (Composer) | `composer.json`, `backend/src/`, `backend/migrations/`, `backend/resources/`, `backend/testing/` |
 | Angular 21 (standalone, zoneless, signals) | `@anotoki/lib` (npm tarball) | `frontend/projects/lib/` |
 
-Version 0.8.1 holds:
+Beside the two halves, in neither of them: **the deploy tool** `@anotoki/deploy` (`deploy/`, an npm tarball of the
+same release; 0.9.0) - a tool of the computer that builds a site, never part of a site's upload (the section
+"Deploying a site").
+
+Version 0.9.1 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -41,7 +45,11 @@ Version 0.8.1 holds:
   `<anotoki-site-footer>`, one footer under every page and admin panel of
   every site: the version, What's new, Feedback, About · Support · Terms ·
   Privacy · Contact and the fan clause; and the status page, with no header and
-  no footer (the section "Footer").
+  no footer (the section "Footer");
+- **the deploy tool** (`deploy/`, 0.9.0) - one build and one deploy for every
+  site: a release is `frontend/` and `backend/`, each replaced whole on the
+  host, the site's settings and storage beside them never touched (the section
+  "Deploying a site").
 
 ## The behaviour
 
@@ -890,7 +898,14 @@ provideAppInitializer(() => inject(SiteStatus).check()),   // early in the boot;
   in what an Apply did: the site's one set's by the file's name alone, every
   other with its set (`anotoki_translations/003_sign_in_words.sql`; genshin's
   two sets, `users/041_news.sql`). A name breaks after its slash or between its
-  words (`<wbr>`, which adds nothing to its text), never inside a word.
+  words (`<wbr>`, which adds nothing to its text), never inside a word. A
+  file's SQL is coloured (0.9.1) by the library's own highlighter, no package:
+  PostgreSQL as the family writes it - comments, strings (`E'...'` too), dollar
+  quotes whose body (a `DO $$` gate's PL/pgSQL) is coloured as code, quoted
+  names, numbers, keywords in capitals (a word in small letters is a name: a
+  column called `key` or `type` stays one), types in any case, operators and
+  punctuation; anything else plain. Each piece is a span holding text, never
+  markup; Copy takes the file as it is.
 
 A site that does not block while an update waits (the IAM, `blockWhilePending:
 false`) puts **no** gate around its outlet and does not ask at boot: the status
@@ -902,7 +917,12 @@ everybody. It uses the interceptor, `<anotoki-update-banner>` in its admin panel
 Theming: the module reads the family's tokens (`@anotoki/lib/styles`), each with
 the family's value as its fallback; a site's 0.1 mapping of the 13
 `--anotoki-*` properties keeps working (the "pending" ink reads
-`--anotoki-warning-text`, then `--anotoki-warning`).
+`--anotoki-warning-text`, then `--anotoki-warning`). The SQL's colours are the
+family's inks on the box's `--anotoki-bg`: keywords `--anotoki-primary`, types
+`--anotoki-success-text`, strings and dollar quotes `--anotoki-warning-text`,
+numbers `--anotoki-danger-text`, comments, operators and punctuation
+`--anotoki-muted`, names the text's own - a site that changes one of them keeps
+it at 4.5:1 on its `bg`.
 
 ## Upgrading from 0.1.x
 
@@ -3107,6 +3127,22 @@ and no footer (the owner's rule of 2026-10-18):
 <anotoki-toast-host />
 ```
 
+## Deploying a site (0.9.0)
+
+`deploy/` is `@anotoki/deploy`: the one build and deploy of every site, `anotoki-deploy`. A site's folder on the host
+holds `frontend/` (the built app, `index.php`, `.htaccess`) and `backend/` (the PHP code, `release.json`) - a release,
+each replaced whole - beside `config/` and `storage/`, which no deploy writes, and the switch: the `.htaccess` at the
+top that sends every request into `frontend/`. A release goes up beside the live one, is checked, and is swapped in by
+renames, the live one copied home and kept for a rollback - nothing stale stays on the host, and the host's settings
+and storage are never in an upload.
+
+A site installs it as a dev dependency of its `frontend/` from this release's tarball
+(`https://github.com/irelevant25/anotoki-lib/releases/download/vX.Y.Z/anotoki-deploy-X.Y.Z.tgz`), says its few
+facts in `backend/composer.json` (`extra["anotoki-deploy"]`: its name, its folder on the host, its address, and what
+differs from the defaults), and finds its state with one rule: `<backend>/release.json` is a file - the state is the
+folder above `backend/`; otherwise `backend/` itself (a checkout). `deploy/README.md` has the commands, every setting
+and the first switch of a site.
+
 ## Working on the library
 
 ```
@@ -3151,22 +3187,29 @@ bun run showcase        # projects/showcase on http://localhost:4320: every piec
                         # ?fan=1 and ?feedback=0) and its samples in the gallery; never published)
 bun run build:showcase  # the same, built into frontend/dist/showcase
 bun run words           # the Angular half's library words from backend/resources/library-words.json (--check: stale?)
+
+# The deploy tool (from deploy/)
+npm ci
+npm test                # node --test: its settings, the files it writes, a build into a folder - no network, no host
 ```
 
 CI (`.github/workflows/ci.yml`) runs the PHP tests on 8.2 and 8.4 against
 PostgreSQL 16, builds the Composer archive and checks what it holds
 (`sh .github/scripts/check-archive.sh` does the same locally), checks that the
-Angular half's library words are the JSON's (`bun run words --check`), and builds
-(with the package check) and tests the Angular library.
+Angular half's library words are the JSON's (`bun run words --check`), builds
+(with the package check) and tests the Angular library, and tests the deploy tool
+(its version must be the library's).
 
 ## Releasing
 
-1. Bump the version in `frontend/projects/lib/package.json` and
+1. Bump the version in `frontend/projects/lib/package.json`,
    `ANOTOKI_LIB_VERSION` (`frontend/projects/lib/src/public-api.ts`; a test keeps
-   them equal), and add it to `CHANGELOG.md`.
+   them equal) and `deploy/package.json` (CI keeps it equal), and add it to
+   `CHANGELOG.md`.
 2. Commit, `git tag vX.Y.Z`, push the commit and the tag.
-3. The release workflow builds and tests the library, refuses a tag that is not
-   `v` + that version, packs it and attaches `anotoki-lib-X.Y.Z.tgz` to a GitHub
-   Release of the tag.
-4. Each site updates its constraint (`composer.json`) and the tarball's URL
+3. The release workflow builds and tests the library and the deploy tool,
+   refuses a tag that is not `v` + that version, packs both and attaches
+   `anotoki-lib-X.Y.Z.tgz` and `anotoki-deploy-X.Y.Z.tgz` to a GitHub Release of
+   the tag.
+4. Each site updates its constraint (`composer.json`) and the tarballs' URLs
    (`package.json`).

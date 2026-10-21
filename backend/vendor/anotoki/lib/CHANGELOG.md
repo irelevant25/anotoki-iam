@@ -5,6 +5,75 @@ and the npm package `@anotoki/lib` (`frontend/projects/lib/package.json`). While
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.9.1 - 2026-10-21
+
+The Migrations page colours a file's SQL (the owner's request of 2026-10-21). Only the Angular half changes; there is
+no migration.
+
+**A file's SQL, coloured.** The View dialog of `<anotoki-migrations-page>` showed a file as plain text; it colours it
+now, with the library's own highlighter - no package, in the page's own entry point (`@anotoki/lib/migrations/page`;
+`sqlPieces()`, not exported) - reading PostgreSQL as the family's migrations write it:
+
+- comments: `--` to the line's end, and block comments, nested as PostgreSQL nests them;
+- strings: `'...'` with `''` inside, `E'...'` with a backslash's escapes too, `B'...'`, `X'...'`, `N'...'`, `U&'...'`;
+- dollar quotes, `$$ ... $$` and `$tag$ ... $tag$`: the delimiters - and the body between them coloured as SQL again, a
+  `DO $$` gate's PL/pgSQL and a function's body; a body ends where its delimiter next stands, as PostgreSQL ends it
+  (in what would be a comment or a string too);
+- quoted names (`"..."`, never a string), numbers (`42`, `3.14`, `.5`, `1e-3`, `1_000`, `0x1F`; `1..10` is two),
+  operators (`<>`, `||`, `::`, `:=`, `->>`, ...) and punctuation;
+- keywords - DDL, DML and PL/pgSQL's (`DO`, `DECLARE`, `BEGIN`, `IF`, `THEN`, `RAISE`, `EXCEPTION`, `PERFORM`, ...) -
+  written in capitals, as the family writes every keyword: a word in small letters is a name, so the family's columns
+  `key`, `type`, `language`, `action` and a gate's variable `found` stay names; `TRUE`, `FALSE` and `NULL` in any case;
+  a word right after a dot is a name (`NEW.updated_at`, `n.oid`);
+- types in any case (`VARCHAR`, `TIMESTAMPTZ`; the academies' `integer`, `timestamptz`, `::text`).
+
+Anything else is plain text.
+
+- Text, never markup: each piece is a span holding its characters as text, drawn by Angular's `@for` - no HTML string
+  is built, nothing is parsed; a file's `<script>`, `</span>` or `{{ }}` shows as written. Neighbours of one kind are
+  one span (white space joins the piece before it): the family's largest migration, 175 kB, is 5,562 spans.
+- The `<pre>` keeps its focus, region, name and scrolling, and its text is the file, character for character: Copy
+  takes the file as it is, and a selection copied by hand is what it was (a browser leaves a `<pre>`'s last line end
+  out of it, with spans as without).
+- The colours are the family's inks on the box's ground (`bg`), AA in both themes - keywords `primary` (light 5.6:1,
+  dark 6.0:1), types `success-text` (5.4, 8.8), strings and dollar quotes `warning-text` (5.4, 10.1), numbers
+  `danger-text` (5.9, 7.0), comments, operators and punctuation `muted` (5.2, 8.1), names the box's text. A colour
+  alone: the font, its width and the file's columns are as they were.
+- Quick: one pass, forwards only, a token at a time; a dollar quote's end is looked up in an index of the text's
+  delimiters, never searched for again, so awkward texts (thousands of quotes or comments never closed) stay linear.
+  The family's 194 migration files (2.3 MB) take about 40 ms together, the largest about 2 ms.
+- The package check: `@anotoki/lib/migrations/page` is 8.5 kB gzipped (5.9 before) - the highlighter 2.4 of it, its
+  keyword list 0.8; 2.0 kB minified, as a site's build takes it. No eager entry point and no first load changed.
+- Tests: Vitest - the highlighter on each construct; every migration file of the library joined back character for
+  character, each `DO $$` gate's delimiters found; 3,000 random texts of SQL's awkward characters; a few hundred kB
+  well under a second, the awkward ones too; markup as characters. The page: a span of its kind's class a piece, the
+  file as its text, the region as it was; `<script>`, `</span>` and `{{ }}` as written, and Copy the file.
+
+What a site must do: take `anotoki/lib` 0.9.1 and the 0.9.1 tarball together, as every release (Composer's `^0.9.0`
+reaches 0.9.1; the PHP half has not changed). No migration and no new words (the page is English). The deploy tool is
+0.9.0's, under the release's number: a site on its 0.9.0 tarball needs nothing.
+
+## 0.9.0 - 2026-10-19
+
+The deploy tool. Neither half changes: a site on 0.8.1 needs nothing from this version but the tool.
+
+**`@anotoki/deploy` (`deploy/`, `anotoki-deploy`): one build and one deploy for every site.** A site's folder on the
+FTP-only host holds `frontend/` (the built app, `index.php`, `.htaccess`) and `backend/` (the PHP code,
+`release.json`) - a release, each replaced whole - beside `config/` and `storage/`, which no deploy writes, under the
+switch: the `.htaccess` at the top that sends every request into `frontend/`. `build` runs the site's own frontend
+build and assembles the release (never a `*.local.php`, never a dot-file of the sources); `deploy` copies the live
+release home, puts the new one up beside it, checks it file by file and swaps it in by renames (the one before kept as
+`.old`: `rollback`); `switch` is a site's first step from the old layout (everything uploaded over one folder);
+`content` adds to what a site keeps on the host beside the release (audio clips); each change of the host is followed
+by a check of the live site over HTTPS. What differs between sites is a setting in the site's `backend/composer.json`
+(`extra["anotoki-deploy"]`); the login stays outside every repository (`ANOTOKI_DEPLOY_SECRETS`). It is in neither half:
+the Composer archive and the npm package of `@anotoki/lib` never hold it. The release workflow attaches its tarball,
+`anotoki-deploy-X.Y.Z.tgz`, beside the Angular half's, and CI tests it.
+
+**What a site does:** `"@anotoki/deploy": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.9.0/anotoki-deploy-0.9.0.tgz"`
+in `frontend/package.json`'s `devDependencies`, its settings in `backend/composer.json`, and one rule in its PHP: with
+`release.json` in its `backend/`, its `config/` and `storage/` are the ones beside `backend/` (`deploy/README.md`).
+
 ## 0.8.1 - 2026-10-19
 
 Two findings of the IAM's security review of 2026-10-19, and the count the IAM's admin panel puts beside Feedback.

@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "10ea1f5b346999a5d530098e4d560724",
+    "content-hash": "059b3fd77b90af706eaffccfc2661bf8",
     "packages": [
         {
             "name": "anotoki/lib",
-            "version": "v0.8.1",
+            "version": "v0.9.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/irelevant25/anotoki-lib.git",
-                "reference": "a268f9287f888d9ef7c9920f5142193aa10cb439"
+                "reference": "e21da7b7b4cc2e3c3ea9c9e0a2e8791b57458cdc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/a268f9287f888d9ef7c9920f5142193aa10cb439",
-                "reference": "a268f9287f888d9ef7c9920f5142193aa10cb439",
+                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/e21da7b7b4cc2e3c3ea9c9e0a2e8791b57458cdc",
+                "reference": "e21da7b7b4cc2e3c3ea9c9e0a2e8791b57458cdc",
                 "shasum": ""
             },
             "require": {
@@ -61,10 +61,10 @@
             "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes), the translations (the schema, the words' routes and the command line), signing in (the IAM's tokens, who a request is, the boot configuration, a stand-in IAM for tests) and people (the site's record of them and the GDPR scrub). The Angular half is @anotoki/lib.",
             "homepage": "https://github.com/irelevant25/anotoki-lib",
             "support": {
-                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.8.1",
+                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.9.1",
                 "issues": "https://github.com/irelevant25/anotoki-lib/issues"
             },
-            "time": "2026-10-19T13:02:12+00:00"
+            "time": "2026-10-21T10:48:02+00:00"
         },
         {
             "name": "fig/http-message-util",
