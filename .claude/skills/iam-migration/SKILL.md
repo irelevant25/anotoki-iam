@@ -113,7 +113,7 @@ tables, under `anotoki.`, with its migration set `anotoki_translations`, which
 runs after the IAM's files.
 
 - **A new page string** is its key and English in
-  `frontend/src/app/core/i18n/en.ts` plus a migration that inserts the key (with
+  `frontend/src/app/shared/i18n/en.ts` plus a migration that inserts the key (with
   a description: where it shows, what its `{placeholders}` stand for), its
   English - the same text as `en.ts` - and its Slovak, informal ("ty"), as 006
   writes it. There is no `sk.ts`. A new mail string is a `MAIL_KEYS` entry and a
@@ -196,4 +196,4 @@ php tests/run.php          # the tests build their databases from the same files
 ```
 
 If the change affects an answer, update `docs/api.md`, the frontend's
-`core/api/models.ts`, and the tests in the same change.
+`api/models.ts`, and the tests in the same change.

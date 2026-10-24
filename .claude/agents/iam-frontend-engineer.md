@@ -17,10 +17,14 @@ call exactly those endpoints and must handle exactly those refusal codes.
 
 ## Where things live
 
-- `frontend/src/app/core/api/` - `models.ts` (the shapes in `docs/api.md`) and
+- The family's folders (the genshin site's): `api/`, `shared/` (what both
+  halves use), `sites/main/` (the IAM's own pages, `main.routes.ts`) and
+  `sites/admin/` (the admin panel, `admin.routes.ts`), under
+  `frontend/src/app/`. What only one half uses goes into that half.
+- `frontend/src/app/api/` - `models.ts` (the shapes in `docs/api.md`) and
   one service per area. Hand-written: there is no generator in this project.
   When the backend changes a shape, change it here in the same change.
-- `frontend/src/app/core/` - session state, the interceptor (`X-IAM-Request` on
+- `frontend/src/app/shared/` - session state, the interceptor (`X-IAM-Request` on
   writes; 401 outside the sign-in endpoints → `/login?next=…`; 503
   `not_set_up` → `/not-set-up`; the migrations module's own requests get their
   HttpErrorResponse back; the bundle's request, `ANOTOKI_TRANSLATION_BUNDLE`,
@@ -48,15 +52,15 @@ call exactly those endpoints and must handle exactly those refusal codes.
   wired in (`kit/kit.config.ts`: the kit's words from the database - the
   IAM's own keys through `kit/kit-words.ts`, the library's `anotoki.*` through
   `forKit()` -, its icons `kit/icons.ts`, the theme, and the languages through
-  `forShell()`), Google sign-in.
-- `frontend/src/app/pages/admin/localization.ts` - the IAM's words for the
+  `forShell()`).
+- `frontend/src/app/sites/admin/localization.ts` - the IAM's words for the
   family's Translations and Languages pages (`@anotoki/lib/translations/admin`,
   lazy routes in `admin.routes.ts`, which hand them over as the panel loads):
   its mails as blocks of their own (titles, order, parts, rules), the accounts
   per language, the panel's failure texts. The pages call `reload()`
   themselves after a change; drafts and the unsaved-changes guard are the
   library's (`anotokiUnsavedChangesGuard`, the announcement pages' too).
-- `frontend/src/app/pages/admin/admin-tools.ts` - the admin panel's part of
+- `frontend/src/app/sites/admin/admin-tools.ts` - the admin panel's part of
   the family's admin tools (`@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`,
   lazy routes in `admin.routes.ts`, which hand it over as the panel loads, as
   they do the localization): a refusal in `adminErrorText()`'s words, "Sign in
@@ -64,21 +68,26 @@ call exactly those endpoints and must handle exactly those refusal codes.
   page; a failed sign-out is a toast), why restoring is off. The pages are
   the library's (their requests go through the IAM's interceptor: the CSRF
   header, an ended session to the sign-in page); a change to one goes to the
-  library. `core/admin/admin-tools.config.spec.ts` draws them for real.
+  library. `shared/admin/admin-tools.config.spec.ts` draws them for real.
 - The UI kit is the anotoki family's, a piece an entry point - import each
   from its own (`@anotoki/lib/ui/button`, `/config`, `/icon`, fields in
   `ui/forms`, `ui/dialog`, `ui/toast`, ...), never from the `@anotoki/lib/ui`
   barrel -, its styles `@anotoki/lib/styles` in `src/styles.scss`, its markup
   BEM on each component's host class (`anotoki-<component>__<part>`,
   `--<state>`). Use it; a piece it lacks goes to the library rather than a
-  one-off here. `frontend/src/app/ui/` holds only the IAM's own
-  (`google-button`: its button in Google's branding first; Google's script
-  and button only after a press - `GoogleSignInService.load()`, which nothing
-  else calls -, the owner's decision of 2026-10-14; `changelog-dialog`: What's
-  new, lazy, in the kit's dialog).
-- `frontend/src/app/layouts/` - `auth-layout` (the sign-in pages' frame),
-  `legal-layout` (the legal pages') and
-  `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
+  one-off here. The IAM's own are only `sites/main/common/google-button` (its
+  button in Google's branding first; Google's script and button only after a
+  press - `GoogleSignInService.load()` (`sites/main/common/google/`), which
+  nothing else calls -, the owner's decision of 2026-10-14) and
+  `shared/changelog-dialog` (What's new, lazy, in the kit's dialog).
+- `frontend/src/app/sites/main/` - the IAM's own pages (`main.routes.ts`):
+  `auth/` (the sign-in pages, and `auth/auth-layout`, their frame),
+  `account/`, `legal/` (`legal/legal-layout`, the legal pages' frame, and the
+  IAM's facts) and `common/` (what they share: Google sign-in, the
+  remembered-device token).
+- `frontend/src/app/sites/admin/` - the admin panel (`admin.routes.ts`): its
+  frame, a folder per group of pages and what they share (`shared/`).
+- `frontend/src/app/shared/top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
   `@anotoki/lib/shell`, worded and wired for the IAM - CLAUDE.md says what it
   holds, its fold width and its keyboard rules; `top-bar.component.spec.ts`
   checks them on the real bar). The account pages, the legal pages and the
@@ -93,8 +102,8 @@ call exactly those endpoints and must handle exactly those refusal codes.
 - Pages: the sign-in flow (with `/error`), `/account/**`, `/admin/**`, the
   legal pages; `/not-set-up`, the family's status page, on a route of its own
   and no frame (no bar, no switches, no footer - the owner's rule of
-  2026-10-18). Styles shared by a group of pages: `pages/auth/_auth-page.scss`,
-  `pages/admin/_admin-list.scss`, `pages/admin/_admin-field.scss`, `@use`d from
+  2026-10-18). Styles shared by a group of pages: `sites/main/auth/_auth-page.scss`,
+  `sites/admin/shared/_admin-list.scss`, `sites/admin/shared/_admin-field.scss`, `@use`d from
   each page's own `.scss`.
 
 ## How to work

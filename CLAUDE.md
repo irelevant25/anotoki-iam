@@ -407,9 +407,9 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   first; English and informal Slovak, the sites' format), which
   `frontend/package.json` and `package-lock.json`'s two repeat - a spec holds
   them together, so a release adds its entry and moves the three; the pages
-  ask for it as they start, never waiting (`core/changelog`), the web root
+  ask for it as they start, never waiting (`shared/changelog`), the web root
   serves it `no-cache`. What's new is the IAM's own dialog
-  (`ui/changelog-dialog`, lazy; its words `whatsNew.*`, migration 024),
+  (`shared/changelog-dialog`, lazy; its words `whatsNew.*`, migration 024),
   opened only by the footer. Feedback is the family's: `POST /api/feedback`
   (the library's `FeedbackRoutes::public()` in `routes/login.php`,
   `iamFeedback()`): anybody's, the sender the account this browser's session
@@ -419,7 +419,7 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   limits by the IAM's `clientKey` (5 an hour and 20 a day a sender, 300 a day
   from the visitors and as many from the people signed in), counted in
   `storage/cache` under a key derived from the master key. The form
-  (`core/feedback`, `provideAnotokiFeedback()`) writes the account's address
+  (`shared/feedback`, `provideAnotokiFeedback()`) writes the account's address
   in as the reply address until the person types their own, and asks for the
   session first where a page never did (the server takes the sender from the
   cookie). The Feedback page (`/admin/feedback`, the new ones counted beside
@@ -452,7 +452,7 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   is no change and never checked (`usernameUnchanged()`) - it must never stop
   the rest of a save; the legacy import kept the names it moved; a deleted
   account's `deleted-{id}` keeps its dash. The pages ask the same rule before
-  they send (`core/auth/username.ts`); the server is the rule. Once 025 is
+  they send (`shared/auth/username.ts`); the server is the rule. Once 025 is
   applied, no build from before it goes on the host again (it would take any
   name again - an address, a turned text: the lure this closes - and show
   `register.usernameHint` as a key); fix forward.
@@ -624,11 +624,19 @@ a decision for `docs/decisions.md`, not a refactor.
 - **Every component is three files**: `x.component.ts`, `.html`, `.scss` - no
   inline `template` or `styles`, even when the `.scss` is empty. Styles shared
   by a group of pages are partials `@use`d by each page's own `.scss`
-  (`pages/auth/_auth-page.scss`, `pages/admin/_admin-list.scss`,
-  `pages/admin/_admin-field.scss`).
-- `frontend/src/app/core/` - the hand-written API services and models
-  (`core/api/`, mirroring `docs/api.md`; the translations' shapes are the
-  library's own), the session state, the HTTP interceptor (adds
+  (`sites/main/auth/_auth-page.scss`, `sites/admin/shared/_admin-list.scss`,
+  `sites/admin/shared/_admin-field.scss`).
+- **The family's folders** (the genshin site's; the owner's decision of
+  2026-10-24, `docs/decisions.md`): `frontend/src/app/` holds `api/`,
+  `shared/` (what both halves use), `sites/main/` (the IAM's own pages -
+  `main.routes.ts`: the sign-in pages in `auth/`, the account pages in
+  `account/`, the legal pages' frame and facts in `legal/`, what they share in
+  `common/`) and `sites/admin/` (the admin panel - `admin.routes.ts`, its frame,
+  a folder per group of pages, what they share in `shared/`); `app.routes.ts`
+  puts `/admin` before the main routes. What only one half uses is in that half.
+- `frontend/src/app/api/` - the hand-written API services and models
+  (mirroring `docs/api.md`; the translations' shapes are the library's own).
+  `frontend/src/app/shared/` - the session state, the HTTP interceptor (adds
   `X-IAM-Request: 1` to every write; sends a 401 outside the sign-in endpoints
   to `/login?next=…`; sends a 503 `not_set_up` to `/not-set-up`; hands the
   migrations module's own requests their HttpErrorResponse back - the
@@ -657,7 +665,7 @@ a decision for `docs/decisions.md`, not a refactor.
   dates, Migrations; what only the panel says and does - a refusal in
   `adminErrorText()`'s words, "Sign in again" (`FreshSignInService`: out, and
   back to the page), why restoring is off - handed over by the admin routes
-  from `pages/admin/admin-tools.ts`, out of the first load), the family's
+  from `sites/admin/admin-tools.ts`, out of the first load), the family's
   UI kit and shell (`kit/kit.config.ts`: `provideAnotokiUi` - the kit's words
   from the database: the IAM's own keys where it has them, `kit/kit-words.ts`,
   the library's `anotoki.*` otherwise, `forKit()` - and its icons
@@ -681,11 +689,11 @@ a decision for `docs/decisions.md`, not a refactor.
   kit's markup is its own, BEM on its host class (`anotoki-top-bar__row`,
   `anotoki-button--primary`): a spec or a browser check reads those names.
   Build on it; a piece it lacks goes to the library.
-  `frontend/src/app/ui/` keeps the IAM's own (`google-button`,
-  `changelog-dialog` - What's new, lazy).
+  The IAM's own: `sites/main/common/google-button` and
+  `shared/changelog-dialog` (What's new, lazy).
 - **Google only on a press** (the owner's decision of 2026-10-14;
   `docs/decisions.md`): the sign-in, sign-up and account pages draw the IAM's
-  own button (`ui/google-button`: a real `<button>` in Google's branding, the
+  own button (`sites/main/common/google-button`: a real `<button>` in Google's branding, the
   "G" drawn by the page, the IAM's words `google.*`) and ask nothing of Google
   until somebody presses it. Only that press calls
   `GoogleSignInService.load()` - Google's script, once a page life - and
@@ -708,7 +716,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `/admin/languages` are the family's `<anotoki-translations-page>` and
   `<anotoki-languages-page>` (`@anotoki/lib/translations/admin`, lazy; worded
   for the IAM - its mails, the accounts per language - by
-  `pages/admin/localization.ts`, behind `anotokiUnsavedChangesGuard`, as the
+  `sites/admin/localization.ts`, behind `anotokiUnsavedChangesGuard`, as the
   announcement pages are); `/admin/audit`, `/admin/errors`, `/admin/feedback`
   and `/admin/backups` are the family's admin tools (`@anotoki/lib/admin/audit`,
   `/errors`, `/feedback`, `/backups`, each lazy: the audit log - the IAM's own page is
@@ -720,9 +728,9 @@ a decision for `docs/decisions.md`, not a refactor.
   and `<anotoki-update-banner>` sits above the panel's pages; the Migrations
   page is `@anotoki/lib/migrations/page`, out of the first load), and the
   legal pages (`/terms`, `/privacy`, `/contact`: the family's
-  `@anotoki/lib/legal/pages`, lazy, anybody's, in `layouts/legal-layout` -
+  `@anotoki/lib/legal/pages`, lazy, anybody's, in `sites/main/legal/legal-layout` -
   the family's frame, the top bar's `public` area - with the IAM's facts,
-  `core/legal/legal-facts.ts`, given by that frame and out of the first load;
+  `sites/main/legal/legal-facts.ts`, given by that frame and out of the first load;
   the Privacy page is the one every anotoki site links to for the account),
   with the family's About and Support pages beside them (`/about`,
   `/support`: `@anotoki/lib/legal/about` and `/support`, anotoki-lib 0.8.0,
@@ -736,7 +744,7 @@ a decision for `docs/decisions.md`, not a refactor.
   code as it is: a change to what the IAM keeps, or for how long, changes
   their `legal.*` strings (by a migration) and `IAM_LEGAL_UPDATED`; every
   address a page links to is in the code, never a string (the 0.6.0 review).
-- **The top bar** (`layouts/top-bar`) is the anotoki family's one bar,
+- **The top bar** (`shared/top-bar`) is the anotoki family's one bar,
   `<anotoki-top-bar>` from `@anotoki/lib/shell` (its menus, keys and fold are
   the library's, tested there), worded and wired for the IAM; the account
   pages, the legal pages and the admin panel are in the family's frame,
@@ -755,13 +763,13 @@ a decision for `docs/decisions.md`, not a refactor.
   the note under the button. The language button's name holds the code it
   shows ("Language: Slovenčina (SK)", WCAG 2.5.3; `anotoki.language.button`).
   The admin panel keeps its side navigation under the bar. The sign-in pages
-  keep their own frame (`layouts/auth-layout`, the family's switcher as
+  keep their own frame (`sites/main/auth/auth-layout`, the family's switcher as
   segments).
 - Zoneless and signals-first; OnPush everywhere; no UI library but the
   family's. Colours only from the family's `--anotoki-*` custom properties
   (written for light and dark by `styles.scss`), the sign-in pages' night sky,
   and Google's own on the IAM's Google button (its branding: the "G", Google's
-  light and dark fill, stroke and words - `ui/google-button`).
+  light and dark fill, stroke and words - `sites/main/common/google-button`).
   Every page works at 390 px (360 px for the top bar).
 - The auth and account pages' words, and the mails', are rows in the
   database (`languages`, `translation_keys`, `translations`, migration 006),
@@ -796,7 +804,7 @@ made under). Full steps: `docs/operations.md`.
 ## Working conventions
 
 - **The contract moves with the code.** A change to an endpoint's shape updates
-  `docs/api.md`, the frontend's `core/api/`, and - for anything in the OIDC half
+  `docs/api.md`, the frontend's `api/`, and - for anything in the OIDC half
   - `docs/integrating-an-app.md` and the SDKs, in the same change.
 - **SDK versions**: bump the header of all three JS files (and the PHP file)
   when their code changes; the sites vendor copies and need telling.
