@@ -1,0 +1,15 @@
+// The panel closed to somebody (no access, or the account's deletion pending): the page alone, its footer at the
+// window's foot - as the family's frame keeps it on a short page.
+.closed {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.no-access {
+  display: flex;
+  flex: 1 0 auto;
+  justify-content: center;
+  padding: 3rem 1rem;
+}

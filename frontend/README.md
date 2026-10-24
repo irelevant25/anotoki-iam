@@ -27,21 +27,21 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.9.2) - which every anotoki site
+its GitHub release, named in `package.json` (0.10.0) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
 tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,
 `/config`, `/forms`, `/dialog`, ...: always imported from its own, never
 through the `@anotoki/lib/ui` barrel, which would pull every piece into the
 first load), `@anotoki/lib/shell` (the theme, the language switcher, the top
-bar, the frame), `@anotoki/lib/translations` (the pages' words and language
+bar, the frame of the account and legal pages), `@anotoki/lib/translations` (the pages' words and language
 from the database; `@anotoki/lib/translations/admin` is the admin panel's
 Translations and Languages pages), `@anotoki/lib/migrations` (the
 not-set-up page, the admin panel's "A database update is waiting" line;
 `@anotoki/lib/migrations/page` is the Migrations page) and
 `@anotoki/lib/admin` (the admin tools' configuration; `@anotoki/lib/admin/errors`,
 `/audit`, `/feedback` and `/backups` are the admin panel's Error log, Audit
-log, Feedback and Backups pages), `@anotoki/lib/error-report` (the pages' own errors, reported to the
+log, Feedback and Backups pages, `@anotoki/lib/admin/frame` its frame), `@anotoki/lib/error-report` (the pages' own errors, reported to the
 backend's error log: `provideAnotokiErrorReport()` in `app.config.ts`),
 `@anotoki/lib/legal` (the legal pages' configuration and their links, Terms ·
 Privacy · Contact; `@anotoki/lib/legal/pages` is the three pages),
@@ -62,7 +62,7 @@ The unit tests run with Angular's `@angular/build:unit-test` (`angular.json`'s
 `test` target, `tsconfig.spec.json`), which needs `vitest` and `jsdom` in
 `devDependencies` (the survey site's versions: `vitest` ^4, `jsdom` ^28) and,
 once they are, a `"test": "ng test --watch=false"` script for `npm test`.
-The specs: the top bar's (`shared/top-bar/top-bar.component.spec.ts`: the
+The specs: the top bar's (`sites/main/common/top-bar/top-bar.component.spec.ts`: the
 IAM's bar on the family's, drawn for real with the family's translations -
 its order, links, menu and words, the language's button in the database's
 words, a language chosen there saved to the account one save at a time and
@@ -154,7 +154,11 @@ somebody without access too) - the IAM's version, What's new and Feedback
 (neither of the first two before the list of versions came), then Terms ·
 Privacy · Contact, after the page and last in its frame, in the page's
 language (English in the admin panel) and the database's words; What's new
-opening the IAM's dialog and Feedback the family's form -, and `/not-set-up` on a route of its own:
+opening the IAM's dialog and Feedback the family's form -; the admin panel in
+the family's admin frame, with no top bar - its name, the person, Back to your
+account, Sign out (the bar's own, which it signs out with), the theme and the
+sixteen pages in groups, in English for a reader of Slovak - and closed (no
+access, the deletion pending) with no frame round it; and `/not-set-up` on a route of its own:
 the family's status page in a `<main>` of its own with nothing of the IAM
 round it (never installed, installed and set up no more, the database out of
 reach, the moment's spinner), and once the IAM answers, back by `location` to
@@ -216,7 +220,8 @@ src/
                            restoring is off are handed over by its routes
                            (sites/admin/admin-tools.ts), out of the first load
       auth/                the session signal, the guard, `next` validation, the
-                           usernames' rule, "Sign in again" (fresh-sign-in.ts)
+                           usernames' rule, "Sign in again" (fresh-sign-in.ts), Sign
+                           out (sign-out.ts: the bar's and the admin frame's)
       i18n/                the family's translations (@anotoki/lib/translations)
                            wired in: translations.config.ts (the IAM's storage
                            names, its compiled English, the account - its language,
@@ -247,10 +252,6 @@ src/
                            the page's language, the database's words, the session's
                            account - asked first where a page never did - and its
                            address written in
-      top-bar/             the anotoki family's one bar, worded and wired for the
-                           IAM (below): the account pages', the legal pages' and -
-                           until the admin panel has the family's admin frame - the
-                           admin panel's
       util/                a user agent as a browser and a system (the sessions'
                            tables, the account's and the admin panel's)
     sites/
@@ -273,14 +274,20 @@ src/
                            keeps and how long, its cookies by name, who else
                            handles data, every address the pages link to - given
                            by that frame, out of the first load)
-        common/            what those pages share: google-button, the IAM's own
+        common/            what those pages share: top-bar, the anotoki family's
+                           one bar, worded and wired for the IAM (below) - the
+                           account pages' and the legal pages'; google-button, the IAM's own
                            (its button in Google's branding first, Google's own
                            only after a press), and google/, Google Identity
                            Services, fetched only when somebody presses it -
                            never as a page opens; the remembered-device token
                            (device-token.ts, storage.ts)
-      admin/               /admin (admin.routes.ts), in the family's frame with the
-                           panel's side navigation (admin-layout): users,
+      admin/               /admin (admin.routes.ts), in the family's admin frame
+                           (app.component, <anotoki-admin-frame>: no top bar - a
+                           column on the left with the panel's name, the person,
+                           Back to your account, Sign out, the theme and the pages
+                           in groups; closed with no frame round it to anybody but
+                           the IAM's ADMIN): users,
                            approvals, sessions, applications, announcements (the
                            history and senders, the composer, one announcement and
                            its sending), the email log, settings, keys;
@@ -358,15 +365,13 @@ scripts/
   reached). There is no Slovak in the build. The admin panel is English only,
   written in its templates; its Translations, Languages, Error log, Audit log,
   Feedback, Backups and Migrations pages are the family's.
-- **The top bar** (`shared/top-bar`) is the anotoki family's one bar -
+- **The top bar** (`sites/main/common/top-bar`) is the anotoki family's one bar -
   `<anotoki-top-bar>` from `@anotoki/lib/shell`, whose order, menus, keys and
-  fold are the family's - worded and wired here. One row: the brand ("anotoki
-  account"; in the admin panel the family's "anotoki account · admin panel",
-  on a phone "account" with "admin panel" under it), the account pages as
-  links, the language (a 40 px button with a menu; not in the admin panel,
-  which is English), the theme, the person's menu (name, email,
-  "Administrator"; the admin panel for the IAM's administrators, or "Back to
-  your account" from it; Sign out). The family's "Your anotoki account" entry is left out: the
+  fold are the family's - worded and wired here, on the account pages and the
+  legal pages. One row: the brand ("anotoki account"), the account pages as
+  links, the language (a 40 px button with a menu), the theme, the person's
+  menu (name, email, "Administrator"; the admin panel for the IAM's
+  administrators; Sign out). The family's "Your anotoki account" entry is left out: the
   account pages are the bar's own links. A language chosen there is saved to
   the account too, as the overview's select does - by the family's
   translations, one save at a time, the latest choice last, so quick choices
@@ -382,11 +387,25 @@ scripts/
   in on open, arrow keys, Home / End, Escape and an outside click close them,
   and Tab / Shift+Tab from any item close the menu with the focus on its
   button (`preventDefault()` - left to the browser, the focus would fall to
-  `<body>`). The admin panel keeps its own side navigation under it (the
-  family's frame, `<anotoki-shell [nav]>` in `sites/admin/admin-layout`, a
-  strip of links on a narrow screen). On the legal pages, which anybody may
+  `<body>`). On the legal pages, which anybody may
   read, the bar is the account pages' for somebody signed in and the brand,
   the language, the theme and Sign in for anybody else (`area="public"`).
+- **The admin panel's frame** (`sites/admin/app.component`) is the family's
+  admin frame - `<anotoki-admin-frame>` from `@anotoki/lib/admin/frame`
+  (anotoki-lib 0.10.0; the owner's request of 2026-10-24: every admin panel
+  the genshin site's, so it is never mistaken for the site) - with no top
+  bar: a column on the left with the panel's name ("anotoki account · admin
+  panel", linking to the dashboard), the person (name and address), "Back to
+  your account", Sign out (the bar's own, `shared/auth/sign-out.ts`), the
+  theme (the family's switch, the account's theme) and the sixteen pages in
+  groups - Access, Mail, Localization, System, the new feedback counted
+  beside Feedback -, and on the right the update line, the page and the
+  footer, each column scrolling on its own. Up to 860 px a row with the
+  name and Menu, the column in the side navigation's drawer. Its own words
+  (Skip to content, Menu, Sign out, the theme's) are the kit's, said with
+  the IAM's keys - in English there, as the panel is. Anybody but the IAM's
+  ADMIN finds the panel closed - "You don't have access", or the account's
+  deletion pending - with no frame round it, the footer under it.
 - **Theming** is custom properties only: the family's `--anotoki-*` tokens,
   written for both themes by `styles.scss` (`anotoki.root()` - the IAM's
   palette is the family's), and the night sky's own. Components never contain

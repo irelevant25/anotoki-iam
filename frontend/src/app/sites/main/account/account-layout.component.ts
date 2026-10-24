@@ -4,7 +4,7 @@ import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { ShellComponent } from '@anotoki/lib/shell';
 import { SessionService } from '../../../shared/auth/session.service';
 import { Changelog } from '../../../shared/changelog/changelog.service';
-import { AppTopBarComponent } from '../../../shared/top-bar/top-bar.component';
+import { AppTopBarComponent } from '../common/top-bar/top-bar.component';
 import { DeletionBannerComponent } from './deletion-banner.component';
 
 /**

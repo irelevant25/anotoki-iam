@@ -146,10 +146,14 @@ hosting:
   account page has the same switch. Sent in batches from its page, and kept:
   what, to whom, when, and how each mail went. Signing up offers the news in
   a box left unticked (migration 014).
-- The account pages and the admin panel wear the anotoki family's one top
-  bar (the survey site's is the reference): the account pages as its links,
-  the language, the theme, the person's menu; a menu button on a phone, up to
-  1040 px. The admin panel keeps its side navigation under it.
+- The account pages wear the anotoki family's one top bar (the survey site's
+  is the reference): the account pages as its links, the language, the
+  theme, the person's menu; a menu button on a phone, up to 1040 px. The
+  admin panel has none: it is in the family's admin frame (anotoki-lib
+  0.10.0, the owner's request of 2026-10-24 - every admin panel the genshin
+  site's), its column on the left - the panel's name, who is signed in, Back
+  to your account, Sign out, the theme and its pages in groups - the page on
+  the right, the column in a drawer on a phone.
 - Five wrong authenticator codes pause an account's codes for fifteen minutes,
   whatever addresses they come from (migration 019, the owner's decision of
   2026-10-13): the sign-in page then offers a code by email after the

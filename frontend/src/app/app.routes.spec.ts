@@ -30,7 +30,7 @@ import { iamMigrationsConfig } from './shared/migrations/migrations.config';
 import { AuthLayoutComponent } from './sites/main/auth/auth-layout/auth-layout.component';
 import { LegalLayoutComponent } from './sites/main/legal/legal-layout/legal-layout.component';
 import { AccountLayoutComponent } from './sites/main/account/account-layout.component';
-import { AdminLayoutComponent } from './sites/admin/admin-layout.component';
+import { AppComponent as AdminAppComponent } from './sites/admin/app.component';
 
 const MIRA: AccountUser = {
   id: 7,
@@ -60,7 +60,7 @@ class PageComponent {}
 /** The IAM's four frames as sites/main/main.routes.ts and the areas' routes give them, each holding a page. */
 const FRAMES: Routes = [
   { path: 'account', component: AccountLayoutComponent, children: [{ path: '**', component: PageComponent }] },
-  { path: 'admin', component: AdminLayoutComponent, children: [{ path: '**', component: PageComponent }] },
+  { path: 'admin', component: AdminAppComponent, children: [{ path: '**', component: PageComponent }] },
   { path: '', component: LegalLayoutComponent, children: [{ path: 'terms', component: PageComponent }] },
   { path: '', component: AuthLayoutComponent, children: [{ path: '**', component: PageComponent }] },
 ];
@@ -275,13 +275,13 @@ describe("the IAM's frames: the family's footer under every page, and the status
     vi.unstubAllGlobals();
   });
 
-  describe('the footer', () => {
-    /** The pages in Slovak, as the database has them; English beside them for the admin panel - and the IAM's versions as the start leaves them. */
-    function configureFrames(values: Record<string, string> = {}, versions: ChangelogEntry[] = VERSIONS): void {
-      configure(FRAMES, provideTestTranslations({ ...en, ...values }, { language: 'sk', english: en }));
-      TestBed.inject(Changelog).entries.set(versions);
-    }
+  /** The pages in Slovak, as the database has them; English beside them for the admin panel - and the IAM's versions as the start leaves them. */
+  function configureFrames(values: Record<string, string> = {}, versions: ChangelogEntry[] = VERSIONS): void {
+    configure(FRAMES, provideTestTranslations({ ...en, ...values }, { language: 'sk', english: en }));
+    TestBed.inject(Changelog).entries.set(versions);
+  }
 
+  describe('the footer', () => {
     it('under a sign-in page: the family’s, below the form in the sign-in pages’ column - the IAM’s version, What’s new and Feedback, then Terms · Privacy · Contact', async () => {
       configureFrames();
       await at('/login');
@@ -361,35 +361,47 @@ describe("the IAM's frames: the family's footer under every page, and the status
       expect(host.querySelector('a[data-legal-link="terms"]')?.getAttribute('aria-current')).toBe('page');
     });
 
-    it('in the admin panel too, under its pages and its side navigation - in English, as the panel is', async () => {
+    it('in the admin panel too, under its pages in the family’s admin frame - in English, as the panel is', async () => {
       user.set({ ...MIRA });
       configureFrames();
       await at('/admin/users');
       // The new feedback, asked once as an administrator opens the panel, is counted beside Feedback (anotoki-lib 0.8.1).
       TestBed.inject(HttpTestingController).expectOne('/api/admin/feedback/unread').flush({ unread: 3 });
       await settle();
-      const shell = host.querySelector('app-admin-layout anotoki-shell')!;
-      expect(shell.querySelector('nav.anotoki-shell__sidenav')).not.toBeNull();
-      expect(Array.from(shell.querySelectorAll('.anotoki-shell__nav-badge')).map((badge) => [badge.closest('a')?.getAttribute('href'), words(badge)])).toEqual([['/admin/feedback', '3']]);
-      // Somebody else signed in, in the same tab (no reload): nothing of the administrator's count is left beside Feedback, and nothing is asked.
+      const frame = host.querySelector('app-admin-root > anotoki-admin-frame')!;
+      expect(Array.from(frame.querySelectorAll('.anotoki-side-nav__badge')).map((badge) => [badge.closest('a')?.getAttribute('href'), words(badge)])).toEqual([['/admin/feedback', '3']]);
+      // Somebody else signed in, in the same tab (no reload): the panel closes - nothing of the administrator's count is left beside Feedback, and nothing is asked.
       user.set({ ...MIRA, is_admin: false });
       await settle();
-      expect(shell.querySelector('.anotoki-shell__nav-badge')).toBeNull();
+      expect(host.querySelector('anotoki-admin-frame, .anotoki-side-nav__badge')).toBeNull();
       // An administrator again: asked afresh (one request - none was made meanwhile).
       user.set({ ...MIRA });
       await settle();
       TestBed.inject(HttpTestingController).expectOne('/api/admin/feedback/unread').flush({ unread: 5 });
       await settle();
-      expect(words(shell.querySelector('a[href="/admin/feedback"] .anotoki-shell__nav-badge'))).toBe('5');
-      expect(shell.lastElementChild?.tagName.toLowerCase()).toBe('anotoki-site-footer');
+      expect(words(host.querySelector('anotoki-admin-frame a[href="/admin/feedback"] .anotoki-side-nav__badge'))).toBe('5');
+      // At the foot of the page's column, after the page.
+      expect(host.querySelector('.anotoki-admin-frame__page-column')?.lastElementChild?.tagName.toLowerCase()).toBe('anotoki-site-footer');
       expect(footer()).toEqual(ENGLISH_FOOTER);
     });
 
-    it('in the admin panel for somebody who may not use it: under "You don’t have access" as well', async () => {
+    it('in the admin panel for somebody who may not use it: under "You don’t have access" as well - no frame round it', async () => {
       user.set({ ...MIRA, is_admin: false });
       configureFrames();
       await at('/admin');
-      expect(words(host.querySelector('.no-access'))).toContain("You don't have access");
+      expect(words(host.querySelector('main.no-access'))).toContain("You don't have access");
+      expect(host.querySelector('main.no-access a[href="/account"]')).not.toBeNull();
+      expect(host.querySelector('anotoki-admin-frame, anotoki-side-nav, app-top-bar, anotoki-top-bar, anotoki-shell')).toBeNull();
+      expect(footer()).toEqual(ENGLISH_FOOTER);
+    });
+
+    it('in the admin panel for an administrator whose deletion is pending: told so, the footer under it - no frame round it', async () => {
+      user.set({ ...MIRA, is_admin: false, deletion_due_at: '2026-11-20T00:00:00Z' });
+      configureFrames();
+      await at('/admin/users');
+      expect(words(host.querySelector('main.no-access'))).toContain('Your account is being deleted');
+      expect(words(host.querySelector('main.no-access a[href="/account"]'))).toBe('Go to your account');
+      expect(host.querySelector('anotoki-admin-frame, anotoki-side-nav, app-top-bar, anotoki-top-bar, anotoki-shell')).toBeNull();
       expect(footer()).toEqual(ENGLISH_FOOTER);
     });
 
@@ -398,6 +410,78 @@ describe("the IAM's frames: the family's footer under every page, and the status
       await at('/login');
       expect(footer().links).toEqual(['O projekte /about', 'Podporiť /support', 'Podmienky /terms', 'Ochrana súkromia /privacy', 'Kontakt /contact']);
       expect(footer().feedback).toBe('Napíš nám');
+    });
+  });
+
+  /**
+   * The admin panel in the anotoki family's admin frame (`<anotoki-admin-frame>`, anotoki-lib 0.10.0 - the owner's
+   * request of 2026-10-24: every admin panel the genshin site's, never mistaken for the site): no top bar, a column of
+   * its own, worded and wired by the IAM (sites/admin/app.component).
+   */
+  describe('the admin panel, in the family’s admin frame', () => {
+    /** The frame's pages as its column lists them: each group's heading (none for the first), then its links - "words href", " [page]" for the page's own. */
+    const pages = () =>
+      Array.from(host.querySelectorAll('anotoki-admin-frame nav.anotoki-side-nav__nav .anotoki-side-nav__group')).map((group) => [
+        words(group.querySelector('.anotoki-side-nav__heading')),
+        ...Array.from(group.querySelectorAll<HTMLAnchorElement>('a.anotoki-side-nav__link')).map(
+          (link) => `${words(link.querySelector('.anotoki-side-nav__label'))} ${link.getAttribute('href')}${link.getAttribute('aria-current') === 'page' ? ' [page]' : ''}`,
+        ),
+      ]);
+
+    /** An administrator at a page of the panel, read in Slovak elsewhere - the count of new feedback answered: none. */
+    async function openPanel(url = '/admin/users'): Promise<Element> {
+      user.set({ ...MIRA });
+      configureFrames();
+      await at(url);
+      TestBed.inject(HttpTestingController).expectOne('/api/admin/feedback/unread').flush({ unread: 0 });
+      await settle();
+      return host.querySelector('app-admin-root > anotoki-admin-frame')!;
+    }
+
+    it('no top bar: its column - its name, the person, the way back, Sign out, the theme, then the pages in groups - in English for a reader of Slovak', async () => {
+      const frame = await openPanel();
+      expect(host.querySelector('app-top-bar, anotoki-top-bar, anotoki-shell')).toBeNull();
+      const name = frame.querySelector('.anotoki-admin-frame__head a.anotoki-admin-frame__brand')!;
+      expect([words(name), name.getAttribute('href')]).toEqual(['anotoki account · admin panel', '/admin']);
+      expect(words(frame.querySelector('.anotoki-admin-frame__name'))).toBe('Mira');
+      expect(words(frame.querySelector('.anotoki-admin-frame__email'))).toBe('mira@example.test');
+      const back = frame.querySelector('a.anotoki-admin-frame__back')!;
+      expect([words(back), back.getAttribute('href')]).toEqual(['Back to your account', '/account']);
+      expect(words(frame.querySelector('button.anotoki-admin-frame__sign-out'))).toBe('Sign out');
+      // The family's switch, the account's theme - in the IAM's own word for it.
+      expect(words(frame.querySelector('.anotoki-admin-frame__theme-label'))).toBe('Appearance');
+      expect(frame.querySelector('.anotoki-admin-frame__theme anotoki-theme-toggle [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Appearance');
+      expect(words(frame.querySelector('a.anotoki-admin-frame__skip'))).toBe('Skip to content');
+      expect(frame.querySelector('nav.anotoki-side-nav__nav')?.getAttribute('aria-label')).toBe('Admin panel');
+      // The sixteen pages the panel had, under headings; the page's own marked.
+      expect(pages()).toEqual([
+        [null, 'Dashboard /admin'],
+        ['Access', 'Users /admin/users [page]', 'Approvals /admin/approvals', 'Sessions /admin/sessions', 'Applications /admin/applications'],
+        ['Mail', 'Announcements /admin/announcements', 'Email log /admin/emails'],
+        ['Localization', 'Translations /admin/translations', 'Languages /admin/languages'],
+        [
+          'System',
+          'Settings /admin/settings',
+          'Signing keys /admin/keys',
+          'Audit log /admin/audit',
+          'Error log /admin/errors',
+          'Feedback /admin/feedback',
+          'Backups /admin/backups',
+          'Migrations /admin/migrations',
+        ],
+      ]);
+      // The page in the frame's <main>, the only one.
+      expect(host.querySelectorAll('main')).toHaveLength(1);
+      expect(words(frame.querySelector('main#main h1'))).toBe('The page');
+    });
+
+    it('Sign out is the account pages’ bar’s own: the IAM ends the session, and the page goes to the signed-out page', async () => {
+      const frame = await openPanel();
+      frame.querySelector<HTMLButtonElement>('button.anotoki-admin-frame__sign-out')!.click();
+      await settle();
+      expect(TestBed.inject(LoginApi).logout).toHaveBeenCalledTimes(1);
+      expect(user()).toBeNull();
+      expect(TestBed.inject(Router).url).toBe('/logout');
     });
   });
 
@@ -412,6 +496,7 @@ describe("the IAM's frames: the family's footer under every page, and the status
     function expectBare(): void {
       for (const selector of [
         'anotoki-shell',
+        'anotoki-admin-frame',
         'app-top-bar',
         'anotoki-top-bar',
         'nav',

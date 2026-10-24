@@ -2631,3 +2631,36 @@ anotoki-lib 0.10.0 - comes after.
   `/admin` comes first: the sign-in pages' not-found page would swallow it.
 - **The backend's scan of the pages' keys** reads the compiled English where it
   now is (`TRANSLATION_DICTIONARY_FILE`, `shared/i18n/en.ts`).
+
+## 2026-10-24 - The owner's decision: the admin panel in the family's admin frame (anotoki-lib 0.10.0)
+
+The second step of the same request: "The main idea is to have the menu on
+the left, not on top, and on the right the content" - every admin panel like
+the genshin site's, so that it is never mistaken for the site. anotoki-lib
+0.10.0 made genshin's frame the family's, `<anotoki-admin-frame>`
+(`@anotoki/lib/admin/frame`), and the IAM's admin panel is in it
+(`sites/admin/app.component`, named as genshin's).
+
+- **No top bar in the admin panel.** The column on the left is its frame:
+  the panel's name as the bar said it ("anotoki account · admin panel",
+  linking to the dashboard), who is signed in (the username and the address),
+  "Back to your account", Sign out - the bar's very function, now
+  `SignOutService`, which both call - and the theme (the family's switch over
+  the shell's ThemeService: the account's theme, as on every page). Then the
+  sixteen pages the side navigation had, nothing added or taken away, under
+  headings: the dashboard, then Access (Users, Approvals, Sessions,
+  Applications), Mail (Announcements, Email log), Localization (Translations,
+  Languages) and System (Settings, Signing keys, Audit log, Error log,
+  Feedback - the new ones counted beside it, for an administrator alone, as
+  before -, Backups, Migrations). The update line above the page, the footer
+  under it, as before; the frame's own words are the kit's, which the IAM
+  says with its keys, in English in the panel.
+- **The closed panel keeps its words and its way out.** "You don't have
+  access" and "Your account is being deleted", each with "Go to your
+  account", are drawn with no frame round them - nothing suggests there is
+  more to see -, the footer under them. Who may use the panel is as before:
+  the IAM's ADMIN, the server's `requireAdmin()` unchanged.
+- **The top bar is the account and legal pages' alone**: its admin area (the
+  admin wordmark, "Back to your account", no language switch) is gone, and
+  the bar moved to `sites/main/common/top-bar`. Nothing the bar shows on
+  those pages changed, so its fold (`PHONE_BAR_MAX`, 1040 px) stays.

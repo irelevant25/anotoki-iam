@@ -5,7 +5,7 @@ import { ANOTOKI_LEGAL_CONFIG } from '@anotoki/lib/legal';
 import { ShellComponent } from '@anotoki/lib/shell';
 import { Changelog } from '../../../../shared/changelog/changelog.service';
 import { iamLegalPagesConfig } from '../legal-facts';
-import { AppTopBarComponent } from '../../../../shared/top-bar/top-bar.component';
+import { AppTopBarComponent } from '../../common/top-bar/top-bar.component';
 
 /**
  * The legal pages' frame - Terms, Privacy, Contact, the family's pages

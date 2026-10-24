@@ -423,6 +423,15 @@ origin cannot send without a CORS preflight those endpoints never answer, and an
 `Origin` other than the IAM's own is refused. The admin panel needs the
 `ADMIN` role of the application `iam`.
 
+The account pages are under the family's top bar; the admin panel is in the
+family's admin frame (`<anotoki-admin-frame>`, anotoki-lib 0.10.0 - the owner's
+request of 2026-10-24: every admin panel the genshin site's, so it is never
+mistaken for the site), with no bar: a column on the left - the panel's name,
+who is signed in, Back to your account, Sign out (the bar's own), the theme
+(the account's) and the panel's pages in groups - and the page on the right; on
+a phone a row with the name and Menu, the column in a drawer. Somebody
+without the IAM's ADMIN sees the panel closed, with no frame round it.
+
 On HTTPS the cookie is `__Host-anotoki_iam` (a hardening of 2026-10-07): a
 browser keeps a cookie of exactly that name only from the IAM's own host -
 `Secure`, `Path=/`, no `Domain`. It is read by that exact name from the
@@ -639,7 +648,7 @@ IAM's error body) and `frontend/src/app/shared/i18n/translations.config.ts`.
 
 Four pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
 owner's decision of 2026-10-11 - feedback since the owner's decision of
-2026-10-19; 0.9.2 now, both halves): the same pages, routes and
+2026-10-19; 0.10.0 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and
@@ -856,7 +865,7 @@ written down, not a refactor.
 | `frontend/src/app/shared/legal/`, `sites/main/legal/` | How the pages use the family's legal pages (`@anotoki/lib/legal`): `legal.config.ts` (the language, the database's words - in the first load, for the footer's links) and, beside the pages' frame (`legal-layout`), `legal-facts.ts` (the IAM's facts and every address the pages link to, given by that frame). |
 | `frontend/src/app/shared/changelog/`, `shared/changelog-dialog/` | The IAM's versions (`public/changelog.json`, asked for as the pages start): the footer's version, and What's new - the IAM's own dialog, its code with the first press. |
 | `frontend/src/app/shared/feedback/` | How the pages use the family's feedback form (`@anotoki/lib/feedback`): the page's language, the database's words, the session's account and its address. |
-| `frontend/src/app/sites/main/`, `shared/top-bar/` | The IAM's own pages (`main.routes.ts`) and their frames: `auth/auth-layout` (the sign-in pages' night-sky frame), `account/` (the account pages), `legal/legal-layout` (the legal pages' frame), `common/` (what they share: the Google button, Google's script on a press, the remembered-device token); `shared/top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). The account pages, the legal pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`; every frame, the sign-in pages' too, has the family's footer under it (`<anotoki-site-footer>`, `@anotoki/lib/footer`: the IAM's version, What's new and Feedback, then Terms · Privacy · Contact). `/not-set-up` is on none of them (`main.routes.ts`). |
-| `frontend/src/app/sites/admin/` | The admin panel (`admin.routes.ts`, loaded with its first page): its frame (`admin-layout`, the side navigation), a folder per group of pages, `shared/` (what those pages share), and the panel's part of the family's admin tools and Translations pages (`admin-tools.ts`, `localization.ts`). |
+| `frontend/src/app/sites/main/` | The IAM's own pages (`main.routes.ts`) and their frames: `auth/auth-layout` (the sign-in pages' night-sky frame), `account/` (the account pages), `legal/legal-layout` (the legal pages' frame), `common/` (what they share: the top bar, the Google button, Google's script on a press, the remembered-device token) - `common/top-bar` is the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px. The account pages and the legal pages are in the family's frame, `<anotoki-shell>`, under that bar; every frame, the sign-in pages' and the admin panel's too, has the family's footer under it (`<anotoki-site-footer>`, `@anotoki/lib/footer`: the IAM's version, What's new and Feedback, then Terms · Privacy · Contact). `/not-set-up` is on none of them (`main.routes.ts`). |
+| `frontend/src/app/sites/admin/` | The admin panel (`admin.routes.ts`, loaded with its first page): its frame (`app.component`: the family's admin frame, `<anotoki-admin-frame>` - its column, the page, the footer - and the closed panel with no frame), a folder per group of pages, `shared/` (what those pages share), and the panel's part of the family's admin tools and Translations pages (`admin-tools.ts`, `localization.ts`). |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron; prunes the feedback kept no longer, at most daily. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

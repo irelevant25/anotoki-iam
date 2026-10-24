@@ -7,14 +7,14 @@ import { TEST_LANGUAGES } from '@anotoki/lib/translations/testing';
 import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Observable, Subject, defer, of, tap, throwError } from 'rxjs';
-import { AccountApi } from '../../api/account.api';
-import { ApiError } from '../../api/api-error';
-import { LoginApi } from '../../api/login.api';
-import { AccountUser } from '../../api/models';
-import { SessionService } from '../auth/session.service';
-import { en } from '../i18n/en';
-import { iamTranslationsConfig } from '../i18n/translations.config';
-import { iamShellConfig, iamUiConfig } from '../kit/kit.config';
+import { AccountApi } from '../../../../api/account.api';
+import { ApiError } from '../../../../api/api-error';
+import { LoginApi } from '../../../../api/login.api';
+import { AccountUser } from '../../../../api/models';
+import { SessionService } from '../../../../shared/auth/session.service';
+import { en } from '../../../../shared/i18n/en';
+import { iamTranslationsConfig } from '../../../../shared/i18n/translations.config';
+import { iamShellConfig, iamUiConfig } from '../../../../shared/kit/kit.config';
 import { AppTopBarComponent, PHONE_BAR_MAX } from './top-bar.component';
 
 /** The bar's words in Slovak, as migrations 006, 008 and 017 leave them (017 moved `lang.*` under the library's keys). */
@@ -163,9 +163,9 @@ describe('AppTopBarComponent', () => {
   const childrenOf = (selector: string) =>
     Array.from(host.querySelector(selector)!.children).map((child) => child.tagName.toLowerCase() + (child.className ? '.' + String(child.className).split(' ')[0] : ''));
 
-  async function draw(area: 'account' | 'admin' | 'public' = 'account'): Promise<void> {
-    // The English areas are where the page is: the title strategy tells the translations so after every navigation.
-    i18n().noteAddress(area === 'admin' ? '/admin' : '/account');
+  async function draw(area: 'account' | 'public' = 'account'): Promise<void> {
+    // Where the page is, as the title strategy tells the translations after every navigation: a translated area.
+    i18n().noteAddress('/account');
     fixture = TestBed.createComponent(AppTopBarComponent);
     fixture.componentRef.setInput('area', area);
     host = fixture.nativeElement;
@@ -368,14 +368,8 @@ describe('AppTopBarComponent', () => {
   }
 
   it('closes on Tab and Shift+Tab with the focus on its button, from any item - never on <body>', async () => {
-    // The desktop menu has two items ("Back to your account", "Sign out"): the first and the last. The phone's
-    // seven are where a middle one is (below).
-    await draw('admin');
-    await openMenu();
-    expect(items().length).toBe(2);
-    await expectTabOut(personButton, 1);
-    // And in the account area, an administrator's: the admin panel, signing out.
-    host.remove();
+    // The desktop menu has two items for an administrator (the admin panel, Sign out): the first and the last. The
+    // phone's seven are where a middle one is (below).
     await draw();
     await openMenu();
     expect(items().length).toBe(2);
@@ -393,23 +387,6 @@ describe('AppTopBarComponent', () => {
     await fixture.whenStable();
     expect(items()).toEqual([]);
     expect(personButton().getAttribute('aria-expanded')).toBe('false');
-  });
-
-  it('in the admin panel: English whatever is chosen, no links and no language, the way back to the account', async () => {
-    await draw('admin');
-    // The family's form for an admin area: "anotoki {site} · admin panel".
-    expect(wordmark()).toEqual(['anotoki', 'account', '·', 'admin panel']);
-    expect(host.querySelector('anotoki-brand a')?.getAttribute('href')).toBe('/admin');
-    expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe('anotoki account admin panel - home');
-    expect(host.querySelector('nav.anotoki-top-bar__nav')).toBeNull();
-    expect(host.querySelector('anotoki-language-switcher')).toBeNull();
-    expect(personButton().getAttribute('aria-label')).toBe('Account menu: Mira');
-    expect(host.querySelector('anotoki-theme-toggle [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Appearance');
-
-    await openMenu();
-    expect(menuHead()).toEqual(['Mira', 'mira@example.test', 'Administrator']);
-    expect(items().map(words)).toEqual(['Back to your account', 'Sign out']);
-    expect(items()[0].getAttribute('href')).toBe('/account');
   });
 
   it('follows a change of language without being drawn again', async () => {
@@ -737,18 +714,6 @@ describe('AppTopBarComponent', () => {
       // Tab from the first, a middle and the last item (and Shift+Tab): closed, the focus on the menu button.
       await openMenu();
       await expectTabOut(phoneButton, 3);
-    });
-
-    it('in the admin panel: the person’s menu alone, in English', async () => {
-      windowOf(390);
-      await draw('admin');
-      // The short form: "account", with "admin panel" small under it (the dot is not drawn).
-      expect(wordmark()).toEqual(['account', '·', 'admin panel']);
-      expect(host.querySelector('anotoki-brand .anotoki-brand__wordmark')?.classList).toContain('anotoki-brand__wordmark--short');
-      expect(host.querySelector('anotoki-brand .anotoki-brand__wordmark')?.classList).toContain('anotoki-brand__wordmark--has-panel');
-      await openMenu();
-      expect(items().map(words)).toEqual(['Back to your account', 'Sign out']);
-      expect(menu()?.querySelectorAll('anotoki-menu-separator').length).toBe(1);
     });
 
     it('signed out: Sign in is in the menu, after the pages', async () => {

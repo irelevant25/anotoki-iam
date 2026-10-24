@@ -4,15 +4,15 @@ import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
 import { useAdminToolsPanel } from '../../shared/admin/admin-tools.config';
 import { SessionService } from '../../shared/auth/session.service';
 import { useAdminPages } from '../../shared/i18n/translations.config';
-import { AdminLayoutComponent } from './admin-layout.component';
 import { adminToolsPanel } from './admin-tools';
+import { AppComponent } from './app.component';
 import { localizationPages } from './localization';
 
-/** /admin - behind the session guard; the layout itself shuts out anybody who is not an IAM admin. */
+/** /admin - behind the session guard; its frame (app.component, the family's admin frame) shuts out anybody who is not an IAM admin. */
 export const ADMIN_ROUTES: Routes = [
   {
     path: '',
-    component: AdminLayoutComponent,
+    component: AppComponent,
     // The Translations and Languages pages as the IAM words them, handed to the family's translations as the
     // panel loads - before either page can be made - and kept out of the first load (shared/i18n/translations.config.ts);
     // the same for the family's admin tools - the Error log, Audit log, Feedback and Backups pages
