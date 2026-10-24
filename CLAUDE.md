@@ -564,10 +564,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): 0.9.2,
+  halves, updated together where both change (`docs/operations.md`): 0.10.0,
   both halves (the migrations module, the translations module, the UI kit,
-  the admin tools, the pages' error reporter, the legal pages, the footer;
-  never 0.4.0, which fails on PHP 8.2). Never
+  the admin tools, the pages' error reporter, the legal pages, the footer,
+  the admin panel's frame; never 0.4.0, which fails on PHP 8.2). Never
   edit the vendored copy: a change goes to the library and comes back as a
   release. Its routes here: `GET /api/site-status` (first-party, public, no
   CORS), `/api/admin/migrations[/file|/apply]` inside the admin group, the
@@ -680,7 +680,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.9.2), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.10.0), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they
@@ -712,7 +712,8 @@ a decision for `docs/decisions.md`, not a refactor.
   `/not-set-up`, the family's status page, on a route of its own - on no
   frame: no bar, no switches, no footer, the owner's rule of 2026-10-18),
   the account page (`/account/**`, the family's frame at `maxWidth="88rem"`),
-  the admin panel (`/admin/**`, English only; `/admin/translations` and
+  the admin panel (`/admin/**`, English only, in the family's admin frame -
+  below; `/admin/translations` and
   `/admin/languages` are the family's `<anotoki-translations-page>` and
   `<anotoki-languages-page>` (`@anotoki/lib/translations/admin`, lazy; worded
   for the IAM - its mails, the accounts per language - by
@@ -744,15 +745,15 @@ a decision for `docs/decisions.md`, not a refactor.
   code as it is: a change to what the IAM keeps, or for how long, changes
   their `legal.*` strings (by a migration) and `IAM_LEGAL_UPDATED`; every
   address a page links to is in the code, never a string (the 0.6.0 review).
-- **The top bar** (`shared/top-bar`) is the anotoki family's one bar,
+- **The top bar** (`sites/main/common/top-bar`) is the anotoki family's one bar,
   `<anotoki-top-bar>` from `@anotoki/lib/shell` (its menus, keys and fold are
   the library's, tested there), worded and wired for the IAM; the account
-  pages, the legal pages and the admin panel are in the family's frame,
+  pages and the legal pages are in the family's frame,
   `<anotoki-shell>` (on the legal pages, `area="public"`: the account's bar
   for somebody signed in, the brand, language, theme and Sign in otherwise).
-  One row: brand, the account pages as links, the language (not in the admin
-  panel), the theme (the family's segmented switch), the person's menu (the
-  admin panel for the IAM's ADMIN, "Back to your account" from it, Sign out
+  One row: brand, the account pages as links, the language, the theme (the
+  family's segmented switch), the person's menu (the admin panel for the
+  IAM's ADMIN, Sign out
   - no "Your anotoki account": this is it). It folds into a menu button up to
   `PHONE_BAR_MAX` (1040 px, measured in English and Slovak plus a scrollbar:
   re-measure when a link or its words change). Tab / Shift+Tab from any menu
@@ -762,9 +763,23 @@ a decision for `docs/decisions.md`, not a refactor.
   translations, one save at a time and the latest choice last; a refusal is
   the note under the button. The language button's name holds the code it
   shows ("Language: Slovenčina (SK)", WCAG 2.5.3; `anotoki.language.button`).
-  The admin panel keeps its side navigation under the bar. The sign-in pages
+  The admin panel has no bar (below). The sign-in pages
   keep their own frame (`sites/main/auth/auth-layout`, the family's switcher as
   segments).
+- **The admin panel's frame** (`sites/admin/app.component`) is the family's
+  admin frame, `<anotoki-admin-frame>` from `@anotoki/lib/admin/frame`
+  (anotoki-lib 0.10.0; the owner's request of 2026-10-24, `docs/decisions.md`:
+  every admin panel the genshin site's, so it is never mistaken for the site)
+  - no top bar: a column on the left with the panel's name ("anotoki account
+  · admin panel", to the dashboard), the person, "Back to your account", Sign
+  out (the bar's own, `SignOutService`), the theme (`<anotoki-theme-toggle
+  adminFrameTheme />`, the account's) and the pages in groups (Access, Mail,
+  Localization, System; the new feedback counted beside Feedback for an
+  administrator), and on the right `<anotoki-update-banner>`, the page and the
+  footer; up to 860 px a row with the name and Menu, the column in a drawer.
+  Its kit words are the IAM's keys, English there. Anybody but the IAM's
+  ADMIN finds the panel closed ("You don't have access", or the deletion
+  pending) with no frame round it.
 - Zoneless and signals-first; OnPush everywhere; no UI library but the
   family's. Colours only from the family's `--anotoki-*` custom properties
   (written for light and dark by `styles.scss`), the sign-in pages' night sky,

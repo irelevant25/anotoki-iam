@@ -83,15 +83,20 @@ call exactly those endpoints and must handle exactly those refusal codes.
 - `frontend/src/app/sites/main/` - the IAM's own pages (`main.routes.ts`):
   `auth/` (the sign-in pages, and `auth/auth-layout`, their frame),
   `account/`, `legal/` (`legal/legal-layout`, the legal pages' frame, and the
-  IAM's facts) and `common/` (what they share: Google sign-in, the
-  remembered-device token).
+  IAM's facts) and `common/` (what they share: the top bar, Google sign-in,
+  the remembered-device token).
 - `frontend/src/app/sites/admin/` - the admin panel (`admin.routes.ts`): its
-  frame, a folder per group of pages and what they share (`shared/`).
-- `frontend/src/app/shared/top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
+  frame (`app.component`: the family's admin frame, `<anotoki-admin-frame>`
+  from `@anotoki/lib/admin/frame` - no top bar, a column on the left with the
+  panel's name, the person, "Back to your account", Sign out (the bar's own,
+  `shared/auth/sign-out.ts`), the theme and the pages in groups; closed with
+  no frame round it to anybody but the IAM's ADMIN), a folder per group of
+  pages and what they share (`shared/`).
+- `frontend/src/app/sites/main/common/top-bar` (the anotoki family's one bar, `<anotoki-top-bar>` from
   `@anotoki/lib/shell`, worded and wired for the IAM - CLAUDE.md says what it
   holds, its fold width and its keyboard rules; `top-bar.component.spec.ts`
-  checks them on the real bar). The account pages, the legal pages and the
-  admin panel are in the family's frame, `<anotoki-shell>`. Under every frame
+  checks them on the real bar). The account pages and the legal pages are in
+  the family's frame, `<anotoki-shell>`, under it. Under every frame
   (the sign-in, account, legal and admin pages) the family's footer,
   `<anotoki-site-footer>` (`@anotoki/lib/footer`): the IAM's row - the
   version and What's new from `Changelog` (neither before its list came) and
