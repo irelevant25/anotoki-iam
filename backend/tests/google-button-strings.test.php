@@ -3,7 +3,7 @@
 /**
  * Migration 022: Google only on a press (the owner's decision of 2026-10-14).
  * The sign-in, sign-up and account pages draw the IAM's own button and fetch
- * nothing from Google until somebody presses it (frontend ui/google-button):
+ * nothing from Google until somebody presses it (frontend sites/main/common/google-button):
  * six page keys say that button's words, what a screen reader is told and
  * the line shown when Google cannot be reached - each described, in English
  * (en.ts's, which translations.test.php holds to it) and in an informal

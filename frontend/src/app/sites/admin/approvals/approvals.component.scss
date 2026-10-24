@@ -1,0 +1,13 @@
+@use "../shared/admin-list";
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+.decisions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}

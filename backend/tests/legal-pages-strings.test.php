@@ -19,7 +19,7 @@
  * And what the 0.6.0 review asked of every site: no address in a string an
  * administrator can reword. Where the pages' links go - the account page,
  * the operator, Cloudflare, Google - is the code's (frontend
- * core/legal/legal-facts.ts and the library), never a string's.
+ * sites/main/legal/legal-facts.ts and the library), never a string's.
  *
  * A later file rewords one of 020's strings: 022 says that Google is
  * contacted only when somebody presses the button (legal.google.role;

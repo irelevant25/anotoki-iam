@@ -119,7 +119,7 @@ Composer package in `backend/vendor/anotoki/lib`, and `@anotoki/lib` in the
 frontend, one version for both), whose migrations module is also the gate in
 front of the API, the status the pages ask, the admin Migrations page and its
 routes. The IAM wires it in `backend/api/migration_runner.php` and
-`frontend/src/app/core/migrations/migrations.config.ts`.
+`frontend/src/app/shared/migrations/migrations.config.ts`.
 
 - **The engine** (`iamMigrator()`): three sets, in this order - the library's
   admin set, `anotoki_admin` (`vendor/anotoki/lib/backend/migrations/admin`: the
@@ -443,7 +443,7 @@ as its language is: the `preferences` claim beside `locale` tells every site,
 and the account page - or a site, with the person's access token, through
 `POST /api/oidc/preferences` - changes them. Signed in, the IAM's own pages
 follow them like any site: the family's `ThemeService` (`@anotoki/lib/shell`,
-given the account by `frontend/src/app/core/kit/kit.config.ts`) shows the
+given the account by `frontend/src/app/shared/kit/kit.config.ts`) shows the
 account's theme and saves a choice to it - one save at a time, the latest
 last - and the `appDate` pipe writes the account's order and clock. Signed
 out, each device keeps its own theme, as before.
@@ -455,7 +455,7 @@ the owner's decisions of 2026-10-13; `@anotoki/lib/legal/pages`), on the
 library's own paths - `/terms`, `/privacy`, `/contact` - and the IAM's
 Privacy page is the one every anotoki site links to for the account itself.
 Anybody may read them: they are in the family's frame
-(`layouts/legal-layout`), whose bar is the account pages' for somebody
+(`sites/main/legal/legal-layout`), whose bar is the account pages' for somebody
 signed in and Sign in for anybody else (the top bar's `public` area), and
 the session is asked for before the first page when one of them is where the
 site was opened. The family's footer links to them (`<anotoki-site-footer>`,
@@ -469,7 +469,7 @@ What's new and feedback" below). The not-set-up page has none of it.
 The words are the library's (`anotoki.legal.*`, written by its translations
 set's 005); the facts are the IAM's - what it keeps, for how long, its
 cookies and stored items, who else handles data
-(`frontend/src/app/core/legal/legal-facts.ts`): its own strings (`legal.*`,
+(`frontend/src/app/sites/main/legal/legal-facts.ts`): its own strings (`legal.*`,
 migration 020, English and informal Slovak, reworded on the Translations page
 like any other) and, in the code only, every address a page links to (the
 account's Security page, where an account is deleted; the operator,
@@ -483,7 +483,7 @@ sign-in page shares, carries only the footer's links.
 
 Google is among who else handles data in the IAM's own words: nothing is
 loaded from Google until somebody presses the IAM's own Google button
-(`frontend/src/app/ui/google-button`, in Google's branding; migration 022, the
+(`frontend/src/app/sites/main/common/google-button`, in Google's branding; migration 022, the
 owner's decision of 2026-10-14). The press fetches Google's script - once a
 visit - and draws Google's own button in its place, whose press opens Google's
 account chooser and hands the page the id token the server checks, as before.
@@ -496,16 +496,16 @@ every anotoki site: the version, What's new and Feedback.
 - **The version** is the newest entry of `frontend/public/changelog.json` -
   1.0.0 first - which `frontend/package.json` repeats, held to it by a spec.
   The pages ask for the file once as they start, never waiting for it
-  (`core/changelog`); the web root serves it `no-cache`. Without it the
+  (`shared/changelog`); the web root serves it `no-cache`. Without it the
   footer shows neither the version nor What's new.
-- **What's new** is the IAM's own dialog (`ui/changelog-dialog`, its code with
+- **What's new** is the IAM's own dialog (`shared/changelog-dialog`, its code with
   the first press): every version, newest first, with what it added, put
   right and changed - the file's sentences, in the reader's language where the
   file has them whole (English and informal Slovak), its own words page keys
   (`whatsNew.*`, migration 024). It opens only when asked and keeps nothing in
   the browser.
 - **Feedback** is the family's form (`@anotoki/lib/feedback/form`, configured
-  in `core/feedback`), which the footer and the Contact page open, sent to
+  in `shared/feedback`), which the footer and the Contact page open, sent to
   `POST /api/feedback`: from anybody, the sender the account this browser's
   session names - or nobody, or "without my name" -, the account's address
   written in as the reply address until the person changes it, the CSRF
@@ -530,7 +530,7 @@ the switcher, the admin pages), the same on every anotoki site
 (`docs/decisions.md`, 2026-10-11). What is the IAM's is its configuration:
 `backend/api/translations.php` (`iamTranslations()`; the mails' rules
 `IamMailRules`; the accounts per language `IamLanguageUsage`; refusals in the
-IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
+IAM's error body) and `frontend/src/app/shared/i18n/translations.config.ts`.
 
 - **The tables.** `languages`, `translation_keys`, `translations` (above), in the
   family's one shape - the library's own first migration
@@ -582,7 +582,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   (the bundle - the library's route, the IAM's answer byte for byte): the
   language's strings with English under them, the offered languages, and English
   on its own for the admin panel. The library's `TranslationService`
-  (`@anotoki/lib/translations`, configured in `core/i18n/translations.config.ts`
+  (`@anotoki/lib/translations`, configured in `shared/i18n/translations.config.ts`
   under the IAM's storage names, `anotoki-iam:lang`, `:lang-cache`,
   `:localization-drafts`, so a visitor's choice survived the move) picks the
   language - this tab's `?lang=` (which the backend adds from an application's
@@ -599,7 +599,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   bundle route answers `503 translations_unavailable` (so does a database out of
   reach), and the sign-in page must still be readable or nobody could sign in to
   press Apply. The frontend then reads the English compiled from
-  `core/i18n/en.ts`, and the library's keys its built-in words; the mails read
+  `shared/i18n/en.ts`, and the library's keys its built-in words; the mails read
   `MAIL_FALLBACK` in `api/mail.php`, key by key, whenever the database has
   nothing to say. Only then: once a bundle is in memory, a key of the IAM's it
   lacks shows as the key itself (and warns once), so a missing string is seen,
@@ -627,7 +627,7 @@ IAM's error body) and `frontend/src/app/core/i18n/translations.config.ts`.
   "Missing in", export and import of one language as JSON, the mails in blocks
   of their own with their rules) and Languages (`/admin/languages`: add,
   rename, order, offer or hide, delete - offering an export first), worded for
-  the IAM in `pages/admin/localization.ts`. What is typed and not saved is kept
+  the IAM in `sites/admin/localization.ts`. What is typed and not saved is kept
   by the library's `LocalizationDrafts`, mirrored to `sessionStorage` for the
   tab: a session that ends, or Sign out, leaves the page without asking, and
   the same administrator finds the drafts in their boxes after signing in
@@ -850,12 +850,13 @@ written down, not a refactor.
 | `backend/api/translations.php` | The IAM's configuration of the library's translations (`iamTranslations()`): the mails' rules (`IamMailRules`), the two sentences cut around `{app}`, the accounts per language (`IamLanguageUsage`), refusals in the IAM's error body; and the key scan's settings for the command line and the tests (`iamKeyScanner()`). The routes are in `routes/login.php` (the bundle) and `routes/admin.php`. |
 | `backend/api/announcements.php` | Announcements: the senders, the checks of a draft and of its links, who it reaches, the mail's layout, the batches, the token that stops the news. |
 | `backend/translations.php` | The strings from the command line - the library's command on the IAM's configuration, then the mails' keys against `MAIL_KEYS`: `--status`, `--export`, `--import`. Never uploaded. |
-| `frontend/src/app/core/i18n/` | `translations.config.ts` (the IAM's configuration of `@anotoki/lib/translations`: its storage names, `en.ts` as the last resort, the account's language and its save), `translation.service.ts` (the library's service, seen with the IAM's keys), the typed `t` pipe, `en.ts` (the keys and the English of last resort). |
-| `frontend/src/app/core/migrations/` | How the pages use `@anotoki/lib/migrations`: who is the IAM's ADMIN, the sign-in, the language and the IAM's own not-set-up words, the account's dates. |
-| `frontend/src/app/core/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the database (the IAM's own strings where it has one, `kit-words.ts`; the library's `anotoki.*` for the rest), the icons the IAM's templates name, the account's theme and the languages. |
-| `frontend/src/app/core/legal/` | How the pages use the family's legal pages (`@anotoki/lib/legal`): `legal.config.ts` (the language, the database's words - in the first load, for the footer's links) and `legal-facts.ts` (the IAM's facts and every address the pages link to, given by the pages' frame). |
-| `frontend/src/app/core/changelog/`, `ui/changelog-dialog/` | The IAM's versions (`public/changelog.json`, asked for as the pages start): the footer's version, and What's new - the IAM's own dialog, its code with the first press. |
-| `frontend/src/app/core/feedback/` | How the pages use the family's feedback form (`@anotoki/lib/feedback`): the page's language, the database's words, the session's account and its address. |
-| `frontend/src/app/layouts/` | `auth-layout` (the sign-in pages' night-sky frame), `top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px), `legal-layout` (the legal pages' frame). The account pages, the legal pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`; every frame, the sign-in pages' too, has the family's footer under it (`<anotoki-site-footer>`, `@anotoki/lib/footer`: the IAM's version, What's new and Feedback, then Terms · Privacy · Contact). `/not-set-up` is on none of them (`app.routes.ts`). |
+| `frontend/src/app/shared/i18n/` | `translations.config.ts` (the IAM's configuration of `@anotoki/lib/translations`: its storage names, `en.ts` as the last resort, the account's language and its save), `translation.service.ts` (the library's service, seen with the IAM's keys), the typed `t` pipe, `en.ts` (the keys and the English of last resort). |
+| `frontend/src/app/shared/migrations/` | How the pages use `@anotoki/lib/migrations`: who is the IAM's ADMIN, the sign-in, the language and the IAM's own not-set-up words, the account's dates. |
+| `frontend/src/app/shared/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the database (the IAM's own strings where it has one, `kit-words.ts`; the library's `anotoki.*` for the rest), the icons the IAM's templates name, the account's theme and the languages. |
+| `frontend/src/app/shared/legal/`, `sites/main/legal/` | How the pages use the family's legal pages (`@anotoki/lib/legal`): `legal.config.ts` (the language, the database's words - in the first load, for the footer's links) and, beside the pages' frame (`legal-layout`), `legal-facts.ts` (the IAM's facts and every address the pages link to, given by that frame). |
+| `frontend/src/app/shared/changelog/`, `shared/changelog-dialog/` | The IAM's versions (`public/changelog.json`, asked for as the pages start): the footer's version, and What's new - the IAM's own dialog, its code with the first press. |
+| `frontend/src/app/shared/feedback/` | How the pages use the family's feedback form (`@anotoki/lib/feedback`): the page's language, the database's words, the session's account and its address. |
+| `frontend/src/app/sites/main/`, `shared/top-bar/` | The IAM's own pages (`main.routes.ts`) and their frames: `auth/auth-layout` (the sign-in pages' night-sky frame), `account/` (the account pages), `legal/legal-layout` (the legal pages' frame), `common/` (what they share: the Google button, Google's script on a press, the remembered-device token); `shared/top-bar` (the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px). The account pages, the legal pages and the admin panel (with its side navigation) are in the family's frame, `<anotoki-shell>`; every frame, the sign-in pages' too, has the family's footer under it (`<anotoki-site-footer>`, `@anotoki/lib/footer`: the IAM's version, What's new and Feedback, then Terms · Privacy · Contact). `/not-set-up` is on none of them (`main.routes.ts`). |
+| `frontend/src/app/sites/admin/` | The admin panel (`admin.routes.ts`, loaded with its first page): its frame (`admin-layout`, the side navigation), a folder per group of pages, `shared/` (what those pages share), and the panel's part of the family's admin tools and Translations pages (`admin-tools.ts`, `localization.ts`). |
 | `backend/api/housekeeping.php` | Sweeps dead requests, codes and old spent tokens, and deletes the accounts whose deletion is due, at most hourly, from ordinary traffic - the host has no cron; prunes the feedback kept no longer, at most daily. |
 | `backend/tests/` | In-process tests - the app and the installer - against throwaway databases and temp configuration. |

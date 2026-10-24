@@ -130,7 +130,7 @@ const TRANSLATION_MAIL_ADDRESS = '~(://|\bwww\.|@)~i';
 const TRANSLATION_MAIL_TURNING = '/[\x{0080}-\x{009F}\x{061C}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u';
 
 /** The frontend's compiled English, the list of its keys - under frontend/src/app. */
-const TRANSLATION_DICTIONARY_FILE = 'core/i18n/en.ts';
+const TRANSLATION_DICTIONARY_FILE = 'shared/i18n/en.ts';
 
 /**
  * The rules of the mails' words, beyond every string's (the library's

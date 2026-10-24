@@ -1160,7 +1160,7 @@ to the library, not back into `ui/`.
   ("anotoki account admin panel - home").
 - **The IAM's words stay the database's.** A word of the kit or the bar that
   the IAM said before is still its string, through the kit's `lookup`
-  (`core/kit/kit-words.ts`), reworded on the Translations page like the rest;
+  (`shared/kit/kit-words.ts`), reworded on the Translations page like the rest;
   only what the IAM never said is the kit's own English and Slovak. The admin
   panel stays English, and "Your anotoki account" stays out of the IAM's own
   menu (2026-10-04): this site is that account.
@@ -1828,7 +1828,7 @@ the owner, not legal advice. What the IAM decided with them:
   changing a link's words and never its address.
 - **Out of the first load, what only the pages read**: the root configuration
   (the language, the database's words) is there for the footer's links; the
-  facts come with the pages' frame (`layouts/legal-layout`). The facts' English
+  facts come with the pages' frame (`sites/main/legal/legal-layout`). The facts' English
   is in `en.ts`, as every page string is - the first load's growth (about
   10 kB of text before compression, 2.5 kB after).
 - **The Slovak "ty" everywhere** (021): the sign-in page's two buttons that
@@ -1845,7 +1845,7 @@ opened, to draw Google's own button: every visitor's browser contacted Google,
 also one who never used it - and the Privacy page had to say so. The owner's
 decision: Google is contacted only when somebody presses the button.
 
-- **The IAM's own button first** (`ui/google-button`): a real `<button>` in
+- **The IAM's own button first** (`sites/main/common/google-button`): a real `<button>` in
   Google's published branding for a sign-in button - the "G" in its four
   colours, drawn by the page (never fetched), Google's light and dark fill,
   stroke and words, a pill -, the IAM's words in the page's language ("Sign in
@@ -2086,7 +2086,7 @@ no version"). What was decided with it:
   load as the IAM starts, never waited for, and a list that cannot be had
   shows neither the version nor What's new. The web root's `.htaccess`
   serves the file `no-cache`: it has no hash in its name.
-- **What's new is the IAM's own dialog** (`ui/changelog-dialog`, its code
+- **What's new is the IAM's own dialog** (`shared/changelog-dialog`, its code
   with the first press), opened by the footer's What's new and never by
   itself: nothing about what a browser has seen is kept, so nothing new is
   stored in it. Its own words - the heading, a version's name, Latest, Added,
@@ -2266,7 +2266,7 @@ validation so the username may contains only [a-zA-Z0-9]".
   take any name again - an address, a turned text, the lure this closes (the
   security review of 2026-10-19) - and show `register.usernameHint` as a key;
   fix forward. The register page and
-  the account page ask the same rule before they send (`core/auth/username.ts`),
+  the account page ask the same rule before they send (`shared/auth/username.ts`),
   and so do the admin panel's create and edit, in its English; the server
   stays the rule.
 - **Tested** (`tests/usernames.test.php`): `jan@example.com`, a right-to-left
@@ -2280,7 +2280,7 @@ validation so the username may contains only [a-zA-Z0-9]".
   legacy import keeping a name the rule refuses; 025 on a fresh IAM, on one
   built through 024 as the files left it and as its owner left it, and its
   gate failing loudly. In the frontend, the rule's spec
-  (`core/auth/username.spec.ts`).
+  (`shared/auth/username.spec.ts`).
 
 ## 2026-10-19 - The owner's decision: a release is frontend/ and backend/, replaced whole
 
@@ -2601,3 +2601,33 @@ once more rather than followed by a 027.
   so no future way in can reach for a check of "used here" that holds nothing.
   026 itself is applied and stays as it is; its note on a development database
   that ran an earlier version of it holds for every earlier version.
+
+## 2026-10-24 - The owner's decision: the frontend in the family's folders, the genshin site's
+
+"The admin panels in all projects should look like the genshin one... I mean
+the UI structure itself and the frontend folder structure as well (like
+frontend/src/app -> api, shared, sites and frontend/src/app/sites -> admin,
+main)." The folders came first, a move with nothing else changed; the admin
+panel's frame - a left column like the genshin site's, the family's from
+anotoki-lib 0.10.0 - comes after.
+
+- **Where a file goes is decided by who uses it.** `api/` is the hand-written
+  API layer (`core/api/` before). `shared/` is what both halves use: the rest
+  of `core/`, What's new (`changelog-dialog/`), the sessions' words
+  (`i18n/session-labels.ts`, which the admin panel's sessions read as the
+  account's do) and the top bar (`top-bar/`: the admin panel's frame draws it
+  too, until the family's admin frame takes its place there). `sites/main/` is
+  the IAM's own pages - the sign-in pages with their frame and card (`auth/`),
+  the account pages (`account/`), the legal pages' frame and facts (`legal/`)
+  and what they share (`common/`: the Google button, Google's script, the
+  remembered-device token); `sites/admin/` is the admin panel - its frame, a
+  folder per group of pages and what those share (`shared/`). What only one
+  half uses is in that half.
+- **The routes in two halves**: `app.routes.ts` holds `/admin`
+  (`sites/admin/admin.routes.ts`, lazy as before) and then
+  `sites/main/main.routes.ts`'s routes. The genshin site loads its main half
+  with a `loadChildren`; the IAM imports its routes instead, so every address,
+  guard and title, the first load and every lazy chunk stay as they were.
+  `/admin` comes first: the sign-in pages' not-found page would swallow it.
+- **The backend's scan of the pages' keys** reads the compiled English where it
+  now is (`TRANSLATION_DICTIONARY_FILE`, `shared/i18n/en.ts`).

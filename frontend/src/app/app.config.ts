@@ -10,17 +10,17 @@ import { ThemeService, provideAnotokiShell } from '@anotoki/lib/shell';
 import { provideAnotokiTranslations } from '@anotoki/lib/translations';
 import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { routes } from './app.routes';
-import { iamAdminToolsConfig } from './core/admin/admin-tools.config';
-import { SessionService } from './core/auth/session.service';
-import { Changelog } from './core/changelog/changelog.service';
-import { iamFeedbackConfig } from './core/feedback/feedback.config';
-import { iamInterceptor } from './core/http/iam.interceptor';
-import { IamTitleStrategy } from './core/i18n/title.strategy';
-import { TranslationService } from './core/i18n/translation.service';
-import { iamTranslationsConfig, startTranslations } from './core/i18n/translations.config';
-import { iamShellConfig, iamUiConfig } from './core/kit/kit.config';
-import { iamLegalConfig } from './core/legal/legal.config';
-import { iamMigrationsConfig } from './core/migrations/migrations.config';
+import { iamAdminToolsConfig } from './shared/admin/admin-tools.config';
+import { SessionService } from './shared/auth/session.service';
+import { Changelog } from './shared/changelog/changelog.service';
+import { iamFeedbackConfig } from './shared/feedback/feedback.config';
+import { iamInterceptor } from './shared/http/iam.interceptor';
+import { IamTitleStrategy } from './shared/i18n/title.strategy';
+import { TranslationService } from './shared/i18n/translation.service';
+import { iamTranslationsConfig, startTranslations } from './shared/i18n/translations.config';
+import { iamShellConfig, iamUiConfig } from './shared/kit/kit.config';
+import { iamLegalConfig } from './shared/legal/legal.config';
+import { iamMigrationsConfig } from './shared/migrations/migrations.config';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -30,7 +30,7 @@ export const appConfig: ApplicationConfig = {
     // load at most - to `POST /api/client-errors` (the library's route,
     // routes/login.php) through the app's HttpClient: the IAM's interceptor
     // gives it the CSRF header every write carries, and moves no page for its
-    // failure (core/http/iam.interceptor.ts). With the browser's global
+    // failure (shared/http/iam.interceptor.ts). With the browser's global
     // listeners, the errors outside Angular's own code arrive too.
     provideBrowserGlobalErrorListeners(),
     provideAnotokiErrorReport(),
@@ -44,36 +44,36 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([iamInterceptor, siteStatusInterceptor])),
     // The family's translations (@anotoki/lib/translations): the pages' words
     // from the database, the language, the admin panel's Translations and
-    // Languages pages (core/i18n/translations.config.ts).
+    // Languages pages (shared/i18n/translations.config.ts).
     provideAnotokiTranslations(iamTranslationsConfig),
     // The family's UI kit and its shell (@anotoki/lib): the IAM's words and
     // icons for the kit, its theme and languages for the shell
-    // (core/kit/kit.config.ts).
+    // (shared/kit/kit.config.ts).
     provideAnotokiUi(iamUiConfig),
     provideAnotokiShell(iamShellConfig),
     // The family's migrations module: the admin panel's Migrations page and
     // its banner, the not-set-up page. No gate and no check at boot - the IAM
-    // keeps working while an update waits (core/migrations/migrations.config.ts).
+    // keeps working while an update waits (shared/migrations/migrations.config.ts).
     provideAnotokiMigrations(iamMigrationsConfig),
     // The family's admin tools: the admin panel's Error log, Audit log,
     // Feedback and Backups pages, English, for the IAM's ADMIN alone; what
     // only the panel says and does is handed over by its routes
-    // (core/admin/admin-tools.config.ts).
+    // (shared/admin/admin-tools.config.ts).
     provideAnotokiAdmin(iamAdminToolsConfig),
     // The family's legal pages - Terms, Privacy, Contact, on lazy routes - and
     // the links to them in the family's footer (@anotoki/lib/footer, which has
     // no configuration of its own - its links read this one; the IAM gives it
-    // its version and What's new, from public/changelog.json - core/changelog -,
+    // its version and What's new, from public/changelog.json - shared/changelog -,
     // and Feedback): the library's words around the IAM's facts,
-    // every address the pages link to in the code (core/legal/legal.config.ts;
+    // every address the pages link to in the code (shared/legal/legal.config.ts;
     // the facts, which only the pages read, come with their frame:
-    // core/legal/legal-facts.ts, layouts/legal-layout).
+    // sites/main/legal/legal-facts.ts, sites/main/legal/legal-layout).
     // The IAM's Privacy page is the one every anotoki site links to.
     provideAnotokiLegal(iamLegalConfig),
     // The family's feedback form (the owner's decision of 2026-10-19), which
     // the footer opens under every page and the Contact page too - its code
     // with the first press: the page's language, the database's words, the
-    // session's account and its address (core/feedback/feedback.config.ts).
+    // session's account and its address (shared/feedback/feedback.config.ts).
     provideAnotokiFeedback(iamFeedbackConfig),
     { provide: TitleStrategy, useClass: IamTitleStrategy },
     // The theme applies itself on construction; asking for it here makes that
@@ -82,7 +82,7 @@ export const appConfig: ApplicationConfig = {
     // memory - or, after three seconds at most, in the compiled English.
     // The start never rejects, so a server that cannot be reached still leaves
     // a site that starts and says so. The IAM's versions (public/changelog.json,
-    // core/changelog) are asked for beside it, once a page load and never
+    // shared/changelog) are asked for beside it, once a page load and never
     // waited for: the footer's version is there long before the words are.
     provideAppInitializer(() => {
       inject(ThemeService);

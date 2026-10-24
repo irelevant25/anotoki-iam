@@ -14,23 +14,23 @@ import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { Observable, defer, of, tap } from 'rxjs';
 import { AppComponent } from './app.component';
 import { routes } from './app.routes';
-import { iamAdminToolsConfig } from './core/admin/admin-tools.config';
-import { AccountApi } from './core/api/account.api';
-import { LoginApi } from './core/api/login.api';
-import { AccountUser } from './core/api/models';
-import { SessionService } from './core/auth/session.service';
-import { CHANGELOG_URL, Changelog, ChangelogEntry } from './core/changelog/changelog.service';
-import { iamFeedbackConfig } from './core/feedback/feedback.config';
-import { en } from './core/i18n/en';
-import { IamTitleStrategy } from './core/i18n/title.strategy';
-import { iamTranslationsConfig } from './core/i18n/translations.config';
-import { iamShellConfig, iamUiConfig } from './core/kit/kit.config';
-import { iamLegalConfig } from './core/legal/legal.config';
-import { iamMigrationsConfig } from './core/migrations/migrations.config';
-import { AuthLayoutComponent } from './layouts/auth-layout/auth-layout.component';
-import { LegalLayoutComponent } from './layouts/legal-layout/legal-layout.component';
-import { AccountLayoutComponent } from './pages/account/account-layout.component';
-import { AdminLayoutComponent } from './pages/admin/admin-layout.component';
+import { iamAdminToolsConfig } from './shared/admin/admin-tools.config';
+import { AccountApi } from './api/account.api';
+import { LoginApi } from './api/login.api';
+import { AccountUser } from './api/models';
+import { SessionService } from './shared/auth/session.service';
+import { CHANGELOG_URL, Changelog, ChangelogEntry } from './shared/changelog/changelog.service';
+import { iamFeedbackConfig } from './shared/feedback/feedback.config';
+import { en } from './shared/i18n/en';
+import { IamTitleStrategy } from './shared/i18n/title.strategy';
+import { iamTranslationsConfig } from './shared/i18n/translations.config';
+import { iamShellConfig, iamUiConfig } from './shared/kit/kit.config';
+import { iamLegalConfig } from './shared/legal/legal.config';
+import { iamMigrationsConfig } from './shared/migrations/migrations.config';
+import { AuthLayoutComponent } from './sites/main/auth/auth-layout/auth-layout.component';
+import { LegalLayoutComponent } from './sites/main/legal/legal-layout/legal-layout.component';
+import { AccountLayoutComponent } from './sites/main/account/account-layout.component';
+import { AdminLayoutComponent } from './sites/admin/admin-layout.component';
 
 const MIRA: AccountUser = {
   id: 7,
@@ -57,7 +57,7 @@ const MIRA: AccountUser = {
 @Component({ selector: 'app-test-page', changeDetection: ChangeDetectionStrategy.OnPush, template: '<h1>The page</h1>' })
 class PageComponent {}
 
-/** The IAM's four frames as app.routes.ts and the areas' routes give them, each holding a page. */
+/** The IAM's four frames as sites/main/main.routes.ts and the areas' routes give them, each holding a page. */
 const FRAMES: Routes = [
   { path: 'account', component: AccountLayoutComponent, children: [{ path: '**', component: PageComponent }] },
   { path: 'admin', component: AdminLayoutComponent, children: [{ path: '**', component: PageComponent }] },
@@ -103,19 +103,20 @@ function held(answer: Omit<Answer, 'held'>): { answer: Answer; give: () => void 
   return { answer: { ...answer, held: settled }, give };
 }
 
-/** The IAM's versions as the start leaves them (core/changelog): the newest is the footer's version. */
+/** The IAM's versions as the start leaves them (shared/changelog): the newest is the footer's version. */
 const VERSIONS: ChangelogEntry[] = [{ version: '1.0.0', date: '2026-10-19', changes: { added: ['One anotoki account for every anotoki site'] } }];
 
 /**
- * The frames of the IAM's pages, as app.routes.ts lays them out: the anotoki
- * family's footer (@anotoki/lib/footer) under the sign-in pages, the account
- * pages, the legal pages and - as in every anotoki admin panel (the owner,
- * 2026-10-18) - the admin panel; and the family's status page, /not-set-up,
- * as a page of its own, with nothing of the IAM round it (the owner's rule of
- * 2026-10-18: no header, no footer). The footer's row is the IAM's since the
- * owner's decision of 2026-10-19: its version and What's new (the newest of
- * public/changelog.json and the IAM's own dialog - neither while there is no
- * list) and Feedback (the family's form), then Terms · Privacy · Contact.
+ * The frames of the IAM's pages, as app.routes.ts and sites/main/main.routes.ts
+ * lay them out: the anotoki family's footer (@anotoki/lib/footer) under the
+ * sign-in pages, the account pages, the legal pages and - as in every anotoki
+ * admin panel (the owner, 2026-10-18) - the admin panel; and the family's
+ * status page, /not-set-up, as a page of its own, with nothing of the IAM
+ * round it (the owner's rule of 2026-10-18: no header, no footer). The
+ * footer's row is the IAM's since the owner's decision of 2026-10-19: its
+ * version and What's new (the newest of public/changelog.json and the IAM's
+ * own dialog - neither while there is no list) and Feedback (the family's
+ * form), then Terms · Privacy · Contact.
  */
 describe("the IAM's frames: the family's footer under every page, and the status page bare", () => {
   const user = signal<AccountUser | null | undefined>(null);

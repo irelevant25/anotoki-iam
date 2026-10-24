@@ -1,0 +1,137 @@
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { DialogComponent } from '@anotoki/lib/ui/dialog';
+import { PasswordFieldComponent } from '@anotoki/lib/ui/forms';
+import { ToastService } from '@anotoki/lib/ui/toast';
+import { catchError, map, of } from 'rxjs';
+import { AccountApi } from '../../../../api/account.api';
+import { ApiError } from '../../../../api/api-error';
+import { PublicApi } from '../../../../api/public.api';
+import { SessionService } from '../../../../shared/auth/session.service';
+import { errorText } from '../../../../shared/i18n/error-text';
+import { TPipe } from '../../../../shared/i18n/t.pipe';
+import { TranslationService } from '../../../../shared/i18n/translation.service';
+import { PASSWORD_MAX_BYTES, passwordBytes } from '../../auth/auth-helpers';
+import { FreshSignInComponent } from '../fresh-sign-in.component';
+import { SECURITY_ANCHORS } from './security-anchors';
+
+/**
+ * Changing the password (current, new, new again) or setting a first one on
+ * an account that has none.
+ *
+ * A change ends every other session and remembered device, which is said
+ * before it happens rather than discovered afterwards on another laptop. A
+ * hidden address field lets a password manager file the new password under
+ * the right account.
+ *
+ * A first password asks for the proof a session alone cannot give (docs/api.md):
+ * there is no password to ask for, so a sign-in of the last fifteen minutes -
+ * an older one brings the way to sign in again, back to the ways in.
+ */
+@Component({
+  selector: 'app-password-dialog',
+  imports: [TPipe, AlertComponent, ButtonComponent, DialogComponent, PasswordFieldComponent, FreshSignInComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './password-dialog.component.html',
+  styleUrl: './password-dialog.component.scss',
+})
+export class PasswordDialogComponent {
+  readonly mode = input.required<'change' | 'set'>();
+  /** True once the password actually changed. */
+  readonly closed = output<boolean>();
+
+  private readonly _accountApi = inject(AccountApi);
+  private readonly _session = inject(SessionService);
+  private readonly _i18n = inject(TranslationService);
+  private readonly _toast = inject(ToastService);
+
+  protected readonly anchor = SECURITY_ANCHORS.methods;
+  protected readonly email = computed(() => this._session.user()?.email ?? '');
+  protected readonly passwordMin = toSignal(
+    inject(PublicApi)
+      .config()
+      .pipe(
+        map((config) => config.password_min),
+        catchError(() => of(8)),
+      ),
+    { initialValue: 8 },
+  );
+
+  protected readonly current = signal('');
+  protected readonly next = signal('');
+  protected readonly again = signal('');
+  protected readonly currentError = signal<string | null>(null);
+  protected readonly nextError = signal<string | null>(null);
+  protected readonly againError = signal<string | null>(null);
+  protected readonly formError = signal<string | null>(null);
+  /** A first password asked for with a sign-in too old to stand for the person (`reauthentication_required`): they sign in again first. */
+  protected readonly freshSignIn = signal(false);
+  protected readonly busy = signal(false);
+
+  protected submit(): void {
+    if (this.freshSignIn()) {
+      return;
+    }
+    this.currentError.set(null);
+    this.nextError.set(null);
+    this.againError.set(null);
+    this.formError.set(null);
+
+    const current = this.current();
+    const next = this.next();
+
+    if (this.mode() === 'change' && !current) {
+      this.currentError.set(this._i18n.t('common.required'));
+    }
+    if (next.length < this.passwordMin()) {
+      this.nextError.set(this._i18n.t('common.passwordTooShort'));
+    } else if (passwordBytes(next) > PASSWORD_MAX_BYTES) {
+      this.nextError.set(this._i18n.t('common.passwordTooLong'));
+    } else if (this.mode() === 'change' && next === current) {
+      this.nextError.set(this._i18n.t('security.password.unchanged'));
+    } else if (this.again() !== next) {
+      this.againError.set(this._i18n.t('common.passwordMismatch'));
+    }
+    if (this.currentError() || this.nextError() || this.againError()) {
+      return;
+    }
+
+    this.busy.set(true);
+
+    if (this.mode() === 'change') {
+      this._accountApi.changePassword(current, next).subscribe({
+        next: () => {
+          this.busy.set(false);
+          this._toast.success(this._i18n.t('security.password.changed'));
+          this.closed.emit(true);
+        },
+        error: (error: ApiError) => this._refused(error),
+      });
+    } else {
+      this._session.setFrom(this._accountApi.setPassword(next)).subscribe({
+        next: () => {
+          this.busy.set(false);
+          this._toast.success(this._i18n.t('security.password.setDone'));
+          this.closed.emit(true);
+        },
+        error: (error: ApiError) => this._refused(error),
+      });
+    }
+  }
+
+  private _refused(error: ApiError): void {
+    this.busy.set(false);
+    const text = errorText(error, (key) => this._i18n.t(key));
+    if (error.code === 'wrong_password') {
+      this.currentError.set(text);
+    } else if (error.code === 'invalid_password') {
+      this.nextError.set(text);
+    } else if (error.code === 'reauthentication_required') {
+      this.freshSignIn.set(true);
+    } else {
+      this.formError.set(text);
+    }
+  }
+}

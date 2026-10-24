@@ -62,68 +62,68 @@ The unit tests run with Angular's `@angular/build:unit-test` (`angular.json`'s
 `test` target, `tsconfig.spec.json`), which needs `vitest` and `jsdom` in
 `devDependencies` (the survey site's versions: `vitest` ^4, `jsdom` ^28) and,
 once they are, a `"test": "ng test --watch=false"` script for `npm test`.
-The specs: the top bar's (`layouts/top-bar/top-bar.component.spec.ts`: the
+The specs: the top bar's (`shared/top-bar/top-bar.component.spec.ts`: the
 IAM's bar on the family's, drawn for real with the family's translations -
 its order, links, menu and words, the language's button in the database's
 words, a language chosen there saved to the account one save at a time and
 the latest last, a refusal said under the button, PHONE_BAR_MAX, Tab out of
 every menu), the translations as the IAM configures them
-(`core/i18n/translations.config.spec.ts`: the storage names it kept, a choice
+(`shared/i18n/translations.config.spec.ts`: the storage names it kept, a choice
 saved through the IAM's own API while signed in and nothing sent while signed
 out, the account page's choice put back when the account refuses it, the
 admin pages' words handed over only as the admin panel loads), the theme as
-the IAM wires it into the family's shell (`core/kit/kit.config.spec.ts`:
+the IAM wires it into the family's shell (`shared/kit/kit.config.spec.ts`:
 saved to the account one save at a time, nothing sent while signed out, a
 refusal puts the account's back, and an answer that comes after Sign out
 signs nobody back in), the pages' own errors through the IAM's interceptor
-(`core/http/iam.interceptor.spec.ts`: the family's reporter's request carries
+(`shared/http/iam.interceptor.spec.ts`: the family's reporter's request carries
 the CSRF header and is marked as the reporter's; a refusal of it moves no page
 and clears no session; a 429 reaches the reporter as it came, which stops it;
 a request of the person's own still sends an ended session to the sign-in
 page; a request from anybody - the feedback form's message - carries the CSRF
 header and gets its refusal back as it came, no page moved, no session
 cleared), the feedback form as the IAM sets it up
-(`core/feedback/feedback.config.spec.ts`: the library's form drawn for real
+(`shared/feedback/feedback.config.spec.ts`: the library's form drawn for real
 behind the IAM's interceptor and session - "without my name" and the
 account's address for the person signed in, neither for anybody else, the
 session asked first on a page that never needed it, the database's words in
 the page's language, the message to `/api/feedback` with the CSRF header, each
 refusal in the reader's words, no page moved), the IAM's versions
-(`core/changelog/changelog.service.spec.ts`: `public/changelog.json` - three
+(`shared/changelog/changelog.service.spec.ts`: `public/changelog.json` - three
 numbers, newest first, dated, the newest `package.json`'s and
 `package-lock.json`'s version, 1.0.0 the first, whole in the IAM's informal
 Slovak, no address - the list asked for once, a list that cannot be had
 showing nothing and asked again, What's new in the kit's dialog) and What's
-new (`ui/changelog-dialog/changelog-dialog.component.spec.ts`: each version,
+new (`shared/changelog-dialog/changelog-dialog.component.spec.ts`: each version,
 its day in the account's order, Latest, the kinds, the sentences in the
 reader's language where whole and marked English where not, the admin
-panel's English, Close), the tab's title in the family's form (`core/i18n/title.strategy.spec.ts`:
+panel's English, Close), the tab's title in the family's form (`shared/i18n/title.strategy.spec.ts`:
 "Zabezpečenie · anotoki účet" on an account page in Slovak, "Users · Admin
 panel · anotoki account" in the admin panel, renamed with the language), the
 rule every save that answers with the account
-keeps (`core/auth/session.service.spec.ts`: the account pages', the theme's
+keeps (`shared/auth/session.service.spec.ts`: the account pages', the theme's
 and the language's all go through `SessionService.setFrom()` or `refresh()`,
 so an answer after Sign out signs nobody back in; only a sign-in's answer and
 the probe's are the session as they are), the admin panel's "Cannot sign in" rule
-(`pages/admin/users/sign-in-check.ts`, the same as the server's `blocked_in`;
+(`sites/admin/users/sign-in-check.ts`, the same as the server's `blocked_in`;
 `sign-in-check.spec.ts`), the usernames' rule as the forms ask it before they
-send (`core/auth/username.ts`, the same as the server's `usernameRefusal()`:
+send (`shared/auth/username.ts`, the same as the server's `usernameRefusal()`:
 letters and digits, at most 100 - an address, a turn of the text, a space, a
 dot, an accent or a look-alike of another script refused; `username.spec.ts`), the family's admin tools as the IAM wires them
-(`core/admin/admin-tools.config.spec.ts`: the library's Backups and Audit log
+(`shared/admin/admin-tools.config.spec.ts`: the library's Backups and Audit log
 pages drawn for real behind the IAM's interceptor and session - the IAM's
 ADMIN alone, a refusal in the panel's words, the CSRF header on every write,
 the password as the proof, "Sign in again" signing out and coming back, a
 failed sign-out said in a toast, restoring off with the IAM's reason, a person
 the log names linked to the Users page), the legal pages as the IAM fills
-them in (`core/legal/legal-facts.spec.ts`: the library's Privacy and Contact
+them in (`sites/main/legal/legal-facts.spec.ts`: the library's Privacy and Contact
 pages drawn for real in their frame's configuration - the IAM's twelve parts,
 the feedback form's part in the library's words, its audit log and encrypted
 backups, its cookies by name, who else handles data, the Contact page
 offering the form first, the root configuration with no facts of its own, and
 every link where the code says: an administrator's rewording changes a
 link's words, never its address), the Google button
-(`ui/google-button/google-button.component.spec.ts`: the IAM's own button -
+(`sites/main/common/google-button/google-button.component.spec.ts`: the IAM's own button -
 Google's "G" drawn on the page, the IAM's words in the page's language - with
 no script, no frame and no request of any kind before a press; a press
 fetching Google's script once a page life and drawing Google's own button in
@@ -132,7 +132,7 @@ Google gave it, drawn again for a new theme or language and never for
 nothing; a script blocked, slow or broken leaving the IAM's button and a line
 under it, a press trying again; the focus never taken from where somebody
 went meanwhile), the confirmation page
-(`pages/auth/confirm-email/confirm-email.component.spec.ts`, the security
+(`sites/main/auth/confirm-email/confirm-email.component.spec.ts`, the security
 review of 2026-10-19: nothing sent as the link opens - the token out of the
 address bar, "Confirm my address" asked for -; the press sending it under the
 CSRF header, a sign-in made the session's and the account named before the way
@@ -141,13 +141,14 @@ left as it is, with a way to sign out and sign in with the confirmed one; an
 address confirmed already offering the sign-in page; two-factor's code asked
 for and sent with the same link; a dead link's way to a new one), and the
 address the not-set-up page sends the browser back to - a path that stays on
-this site, as the browser reads it (`core/auth/next-path.ts`'s
+this site, as the browser reads it (`shared/auth/next-path.ts`'s
 `sameOriginPath()`; `next-path.spec.ts`, with the legal pages' paths - the
 family's own - and their coming back after a sign-in). The top bar's spec
 holds its `public` area too (the legal pages: the account's links only for
 somebody signed in), and the translations' that the start asks for the
 account first on the legal pages, never on the sign-in pages. And the frames
-as `app.routes.ts` lays them out (`app.routes.spec.ts`): the family's footer
+as `app.routes.ts` and `sites/main/main.routes.ts` lay them out
+(`app.routes.spec.ts`): the family's footer
 under a sign-in page, an account page, a legal page and the admin panel (for
 somebody without access too) - the IAM's version, What's new and Feedback
 (neither of the first two before the list of versions came), then Terms ·
@@ -184,14 +185,17 @@ src/
   styles.scss              the family's styles (@anotoki/lib/styles: the tokens for both
                            themes, Manrope, the base, utilities, tables) and the
                            sign-in pages' night sky
-  app/
-    app.routes.ts          the lazy areas - sign-in pages, /account, /admin, the
-                           legal pages, each with the family's footer under it -
-                           and /not-set-up, on a route of its own (no frame)
+  app/                     in the anotoki family's folders (the genshin site's): the
+                           API layer, what both halves use, and the two halves
+    app.component.*        the page, and what is drawn over any page: the kit's
+                           toasts and its confirm dialog
+    app.config.ts          the providers: the family's modules as the IAM wires them
+    app.routes.ts          the two halves: /admin first (sites/admin/admin.routes.ts,
+                           lazy), then sites/main/main.routes.ts's routes as they are
     app.routes.spec.ts     the frames: the footer under each area (the IAM's row), /not-set-up bare
-    core/
-      api/                 models.ts (the shapes) and one typed service per area:
+    api/                   models.ts (the shapes) and one typed service per area:
                            public.api.ts, login.api.ts, account.api.ts, admin.api.ts
+    shared/                what both halves use
       http/                the interceptor: X-IAM-Request on non-GETs, 401 handling,
                            503 not_set_up to /not-set-up, errors reshaped to
                            { status, code, message } (but the migrations module's
@@ -210,9 +214,9 @@ src/
                            name (the Users page), the dates, Migrations; the admin
                            panel's words for a refusal, "Sign in again" and why
                            restoring is off are handed over by its routes
-                           (pages/admin/admin-tools.ts), out of the first load
-      auth/                the session signal, the guard, `next` validation,
-                           the remembered-device token
+                           (sites/admin/admin-tools.ts), out of the first load
+      auth/                the session signal, the guard, `next` validation, the
+                           usernames' rule, "Sign in again" (fresh-sign-in.ts)
       i18n/                the family's translations (@anotoki/lib/translations)
                            wired in: translations.config.ts (the IAM's storage
                            names, its compiled English, the account - its language,
@@ -221,7 +225,8 @@ src/
                            (the library's service seen with the IAM's keys),
                            en.ts (the keys, the last-resort English), the typed `t`
                            pipe and `appDate` (the account's date order and clock:
-                           date-patterns.ts), error texts, the page-title strategy
+                           date-patterns.ts), error texts, the sessions' words
+                           (session-labels.ts), the page-title strategy
                            (the family's form - "Users · Admin panel · anotoki
                            account" -, which tells the translations where the
                            page is)
@@ -233,45 +238,54 @@ src/
                            in), the languages (the translations' forShell())
       legal/               the family's legal pages wired in: legal.config.ts (the
                            language, the database's words - for the footer's links,
-                           in the first load) and legal-facts.ts (the IAM's facts:
-                           what it keeps and how long, its cookies by name, who else
-                           handles data, every address the pages link to - given by
-                           the pages' frame, out of the first load)
+                           in the first load); the IAM's facts are sites/main/legal's
       changelog/           the IAM's versions (public/changelog.json, asked for as the
                            pages start): the footer's version, and What's new opened
+      changelog-dialog/    What's new, the IAM's own dialog (lazy); the rest of the
+                           kit is the family's (@anotoki/lib/ui)
       feedback/            the family's feedback form wired in (feedback.config.ts):
                            the page's language, the database's words, the session's
                            account - asked first where a page never did - and its
                            address written in
-      google/              Google Identity Services, fetched only when somebody
-                           presses the IAM's Google button - never as a page opens
-    ui/                    google-button, the IAM's own (its button in Google's
-                           branding first, Google's own only after a press), and
-                           changelog-dialog, What's new (lazy); the rest of the kit
-                           is the family's (@anotoki/lib/ui)
-    layouts/               auth-layout (the night-sky sign-in pages' own frame, the
-                           family's footer under the form), top-bar (the anotoki
-                           family's one bar, worded and wired for the IAM - below),
-                           legal-layout (the legal pages' frame: the family's, the
-                           bar's `public` area). The footer is the family's
-                           (<anotoki-site-footer>, @anotoki/lib/footer) in every
-                           frame - here, and the account and admin layouts
-    pages/
-      auth/                /login /register /confirm-email /forgot-password
+      top-bar/             the anotoki family's one bar, worded and wired for the
+                           IAM (below): the account pages', the legal pages' and -
+                           until the admin panel has the family's admin frame - the
+                           admin panel's
+      util/                a user agent as a browser and a system (the sessions'
+                           tables, the account's and the admin panel's)
+    sites/
+      main/                the IAM's own pages (main.routes.ts): the sign-in pages,
+                           /account and the legal pages, each with the family's
+                           footer (<anotoki-site-footer>, @anotoki/lib/footer)
+                           under it, and /not-set-up, on a route of its own
+        auth/              /login /register /confirm-email /forgot-password
                            /reset-password /logout /unsubscribe /error, and
-                           not-found; /not-set-up, the family's status page, on
+                           not-found, in auth-layout (the night-sky sign-in pages'
+                           own frame, the family's footer under the form) and
+                           auth-card; /not-set-up, the family's status page, on
                            no frame (no bar, no switches, no footer)
-      (the legal pages)    /terms /privacy /contact are the family's
-                           (@anotoki/lib/legal/pages, lazy), in layouts/legal-layout,
-                           with the IAM's facts (core/legal)
-      account/             /account and its four sub-pages (the top bar's links),
+        account/           /account and its four sub-pages (the top bar's links),
                            in the family's frame (<anotoki-shell>)
-      admin/               /admin, in the family's frame with the panel's side
-                           navigation: users, approvals, sessions, applications,
-                           announcements (the history and senders, the composer,
-                           one announcement and its sending), the email log,
-                           settings, keys; /admin/translations and /admin/languages
-                           are the family's pages (@anotoki/lib/translations/admin),
+        legal/             /terms /privacy /contact are the family's
+                           (@anotoki/lib/legal/pages, lazy), in legal-layout (the
+                           legal pages' frame: the family's, the bar's `public`
+                           area), with the IAM's facts (legal-facts.ts: what it
+                           keeps and how long, its cookies by name, who else
+                           handles data, every address the pages link to - given
+                           by that frame, out of the first load)
+        common/            what those pages share: google-button, the IAM's own
+                           (its button in Google's branding first, Google's own
+                           only after a press), and google/, Google Identity
+                           Services, fetched only when somebody presses it -
+                           never as a page opens; the remembered-device token
+                           (device-token.ts, storage.ts)
+      admin/               /admin (admin.routes.ts), in the family's frame with the
+                           panel's side navigation (admin-layout): users,
+                           approvals, sessions, applications, announcements (the
+                           history and senders, the composer, one announcement and
+                           its sending), the email log, settings, keys;
+                           /admin/translations and /admin/languages are the
+                           family's pages (@anotoki/lib/translations/admin),
                            worded for the IAM by localization.ts (its mails, the
                            accounts per language); /admin/audit, /admin/errors,
                            /admin/feedback and /admin/backups are the family's admin
@@ -280,7 +294,9 @@ src/
                            the password -, the panel's part in admin-tools.ts); and /admin/migrations
                            is the family's (@anotoki/lib/migrations/page), whose
                            update line sits above them all - and the family's
-                           footer under them all, in English
+                           footer under them all, in English. shared/: what its
+                           pages share (the list and field partials,
+                           adminErrorText(), the random password)
 public/
   anotoki.png, favicon.png - and the build copies the family's theme-boot.js beside
                            them (angular.json): the stored theme before the first
@@ -299,8 +315,8 @@ scripts/
   `x.component.scss` - never an inline `template` or `styles`, even for a
   component with no styles of its own (its `.scss` is empty). Stylesheets
   shared by a group of pages are partials the component's own `.scss` `@use`s:
-  `pages/auth/_auth-page.scss`, `pages/admin/_admin-list.scss`,
-  `pages/admin/_admin-field.scss` (the few fields the admin panel draws by hand).
+  `sites/main/auth/_auth-page.scss`, `sites/admin/shared/_admin-list.scss`,
+  `sites/admin/shared/_admin-field.scss` (the few fields the admin panel draws by hand).
 - **The family's kit, not one of our own.** Buttons, fields, dialogs, menus,
   toasts, badges, alerts, cards and link cards (the account overview's and the
   admin dashboard's), tabs, chips (the people an announcement is for), the
@@ -309,31 +325,31 @@ scripts/
   (`@anotoki/lib/ui/button`, `ui/forms`, `ui/dialog`, `ui/toast`, ... - never
   the `@anotoki/lib/ui` barrel; what only lazy pages use, only they import).
   Their words come from the database: the IAM's own strings where it has them
-  (`core/kit/kit-words.ts`), the library's `anotoki.*` ones otherwise (the
+  (`shared/kit/kit-words.ts`), the library's `anotoki.*` ones otherwise (the
   translations' `forKit()`) - a rewording on the Translations page shows there
   too, and the admin panel reads English -, the kit's own English and informal
   Slovak where the database has none. The kit's markup is its own (BEM on its
   host class: `anotoki-top-bar__row`, `anotoki-button--primary`, ...): a spec
   or a check that reads it uses those names. An icon a template names is the
-  kit's, or one `core/kit/icons.ts` registers. The IAM's own: the sign-in
+  kit's, or one `shared/kit/icons.ts` registers. The IAM's own: the sign-in
   frame, the Google button, the pages.
 - **Signals first.** State is `signal()` / `computed()` / `linkedSignal()`,
   inputs are `input()` / `model()`, and route and query parameters arrive as
   component inputs (`withComponentInputBinding`). Every component is `OnPush`.
 - **No generated client.** The API shapes are written out in
-  `core/api/models.ts`; when the backend changes, change them and let the
+  `api/models.ts`; when the backend changes, change them and let the
   compiler find every page that has to follow.
 - **Words from the database, keys typed.** The sign-in and account pages read
   their strings from the database, in whatever languages the admin panel
   offers (English and Slovak to start with): one bundle,
   `GET /api/translations/{code}`, fetched before the page switches language -
   the anotoki family's `TranslationService` (`@anotoki/lib/translations`,
-  configured in `core/i18n/translations.config.ts`): the family's ranking of
+  configured in `shared/i18n/translations.config.ts`): the family's ranking of
   the wishes (this tab's `?lang=`, a choice made in this visit, the account's
   language while signed in, this device's, the browser's, English), a choice
   saved to the account one save at a time, the cache and the start's waits.
   `TranslationKey` comes from `en.ts`, and the IAM sees the service through
-  `core/i18n/translation.service.ts` with its keys typed - the IAM's and the
+  `shared/i18n/translation.service.ts` with its keys typed - the IAM's and the
   library's `anotoki.*` -, so an unknown key is a compile error in a class as
   in a template (the `t` pipe); a key the bundle has no string for shows as
   the key itself, so it is seen - but never a library key, which has its
@@ -342,7 +358,7 @@ scripts/
   reached). There is no Slovak in the build. The admin panel is English only,
   written in its templates; its Translations, Languages, Error log, Audit log,
   Feedback, Backups and Migrations pages are the family's.
-- **The top bar** (`layouts/top-bar`) is the anotoki family's one bar -
+- **The top bar** (`shared/top-bar`) is the anotoki family's one bar -
   `<anotoki-top-bar>` from `@anotoki/lib/shell`, whose order, menus, keys and
   fold are the family's - worded and wired here. One row: the brand ("anotoki
   account"; in the admin panel the family's "anotoki account · admin panel",
@@ -367,7 +383,7 @@ scripts/
   and Tab / Shift+Tab from any item close the menu with the focus on its
   button (`preventDefault()` - left to the browser, the focus would fall to
   `<body>`). The admin panel keeps its own side navigation under it (the
-  family's frame, `<anotoki-shell [nav]>` in `pages/admin/admin-layout`, a
+  family's frame, `<anotoki-shell [nav]>` in `sites/admin/admin-layout`, a
   strip of links on a narrow screen). On the legal pages, which anybody may
   read, the bar is the account pages' for somebody signed in and the brand,
   the language, the theme and Sign in for anybody else (`area="public"`).
@@ -376,7 +392,7 @@ scripts/
   palette is the family's), and the night sky's own. Components never contain
   a raw colour that works in one theme only. Signed in, the theme is the
   account's, which every anotoki site follows (migration 015): the family's
-  `ThemeService` shows it and saves a choice to it (`core/kit/kit.config.ts`),
+  `ThemeService` shows it and saves a choice to it (`shared/kit/kit.config.ts`),
   one save at a time, the latest choice last - a refusal puts the account's
   back, and the switch says so; signed out, it is the device's. Either way the
   last one shown is in `localStorage` (`anotoki-iam:theme`), for the family's

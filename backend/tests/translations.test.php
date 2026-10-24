@@ -23,7 +23,7 @@
  *     are tried both through the panel and straight into the table. Their
  *     rules are the IAM's (IamMailRules), asked by the library's checks.
  *   - The catalogue. What the migrations leave is held to the frontend's
- *     compiled English (core/i18n/en.ts) and to MAIL_KEYS / MAIL_FALLBACK, so
+ *     compiled English (shared/i18n/en.ts) and to MAIL_KEYS / MAIL_FALLBACK, so
  *     the three cannot drift apart; the library's words beside them are its
  *     file's (backend/resources/library-words.json).
  *   - The IAM's contract on every route (docs/api.md): its error body, who
@@ -1229,7 +1229,7 @@ test(
             TS
             ,
             'pages/login/login.component.spec.ts' => "expect(text).toBe('login.onlyInASpec');\n",
-            'core/i18n/en.ts' => "export const en = {\n  'login.onlyInTheDictionary': 'x',\n} as const;\n",
+            'shared/i18n/en.ts' => "export const en = {\n  'login.onlyInTheDictionary': 'x',\n} as const;\n",
             'pages/login/login.component.scss' => "/* 'login.inAStyle' */\n",
         ]);
         $database = [

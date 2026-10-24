@@ -110,7 +110,7 @@ php translations.php --import sk file          # and back in, checked as a save 
 
 The pages' and mails' words are in the database (Admin panel → Translations and
 Languages). A new string is its key and English in
-`frontend/src/app/core/i18n/en.ts` plus a migration with the key, English and
+`frontend/src/app/shared/i18n/en.ts` plus a migration with the key, English and
 Slovak - the iam-migration skill says how; `tests/translations.test.php` holds
 the two together.
 

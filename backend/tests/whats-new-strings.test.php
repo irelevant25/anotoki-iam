@@ -3,7 +3,7 @@
 /**
  * Migration 024: What's new (the owner's decision of 2026-10-19). The IAM's
  * footer has the family's row now - the version, What's new and Feedback -
- * and What's new is the IAM's own dialog (frontend ui/changelog-dialog),
+ * and What's new is the IAM's own dialog (frontend shared/changelog-dialog),
  * which lists the versions of public/changelog.json: six page keys are its
  * own words around them, each described, in English (en.ts's, which
  * translations.test.php holds to it) and in Slovak.

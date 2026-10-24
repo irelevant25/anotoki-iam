@@ -90,7 +90,7 @@ function withSignInDeviceCookie(Response $response, string $secret): Response
 /**
  * The browser and its system in a few words - "Firefox · Windows" - from a
  * fixed list, or null when nothing on it is recognised. The account page reads
- * a user agent the same way (frontend core/util/user-agent.ts). Order matters:
+ * a user agent the same way (frontend shared/util/user-agent.ts). Order matters:
  * Edge and Opera say Chrome too, and Chrome says Safari.
  *
  * Only these words ever leave this function. The user agent is whatever the
