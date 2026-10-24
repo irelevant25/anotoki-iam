@@ -13,7 +13,7 @@ Beside the two halves, in neither of them: **the deploy tool** `@anotoki/deploy`
 same release; 0.9.0) - a tool of the computer that builds a site, never part of a site's upload (the section
 "Deploying a site").
 
-Version 0.9.2 holds:
+Version 0.10.0 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -47,6 +47,11 @@ Version 0.9.2 holds:
   every site: the version, What's new, Feedback, About · Support · Terms ·
   Privacy · Contact and the fan clause; and the status page, with no header and
   no footer (the section "Footer");
+- **the admin panel's frame** (Angular; 0.10.0) - `<anotoki-admin-frame>`,
+  genshin's admin frame for every site's admin panel: the panel's name, who is
+  signed in, Back, Sign out, the theme and the pages in a column on the left, the
+  page on the right - never the site's top bar (the section "The admin panel's
+  frame");
 - **the deploy tool** (`deploy/`, 0.9.0) - one build and one deploy for every
   site: a release is `frontend/` and `backend/`, each replaced whole on the
   host, the site's settings and storage beside them never touched (the section
@@ -252,6 +257,7 @@ uses is in the first load again.
 | `@anotoki/lib/admin` (0.4.0) | the admin tools' configuration (`provideAnotokiAdmin`) and `FeedbackUnread`, the new feedback beside a site's admin navigation ("Admin tools" below) | where the admin navigation is |
 | `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, `/files` (0.4.0) | the admin tools' pages, one each | lazy admin routes |
 | `@anotoki/lib/admin/parts` (0.4.0) | what those pages share - their requests, failures, dates, question dialog and styles; the library's own, a site imports nothing of it | with the first of them |
+| `@anotoki/lib/admin/frame` (0.10.0) | `<anotoki-admin-frame>`, the admin panel's frame: the column of the panel's name, the person, Back, Sign out, the theme and the pages; the page and the footer beside it ("The admin panel's frame" below) | the admin area's lazy route |
 | `@anotoki/lib/feedback` (0.4.0) | the visitors' feedback form's configuration (`provideAnotokiFeedback`, which registers its words) and its words | yes, beside the translations module |
 | `@anotoki/lib/feedback/form` (0.4.0) | `<anotoki-feedback-form>`, on the kit's fields; `<anotoki-feedback-dialog>` (0.8.0), the form in the kit's dialog with its buttons in the dialog's footer - the footer's and the Contact page's | loaded when the person opens it |
 | `@anotoki/lib/error-report` (0.5.0) | `provideAnotokiErrorReport()`: the browser's errors in the site's error log ("Admin tools" below) | yes (every page) |
@@ -643,8 +649,11 @@ re-exported by `ui` (what the sites drew themselves until round 2's end):
   Close; while it is shut nothing of the navigation is in the page, so nothing of it in the tab order.
   Beside the page it is as tall as the site's column lets it be, scrolling inside it; on a phone keep it
   in the page (never inside `display: none`: its drawer opens from it). `phone()`, `isOpen()`, `open()`,
-  `close()`, `toggle()`. The frame's own side navigation (`<anotoki-shell [nav]>`, a flat list) stays as
-  it was.
+  `close()`, `toggle()`. `drawerTop` (0.10.0): a template the drawer shows above the navigation, made as it
+  opens - the admin frame's person, Back, Sign out and theme ("The admin panel's frame" below); a link
+  followed anywhere in the drawer closes it, a button pressed there leaves it open. The list scrolling beside
+  the page is positioned (0.10.0), so the words a badge says to the ear scroll in it and never lengthen the
+  page. The frame's own side navigation (`<anotoki-shell [nav]>`, a flat list) stays as it was.
 - `ui/current-link` - `currentLink(links, named?)`, in an injection context: which of a navigation's
   links (`{ id?, path?, exact? }`, each path read as `routerLink` reads it, relative to the page that
   draws it) is the page's, a signal following the links, `named` and every navigation - what the link
@@ -3180,6 +3189,121 @@ and no footer (the owner's rule of 2026-10-18):
 <anotoki-toast-host />
 ```
 
+## The admin panel's frame (0.10.0)
+
+The owner's request of 2026-10-24: every admin panel looks like genshin's, so that the panel is never mistaken for the
+site - its pages in a column on the left, the page on the right, and no top bar. `@anotoki/lib/admin/frame`,
+`<anotoki-admin-frame>`: genshin's frame, in the family's tokens, for all six admin panels. An entry point of its own -
+an admin area is a lazy route, so no site's first load carries it (5.2 kB gzipped; it imports the core's pieces and
+`ui/side-nav`, never the shell).
+
+- **A computer**: on the left the panel's own banner (a `<header>`, 15rem on the surface, a line at its right) - top to
+  bottom: the panel's name, a link to its home, as tall as the family's bar with a line under it; who is signed in (the
+  kit's avatar, the name, the address under it); Back; Sign out; the theme (the word "Theme" for the eye, then the
+  family's switch); then the panel's pages - the kit's side navigation, its groups under their headings, scrolling
+  inside the column. On the right, on the page's ground: what the site puts above the page (the IAM's update line), the
+  page in `<main id="main">`, and the site's footer after it - a landmark of its own, outside `<main>`, at the column's
+  foot on a short page.
+- **Each column scrolls on its own, never the window**: the body's overflow is `hidden` while the frame is a computer's,
+  and the body's own is given back on a phone and as the frame goes. A new page starts at its top (the page's column is
+  what scrolls, and the router's own scrolling knows the window alone); a change of the query alone (a page's filters)
+  keeps the place. The library's pages' sticky heads stick at the column's top (`--anotoki-topbar-height` is `0px` in
+  it), and a window too short for the column above the pages (under 32rem) scrolls the column whole.
+- **A phone** (up to `phoneMax`, 860 px by default - the site's own measure): a row as tall as the family's bar, kept at
+  the top - the panel's name and Menu (the kit's button and words; `aria-haspopup="dialog"`, `aria-expanded`, and
+  `aria-controls` while open) - and the page scrolling in the window under it. Menu opens the side navigation's drawer,
+  the panel's name its heading, which holds everything the column holds: the person, Back, Sign out, the theme, then the
+  pages. It takes the focus as it opens and gives it back to Menu as it closes - a link followed (a page, Back), Escape,
+  the backdrop, its Close, a sign-out done; a phone's width left (a turned tablet) closes it and the column is back.
+  From 360 px up.
+- **A skip link** first ("Skip to content", or `skipLabel`) moves the focus to `<main>` by hand: with `<base href="/">`
+  a bare `#main` would leave the page.
+
+```ts
+// the admin area's layout, on the admin area's lazy route
+import { AdminFrameComponent, SideNavGroup } from '@anotoki/lib/admin/frame';
+import { SiteFooterComponent } from '@anotoki/lib/footer';
+import { ThemeToggleComponent } from '@anotoki/lib/shell';
+
+protected readonly groups = computed<SideNavGroup[]>(() => [
+  { links: [{ label: 'Dashboard', path: '/admin', exact: true, icon: 'dashboard' }] },
+  { label: 'Database', links: [{ label: 'Characters', path: '/admin/characters', icon: 'user' }] },
+  { label: 'System', links: [{ label: 'Feedback', path: '/admin/feedback', badge: this.unread.count() || null }] },
+]);
+protected readonly person = computed(() => {
+  const me = this.auth.user();
+  return me && { name: me.name, email: me.email };
+});
+protected readonly signOut = () => this.signOutAfterSaves();   // the top bar's own function: a promise keeps Sign out waiting
+```
+
+```html
+<anotoki-admin-frame [brand]="{ name: 'Genshin Admin', path: '/admin' }" [person]="person()"
+    [back]="{ label: 'Back to the site', path: '/' }" [signOut]="signOut" [groups]="groups()">
+  <anotoki-theme-toggle adminFrameTheme />
+  <anotoki-update-banner adminFrameNotice />
+  <router-outlet />
+  <anotoki-site-footer adminFrameFooter [version]="version()" whatsNew (whatsNew)="openWhatsNew()" feedback />
+</anotoki-admin-frame>
+```
+
+| Input / slot | |
+| --- | --- |
+| `brand` | `{ name, path }`, required: the panel's name ("Genshin Admin") and its home, as `routerLink` takes it; the drawer's heading too |
+| `person` | `{ name?, email? }`, or null: who is signed in - either may be missing (an address alone is the line in bold; an address that is the name is said once) |
+| `back` | `{ label, path? or href? }`, or null: "Back to the site", "Back to your account" - a route of the site, or an address elsewhere |
+| `signOut` | a function, or null for none - the site's own sign-out, the one its top bar takes: one that returns a promise keeps Sign out saying "Saving…" (`aria-busy`, `aria-disabled` - never disabled, which would drop the focus) and deaf to presses until it settles; pressed in the drawer, the drawer closes once it is done |
+| `groups` | `SideNavGroup[]`, required (re-exported here from `@anotoki/lib/ui/side-nav`, with `SideNavLink`): the pages, as the side navigation takes them - headings, icons, badges heard "Feedback, 3 new", collapsible groups, links elsewhere |
+| `navLabel` | the navigation's name; the kit's "Admin panel" |
+| `current` | the id of the link to mark as the page's, whatever the address says (the side navigation's `current`) |
+| `phoneMax` | up to this width (px) a phone's row and drawer; 860; null: never |
+| `skipLabel` | the skip link's words; the kit's "Skip to content" |
+| `[adminFrameTheme]` | the theme's switch, `<anotoki-theme-toggle adminFrameTheme />` - the family's: light, dark, as the device is set; without one, no theme row |
+| `[adminFrameNotice]` | above every page, outside `<main>`: `<anotoki-update-banner>` (the IAM's), any notice; it takes room only while it says something |
+| (content) | the page - the `<router-outlet>` - in `<main id="main">` |
+| `[adminFrameFooter]` | after the page: `<anotoki-site-footer>` |
+
+`phone()` (`#frame="anotokiAdminFrame"`) says whether the frame is a phone's.
+
+- **The theme** is the shell's: the switch is `<anotoki-theme-toggle>` over `ThemeService`, configured by the site's
+  `provideAnotokiShell()` - the account's theme, as on every page of every site. It comes in a slot, never by an import,
+  because no entry point of the library imports the shell (the package check): the shell is in a site's first load,
+  and a lazy entry point that took it would split it out of the first page's own file. A site whose theme is not the
+  shell's yet - genshin, with a light / dark service of its own - provides it first, as "Setting a site up" says:
+  `provideAnotokiShell(() => ({ theme: { storageKey, account, save } }))` (its storage key, the account's theme and its
+  save), `provideAppInitializer(() => inject(ThemeService))`, `theme-boot.js` in `index.html` with the same storage key -
+  and its own theme service and switch gone: two theme services never run in one site.
+- **The words** are the kit's own - "Skip to content", "Menu", "Sign out", "Saving…", "Theme", "Admin panel"
+  (`anotoki.topbar.*`, `anotoki.theme.label`) - in the kit's language (English in an admin panel); no new words and no
+  migration. The rest is the site's, worded: the panel's name, Back's words, the pages'.
+- **Accessibility**: one `<main>`; the column is the page's banner (`<header>`), holding the navigation named
+  `navLabel`; the footer a landmark of its own. The name, Back, Sign out and Menu are 44 px; the side navigation's links
+  36 with a mouse and 44 to a finger and in the drawer; the theme's switch is the family's, its segments 30 px as in the
+  bar. Text at 4.5:1 and the switch's edge at 3:1 on their grounds in both themes; every focus ring the kit's. The page's
+  column is positioned, so what a page hides from sight (the kit's visually hidden words) scrolls in it and never makes
+  the document taller than the window.
+
+**genshin's frame, mapped** (its `sites/admin/app.component`):
+
+| genshin | the frame |
+| --- | --- |
+| `.admin-layout`, its height, and the body's overflow (the effect and `ngOnDestroy`) | the frame itself |
+| `<aside class="admin-sidebar">`, 220 px | the column, a `<header>` of 15rem |
+| `.sidebar-header`: the theme button and "Genshin Admin" | `brand`; the theme under Sign out, `[adminFrameTheme]` |
+| `<anotoki-side-nav label="Admin panel" heading="Genshin Admin" [groups]="navGroups()" [phoneMax]="860" />` | `groups` (`navGroups()` as it is), `navLabel`, `phoneMax`; the drawer's heading is `brand.name` |
+| `.admin-phone-bar`: the brand, the theme, Menu | the frame's row: the name and Menu - the theme in the drawer |
+| `.admin-main`, `<main class="admin-page" id="main">` | the page's column and its `<main>`, with a skip link genshin has not |
+| `--anotoki-topbar-height` in `.admin-main` | the frame's own |
+| `<anotoki-site-footer class="admin-footer" ... />` | `[adminFrameFooter]` |
+| `<app-theme-toggle>`: light and dark, its own service | `<anotoki-theme-toggle adminFrameTheme />`: light, dark, as the device is set - once genshin provides the shell's theme |
+| (none) | `person`, `back` ("Back to the site"), `signOut` |
+
+genshin keeps what is its own around the frame: the page that tells somebody the panel is not theirs (`allowed()`),
+its admin icons, the unread feedback's count, its What's new. The other five sites draw their admin panel in
+`<anotoki-shell>` under the family's bar: the frame takes the place of both in the admin layout - the bar's admin links
+(the IAM's shell `nav`) become `groups`, the person menu's way back and Sign out the frame's `back` and `signOut`, the
+footer goes from `shellFooter` to `adminFrameFooter`.
+
 ## Deploying a site (0.9.0)
 
 `deploy/` is `@anotoki/deploy`: the one build and deploy of every site, `anotoki-deploy`. A site's folder on the host
@@ -3235,7 +3359,8 @@ bun run showcase        # projects/showcase on http://localhost:4320: every piec
                         # failure's screen (?code=state_mismatch, ..., unavailable); /terms, /privacy, /contact,
                         # the legal pages with a sample site's facts, linked from the footer (?iam=1 the anotoki
                         # account's own, ?fan=1 the fan clause, ?feedback=0 a site without feedback); /about and
-                        # /support, the About and Support pages; the family's
+                        # /support, the About and Support pages; /admin-frame, the admin panel's frame (0.10.0) -
+                        # a page of its own, outside the showcase's bar and footer; the family's
                         # footer under every page (the library's version, What's new, Feedback; the same
                         # ?fan=1 and ?feedback=0) and its samples in the gallery; never published)
 bun run build:showcase  # the same, built into frontend/dist/showcase

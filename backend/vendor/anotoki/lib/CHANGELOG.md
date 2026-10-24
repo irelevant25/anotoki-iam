@@ -5,6 +5,76 @@ and the npm package `@anotoki/lib` (`frontend/projects/lib/package.json`). While
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.10.0 - 2026-10-24
+
+The admin panel's frame (the owner's request of 2026-10-24): every admin panel looks like genshin's, so that the panel
+is never mistaken for the site - its pages in a column on the left, the page on the right, and no top bar. Only the
+Angular half changes, by additions: there is no migration and there are no new words.
+
+**`@anotoki/lib/admin/frame` (new): `<anotoki-admin-frame>`, genshin's admin frame for every site.** An entry point of
+its own, on the admin area's lazy route - no first load takes it:
+
+- **A computer**: the column, the panel's banner (`<header>`, 15rem on the surface) - the panel's name linking home
+  (`brand`); who is signed in (`person`: a name and an address, either may be missing, beside the kit's avatar); Back
+  (`back`: the site's words, a route of the site or an address elsewhere); Sign out (`signOut`: the site's own, the
+  function its top bar takes - a promise keeps it "Saving…", `aria-busy` and `aria-disabled`, the focus kept on it);
+  the theme (`[adminFrameTheme]`: the family's `<anotoki-theme-toggle>` - light, dark, as the device is set - over the
+  shell's `ThemeService`, so the account's theme); then the pages (`groups`: the kit's side navigation, named
+  `navLabel`, the kit's "Admin panel" by default). The page's column: `[adminFrameNotice]` above the page (the IAM's
+  `<anotoki-update-banner>`; it takes room only while it says something), the page in `<main id="main">`, and
+  `[adminFrameFooter]` after it (`<anotoki-site-footer>`, a landmark of its own).
+- **Each column scrolls on its own, never the window**: the body's overflow is `hidden` on a computer, the body's own
+  given back on a phone and as the frame goes; a new page starts at its top (a change of the query alone keeps the
+  place); the library's sticky heads stick at the column's top; a window under 32rem tall scrolls the column whole.
+- **A phone** (up to `phoneMax`, 860 px by default): a row with the name and Menu, the page in the window under it;
+  Menu opens the side navigation's drawer, which holds the person, Back, Sign out, the theme and the pages - the focus
+  in, and back on Menu as it closes (a link followed, Back, Escape, the backdrop, its Close, a sign-out done).
+- **A skip link** first, which moves the focus to `<main>` by hand (`skipLabel`; the kit's "Skip to content").
+- **The kit's words alone**: "Skip to content", "Menu", "Sign out", "Saving…", "Theme", "Admin panel", in the kit's
+  language - English in an admin panel. The rest is the site's, worded.
+- **WCAG 2.2 AA**: one `<main>`, the banner holding the named navigation, the footer; the name, Back, Sign out and Menu
+  44 px; text at 4.5:1 and the theme switch's edge at 3:1 in both themes (the showcase measured: light 5.6:1 at the
+  least, the muted ink on the surface; dark 6.7:1).
+
+The theme's switch comes in a slot, never by an import: no entry point of the library imports the shell (the package
+check). Imported, the shell left the first page's own file for a shared one in the bar's first load - 77 bytes more of
+code, but 1.1 kB gzipped beside lazy pages as the check measures it (one gzip over the chunks, in their new order), over
+its 1 kB of slack. The site's admin layout imports the switch, as it imports the rest of what it draws.
+
+**`<anotoki-side-nav>` (`@anotoki/lib/ui/side-nav`):**
+
+- `drawerTop` (new): a template the drawer shows above the navigation, made as it opens - the frame's person, Back, Sign
+  out and theme. A link followed anywhere in the drawer closes it, the navigation's or one above it; a button pressed
+  there leaves it open.
+- The list scrolling beside the page is positioned (`position: relative`): the words a badge says to the ear - visually
+  hidden, so `position: absolute` - are its own and scroll in it, where in a column of the window's height they made
+  the document taller than the window. Nothing seen moves.
+
+- The package check: `@anotoki/lib/admin/frame` 5.2 kB gzipped, importing the core's pieces and `ui/side-nav`;
+  `ui/side-nav` 5.2 (5.1 before). No first load changed: the bar 19.5 kB alone, 20.2 beside lazy pages; the footer 7.8
+  and 8.2; the rest as at 0.9.2.
+- Tests: Vitest - the frame (the column's order; the landmarks; the skip link; the person's cases; Back as a route and
+  as an address; Sign out at once, waiting and failed; the theme's three choices, saved to the account; no switch, no
+  theme row; the body's overflow; a new page at its top; the kit's words; the phone's row, the drawer's contents, a
+  link, Back and Escape closing it, a sign-out closing it, a turned tablet, `phoneMax`) and the side navigation's
+  `drawerTop`. The showcase's `/admin-frame`: the frame with three groups, a person, the update line and the footer - a
+  page of its own, outside the showcase's bar.
+
+What a site must do: nothing, unless it moves its admin panel into the frame - which every site does, at the owner's
+request. Then it takes `anotoki/lib ^0.10.0` and the 0.10.0 tarball together (0.x: `^0.9` does not take 0.10.0; the
+PHP half has not changed), and in its admin area's layout:
+
+1. replaces its frame - genshin's own (`sites/admin/app.component`), the other sites' `<anotoki-shell>` under the
+   family's bar - with `<anotoki-admin-frame>`: `brand`, `person`, `back`, `signOut` (its top bar's function), `groups`
+   (genshin's `navGroups()` as they are; the IAM's shell `nav` as one group or several), and in the slots the theme's
+   switch, the notice, the outlet and the footer (README.md, "The admin panel's frame", maps genshin's frame onto it);
+2. drops what the frame now does: genshin's phone bar, its body-overflow effect and its `--anotoki-topbar-height`;
+3. a site whose theme is not the shell's yet (genshin) provides it first - `provideAnotokiShell()`'s `theme`,
+   `ThemeService` from the start, `theme-boot.js` - and removes its own theme service and switch: two never run in one
+   site.
+
+The deploy tool is 0.9.0's, under the release's number.
+
 ## 0.9.2 - 2026-10-21
 
 A code editor in the kit (the owner's decision of 2026-10-21): genshin's Quiz levels page edits JSON in a plain
