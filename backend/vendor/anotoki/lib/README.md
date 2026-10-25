@@ -13,7 +13,7 @@ Beside the two halves, in neither of them: **the deploy tool** `@anotoki/deploy`
 same release; 0.9.0) - a tool of the computer that builds a site, never part of a site's upload (the section
 "Deploying a site").
 
-Version 0.11.0 holds:
+Version 0.11.1 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -310,7 +310,8 @@ uses is in the first load again.
 | `@anotoki/lib/admin` (0.4.0) | the admin tools' configuration (`provideAnotokiAdmin`) and `FeedbackUnread`, the new feedback beside a site's admin navigation ("Admin tools" below) | where the admin navigation is |
 | `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, `/files` (0.4.0) | the admin tools' pages, one each | lazy admin routes |
 | `@anotoki/lib/admin/parts` (0.4.0) | what those pages share - their requests, failures, dates, question dialog and styles; the library's own, a site imports nothing of it | with the first of them |
-| `@anotoki/lib/site-settings` (0.11.0) | the site settings on a site's pages: `provideAnotokiSiteSettings`, `SiteSettings` (what every page is told), the announcement bar, Page access's `pageAccessGuard`, the administrators' notice ("Site settings" below) | yes (every page of a site that offers the announcement or Page access) |
+| `@anotoki/lib/site-settings` (0.11.0) | the site settings on a site's pages: `provideAnotokiSiteSettings`, `SiteSettings` (what every page is told), the announcement bar, Page access's `pageAccessGuard`, the administrators' notice ("Site settings" below) - since 0.11.1 without what the bar and the notice draw | yes (every page of a site that offers the announcement or Page access) |
+| `@anotoki/lib/site-settings/bar`, `/notice` (0.11.1) | the announcement bar and the administrators' notice as they are drawn, with the kit's pieces they draw and their words - fetched by `<anotoki-announcement>` and `<anotoki-page-notice>` themselves; a site names nothing of them | when there is something to draw: an announcement to show; something to tell the site's ADMIN |
 | `@anotoki/lib/admin/site-settings` (0.11.0) | the administrators' Site settings page: a card a part, each with its dialog | a lazy admin route |
 | `@anotoki/lib/admin/frame` (0.10.0) | `<anotoki-admin-frame>`, the admin panel's frame: the column of the panel's name, the person, Back, Sign out, the theme and the pages; the page and the footer beside it ("The admin panel's frame" below) | the admin area's lazy route |
 | `@anotoki/lib/feedback` (0.4.0) | the visitors' feedback form's configuration (`provideAnotokiFeedback`, which registers its words) and its words | yes, beside the translations module |
@@ -321,7 +322,7 @@ uses is in the first load again.
 | `@anotoki/lib/legal/pages` (0.6.0) | the Terms, Privacy and Contact pages, with their words | lazy routes |
 | `@anotoki/lib/legal/about`, `/support` (0.8.0) | the About page and the Support page, the same on every site, each with its words ("About and Support" below) | lazy routes |
 | `@anotoki/lib/footer` (0.6.3) | `<anotoki-site-footer>`, the family's footer: the version, What's new, Feedback, About · Support · Terms · Privacy · Contact, the fan clause ("Footer" below) | yes (every page) |
-| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's), `/legal-links` (the footer's links, 0.6.0), `/legal` (the legal pages', 0.6.0 - read by those pages alone), `/chips`, `/progress`, `/stepper`, `/tabs`, `/date-field`, `/color-field`, `/file-picker`, `/combobox` and `/rich-text` (the kit's pieces', 0.6.0 - read by those pieces alone), `/footer` (the footer's, 0.6.3 - read by the footer itself), `/about` and `/support` (the About and Support pages', 0.8.0 - read by each page alone), `/dates`, `/number-field`, `/multiselect`, `/audio-player` and `/html-editor` (the kit's pieces' of 0.11.0 - read by those pieces alone), `/site-settings` (the announcement bar's and the administrators' notice's, 0.11.0 - read by those pieces) and `/maintenance` (the closed sign's, 0.11.0 - read by the sign) | with its module, which alone imports it and registers it with the translations module (the legal pages, the About and Support pages, the kit's pieces, the footer, the site settings' pieces and the closed sign read theirs themselves) |
+| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's), `/legal-links` (the footer's links, 0.6.0), `/legal` (the legal pages', 0.6.0 - read by those pages alone), `/chips`, `/progress`, `/stepper`, `/tabs`, `/date-field`, `/color-field`, `/file-picker`, `/combobox` and `/rich-text` (the kit's pieces', 0.6.0 - read by those pieces alone), `/footer` (the footer's, 0.6.3 - read by the footer itself), `/about` and `/support` (the About and Support pages', 0.8.0 - read by each page alone), `/dates`, `/number-field`, `/multiselect`, `/audio-player` and `/html-editor` (the kit's pieces' of 0.11.0 - read by those pieces alone), `/site-settings` (the announcement bar's and the administrators' notice's, 0.11.0 - read by those parts as they are drawn, `site-settings/bar` and `/notice`, 0.11.1) and `/maintenance` (the closed sign's, 0.11.0 - read by the sign) | with its module, which alone imports it and registers it with the translations module (the legal pages, the About and Support pages, the kit's pieces, the footer, the site settings' pieces and the closed sign read theirs themselves) |
 | `@anotoki/lib/words` (0.4.0, generated) | `LIBRARY_WORDS`, every module's words (the kit's and each namespace's) | never - a site's specs, the showcase |
 
 Every component is standalone, OnPush and zoneless-safe; colours only through
@@ -566,7 +567,10 @@ in a page's `@if` (`[dialogFooter]`); `AnotokiDialog.open(Component, { data, hea
 -> `AnotokiDialogRef` (`close(result)`, `closed`, `busy`, `heading`); the
 component injects `AnotokiDialogRef` and `ANOTOKI_DIALOG_DATA` and puts its
 buttons in `<ng-template anotokiDialogFooter>`. `ConfirmService.ask({ title, message, confirmLabel, cancelLabel, tone })`
--> `Promise<boolean>`, drawn by `<anotoki-confirm-host>`, the focus on Cancel.
+-> `Promise<boolean>`, drawn by `<anotoki-confirm-host>`, the focus on Cancel. The focus goes to the first
+`[autofocus]` inside - a kit field's too (0.11.1: its control; the field's element takes none), and a field of a form
+inside the dialog or of an `@if` there that asks for it itself (`[autofocus]="true"`): the dialog opens before any
+field asks - else to the first thing a keyboard reaches that is not Close.
 
 **`ui/toast`** - `ToastService.show(message, tone, duration)`, `success`,
 `info`, `warning` (8 s), `error` (9 s), `dismiss(id)`; at most four;
@@ -724,10 +728,13 @@ is sent again, as from any form.
   a date typed, or chosen in a calendar. **The value is ISO**: `'YYYY-MM-DD'`, or `''` while there is none;
   with `dayMonth` (a birthday) a day and a month without a year, `'--MM-DD'` (29 February included) - no
   year in the field nor in the calendar. The field writes the date, and reads what is typed, in the reader's
-  date format: `format` is the anotoki account's `date_format` (`AccountPreferences.preferences()?.date_format`
-  of `@anotoki/lib/auth` - `'dmy_dot'` 6.10.2026, `'dmy_slash'` 06/10/2026, `'mdy_slash'` 10/06/2026,
-  `'ymd_dash'` 2026-10-06), and null - a visitor, an account that chose none - is the page language's own
-  numbers (Intl: "6. 10. 2026" in Slovak, "10/6/2026" in English). Typing is lenient: any of `. / -` or a
+  date format, as the kit's dates write theirs (`ui/dates`, 0.11.1): `format` where the page gives one - the
+  anotoki account's `date_format` (`AccountPreferences.preferences()?.date_format` of `@anotoki/lib/auth` -
+  `'dmy_dot'` 6.10.2026, `'dmy_slash'` 06/10/2026, `'mdy_slash'` 10/06/2026, `'ymd_dash'` 2026-10-06) -, else the
+  account's the kit is told (`provideAnotokiUi`'s `dateChoices`), and else - a visitor, an account that chose
+  none - the page's locale's own numbers (`provideAnotokiUi`'s `locale`, else the page's language, English as
+  en-GB: "6. 10. 2026" in Slovak, "06/10/2026" in English; before 0.11.1 the language alone, "10/6/2026" in
+  English, so a day-first account's "15/06/2024" was no date). Typing is lenient: any of `. / -` or a
   space between the numbers, a 0 before one digit or none, an ISO date in any format; the year in four
   digits. While the text is no date - or one before `min` or after `max` (`'YYYY-MM-DD'`, not with
   `dayMonth`) - the value is `''`, and once the person leaves the field (or presses Enter) it says why under
@@ -743,10 +750,10 @@ is sent again, as from any form.
   Every day is named whole ("Wednesday, October 14, 2026"); the chosen one `aria-selected`, today
   `aria-current="date"` (a dot under its bold number - never a ring, which is the focus); days outside
   `min` and `max` struck through, not to be chosen, and the keyboard stops at them. Month and day names are
-  the browser's (Intl), in the page's language; the week starts on Monday unless the language names a
-  country that starts it otherwise (`en-US`: Sunday). With `dayMonth` the calendar is a month's days in
-  rows of seven, no weekdays, December before January. The button's, the month buttons' and the messages'
-  words are the library's `anotoki.dateField.*`, read by the field itself.
+  the browser's (Intl), in the field's locale ("Wednesday, 14 October 2026" in English); the week starts on
+  Monday unless the locale names a country that starts it otherwise (`en-US`: Sunday). With `dayMonth` the
+  calendar is a month's days in rows of seven, no weekdays, December before January. The button's, the month
+  buttons' and the messages' words are the library's `anotoki.dateField.*`, read by the field itself.
 - `ui/slider` - `<anotoki-slider label [(value)] [min] [max] [step] [ticks] valueText showValue>`: a
   number (both ways, kept between `min` and `max`) on the native range input, drawn in the kit's look, so the
   keyboard, a finger and a screen reader work as everywhere; the whole 44 px box takes a finger. `ticks`
@@ -968,7 +975,10 @@ it, never re-exported by `ui`. A site switches to them after the release, and dr
   `[fieldSuffix]` unit, and the field's own: **the value is a number, or null** while the field holds none (nothing, or no
   number it takes). `step` 1 (whole numbers) by default, 0.01 two decimals, 5 its multiples from `min` (or 0), `'any'`.
   Typing is lenient (a dot or a comma, spaces between the digits); once left (or on Enter) it writes the number the
-  page's way ("1,5") or says why it is not taken ("Write a whole number.", "The largest number is 10."). A text input
+  page's way ("1,5") or says why it is not taken ("Write a whole number.", "The largest number is 10."). Every input
+  that changes what the box holds is told (`valueChange`, and to whoever subscribes to `value`), the value as it is
+  then - null again too, from an emptied box to a number the field does not take (0.11.1: a page reading the box beside
+  its value, genshin's "required" while it is empty, heard nothing until the next number it took). A text input
   with a number keyboard (numeric, decimal - the whole keyboard where a minus may be typed), never `type="number"`.
   Words: `anotoki.numberField.*`. It replaces genshin's `app-number` (`allowDecimal` + `decimalPlaces` → `step`,
   `allowNegative` false → `[min]="0"`; its value was a text, NaN for none - a number now, null for none).
@@ -2508,7 +2518,7 @@ $errorLog = new ErrorLog(storageDir() . '/logs', [
     'app' => $app,                     // the route's pattern in each line
     // 'key' => Keys::derive(appSecret(), 'error-log'),   default: the installation's key (storage/anotoki-lib.key)
     // 'responses' => fn (int $status) => $status >= 400, default: every 5xx and 404, 405, 413, 415, 429
-    // 'expected' => [],                                  default: update_pending, feature_unavailable, not_set_up (0.5.0)
+    // 'expected' => [],                                  default: update_pending, feature_unavailable, not_set_up (0.5.0), maintenance, page_locked (0.11.1)
     // 'ignoreExceptions' => [ApiRefusal::class],         a site's decided answers: logged as their answer
 ]);
 Redactor::addSecretNames('totp_secret', 'recovery_code');               // a site's own names of a secret, once (0.5.0)
@@ -2538,7 +2548,9 @@ ErrorLogRoutes::client($app, '/api/client-errors', $errorLog, $context); // the 
   sets who asks inside the outer middleware), else the person `Identify` set.
 - An answer whose code says a state, not a failure - `update_pending` (the gate
   while an update waits), `feature_unavailable` (a tool whose table waits),
-  `not_set_up` - is not written (`expected`; `[]` writes them).
+  `not_set_up`, and since 0.11.1 the site settings' `maintenance` (the site
+  closed for maintenance) and `page_locked` (a page switched off) - is not
+  written (`expected`; `[]` writes them).
 - `Support\Redactor`: PostgreSQL's DETAIL/HINT/CONTEXT/QUERY lines go whole,
   echoed values, e-mail and IP addresses, JWTs, Bearer credentials,
   `password=`-like secrets (their names quoted or not: `{"password":"…"}`,
@@ -3649,6 +3661,17 @@ provideAnotokiAdmin(() => ({ ..., languages: () => i18n.languages().map((l) => (
 - `<anotoki-page-notice>` - what the administrators alone read above the page: the site is closed, this page is
   switched off, this page is kept for some readers. In the admin panel's frame (`[adminFrameNotice]`) the maintenance
   line alone shows: no row governs `/admin`.
+- **What the two elements draw is fetched when there is something to draw** (0.11.1): the bar
+  (`@anotoki/lib/site-settings/bar`) while there is an announcement to show - written, not hidden, in the page's
+  language or in English -, the notice (`@anotoki/lib/site-settings/notice`) for the site's ADMIN with something to be
+  told; each an entry point of its own with the kit's pieces it draws and the words, kept for the page's life once it
+  came. So no first load carries them: the site settings' first load holds what boot and the guard need and the two
+  elements (3.9 kB gzipped of the package's beside 10.1 at 0.11.0, the kit's configuration and words - every site's
+  first load holds them anyway - 2.4 of it). With nothing to draw an element holds nothing (a frame's `:empty` reads it
+  so); the bar's element is the bar itself (`section.anotoki-announcement__bar[data-announcement]`, as before), the
+  notices sit in `div.anotoki-page-notice__list`. While a part's code comes the page is not stable yet (`whenStable()`
+  waits for it: a site's specs see the bar as before); code that cannot be fetched is said in the console and asked
+  for again when what there is to draw changes. A site writes, provides and loads everything as before.
 - The closed sign is `@anotoki/lib/migrations/maintenance`, which the status page loads as the site says it is
   closed - no first load carries it or its words. While the site is closed the gate draws it for everybody but the
   ADMIN, but on the sign-in's way back, the legal pages, About and Support (`openWhileClosed`). At the staff route,
@@ -3728,8 +3751,11 @@ RobotsRoutes::sitemap($app, $robots);                          // GET|HEAD /site
   `<lastmod>`), absolute addresses, each once, at most 50,000 - leaving out what Page access hides (a page for people
   signed in, for editors, for administrators, or switched off, matched as the guard matches, `:id` rows too), what
   robots.txt keeps out, and anything that is no path of the site's. A name may be given as it reads
-  (`/characters/Hu Tao`): every segment is encoded as an address needs. Kept an hour in `cacheFile`, made again at once
-  when what Page access hides or the address changes; `404 not_configured` while no address is.
+  (`/characters/Hu Tao`): every segment is encoded as the app's router writes it, so the sitemap names a page by the
+  address its own links have (0.11.1: `:`, `@`, `$`, `,`, `&`, `!`, `*` and `'` kept, as RFC 3986 lets a segment hold
+  them - `:` was `%3A` before; `(` and `)` encoded). Kept an hour in `cacheFile`, made again at once when what Page
+  access hides or the address changes - or how it is written (a sitemap kept by 0.11.0 is made again); `404
+  not_configured` while no address is.
 - Both are public, `Cache-Control: public, max-age=3600`, and behind the site's gate like any route: a robot told
   `503` with `Retry-After` keeps what it had.
 - **The IAM** keeps its sign-in and account pages out (`disallow: ['/login', '/register', '/confirm-email',

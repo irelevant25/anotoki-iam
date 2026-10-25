@@ -41,8 +41,19 @@ final class Robots
 
     public const CACHE_SECONDS = 3600;
 
-    /** Changes when what a kept sitemap holds is made otherwise: an older one is made again. */
-    private const SHAPE = 'anotoki-sitemap/1';
+    /**
+     * Changes when what a kept sitemap holds is made otherwise: an older one is made again (2, 0.11.1: segments as the
+     * app's router writes them).
+     */
+    private const SHAPE = 'anotoki-sitemap/2';
+
+    /**
+     * What a segment keeps unencoded beyond RFC 3986's unreserved letters, as the app's own links do - Angular's router
+     * (encodeUriSegment(): encodeURIComponent()'s "!*'()", then ":", "@", "$", "," and "&" back, "(" and ")" encoded,
+     * as its outlets use them) - all of them a segment's own characters in RFC 3986 (pchar): the sitemap names a page by
+     * the address the page itself has.
+     */
+    private const SEGMENT_KEEPS = ['%21' => '!', '%2A' => '*', '%27' => "'", '%3A' => ':', '%40' => '@', '%24' => '$', '%2C' => ',', '%26' => '&'];
 
     /** @var list<string> */
     private readonly array $disallow;
@@ -55,7 +66,7 @@ final class Robots
      * @param null|Closure(): iterable<string|array{path: string, lastmod?: mixed}> $entries  the site's own entries,
      *        made when the sitemap is: each a path ('/database/characters/12'), or {path, lastmod} - lastmod a date
      *        ('2026-10-24', an ISO 8601 time or a DateTimeInterface). A name in a path may be given as it reads
-     *        ('/characters/Hu Tao'): every segment is percent-encoded as an address needs it
+     *        ('/characters/Hu Tao'): every segment is percent-encoded as the app's router writes it (SEGMENT_KEEPS)
      * @param ?SiteSettings $settings  Page access: what it hides stays out of the sitemap
      * @param ?string $cacheFile  where the sitemap is kept between requests (storage/cache/anotoki-sitemap.json); none: made every time
      * @param string $sitemapPath  where RobotsRoutes::sitemap() answers, for robots.txt's line
@@ -224,7 +235,7 @@ final class Robots
                 return null;
             }
         }
-        $loc = $address . '/' . implode('/', array_map('rawurlencode', $decoded));
+        $loc = $address . '/' . implode('/', array_map(static fn(string $segment): string => strtr(rawurlencode($segment), self::SEGMENT_KEEPS), $decoded));
         if (strlen($loc) > self::URL_MAX) {
             return null;
         }

@@ -86,9 +86,11 @@ final class ErrorLog
 
     /**
      * The answers that say a state the site is in, not a failure - an update waiting (the gate's update_pending, a
-     * module's feature_unavailable), a site not set up yet: never written by default, however often they come.
+     * module's feature_unavailable), a site not set up yet, and since 0.11.1 the site settings' two (the site closed
+     * for maintenance, the gate's maintenance; a page switched off, Page access's page_locked): never written by
+     * default, however often they come.
      */
-    public const EXPECTED_CODES = ['update_pending', 'feature_unavailable', 'not_set_up'];
+    public const EXPECTED_CODES = ['update_pending', 'feature_unavailable', 'not_set_up', 'maintenance', 'page_locked'];
 
     private const OPTIONS = [
         'root',

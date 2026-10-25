@@ -5,6 +5,64 @@ and the npm package `@anotoki/lib` (`frontend/projects/lib/package.json`). While
 version is 0.x, a minor version may break what a site uses - each such change is
 said here, with what a site must do.
 
+## 0.11.1 - 2026-10-25
+
+What the six sites found as they moved onto 0.11.0. Nothing a site uses changes: a site takes it by moving the version
+(Composer's constraint, the tarballs' URLs) and nothing else.
+
+**The site settings out of every first load.** 0.11.0's `<anotoki-announcement>` and `<anotoki-page-notice>` drew the
+bar and the notice themselves, so the bar, the notice, their words and the kit's pieces they draw were in every site's
+first load, an announcement or none: "the site settings" first load of the package check was 10.1 kB gzipped (10.5
+beside lazy pages); the IAM reached its 525 kB budget, Japanese Academy went 2.9 kB over its 550 kB warning, genshin 21
+kB up. The elements stay as they are - a site writes them, provides and loads the settings, and guards its pages as
+before - and fetch what they draw only when there is something to draw: the bar (`@anotoki/lib/site-settings/bar`, new)
+while there is an announcement to show (written, not hidden, in the page's language or in English), the notice
+(`@anotoki/lib/site-settings/notice`, new) for the site's ADMIN with something to be told; each an entry point with its
+pieces and its words, kept for the page's life once it came; a site names nothing of either. The first load keeps what
+boot and `pageAccessGuard` need and the two elements: 3.9 kB alone, 4.2 beside lazy pages (its limit 11.5 -> 5; the
+entry point 4.4 -> 3.6, its limit 5 -> 4), the kit's configuration and words - which every first load holds anyway - 2.4
+of it, and none of `anotoki.siteSettings.*` (the check holds it to the kit's words). Measured in a site's build: the
+showcase's initial total gained 9.0 kB raw (3.05 kB transferred) from the site settings at 0.11.0, 5.8 (2.2) now; the
+IAM's own production build (a scratch copy) 524.95 kB -> 517.26 kB raw, 149.1 -> 147.1 kB transferred - the site
+settings 13.2 kB of it at 0.11.0, 5.1 now. With nothing to draw an element holds nothing (a frame's `:empty` reads it
+so). The bar's element is the bar itself, `section.anotoki-announcement__bar[data-announcement]` in the element as
+before; the notices now sit in a `div.anotoki-page-notice__list` inside the element (a descendant selector finds them as
+before). While a part's code comes the page is not stable yet (`whenStable()` waits for it, so a site's specs see the
+bar as before); code that cannot be fetched is said in the console and asked for again when what there is to draw
+changes.
+
+**The kit's fields count their ids themselves** (`FieldBase`, `ui/field`): the one id took `ui/dom`'s whole file - every
+DOM helper of the kit - into each first load that draws a field, beside lazy pages that use them. "A select" first load
+beside lazy pages: 7.1 -> 6.5 kB (the bar's and the notice's own chunks split its shared one, so without this it would
+have crossed its slack). The ids are still `anotoki-field-<n>`, unique on the page.
+
+**The date field reads a typed date as the kit's dates write it** (genshin: on an English page with a day-first account
+"15/06/2024" was no date and "01/03/2024" became 3 January). With no `format` from the page it follows
+`provideAnotokiUi`'s `dateChoices` (the account's order), else its `locale` - else the page's language, English as
+en-GB, as `ui/dates` does: "06/10/2026" in English, never the United States' "10/6/2026" (a site's `en-US` still the
+month first). Its calendar names the days in that locale too ("Wednesday, 14 October 2026"); the week's first day is the
+locale's (Monday for en-GB and sk-SK, as before). A `format` the page gives still comes first: genshin's `fieldFormatOf()`
+can go.
+
+**The number field tells every input that changes what the box holds** (genshin: a number typed after emptying the box
+showed "required" until another input came - from an emptied box to a number the field does not take the value stays
+null, and a model tells a new value alone). `valueChange` - and whoever subscribes to `value` - now hears every input,
+the value as it is then, null again included: genshin's own `(input)` listener can go.
+
+**The dialog gives the focus to a kit field's `autofocus`** - it went to Close: the dialog took the field's element
+(`anotoki-text-field[autofocus]`, which takes no focus) for the target, and a field in a view of its own (a form inside
+the dialog, an `@if`) asked for the focus while the `<dialog>` was still closed. The dialog now opens and focuses in the
+write phase, before any field's own `afterNextRender`, and an `[autofocus]` element that takes no focus hands it to its
+control. `ui/dialog` alone changed: the ui + shell first loads stay at 28.4 of 28.5 kB.
+
+**The error log keeps the site settings' states out** (PHP): `ErrorLog::EXPECTED_CODES` gains `maintenance` (the site
+closed) and `page_locked` (a page switched off, 423 - written where a site keeps every 4xx) - Japanese Academy's own
+`array_merge(ErrorLog::EXPECTED_CODES, ['maintenance'])` can go (harmless if kept).
+
+**The sitemap writes a segment as the app's router writes it** (PHP): `:` was `%3A`, where the app's own links - Angular's
+router - keep it, as RFC 3986 lets a segment hold it; now `:`, `@`, `$`, `,`, `&`, `!`, `*` and `'` stay, `(` and `)` are
+encoded - a page's address in the sitemap is its own. A sitemap kept by 0.11.0 is made again at once (its shape changed).
+
 ## 0.11.0 - 2026-10-25
 
 The pieces the sites drew themselves, in the library (the owner's request of 2026-10-25: "I would like the projects to
