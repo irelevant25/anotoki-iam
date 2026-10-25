@@ -2701,16 +2701,20 @@ five: `applications.access`, `applications.type`, `applications.secret_hash`,
   revocation endpoints refuse a request carrying a client secret
   (`client_secret` in the body, even empty, or HTTP Basic) by what it
   carries, before any row is read (`clientSentSecret()`) - the refusal never
-  asked `secret_hash`, and is the same before the drop and after, a row
-  edited by hand to say a confidential client holding that very secret
-  changing nothing; authorize asks every client for PKCE whatever its row;
-  the admin panel refuses a body's `type` other than public by the body and
+  asked `secret_hash`; authorize asks every client for a PKCE challenge
+  whatever its row, and the code exchange redeems no code without one; the
+  admin panel refuses a body's `type` other than public by the body and
   ignores its `show_on_landing`; the public list is every site switched on,
   in `sort_order`, which stays; `php clients.php` printed `type` and no
   longer does; the SDKs and the pages never knew them. Nothing that decides a
-  sign-in changed (`tests/sign-in-rules.test.php`, public clients only, on a
-  database without the columns; `tests/dropped-leftovers.test.php`, the
-  window, before and after).
+  sign-in changed: `tests/sign-in-rules.test.php` shows it on a database
+  without the columns (public clients only, the code exchange's refusal of a
+  code without a challenge among it - untested until the review of
+  2026-10-25), and `tests/dropped-leftovers.test.php`'s window before the
+  drop and after it, with the survey site's row edited by hand to say a
+  confidential client holding that very secret: the secret refused all three
+  ways it can be sent, at both endpoints, spending nothing; no code from
+  authorize without a challenge; no tokens for a code without one.
 - **`audit_log_before_018`**, the IAM's own audit log as 018 left it, every
   entry of it in the library's `anotoki_audit_log` (018 proved the move in its
   gate), unread since and scrubbed by an account's deletion like the log -
@@ -2734,9 +2738,15 @@ five: `applications.access`, `applications.type`, `applications.secret_hash`,
   every account and every application, before and after - the same answer,
   account by account - and every application's other columns as they were
   (`tests/dropped-leftovers.test.php`).
-- It is no one-way step: a build from before 027 still runs on a database
-  that ran it - once 010, 011 and 018 are applied that build reads none of the
-  five (its `php clients.php` alone looked at `type`, only to print it).
+- It is no one-way step for a build from 018 on: one from before 027 still
+  runs on a database that ran it, reading none of the five (its
+  `php clients.php` alone looked at `type`, only to print it). An older build
+  goes on the host in no case - none from before 010, 011 or 018 once those
+  are applied - and with 027 applied one from before 011 would also skip PKCE
+  for every client: it reads the missing `type` as a client that is not
+  public, so authorize asks for no challenge, the code exchange redeems a code
+  without one, and no client secret is checked (the security review of
+  2026-10-25 caught the first wording, which said "a build from before 027").
 - **The window is scrubbed too.** Between the upload and the Apply, a
   deletion that falls due takes the person out of the old copy as it always
   did - their addresses, the names in what was about them, a token's name -

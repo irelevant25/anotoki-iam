@@ -668,10 +668,12 @@ controller `/robots.txt` and `/sitemap.xml` (`extra["anotoki-deploy"].routes`):
 after the deploy, `/robots.txt` answers text naming
 `https://<the IAM's address>/sitemap.xml`, and the sitemap lists the five
 legal, About and Support pages. The sites need nothing. It is no one-way
-step: a build from before 027 still runs on the database after it. Apply 027
-right after the upload, as every update; a deletion that falls due in between
-takes the person out of the old copy too, so the Apply's backup keeps nobody
-deleted.
+step for a build from 018 on: one from before 027 still runs on the database
+after it. Never an older one - none goes on the host anyway, and with 027
+applied one from before 011 would skip PKCE for every client (it reads the
+missing `type` as "not public"). Apply 027 right after the upload, as every
+update; a deletion that falls due in between takes the person out of the old
+copy too, so the Apply's backup keeps nobody deleted.
 
 ### The family's library (anotoki/lib)
 

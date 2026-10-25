@@ -748,7 +748,7 @@ test('the public contract: three fields for an enabled site, cacheable, no cooki
 
 // ── Public clients only ──────────────────────────────────────────────────────
 
-test('public clients only: a client secret is refused at the token and revocation endpoints, PKCE is asked of every client, discovery says so - with no column to read', function () {
+test('public clients only: a client secret refused at the token and revocation endpoints, PKCE asked at authorize and at the code exchange, discovery says so - with no column to read', function () {
     // What follows is decided by the request alone: since 027 no column says a client's kind or holds a secret
     // (dropped-leftovers.test.php refuses one on an IAM whose row still held it, before the drop and after).
     same(
@@ -767,7 +767,15 @@ test('public clients only: a client secret is refused at the token and revocatio
 
     $browser = new Browser('10.5.8.1');
     $tokens = intoSurvey($browser, 'surveyeditor@example.test');
-    $refusal = ['error' => 'invalid_client', 'error_description' => 'Public clients only - send client_id and the PKCE code_verifier, no secret'];
+    // Each answer as status, error, its description and whether a token came with it - asked, never shown: a
+    // failure here prints no token.
+    $answer = static fn(TestResponse $response): array => [
+        $response->status,
+        $response->json()['error'] ?? null,
+        $response->json()['error_description'] ?? null,
+        isset($response->json()['access_token']) || isset($response->json()['refresh_token']),
+    ];
+    $refusal = [401, 'invalid_client', 'Public clients only - send client_id and the PKCE code_verifier, no secret', false];
     foreach (
         [
             'a client_secret in the body' => ['form' => ['client_secret' => 'anything']],
@@ -780,12 +788,12 @@ test('public clients only: a client secret is refused at the token and revocatio
             'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'], 'client_id' => 'survey'] + ($extra['form'] ?? []),
             'headers' => ['Origin' => SURVEY_FRONTEND] + ($extra['headers'] ?? []),
         ]);
-        same([401, $refusal], [$refreshed->status, $refreshed->json()], "token endpoint, {$what}: refused");
+        same($refusal, $answer($refreshed), "token endpoint, {$what}: refused");
         $revoked = (new Browser())->request('POST', '/api/oidc/revoke', [
             'form' => ['token' => $tokens['refresh_token'], 'client_id' => 'survey'] + ($extra['form'] ?? []),
             'headers' => $extra['headers'] ?? [],
         ]);
-        same([401, $refusal], [$revoked->status, $revoked->json()], "revocation endpoint, {$what}: refused");
+        same($refusal, $answer($revoked), "revocation endpoint, {$what}: refused");
     }
     same(200, refreshAt($tokens['refresh_token'])->status, 'none of that revoked or spent the token: without a secret it refreshes');
 
@@ -807,6 +815,28 @@ test('public clients only: a client secret is refused at the token and revocatio
         [queryOf($start->location())['error'] ?? null, queryOf($start->location())['error_description'] ?? null],
         'no code without a PKCE challenge',
     );
+
+    // And at the code exchange: a code with no challenge - which no authorize since 011 gives; put in by hand here -
+    // gives no tokens, whatever verifier comes with it, and is not spent (redeemAuthorizationCode(), api/oidc.php).
+    $code = randomHex(16);
+    $editorId = (int) iamDb()->query("SELECT id FROM users WHERE email = 'surveyeditor@example.test'")->fetchColumn();
+    iamDb()
+        ->prepare(
+            "INSERT INTO auth_codes (code_hash, application_id, user_id, session_id, redirect_uri, scope, expires_at)
+             SELECT ?, a.id, ?, (SELECT max(s.id) FROM sessions s WHERE s.user_id = ?), ?, 'openid', CURRENT_TIMESTAMP + INTERVAL '60 seconds'
+               FROM applications a WHERE a.client_id = 'survey'",
+        )
+        ->execute([sha256($code), $editorId, $editorId, SURVEY_CALLBACK]);
+    foreach (['a verifier' => pkce()[0], 'an empty one' => ''] as $what => $verifier) {
+        $exchange = (new Browser())->request('POST', '/api/oidc/token', [
+            'form' => ['grant_type' => 'authorization_code', 'code' => $code, 'redirect_uri' => SURVEY_CALLBACK, 'client_id' => 'survey', 'code_verifier' => $verifier],
+            'headers' => ['Origin' => SURVEY_FRONTEND],
+        ]);
+        same([400, 'invalid_grant', 'A public client must use PKCE', false], $answer($exchange), "the code exchange, a code with no challenge and {$what}: no tokens");
+    }
+    $spent = iamDb()->prepare('SELECT consumed_at FROM auth_codes WHERE code_hash = ?');
+    $spent->execute([sha256($code)]);
+    same(null, $spent->fetchColumn(), 'and the code is not spent');
 });
 
 // ── The admin panel's rules ──────────────────────────────────────────────────

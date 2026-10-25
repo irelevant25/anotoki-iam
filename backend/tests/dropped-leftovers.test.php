@@ -21,13 +21,15 @@
  * before and after: the same answer, account by account. Every audit entry
  * stays in the library's table, and every application its other columns. And
  * the window - this build on such a database, 027 waiting: a site's sign-in,
- * its refusal, a client secret refused (a row edited by hand to hold one
- * changing nothing) before the drop and after it, a deletion (the person out
- * of the library's table and of the copy 018 kept, before the Apply's backup),
- * the admin panel's application pages and the sites' public contract all
- * answer, and the Migrations page's Apply (a backup first) brings 027. Its
- * gate refuses a database without 010's column or 018's move, names all that
- * is missing, drops nothing, and runs once the cause is gone.
+ * its refusal, every client public before the drop and after it, a row edited
+ * by hand to say a confidential client holding a secret changing nothing (a
+ * secret refused every way it can be sent, at the token and the revocation
+ * endpoints; PKCE asked at authorize and at the code exchange), a deletion
+ * (the person out of the library's table and of the copy 018 kept, before the
+ * Apply's backup), the admin panel's application pages and the sites' public
+ * contract all answer, and the Migrations page's Apply (a backup first) brings
+ * 027. Its gate refuses a database without 010's column or 018's move, names
+ * all that is missing, drops nothing, and runs once the cause is gone.
  */
 
 declare(strict_types=1);
@@ -43,6 +45,8 @@ const PASSWORD = 'correct horse';
 const SURVEY_FRONTEND = 'http://localhost:4700';
 const SURVEY_CALLBACK = 'http://localhost:4700/auth/callback';
 const DENIED = 'This account cannot use Surveys';
+// The secret the survey site's row is edited by hand to hold in the window (its SHA-256 in secret_hash) - a test's word.
+const SITE_SECRET = 'the site secret';
 
 // ── A database of its own ────────────────────────────────────────────────────
 
@@ -199,6 +203,78 @@ function intoSurvey(Browser $browser, string $email): array
     return $tokens->json();
 }
 
+/** An authorization code for the survey site with no PKCE challenge - as no authorize since 011 gives one - on the account's newest session. */
+function codeWithoutChallenge(int $userId): string
+{
+    $code = randomHex(16);
+    iamDb()
+        ->prepare(
+            "INSERT INTO auth_codes (code_hash, application_id, user_id, session_id, redirect_uri, scope, expires_at)
+             SELECT ?, a.id, ?, (SELECT max(s.id) FROM sessions s WHERE s.user_id = ?), ?, 'openid', CURRENT_TIMESTAMP + INTERVAL '60 seconds'
+               FROM applications a WHERE a.client_id = 'survey'",
+        )
+        ->execute([sha256($code), $userId, $userId, SURVEY_CALLBACK]);
+
+    return $code;
+}
+
+/**
+ * What every client is asked, whatever its row says: a client secret - in the
+ * body, in the body empty, by HTTP Basic - refused at the token and the
+ * revocation endpoints before anything is read, spending nothing; no code from
+ * authorize without a PKCE challenge; and no tokens for a code that has none,
+ * whatever verifier comes with it. `$refreshToken` is a live one of
+ * `$userId`'s, which the refusals must leave live.
+ */
+function everyClientPublic(string $refreshToken, int $userId, string $when): void
+{
+    // An answer as status, error, its description and whether anything was issued - asked, never shown: a failure
+    // here prints these four, never a token.
+    $answer = static fn(TestResponse $response): array => [
+        $response->status,
+        $response->json()['error'] ?? null,
+        $response->json()['error_description'] ?? null,
+        isset($response->json()['access_token']) || isset($response->json()['refresh_token']),
+    ];
+    $publicOnly = [401, 'invalid_client', 'Public clients only - send client_id and the PKCE code_verifier, no secret', false];
+    foreach (
+        [
+            'a client_secret in the body, the one the row holds' => ['form' => ['client_secret' => SITE_SECRET]],
+            'an empty client_secret' => ['form' => ['client_secret' => '']],
+            'HTTP Basic' => ['headers' => ['Authorization' => 'Basic ' . base64_encode('survey:' . SITE_SECRET)]],
+        ]
+        as $what => $secret
+    ) {
+        $token = (new Browser())->request('POST', '/api/oidc/token', [
+            'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $refreshToken, 'client_id' => 'survey'] + ($secret['form'] ?? []),
+            'headers' => ['Origin' => SURVEY_FRONTEND] + ($secret['headers'] ?? []),
+        ]);
+        same($publicOnly, $answer($token), "{$when}: the token endpoint, {$what}: refused");
+        $revoke = (new Browser())->request('POST', '/api/oidc/revoke', [
+            'form' => ['token' => $refreshToken, 'client_id' => 'survey'] + ($secret['form'] ?? []),
+            'headers' => $secret['headers'] ?? [],
+        ]);
+        same($publicOnly, $answer($revoke), "{$when}: the revocation endpoint, {$what}: refused");
+    }
+
+    $start = (new Browser())->get(
+        '/api/oidc/authorize?' . http_build_query(['response_type' => 'code', 'client_id' => 'survey', 'redirect_uri' => SURVEY_CALLBACK, 'scope' => 'openid', 'state' => 's']),
+    );
+    $back = queryOf($start->location());
+    same(
+        ['invalid_request', 'A public client must send a PKCE code_challenge', null],
+        [$back['error'] ?? null, $back['error_description'] ?? null, $back['code'] ?? null],
+        "{$when}: authorize without a PKCE challenge gives no code",
+    );
+
+    [$verifier] = pkce();
+    $exchange = (new Browser())->request('POST', '/api/oidc/token', [
+        'form' => ['grant_type' => 'authorization_code', 'code' => codeWithoutChallenge($userId), 'redirect_uri' => SURVEY_CALLBACK, 'client_id' => 'survey', 'code_verifier' => $verifier],
+        'headers' => ['Origin' => SURVEY_FRONTEND],
+    ]);
+    same([400, 'invalid_grant', 'A public client must use PKCE', false], $answer($exchange), "{$when}: a code with no challenge gives no tokens, whatever the verifier");
+}
+
 /** A browser signed in at the IAM whose sign-in to the survey site is refused at the accept, saying why. */
 function refusedAtSurvey(Browser $browser, string $email, string $why): void
 {
@@ -310,7 +386,7 @@ test(
 );
 
 test(
-    'the window: this build on an IAM through 026, 027 waiting - a site\'s sign-in, its refusal, a client secret refused before the drop and after, a deletion (the copy 018 kept scrubbed too), the admin pages and the public contract answer; Apply brings 027 after a backup',
+    'the window: this build on an IAM through 026, 027 waiting - a site\'s sign-in, its refusal, every client public before the drop and after, a deletion (018\'s copy scrubbed too), the admin pages and the public contract answer; Apply brings 027 after a backup',
     function () {
         $main = testEnvironment()['db'];
         $pdo = buildIamThrough('_window', BEFORE_DROP);
@@ -320,7 +396,7 @@ test(
             $pdo = iamDb();
             $adminId = makeUser('admin', 'admin@example.test', PASSWORD);
             grantRole($adminId, 'iam', 'ADMIN');
-            makeUser('person', 'person@example.test', PASSWORD);
+            $personId = makeUser('person', 'person@example.test', PASSWORD);
             $blockedId = makeUser('blocked', 'blocked@example.test', PASSWORD);
             $pdo->prepare(
                 "DELETE FROM user_roles WHERE user_id = ? AND role_id = (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id
@@ -333,16 +409,12 @@ test(
             same(['MEMBER'], verifyLikeAnApp(new Browser(), $tokens['access_token'], 'survey')['roles'] ?? null, 'a site\'s sign-in, with the MEMBER every account holds');
             refusedAtSurvey(new Browser('10.27.0.2'), 'blocked@example.test', 'MEMBER taken from somebody');
 
-            // A client secret is refused by what the request carries, never by a row: shown here with the survey
-            // site's row edited by hand to say a confidential client holding this very secret - which nothing reads -
-            // and again below, once 027 has dropped both columns. Refused, the request spends nothing.
-            $pdo->exec("UPDATE applications SET type = 'confidential', secret_hash = '" . hash('sha256', 'the site secret') . "' WHERE client_id = 'survey'");
-            $withSecret = static fn(string $refreshToken): TestResponse => (new Browser())->request('POST', '/api/oidc/token', [
-                'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $refreshToken, 'client_id' => 'survey', 'client_secret' => 'the site secret'],
-                'headers' => ['Origin' => SURVEY_FRONTEND],
-            ]);
-            $publicOnly = ['error' => 'invalid_client', 'error_description' => 'Public clients only - send client_id and the PKCE code_verifier, no secret'];
-            same([401, $publicOnly], [($r = $withSecret($tokens['refresh_token']))->status, $r->json()], 'a client secret, the one the row holds: refused before 027');
+            // Every client is public by what the request carries, never by a row: shown here with the survey site's
+            // row edited by hand to say a confidential client holding this very secret - which nothing reads - and
+            // again below, once 027 has dropped both columns: a secret refused every way it can be sent, at both
+            // endpoints, spending nothing; no code without a PKCE challenge; no tokens for a code without one.
+            $pdo->exec("UPDATE applications SET type = 'confidential', secret_hash = '" . hash('sha256', SITE_SECRET) . "' WHERE client_id = 'survey'");
+            everyClientPublic($tokens['refresh_token'], $personId, 'before 027, the row saying confidential');
 
             $admin = new Browser('10.27.0.3');
             same(200, $admin->signIn('admin@example.test', PASSWORD)->status, 'the administrator signs in to press Apply');
@@ -387,8 +459,8 @@ test(
             );
             same([[], false], [droppedColumnsThere($pdo), tableThere($pdo, 'audit_log_before_018')], 'the leftovers gone');
 
-            same([401, $publicOnly], [($r = $withSecret($tokens['refresh_token']))->status, $r->json()], 'and after it the same refusal, with no column to read');
-            same(200, refreshAt($tokens['refresh_token'])->status, 'the refresh token from before keeps working - without a secret');
+            everyClientPublic($tokens['refresh_token'], $personId, 'after 027, with no column to read');
+            same(200, refreshAt($tokens['refresh_token'])->status, 'the refresh token from before keeps working - without a secret: no refusal spent it');
             refusedAtSurvey(new Browser('10.27.0.4'), 'blocked@example.test', 'after 027 too');
             same(200, $admin->get('/api/admin/applications')->status, 'the application pages answer as before');
         } finally {

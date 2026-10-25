@@ -29,10 +29,16 @@
 --   first keeps nobody deleted. Every event in it is in anotoki_audit_log:
 --   dropping it loses none.
 --
--- A build from before this file still runs on a database it has run on: once
--- 010, 011 and 018 are applied, that build reads none of them (its
--- `php clients.php` listing alone looked at `type`, only to print it). So the
--- way back is open, but for what is gone: the copy is not there to bring back.
+-- A build from 018 on, from before this file, still runs on a database it has
+-- run on: it reads none of the five (its `php clients.php` listing alone
+-- looked at `type`, only to print it). So the way back to such a build is
+-- open, but for what is gone: the copy is not there to bring back. No older
+-- build goes on the host anyway - once 010, 011 and 018 are applied, none from
+-- before them does - and on a database this file has run on, one from before
+-- 011 would be worse still: it reads the missing `type` as a client that is
+-- not public, so authorize asks for no PKCE challenge, the code exchange
+-- redeems a code without one, and no client secret is checked - PKCE skipped
+-- for every client.
 --
 -- Before anything goes, the gate asks that 010 and 018 are what they say -
 -- each role's may_sign_in and each application's login_required, 010's two
