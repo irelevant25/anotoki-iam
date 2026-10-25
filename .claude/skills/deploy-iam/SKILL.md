@@ -223,8 +223,11 @@ admin panel's System → Site settings sets the announcement (the IAM's one
 part: no maintenance, no page access); the release's `.htaccess` sends
 `/robots.txt` and `/sitemap.xml` to the front controller - check both after
 the deploy (read-only GETs: robots.txt names `https://<the IAM>/sitemap.xml`,
-the sitemap lists the five legal, About and Support pages). A build from
-before 027 still runs on the database after it.
+the sitemap lists the five legal, About and Support pages). A build from 018
+on, from before 027, still runs on the database after it; never an older
+one: none goes on the host anyway, and with 027 applied one from before 011
+would skip PKCE for every client (it reads the missing `type` as "not
+public").
 
 The pages' and mails' words are rows in the database (migration 006 and every
 later migration with strings, and the anotoki library's own set,
