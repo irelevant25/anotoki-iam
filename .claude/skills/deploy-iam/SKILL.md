@@ -214,7 +214,7 @@ request carrying a secret is refused from the upload on, whatever Apply), that
 every site now has ADMIN, EDITOR and MEMBER (new ones held by nobody), and
 that the public list of sites is every one switched on.
 
-anotoki-lib 0.11.0 and migration 027 (2026-10-25): upload both halves, then
+anotoki-lib 0.11.1 and migration 027 (2026-10-25): upload both halves, then
 Apply - the library's `anotoki_admin/003` (the site settings' tables), the
 IAM's `027` (drops `applications.access`, `type`, `secret_hash` and
 `show_on_landing`, and `audit_log_before_018`) and the
