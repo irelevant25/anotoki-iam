@@ -8,7 +8,8 @@ use Anotoki\Lib\Migrations\MigrationSet;
 use PDO;
 
 /**
- * The admin tools' tables - anotoki_audit_log (001) and anotoki_feedback (002) -
+ * The admin tools' tables - anotoki_audit_log (001), anotoki_feedback (002), and
+ * the site settings' anotoki_site_settings and anotoki_page_access (003, 0.11.0) -
  * and the library's migration set that makes them (backend/migrations/admin).
  *
  * The set runs FIRST in a site's list, before the site's own sets, in every
@@ -31,6 +32,8 @@ final class Schema
 
     public const AUDIT_TABLE = 'anotoki_audit_log';
     public const FEEDBACK_TABLE = 'anotoki_feedback';
+    public const SITE_SETTINGS_TABLE = 'anotoki_site_settings';
+    public const PAGE_ACCESS_TABLE = 'anotoki_page_access';
 
     public static function directory(): string
     {

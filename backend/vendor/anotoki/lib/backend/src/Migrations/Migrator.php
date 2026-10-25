@@ -37,7 +37,17 @@ use Throwable;
  *
  * Each file runs in a transaction of its own with its record, so it is applied
  * whole or not at all; the run stops at the first file that fails, because
- * every migration is written expecting the ones before it to have run. One
+ * every migration is written expecting the ones before it to have run.
+ *
+ * A file's number is the digits before its first `_` (`064` of
+ * `064_news.sql`), and a file takes a number no other file of its set has
+ * (0.11.0, the owner's rule: two sessions once made two `users/064_*.sql` the
+ * same day, and "the next free number" stopped meaning anything). A file not
+ * applied yet whose number another file of its set has - on disk or recorded,
+ * applied or not - is held as a draft is: it and every file after it wait,
+ * the status says why (`duplicates`), and an Apply stops before it with an
+ * error naming both files. Two files applied already are history: they hold
+ * nothing back. One
  * apply at a time per database, whoever starts it (the admin panel, the
  * command line, an installer): each takes the same advisory lock first, and a
  * second one is told it is busy and does nothing. Nothing is ever un-applied.
@@ -187,13 +197,14 @@ final class Migrator
      * @return array{
      *   sets: list<string>,
      *   applied: list<array{set: string, name: string, applied_at: ?string}>,
-     *   pending: list<array{set: string, name: string, ready: bool, blocked: bool}>,
+     *   pending: list<array{set: string, name: string, ready: bool, blocked: bool, duplicates: list<string>}>,
      *   missing: list<array{set: string, name: string, applied_at: ?string}>,
      * }
      *   - applied: recorded and on disk, in the order they ran (by id where the table has one, else by
      *     applied_at, then name); applied_at in ISO 8601 UTC ('2026-10-06T10:01:02Z')
-     *   - pending: on disk and not recorded, in run order across the sets; ready = not a draft,
-     *     blocked = a draft comes before it
+     *   - pending: on disk and not recorded, in run order across the sets; ready = not a draft and its number
+     *     its own, blocked = a file that is not ready comes before it; duplicates = the other files of its set
+     *     with its number (0.11.0: such a file is not ready)
      *   - missing: recorded, but the file is not on disk - or its set is not configured (a library
      *     set the site no longer lists keeps its name: {set: "anotoki_x", name: "001_a.sql"})
      */
@@ -214,7 +225,7 @@ final class Migrator
 
         $pending = [];
         foreach ($this->pendingFiles($records, $files, false) as $file) {
-            $pending[] = ['set' => $file['set']->name, 'name' => $file['name'], 'ready' => $file['ready'], 'blocked' => $file['blocked']];
+            $pending[] = ['set' => $file['set']->name, 'name' => $file['name'], 'ready' => $file['ready'], 'blocked' => $file['blocked'], 'duplicates' => $file['duplicates']];
         }
 
         return [
@@ -227,7 +238,8 @@ final class Migrator
 
     /**
      * The pending files that will run now: in order, up to (not including)
-     * the first draft. Reads only.
+     * the first draft - or the first file whose number another file of its
+     * set has. Reads only.
      *
      * @return list<array{set: string, name: string}>
      */
@@ -241,7 +253,9 @@ final class Migrator
      * record, stopping at the first that fails (rolled back whole; later sets
      * never run). Never throws for a failed migration: the result says which
      * file failed and what the database said. It throws only when the
-     * connection itself fails (or `prepare` does).
+     * connection itself fails (or `prepare` does). A file whose number another
+     * file of its set has is never run: the run stops before it, the result
+     * naming it as `failed` and both files in its `error`.
      *
      * @return array{
      *   applied: list<array{set: string, name: string}>,
@@ -269,9 +283,9 @@ final class Migrator
             $this->ensureTable();
             $shape = $this->shape() ?? throw new LogicException("The table {$this->table} cannot be read.");
 
-            $files = $this->applicableFiles($shape);
+            ['files' => $files, 'duplicate' => $duplicate] = $this->nextUp($shape);
             if ($files === []) {
-                return $result;
+                return $duplicate === null ? $result : self::held($result, $duplicate);
             }
 
             if ($this->beforeApply !== null) {
@@ -315,7 +329,7 @@ final class Migrator
                 $result['applied'][] = ['set' => $set->name, 'name' => $name];
             }
 
-            return $result;
+            return $result['failed'] === null && $duplicate !== null ? self::held($result, $duplicate) : $result;
         } finally {
             $this->unlock();
         }
@@ -400,27 +414,73 @@ final class Migrator
      * The applicable files with their SQL where it was read (to judge a draft): what was judged is what runs.
      *
      * @param ?array{file: string, folder: bool, id: bool, appliedAt: ?string} $shape
-     * @return list<array{set: MigrationSet, name: string, sql: ?string, ready: bool, blocked: bool}>
+     * @return list<array{set: MigrationSet, name: string, sql: ?string, ready: bool, blocked: bool, duplicates: list<string>}>
      */
     private function applicableFiles(?array $shape): array
+    {
+        return $this->nextUp($shape)['files'];
+    }
+
+    /**
+     * The applicable files, and the file they stop before when it is one whose number another file of its set has
+     * (null when they stop at a draft, or at nothing).
+     *
+     * @param ?array{file: string, folder: bool, id: bool, appliedAt: ?string} $shape
+     * @return array{files: list<array{set: MigrationSet, name: string, sql: ?string, ready: bool, blocked: bool, duplicates: list<string>}>, duplicate: ?array{set: MigrationSet, name: string, sql: ?string, ready: bool, blocked: bool, duplicates: list<string>}}
+     */
+    private function nextUp(?array $shape): array
     {
         $files = [];
         foreach ($this->pendingFiles($this->records($shape), $this->allFiles(), true) as $file) {
             if (!$file['ready']) {
-                break;
+                return ['files' => $files, 'duplicate' => $file['duplicates'] === [] ? null : $file];
             }
             $files[] = $file;
         }
 
-        return $files;
+        return ['files' => $files, 'duplicate' => null];
     }
 
     /**
-     * The files not recorded, in run order across the sets.
+     * An Apply that stopped before a file whose number another file of its set has: the file, as `failed`, and both
+     * files in the error - never run.
+     *
+     * @param array{applied: list<array{set: string, name: string}>, failed: ?array{set: string, name: string}, error: ?string, busy: bool, note: ?string} $result
+     * @param array{set: MigrationSet, name: string, duplicates: list<string>} $file
+     * @return array{applied: list<array{set: string, name: string}>, failed: ?array{set: string, name: string}, error: ?string, busy: bool, note: ?string}
+     */
+    private static function held(array $result, array $file): array
+    {
+        $set = $file['set']->name;
+        $others = implode(' and ', array_map(static fn(string $name): string => "$set/$name", $file['duplicates']));
+        $result['failed'] = ['set' => $set, 'name' => $file['name']];
+        $result['error'] =
+            "Not applied: $set/{$file['name']} has the number " .
+            self::number($file['name']) .
+            ", and so has $others. Every file of a set takes a number no other file of it has: give it the next free one, then apply again.";
+
+        return $result;
+    }
+
+    /** A file's number: the digits before its first `_` (`064_news.sql`: 064) - or null for a name that has none. */
+    private static function number(string $name): ?string
+    {
+        return preg_match('/^(\d+)_/', $name, $digits) === 1 ? $digits[1] : null;
+    }
+
+    /** A number as two of them are compared: its value (`064` and `64` are one number). */
+    private static function numberKey(string $number): string
+    {
+        return ltrim($number, '0') === '' ? '0' : ltrim($number, '0');
+    }
+
+    /**
+     * The files not recorded, in run order across the sets - each with the other files of its set that have its
+     * number (on disk or recorded): such a file is not ready, and holds back what comes after it as a draft does.
      *
      * @param list<array{set: string, name: string, applied_at: ?string}> $records
      * @param array<string, list<string>> $files
-     * @return list<array{set: MigrationSet, name: string, sql: ?string, ready: bool, blocked: bool}>
+     * @return list<array{set: MigrationSet, name: string, sql: ?string, ready: bool, blocked: bool, duplicates: list<string>}>
      */
     private function pendingFiles(array $records, array $files, bool $stopAtDraft): array
     {
@@ -432,20 +492,34 @@ final class Migrator
         $pending = [];
         $draftBefore = false;
         foreach ($this->sets as $set) {
+            // Every name the set knows by its number: its files, and its records of files no longer there.
+            $byNumber = [];
+            foreach (array_unique([...$files[$set->name], ...array_map('strval', array_keys($recorded[$set->name] ?? []))]) as $known) {
+                $number = self::number($known);
+                if ($number !== null) {
+                    $byNumber[self::numberKey($number)][] = $known;
+                }
+            }
+
             foreach ($files[$set->name] as $name) {
                 if (isset($recorded[$set->name][$name])) {
                     continue;
                 }
 
+                $number = self::number($name);
+                $duplicates = $number === null ? [] : array_values(array_filter($byNumber[self::numberKey($number)] ?? [], static fn(string $other): bool => $other !== $name));
+                natsort($duplicates);
+                $duplicates = array_values($duplicates);
+
                 $sql = null;
-                $ready = true;
-                if ($this->ready !== null) {
+                $ready = $duplicates === [];
+                if ($ready && $this->ready !== null) {
                     $sql = $this->read($set, $name);
                     // A file that cannot be read is no file to run.
                     $ready = $sql !== null && (bool) ($this->ready)($set, $name, $sql);
                 }
 
-                $pending[] = ['set' => $set, 'name' => $name, 'sql' => $sql, 'ready' => $ready, 'blocked' => $draftBefore];
+                $pending[] = ['set' => $set, 'name' => $name, 'sql' => $sql, 'ready' => $ready, 'blocked' => $draftBefore, 'duplicates' => $duplicates];
                 if (!$ready) {
                     if ($stopAtDraft) {
                         return $pending;

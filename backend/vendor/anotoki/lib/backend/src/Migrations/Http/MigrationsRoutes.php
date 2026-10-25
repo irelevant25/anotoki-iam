@@ -24,14 +24,16 @@ use Slim\Interfaces\RouteInterface;
 final class MigrationsRoutes
 {
     /**
-     * GET $path -> 200 {"state": "ready|not_set_up|update_pending|unavailable", "installed": bool}.
+     * GET $path -> 200 {"state": "ready|not_set_up|update_pending|unavailable|maintenance", "installed": bool}
+     * - and, while the site is closed for maintenance (0.11.0), "maintenance_message": {language: text}, what its
+     * administrators wrote for the maintenance page (empty: the page says the library's own sentence).
      * Public, and it says nothing else; the SiteGate always lets it through.
      */
     public static function status(RouteCollectorProxyInterface $app, SiteState $state, string $path = '/api/site-status'): void
     {
         self::plain(
             $app->get($path, function (ServerRequestInterface $request, ResponseInterface $response) use ($state): ResponseInterface {
-                return self::json($response, 200, ['state' => $state->state(), 'installed' => $state->installed()]);
+                return self::json($response, 200, $state->status());
             }),
         );
     }

@@ -13,7 +13,7 @@ Beside the two halves, in neither of them: **the deploy tool** `@anotoki/deploy`
 same release; 0.9.0) - a tool of the computer that builds a site, never part of a site's upload (the section
 "Deploying a site").
 
-Version 0.10.0 holds:
+Version 0.11.0 holds:
 
 - **migrations** - the engine that brings a site's database up to date, with
   the library's own migration sets beside a site's, and one behaviour for every
@@ -24,7 +24,10 @@ Version 0.10.0 holds:
   links, stat tiles, progress bars, disclosures, steppers, labelled groups,
   link tabs, side navigation, and the date, slider, colour, file, combobox and
   rich-text pieces, each its own entry point; since 0.9.2 the code editor and
-  its JSON and SQL highlighters) and its top bar and frame
+  its JSON and SQL highlighters; since 0.11.0 the HTML editor and its safe view
+  - with the PHP half's allow-list -, dates and how long ago, accent-free
+  search, file sizes, the multiselect, the audio player, the number field, the
+  fieldset and the picture preview) and its top bar and frame
   (`@anotoki/lib/shell`);
 - **translations** (both halves) - a site's words, its languages and their admin
   pages, one implementation for every site (the section "Translations" below);
@@ -52,6 +55,13 @@ Version 0.10.0 holds:
   signed in, Back, Sign out, the theme and the pages in a column on the left, the
   page on the right - never the site's top bar (the section "The admin panel's
   frame");
+- **the site settings** (both halves; 0.11.0) - the switches a site's
+  administrators throw without a deploy: the site closed for maintenance to all
+  but them, an announcement across every page, and who sees each page - genshin's
+  for every site (the section "Site settings");
+- **robots.txt and sitemap.xml** (PHP; 0.11.0) - answered by every site's PHP,
+  from its configured address and what its Page access hides (the section
+  "robots.txt and sitemap.xml");
 - **the deploy tool** (`deploy/`, 0.9.0) - one build and one deploy for every
   site: a release is `frontend/` and `backend/`, each replaced whole on the
   host, the site's settings and storage beside them never touched (the section
@@ -66,6 +76,7 @@ The server decides a state for every request:
 | `not_set_up` | the site's settings files are missing or invalid |
 | `update_pending` | the settings are fine and at least one migration file is ready to apply |
 | `unavailable` | the settings are fine but the database cannot be reached |
+| `maintenance` | ready, and its administrators closed it (0.11.0: the site settings' Getting in) |
 | `ready` | otherwise |
 
 - `not_set_up`: every API path answers `503 {"code":"not_set_up","installed":…,"message":…}`,
@@ -87,6 +98,14 @@ The server decides a state for every request:
   - never set up: "This site is not set up yet" and "Open the setup page";
   - set up once but not answering, or unavailable: "The site is not available
     right now", checking again by itself - never the setup page.
+- `maintenance` (0.11.0, a site that offers the site settings' Getting in):
+  every path answers `503 {"code":"maintenance","message":…,"maintenance_message":{…}}`
+  with `Retry-After: 300` - except the open paths, the site settings' reserved
+  API paths (who the reader is, the sign-in configuration, the status, the
+  words, the settings), and the site's ADMIN, by the token, who uses the site as
+  it is with a line above every page. Everybody else reads the closed sign:
+  "Back shortly" and what the administrators wrote, in their language; at the
+  staff route (`/staff`), Sign in - the administrators' way in.
 - The IAM keeps answering while an update waits (`blockWhilePending: false`);
   its admin panel shows its administrators one line, "A database update is
   waiting", linking to Migrations.
@@ -171,6 +190,15 @@ MigrationsRoutes::admin($app, '/api/admin/migrations', $migrator, function ($req
   `pg_try_advisory_lock` (`DEFAULT_LOCK`, or the site's `lock`) and answers
   `busy` when another holds it. The connection is used as given and needs
   `PDO::ERRMODE_EXCEPTION`.
+- **One number, one file** (0.11.0, the owner's rule): a file's number is the
+  digits before its first `_` (`064` of `064_news.sql`; `64` is the same
+  number), and a file takes a number no other file of its set has. A file not
+  applied yet whose number another file of its set has - on disk or recorded,
+  applied or waiting - is held as a draft is: it and every file after it wait;
+  `status()` lists the others in its `duplicates` (the Migrations page says
+  why), and `apply()` stops before it, the result naming it as `failed` with an
+  `error` that names both files - a site's command line prints it as it prints
+  a failed file. Two files applied already are history: they hold nothing back.
 - Options: `table` (`migrations`), `lock`, `split` (false sends a file in one
   `exec`), and hooks: `ready(set, name, sql)` (false: a draft - it and every file
   after it wait; drafts never stop the site), `prepare(pdo)` (write paths only,
@@ -210,6 +238,27 @@ MigrationsRoutes::admin($app, '/api/admin/migrations', $migrator, function ($req
   `applied`, `failed`, `error`, `note` - a failed file is still a 200 - or 409
   `busy`). The site's admin check must not need tables a pending migration makes.
 
+### A text's HTML, on the server: `Anotoki\Lib\RichHtml` (0.11.0)
+
+```php
+use Anotoki\Lib\RichHtml\RichHtml;
+
+$html = RichHtml::clean($body['intro'] ?? '');               // genshin's guides: RichHtml::clean($text, ['classes' => ['tag']])
+if (RichHtml::isBlank($html)) {                              // an emptied editor's <p></p> is no text
+    $html = '';
+}
+```
+
+- `RichHtml::clean($html, ['classes' => [...]])` - a text's HTML through the family's allow-list, as HTML again: the
+  same rules as the Angular half's `cleanRichHtml()` (`@anotoki/lib/ui/rich-html`, "0.11.0's pieces" below), step for
+  step - the HTML read by the library's own `Parser` as the browser reads it, never by PHP's DOM extension (libxml reads
+  HTML another way, and the server would keep another text than the page shows) - so the server keeps exactly what the
+  page draws. A test holds both halves to the same cases (`backend/tests/RichHtml/cases.json`). Bytes that are no UTF-8
+  are read as "?"; a site's limits (length, what to refuse) stay its own, before it.
+- `RichHtml::text($html)` - the words alone, one space between them (a summary, a CSV); `RichHtml::isBlank($html)`;
+  `RichHtml::linkAddress($address)` - a link's address as a text may have it, or null; `ELEMENTS`, `DROPPED`, `STYLES`.
+- Needs nothing but PCRE and mbstring.
+
 ## The Angular half
 
 One secondary entry point per family of pieces: a site's build places whole
@@ -240,9 +289,13 @@ uses is in the first load again.
 | `@anotoki/lib/ui/chips`, `/link-card`, `/stat-tiles`, `/progress`, `/disclosure`, `/stepper`, `/labelled-group`, `/side-nav` (0.6.0) | chips (a chip, choice chips, removable chips), the link card, figures in tiles, the progress bar, the disclosure and the accordion, the stepper and the progress dots, the labelled group, the side navigation and its phone drawer - one family each ("0.6.0's pieces" below) | where a page draws one (not re-exported by `ui`) |
 | `@anotoki/lib/ui/date-field`, `/slider`, `/color-field`, `/file-picker`, `/combobox`, `/rich-text` (0.6.0) | the input pieces: a date typed in the reader's format or chosen in a calendar, a slider with marks, a colour with its code and suggested colours, files chosen or dropped, one or several things chosen by typing (with pictures), the rich-text toolbar - one each ("0.6.0's input pieces" below) | where a page draws one (not re-exported by `ui`) |
 | `@anotoki/lib/ui/piece-words`, `/current-link` (0.6.0) | `pieceWords()`: how a piece of its own entry point reads its own words, the site's string first; `currentLink()`: which of a navigation's links is the page's | with those pieces |
+| `@anotoki/lib/ui/html-editor`, `/rich-html` (0.11.0) | the family's editor of a text's HTML; the safe view of it and the allow-list (the PHP half's `RichHtml` the same) ("0.11.0's pieces" below) | where a page draws one (not re-exported by `ui`) |
+| `@anotoki/lib/ui/dates`, `/search`, `/file-size` (0.11.0) | dates and how long ago (the pipes `anotokiDate`, `anotokiAgo`); accent-free search; a file's size (the pipe `anotokiFileSize`) - functions a first page may use, each small | where a page uses one |
+| `@anotoki/lib/ui/multiselect`, `/audio-player`, `/number-field`, `/fieldset`, `/picture-preview` (0.11.0) | several chosen out of a list; a sound to listen to; a number as a number; fields under one name; a picture larger on hover and focus | where a page draws one (not re-exported by `ui`) |
 | `@anotoki/lib/shell` | theme service and switch, language switcher, brand, top bar, frame, `latestChoiceSaver`; `assets/theme-boot.js` | yes (every page) |
 | `@anotoki/lib/migrations` | site status, interceptor, gate, status page, update banner | yes (the gate) |
 | `@anotoki/lib/migrations/page` | the admin Migrations page | a lazy admin route |
+| `@anotoki/lib/migrations/maintenance` (0.11.0) | the closed sign, which the status page loads while the site is closed for maintenance - a site names nothing of it | as the site says it is closed |
 | `@anotoki/lib/translations` | the translation service, the `translate` and `translatePlural` pipes, the kit's and the shell's wiring, the status page's words, the admin pages' guard | yes (every page) |
 | `@anotoki/lib/translations/admin` | the admin Translations and Languages pages, their drafts | lazy admin routes |
 | `@anotoki/lib/translations/testing` | `provideTestTranslations()`, a stand-in for a site's specs | a site's specs |
@@ -257,6 +310,8 @@ uses is in the first load again.
 | `@anotoki/lib/admin` (0.4.0) | the admin tools' configuration (`provideAnotokiAdmin`) and `FeedbackUnread`, the new feedback beside a site's admin navigation ("Admin tools" below) | where the admin navigation is |
 | `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, `/files` (0.4.0) | the admin tools' pages, one each | lazy admin routes |
 | `@anotoki/lib/admin/parts` (0.4.0) | what those pages share - their requests, failures, dates, question dialog and styles; the library's own, a site imports nothing of it | with the first of them |
+| `@anotoki/lib/site-settings` (0.11.0) | the site settings on a site's pages: `provideAnotokiSiteSettings`, `SiteSettings` (what every page is told), the announcement bar, Page access's `pageAccessGuard`, the administrators' notice ("Site settings" below) | yes (every page of a site that offers the announcement or Page access) |
+| `@anotoki/lib/admin/site-settings` (0.11.0) | the administrators' Site settings page: a card a part, each with its dialog | a lazy admin route |
 | `@anotoki/lib/admin/frame` (0.10.0) | `<anotoki-admin-frame>`, the admin panel's frame: the column of the panel's name, the person, Back, Sign out, the theme and the pages; the page and the footer beside it ("The admin panel's frame" below) | the admin area's lazy route |
 | `@anotoki/lib/feedback` (0.4.0) | the visitors' feedback form's configuration (`provideAnotokiFeedback`, which registers its words) and its words | yes, beside the translations module |
 | `@anotoki/lib/feedback/form` (0.4.0) | `<anotoki-feedback-form>`, on the kit's fields; `<anotoki-feedback-dialog>` (0.8.0), the form in the kit's dialog with its buttons in the dialog's footer - the footer's and the Contact page's | loaded when the person opens it |
@@ -266,7 +321,7 @@ uses is in the first load again.
 | `@anotoki/lib/legal/pages` (0.6.0) | the Terms, Privacy and Contact pages, with their words | lazy routes |
 | `@anotoki/lib/legal/about`, `/support` (0.8.0) | the About page and the Support page, the same on every site, each with its words ("About and Support" below) | lazy routes |
 | `@anotoki/lib/footer` (0.6.3) | `<anotoki-site-footer>`, the family's footer: the version, What's new, Feedback, About · Support · Terms · Privacy · Contact, the fan clause ("Footer" below) | yes (every page) |
-| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's), `/legal-links` (the footer's links, 0.6.0), `/legal` (the legal pages', 0.6.0 - read by those pages alone), `/chips`, `/progress`, `/stepper`, `/tabs`, `/date-field`, `/color-field`, `/file-picker`, `/combobox` and `/rich-text` (the kit's pieces', 0.6.0 - read by those pieces alone), `/footer` (the footer's, 0.6.3 - read by the footer itself), `/about` and `/support` (the About and Support pages', 0.8.0 - read by each page alone) | with its module, which alone imports it and registers it with the translations module (the legal pages, the About and Support pages, the kit's pieces and the footer read theirs themselves) |
+| `@anotoki/lib/words/<namespace>` (0.4.0, generated) | one module's library words: `/site-status` (the status page's), `/sign-in` (the sign-in page's), `/feedback` (the feedback form's), `/legal-links` (the footer's links, 0.6.0), `/legal` (the legal pages', 0.6.0 - read by those pages alone), `/chips`, `/progress`, `/stepper`, `/tabs`, `/date-field`, `/color-field`, `/file-picker`, `/combobox` and `/rich-text` (the kit's pieces', 0.6.0 - read by those pieces alone), `/footer` (the footer's, 0.6.3 - read by the footer itself), `/about` and `/support` (the About and Support pages', 0.8.0 - read by each page alone), `/dates`, `/number-field`, `/multiselect`, `/audio-player` and `/html-editor` (the kit's pieces' of 0.11.0 - read by those pieces alone), `/site-settings` (the announcement bar's and the administrators' notice's, 0.11.0 - read by those pieces) and `/maintenance` (the closed sign's, 0.11.0 - read by the sign) | with its module, which alone imports it and registers it with the translations module (the legal pages, the About and Support pages, the kit's pieces, the footer, the site settings' pieces and the closed sign read theirs themselves) |
 | `@anotoki/lib/words` (0.4.0, generated) | `LIBRARY_WORDS`, every module's words (the kit's and each namespace's) | never - a site's specs, the showcase |
 
 Every component is standalone, OnPush and zoneless-safe; colours only through
@@ -814,6 +869,133 @@ readonly syntaxError = computed(() => {
   [(value)]="text" />
 ```
 
+**0.11.0's pieces** - what the sites drew themselves (genshin's `shared/local-lib`, the survey's editor, each site's dates
+and searches), for every site's use - each an entry point of its own like those of 0.6.0, lazy unless a first page draws
+it, never re-exported by `ui`. A site switches to them after the release, and drops its own copy.
+
+- `ui/html-editor` - `<anotoki-html-editor label [(value)] [tools] [headings] highlight sizes [fonts] colors [swatches] source preview images [classes] [rows] placeholder (pastedImages) (blurred)>`,
+  and the field's `hint`, `error`, `invalid`, `required`, `optional`, `disabled`, `hideLabel`, `autofocus`, `focus()`: the
+  family's one editor of a text's HTML. The kit's rich-text toolbar (its buttons in `tools`: `HTML_EDITOR_TOOLS` by
+  default - the formats, the lists and their indent, the link, clearing, undo, redo) over a contenteditable carrying the
+  kit's `[anotokiRichTextEditable]`; the editor's own buttons in the same row and Tab stop where the page asks for them:
+  `headings` (levels 2 to 4, each a button "Heading 2"), `highlight` (the highlighter's `<mark>`), `sizes` (seven, in the
+  library's words), `fonts` (by name), `colors` (the words' colour and the colour behind them, in the kit's colour field
+  under the toolbar with the page's `swatches`, Apply, No colour, Close), `source` (the text as its HTML, to write it so)
+  and `preview` (the text as the site shows it, beside the editor where there is room for two - `<anotoki-rich-html>`).
+  The indent of plain lines is a step of margin (24 px), a list's its own levels. A link's address is asked in the
+  editor's own dialog (the kit's dialog and text field): a web or mail address, a site's name made https - never
+  javascript:, nor an address of the site's own. A paste or a drop brings plain text (the kit's editable); pictures pasted
+  or dropped are handed to the page with `images` - `(pastedImages)`, never into the text. **The value is the
+  allow-list's HTML**: what the person writes is read back from the page node by node through `ui/rich-html`'s
+  allow-list, `''` while it has no words; a value from the page is drawn through it the same way (a stored text's
+  handler or javascript: link never reaches the page) - the page's value stays as it gave it until the person writes.
+  Tab moves the focus on (no keyboard trap). Words: `anotoki.htmlEditor.*`.
+  It replaces genshin's `app-html-editor` (`components/html-editor` and its link dialog): `[preview]="true"` → `preview`,
+  `[minHeight]` → `[rows]`, its size, font and colour menus → `sizes`, `[fonts]="['Arial', 'Times New Roman', 'Courier
+  New']"`, `colors` with its 21 `swatches`, the HTML source → `source`, its guides' class → `[classes]="['tag']"` (its own
+  `.anotoki-rich-html .tag` style stays the site's), a hidden label → `label` + `hideLabel`; and the survey's
+  `app-rich-text-editor` (TipTap): `[headings]="true"` → `[headings]="[2, 3]"`, `highlight`, `acceptImages` → `images`,
+  `(pastedImages)` as before, `compact` → `[rows]="3"`, its `label` → `label` + `hideLabel`. The survey drops TipTap.
+- `ui/rich-html` - `<anotoki-rich-html [html] [classes]>`, the family's one safe view of HTML a person wrote, and the
+  allow-list under it: `cleanRichHtml(html, { classes })`, `richHtmlText(html)` (the words alone, one space between them),
+  `richHtmlIsBlank(html)`, `richLinkAddress(address)`, the constants `RICH_HTML_ELEMENTS`, `RICH_HTML_DROPPED`,
+  `RICH_HTML_STYLES`, and the parts the editor builds on (`parseRichHtml`, `cleanRichNodes`, `writeRichHtml`,
+  `drawRichNodes`, `readRichDom`). **The HTML is read by the library itself** - a tokenizer that follows HTML's own rules
+  for what closes what - **and drawn node by node**: never handed to the browser as markup, never past Angular's sanitizer.
+  The allow-list: `p`, `div`, `br`, `h2`-`h4`, `ul`, `ol` (`start`, 2 to 100000), `li`, `b`, `strong`, `i`, `em`, `u`,
+  `s`, `strike`, `mark`, `span`, `font` (`size` 1-7, `face`, `color`) and `a` (`href` a web address with its host or a
+  mail address with an @, at most 2000 characters, nothing written to hide another scheme; `target="_blank"
+  rel="noopener noreferrer"` always - a link inside a link is its words); inline styles of `color`, `background-color`,
+  `font-size` (at most 72 px or as much), `font-family` and `margin-left` (0 to 400 px) alone, values as those properties
+  take them (no `url()`, no expression, no negative margin); the class names a site names (`classes`, none by default).
+  Scripts, styles, frames, forms, pictures, media, svg and math go with all they hold; every other element is unwrapped to
+  what it holds; controls (but tab and line feed) and the marks that turn a text's direction are dropped. Nothing can run,
+  load anything or leave the text's box. Its typography is the family's under `.anotoki-rich-html`, each rule as weak as
+  one class (`:where()`), so a site's own rules for its texts win. No words of its own.
+  It replaces genshin's `app-rich-text` and `rich-html.ts` (`sanitizeRichHtml()` → `cleanRichHtml()`,
+  `richHtmlIsEmpty()` → `richHtmlIsBlank()`, the `<app-rich-text [html]>` of the guide modal and the voice lines →
+  `<anotoki-rich-html [html] [classes]="['tag']">`), and the survey's `[innerHTML]` texts (`plainText()` →
+  `richHtmlText()`, `isBlankHtml()` → `richHtmlIsBlank()`). **The server**: `Anotoki\Lib\RichHtml\RichHtml` ("The PHP
+  half" above) holds the same rules, step for step: the survey's `richTextClean()` becomes `RichHtml::clean()` (its
+  length and UTF-8 refusals stay its own), and genshin, whose server keeps guides and voice lines as they were written,
+  cleans them with it as it saves them.
+- `ui/dates` - dates and times as every site writes them: the pipes `anotokiDate` (`{{ when | anotokiDate }}` "25 Oct
+  2026"; `'day'` "25 October 2026", `'numeric'` "25/10/2026", `'time'` "14:05", `'datetime'` "25 Oct 2026, 14:05", `{
+  seconds: true }`) and `anotokiAgo` (`{{ when | anotokiAgo }}` "just now", "5 minutes ago", "yesterday", "in 3 days" -
+  "práve teraz", "pred 5 minútami", "včera", "o 3 dni" - and from a week away the date: `{ dateAfter: 14 }`, `{ dateAfter:
+  null }` never - "last month", "2 years ago" -, `{ phrase: true }` "on 16 Oct 2026"), `AnotokiDates` for a page's own
+  code, and the functions under them (`formatDate`, `formatTime`, `formatDateTime`, `formatRelative`, `formatInOrder`,
+  `readDate`, `calendarDays`) for code with no injector. In the account's date order and on its clock where it chose them
+  (`provideAnotokiUi`'s `dateChoices`: `() => inject(AccountPreferences).preferences()`, the IAM its session's), else the
+  page language's own way, in the page's locale (`provideAnotokiUi`'s `locale`, which the translations module's `forKit()`
+  gives: en-GB, sk-SK; without it the kit's language, English as en-GB). A calendar day (`'2026-10-25'`) is that day
+  wherever the reader is; a moment without a zone (`'2026-10-25 08:15:00'`) is UTC, the family's servers' clock. How long
+  ago: under a minute the library's words, then minutes and hours rounded down, from a whole day away calendar days by the
+  reader's clock, each in the language's own plural (Intl.RelativeTimeFormat). Words: `anotoki.dates.*`.
+  It replaces genshin's `appDate` pipe and `DateFormatService` (`'datetimeWithSeconds'` → `'datetime' : { seconds: true
+  }`; a reader with no account choice gets the page language's way, no longer the device's) and its `timeSince` pipe
+  (Slovak alone before); the IAM's `appDate` (`'relative'` → `anotokiAgo`) and `formatAppDate()`; the survey's
+  `localDate` (`'day'` → `'day'`, `'date'` → `'date'`, `'ago'` → `anotokiAgo: { dateAfter: 14, phrase: true }`) and
+  `timeAgo()`; the build analyzer's `localDate` (`'ago'` → `anotokiAgo: { dateAfter: null }`, `'day'`) and `timeAgo()`;
+  Japanese Academy's `fmtDate`, `fmtDateTime`, `fmtClock`, `fmtAdminMoment` (its "in 5 min" forms stay its own words);
+  Piano Academy's `localDate` (`'moment'` → `'datetime'`); and the admin parts' own dates.
+- `ui/search` - `foldText(text)` (accents, marks and case away, the letters Unicode writes whole in their plain
+  spelling: "Fúrina" → "furina", "Łódź" → "lodz", "Straße" → "strasse"), `searchWords(query)`, `matchesSearch(text,
+  query)` (every word anywhere, several texts read as one) and `filterBySearch(items, query, textOf)`. Functions alone,
+  importing nothing. The combobox's filter folds with it (`foldText` is named by `ui/combobox` as before). It replaces
+  genshin's `diacritics.ts` (`removeDiacritics()`, 1 kB of tables), the survey's folding in its slugs and settings and the
+  build analyzer's `folded()`.
+- `ui/multiselect` - `<anotoki-multiselect label [options] [(values)] placeholder [maxShown] inline (blurred)>` and the
+  field's own: several chosen out of a list - a compact button drawn as the kit's select (lining up with selects in a
+  filter bar; `inline` the bar's height) that says what is chosen ("Furina, Neuvillette and 3 more", a count beside it),
+  the page's `placeholder` ("Any") or the library's "None chosen" for none, opening the kit's popover of the kit's
+  checkboxes and Clear. **The values are the options' `value`s** (`{ value, label, disabled?, lang? }`, a text or a number)
+  in the options' order. Words: `anotoki.multiselect.*`. It replaces genshin's `app-multiselect`.
+- `ui/audio-player` - `<anotoki-audio-player [src] label autoplay>`: a sound on a real `<audio>` (only its metadata
+  loaded first) - Play, which is Pause while it plays, Stop, the time it is at and how long it is, and a slider that says
+  and moves where it is ("Position", heard "0:32 of 3:05"); a group named by its label (the file's name) or the library's
+  "Audio player"; a sound that cannot be played says so in the controls' place. `writtenDuration(seconds)`. Words:
+  `anotoki.audioPlayer.*`. It replaces genshin's `app-audio-player`.
+- `ui/file-size` - `writtenSize(bytes, language)` (the file picker's, an entry point of its own: "300 bytes", "1.5 kB",
+  "20 MB", "1,5 kB" in Slovak - binary units, one decimal) and the pipe `anotokiFileSize` in the page's language. It
+  replaces genshin's `fileSize` pipe ("12.35 KB", decimal units and two places, before) and the admin parts' sizes.
+- `ui/file-picker`, what 0.11.0 adds - `folder`: a whole folder from the device's folder chooser ("Choose a folder"):
+  every file in it and in its folders, each with its path (`webkitRelativePath`), the kinds and sizes checked as ever,
+  listed as one line ("voice (files: 124)", their size, one remove button); a folder is chosen with the button alone - a
+  drop there is kept from the page and taken by nothing. It replaces genshin's `app-file` with `[directory]="true"` (its
+  voice-over import).
+- `ui/number-field` - `<anotoki-number-field label [(value)] [min] [max] [step] placeholder readonly (blurred)>`, a
+  `[fieldSuffix]` unit, and the field's own: **the value is a number, or null** while the field holds none (nothing, or no
+  number it takes). `step` 1 (whole numbers) by default, 0.01 two decimals, 5 its multiples from `min` (or 0), `'any'`.
+  Typing is lenient (a dot or a comma, spaces between the digits); once left (or on Enter) it writes the number the
+  page's way ("1,5") or says why it is not taken ("Write a whole number.", "The largest number is 10."). A text input
+  with a number keyboard (numeric, decimal - the whole keyboard where a minus may be typed), never `type="number"`.
+  Words: `anotoki.numberField.*`. It replaces genshin's `app-number` (`allowDecimal` + `decimalPlaces` → `step`,
+  `allowNegative` false → `[min]="0"`; its value was a text, NaN for none - a number now, null for none).
+- `ui/picture-preview` - `[anotokiPicturePreview]="src"` (with `anotokiPicturePreviewAlt`, `anotokiPicturePreviewDelay`):
+  a picture shown larger beside an element - a picture slot of an admin form, a thumbnail - on hover (after 400 ms) and
+  at once on focus, as the kit's tooltip shows words (WCAG 1.4.13): it stays while the pointer is over the element or
+  the picture and while the focus is there, Escape puts it away (and goes no further), and an element that takes no
+  focus by itself (a picture) is given a place in the tab order. The picture is 18rem wide, as tall as its shape makes it
+  (18rem at most) - whatever size it has of its own, an SVG with none too - and shows once it has come (never an empty
+  frame). It is placed beside the element - right, left, below or above, the first side it fits on whole, else the side
+  with the most room with the picture made smaller to fit there - so it never covers the element; in the top layer,
+  above a dialog too. Its picture is named by its alt (the page's,
+  else the element's own alt or aria-label) and describes the element unless that is the element's name already; a
+  picture that cannot be loaded shows nothing. The tooltip itself is unchanged (words alone). No words of its own. It
+  replaces genshin's own `app-tooltip` round its picture slots (`sites/admin/shared/entity-image`), which showed the
+  picture on hover alone and could not be hovered.
+- `ui/fieldset` - `<anotoki-fieldset legend [columns] [minWidth] hint plain hideLegend>`: fields under one name, a real
+  `<fieldset>` and `<legend>`, in at most `columns` columns (3) of at least `minWidth` (15rem), one under another on a
+  phone; a quiet box, or none (`plain`). A grid with no name is the styles' `.form-grid`. It replaces genshin's
+  `app-field-container`.
+- The kit's fields, what genshin's form wrappers gave a page (0.11.0): the checkbox's `error` (said under it and tied to
+  it, the box marked wrong), `invalid`, `required` and `focus()` (`ui/forms`); the text field's `step`; and the select's
+  values of the options' own type (`SelectOption<T>`: a number, a boolean, a text) with `none`, the value of its
+  placeholder (`''` by default; `[none]="null"` for a number's) - genshin's `app-dropdown` keys. The text field, the
+  textarea, the chips and the date field cover genshin's `app-text`, `app-textarea`, `app-chips` and `app-calendar` as
+  they are (its stored dates' mapping stays the site's).
+
 ### `@anotoki/lib/shell`
 
 `provideAnotokiShell(factory)`: `theme` (`storageKey` - the same as the boot
@@ -912,11 +1094,12 @@ provideAnotokiMigrations(() => {
     migrationsRoute: '/admin/migrations',           // the site's route showing <anotoki-migrations-page>
     isAdmin: () => auth.roles().includes('ADMIN'),  // ADMIN of this site, from the token (signals work)
     isSignedIn: () => auth.signedIn(),
-    signIn: () => auth.signIn(),                    // returning to the current page
+    signIn: (returnTo?: string) => auth.signIn({ returnTo }),   // to the current page, or to returnTo (0.11.0)
     language: () => i18n.language(),                // 'en' and 'sk' built in; others read English
     formatDate: (iso) => i18n.formatDate(iso),      // optional: default en-GB, '6 Oct 2026, 10:01'
     onUpToDate: () => i18n.reload(),                // optional: after an Apply leaves nothing to apply
     // setupUrl: '/setup.php', retrySeconds: 30, words: { sk: { updatingTitle: '…' } }
+    // staffRoute: '/staff', openWhileClosed: ['/auth', '/terms', ...]   (0.11.0: while the site is closed)
   };
 }),
 provideAppInitializer(() => inject(SiteStatus).check()),   // early in the boot; the boot must not stop on update_pending
@@ -936,13 +1119,19 @@ provideAppInitializer(() => inject(SiteStatus).check()),   // early in the boot;
 ```
 
 - `SiteStatus` - `state` (`'unknown' | 'ready' | 'update-pending' | 'not-set-up' |
-  'unavailable'`), `installed`, `blocked`, `check()`, `checkForReload()` (the
+  'unavailable' | 'maintenance'`), `installed`, `blocked` (never for the ADMIN
+  while the site is closed), `maintenanceMessage` (what the administrators
+  wrote, per language), `check()`, `checkForReload()` (the
   status page's: a `ready` answer is returned, not reported - the page reloads
-  without the gate making the pages first), `report(code, installed?)`, `markReady()`.
-- `siteStatusInterceptor` - a 503 whose body's `code` is `update_pending` or
-  `not_set_up` tells `SiteStatus` (the request still fails).
+  without the gate making the pages first), `report(code, installed?,
+  maintenanceMessage?)`, `markReady()`.
+- `siteStatusInterceptor` - a 503 whose body's `code` is `update_pending`,
+  `not_set_up` or `maintenance` tells `SiteStatus` (the request still fails).
 - `<anotoki-site-gate>` - its pages while the site is ready (or not asked yet),
-  or for the ADMIN on the Migrations route while an update waits;
+  or for the ADMIN on the Migrations route while an update waits; while the
+  site is closed for maintenance (0.11.0), for the ADMIN, and for anybody on the
+  routes that stay open (`openWhileClosed`: the sign-in's way back, the legal
+  pages, About and Support);
   `<anotoki-site-status>` otherwise - a page of its own, in a `<main>` of the
   gate's (0.6.3). The pages as `<ng-template anotokiSitePages>`
   are made only while they show; content given as it is (no template) shows as
@@ -950,12 +1139,17 @@ provideAppInitializer(() => inject(SiteStatus).check()),   // early in the boot;
   unmarked `<ng-template>` is not the pages (a control-flow block is a
   template too): nothing is drawn, and development says so.
 - `<anotoki-site-status>` - the page of "The behaviour" above, with the kit's
-  buttons (the quiet Sign in: a link button, 44 px high).
+  buttons (the quiet Sign in: a link button, 44 px high); while the site is
+  closed, the closed sign (`@anotoki/lib/migrations/maintenance`, loaded then:
+  "Back shortly", the administrators' words, and Sign in at `staffRoute` alone,
+  back to `/`).
 - `<anotoki-update-banner>` - the IAM's one line for its administrators.
 - `<anotoki-migrations-page>` (`@anotoki/lib/migrations/page`) - the admin page
   (English; for the site's ADMIN only), drawn with the kit: Pending (in the
   order they run, with drafts), Applied (with each file's SQL in a dialog),
   Missing, and "Apply pending" behind a question whose focus starts on Cancel.
+  A pending file whose number another file of its set has (0.11.0) says so
+  beside it, naming the others: it and what comes after it wait.
   Every file is named as its set's records name it, the same in every card and
   in what an Apply did: the site's one set's by the file's name alone, every
   other with its set (`anotoki_translations/003_sign_in_words.sql`; genshin's
@@ -1264,6 +1458,12 @@ $migrator = new Migrator($pdo, [new MigrationSet('survey', __DIR__ . '/../migrat
   two new links (`anotoki.legalLinks.about` and `.support`) and the feedback form's Clear
   (`anotoki.feedback.clear`, `.clearName`), by 002's rule - 288 library keys; and the links' group's
   description, which names its five links now.
+- `014_editor_and_piece_words.sql` (0.11.0) adds the words of the kit's pieces of 0.11.0: the dates'
+  (`anotoki.dates.*`, 3: "just now", "in a moment", "on {date}"), the number field's (`anotoki.numberField.*`, 5: why a
+  number is not taken), the multiselect's (`anotoki.multiselect.*`, 4), the audio player's (`anotoki.audioPlayer.*`, 7),
+  the HTML editor's (`anotoki.htmlEditor.*`, 28: its own buttons, its seven sizes, its colours, its source and preview,
+  its link's dialog) and the file picker's folder (`anotoki.filePicker.chooseFolder`, `.folder`), 49 keys in English and
+  impersonal Slovak, by 002's rule - 337 library keys.
 - The house rules: every library file ends with `-- end of NNN` (Japanese
   Academy's draft rule accepts it), has LF line endings, one string a line with
   `''` for an apostrophe and nothing else escaped, names no site table, runs
@@ -1424,6 +1624,8 @@ import it:
 - the footer's (0.6.3), `@anotoki/lib/words/footer`, read by `@anotoki/lib/footer`
   alone the same way - it has no provide*() either - and so in the footer's first
   load, and in no other; impersonal Slovak;
+- the kit's pieces of 0.11.0 the same way, each read by its piece alone: `@anotoki/lib/words/dates` (by `ui/dates`),
+  `/number-field`, `/multiselect`, `/audio-player` and `/html-editor` (each by the piece of its name); impersonal Slovak;
 - `@anotoki/lib/words` (`frontend/projects/lib/words/`): `LIBRARY_WORDS`, every
   namespace's, for a site's specs and the showcase - no module imports it.
 
@@ -2276,7 +2478,9 @@ $migrator = new Migrator($pdo, [Schema::migrationSet(), ...$siteSets, \Anotoki\L
 
 - `001_audit_log.sql` makes `anotoki_audit_log` (the IAM's columns plus
   `actor_session`, `scope_type`, `scope_id`), `002_feedback.sql` makes
-  `anotoki_feedback`. Each proves the shape of a table of that name that is
+  `anotoki_feedback`, `003_site_settings.sql` (0.11.0) makes
+  `anotoki_site_settings` and `anotoki_page_access` ("Site settings" below).
+  Each proves the shape of a table of that name that is
   there already, ends with `-- end of NNN` (Japanese Academy's draft rule takes
   it), and names no site table. Released files are never edited.
 - It runs **first** - in the site, its installer and its command line alike:
@@ -3304,6 +3508,241 @@ its admin icons, the unread feedback's count, its What's new. The other five sit
 (the IAM's shell `nav`) become `groups`, the person menu's way back and Sign out the frame's `back` and `signOut`, the
 footer goes from `shellFooter` to `adminFrameFooter`.
 
+## Site settings (0.11.0)
+
+The owner's request of 2026-10-25: genshin's site settings - the switches its administrators throw without a deploy -
+for every anotoki site, in the library. Three parts, each a card on the admin panel's Site settings page; a site offers
+the ones it chooses. **The IAM offers the announcement alone**: closed for maintenance it would stop every site's
+sign-in, and its pages are the sign-in's.
+
+| Part | What the administrators set | The server | The pages |
+| --- | --- | --- | --- |
+| **Getting in** (`getting_in`) | maintenance mode; what the maintenance page says, a message per language | the SiteGate answers `503 maintenance` to everybody but the site's ADMIN; the status path says `maintenance` | the gate draws the closed sign; at the staff route, Sign in |
+| **Announcement** (`announcement`) | shown or not; its kind - information, a warning, something wrong; a message per language | `GET /api/site-settings` says it | `<anotoki-announcement>`, a bar above the site's own |
+| **Page access** (`page_access`) | a row per page path: who sees it (anybody, anybody signed in, editors and administrators, administrators only), switched off for all but the administrators, the API paths refused with it | `PageAccessGate`: `423 page_locked` | `pageAccessGuard` (a `canMatch`), `<anotoki-page-notice>` |
+
+What never loosens (each has its attack in the PHP tests, `backend/tests/SiteSettings/`):
+
+- **The site's ADMIN is never refused anything** - no lockout. A closed site is theirs as it is, with a line above every
+  page saying it is closed; a page switched off, or kept for some readers, is theirs with a line saying so (whoever
+  switched it off must be able to look at it). The server judges by the token alone - the SiteGate runs before the site
+  identifies the request, so it reads the token itself (`AccessTokens::personOf()`) - and a site that offers Getting in
+  cannot build its SiteGate without that check (a `LogicException`). Signed out, an administrator signs in at the staff
+  route (`/staff`): the closed sign's one door, where nothing is granted by knowing the path.
+- **The reserved API paths keep answering**, each itself and everything under it: the site's status, the translations'
+  bundles, the settings' own two (`/api/site-settings`, `/api/admin/site-settings`) and the site's own - who the reader
+  is (`/api/me`), its sign-in configuration (`AuthRoutes::openPath()`). They are open while the site is closed, never
+  refused by a row, and no row may claim one, checked both ways: an API path that covers one (`/api`, `/api/m`) or sits
+  inside one (`/api/me/roles`) is refused.
+- **The reserved pages are nobody's to govern**: the sign-in's way back (`/auth`), the staff route (`/staff`), the admin
+  panel (`/admin`), the legal pages, About and Support, and the site's own (`reservedPages`). A row that would match one
+  - itself, a page under it, `/:anything` - is refused, and one put in the table by hand is passed over.
+- **A path is read as the router reads it**: decoded (`/%61pi/quiz` is `/api/quiz`), a slash in front. A page's path
+  matches segment by segment, a `:name` segment any one segment (`/database/characters/:id`); `/quizzes` and
+  `/quizzes/music` are two rows, two decisions. An API path matches from its start, letter by letter, as genshin's did:
+  `/api/quiz` refuses `/api/quizzes` and `/api/quiz/stats` alike. Where two rows claim one path, the more open wins.
+- **423, not 404**: nobody is told a lie about what exists, and the state is one somebody put the site into on purpose.
+- **Never blank**: the maintenance page says the administrators' words in the page's language, else in English (marked
+  so), else the library's own sentence; the announcement is in the page's language, else in English, else no bar at
+  all. The messages are text - Angular escapes them, their line breaks are kept - at most 2,000 characters in at most
+  30 languages.
+- **Audited**, through the site's `AuditRecorder`: `site_settings.changed` (each switch before and after),
+  `page_access.added`, `page_access.changed` (an entry a row) and `page_access.removed`.
+
+### The schema: the library's set `anotoki_admin`, 003
+
+`003_site_settings.sql` makes `anotoki_site_settings` (a row per switch: `name`, `value` JSONB, `updated_at`,
+`updated_by`) and `anotoki_page_access` (`path`, `visibility`, `blocked`, `api_paths` TEXT[], `sort_order`,
+`updated_at`, `updated_by`). It seeds nothing: a switch with no row is at its default (open, information, nothing
+written), and a page with no row is anybody's. No foreign key - `updated_by` is the IAM's `sub` on the sites and
+`users.id` on the IAM. While the file waits (a build uploaded before its Apply), every switch is at its default, no
+page is governed, and the admin routes answer `503 feature_unavailable`.
+
+### The PHP half: `Anotoki\Lib\SiteSettings`
+
+```php
+use Anotoki\Lib\Auth\AccessTokens;
+use Anotoki\Lib\Auth\Http\AuthRoutes;
+use Anotoki\Lib\Auth\Http\Identify;
+use Anotoki\Lib\SiteSettings\Http\PageAccessGate;
+use Anotoki\Lib\SiteSettings\Http\SiteSettingsRoutes;
+use Anotoki\Lib\SiteSettings\SiteSettings;
+
+$settings = new SiteSettings(
+    pdo: fn (): PDO => db(),                                   // asked when a question needs it
+    parts: SiteSettings::PARTS,                                // the IAM: [SiteSettings::ANNOUNCEMENT]
+    reservedApiPaths: ['/api/me', AuthRoutes::openPath()],     // the site's own that must keep answering
+    // reservedPages: ['/callback'],                           // a way back from the sign-in elsewhere than /auth
+);
+$state = new SiteState(settingsProblem: ..., installed: ..., migrator: $migrator, settings: $settings);
+
+SiteSettingsRoutes::public($app, $settings);                   // GET /api/site-settings
+SiteSettingsRoutes::admin($app, $settings, $context, $audit);  // /api/admin/site-settings[/pages[/{id}]]: the ADMIN alone
+
+// Slim runs the last added first: the SiteGate, then Identify, then Page access.
+$tokens = new AccessTokens($iam);
+$app->add(new PageAccessGate($settings, $app->getResponseFactory()));
+$app->add(new Identify($tokens, $rule, $app->getResponseFactory(), ...));
+$app->add(new SiteGate($state, $app->getResponseFactory(), $open,
+    exempt: fn ($request): bool => $tokens->personOf($request)?->isAdmin() ?? false,
+));
+```
+
+- `GET /api/site-settings` (public, before anybody signs in): `{maintenance?, announcement?, pages?}`, each key only
+  where the site offers its part - `announcement` null or `{level, message: {en, sk, ...}}`, `pages`
+  `[{path, visibility, blocked}]` (never their API paths). The admin routes and their shapes are in
+  `SiteSettingsRoutes`' comment; a refusal says why in a sentence (`422 invalid_setting`, `invalid_page`,
+  `invalid_api_path`, `409 page_exists`).
+- While the site is closed the status path answers `{"state": "maintenance", "installed": true,
+  "maintenance_message": {...}}`, and the SiteGate everybody else `503 {"code": "maintenance", "message",
+  "maintenance_message"}` with `Retry-After: 300` - but on the open paths, the reserved API paths and to the ADMIN.
+  A site that offers no Getting in gives no `exempt`.
+- `PageAccessGate` runs inside Identify, whose person it reads (or a `reader:` closure's): put where Identify has not
+  run, it refuses to start rather than take everybody for nobody. A site that offers no Page access adds none.
+
+### The Angular half: `@anotoki/lib/site-settings`
+
+```ts
+// app.config.ts
+provideAnotokiSiteSettings(() => {
+  const auth = inject(AnotokiAuth);
+  return { roles: () => auth.roles(), signedIn: () => auth.signedIn(), storageKey: 'anotoki-survey:announcement' };
+}),
+provideAppInitializer(() => inject(SiteSettings).load()),
+// Getting in: the migrations module draws the closed sign, its Sign in at the staff route coming back to '/'
+provideAnotokiMigrations(() => ({ ..., signIn: (returnTo?: string) => auth.signIn({ returnTo }), staffRoute: '/staff' })),
+// the admin page: the languages a message is written in
+provideAnotokiAdmin(() => ({ ..., languages: () => i18n.languages().map((l) => ({ code: l.code, name: l.native_name })) })),
+```
+
+```html
+<!-- app.component.html: the bar above the site's frame, the administrators' notice between its bar and its page -->
+<anotoki-site-gate>
+  <ng-template anotokiSitePages>
+    <anotoki-announcement />
+    <anotoki-shell>
+      <app-top-bar topBar />
+      <anotoki-page-notice />
+      <router-outlet />
+      <anotoki-site-footer shellFooter ... />
+    </anotoki-shell>
+  </ng-template>
+</anotoki-site-gate>
+```
+
+```ts
+// routes: the pages Page access governs, and the admin page on a lazy route inside the admin routes
+{ path: 'quizzes', canMatch: [pageAccessGuard], loadChildren: () => import('./quizzes/quizzes.routes') },
+{ path: 'site-settings', loadComponent: () => import('@anotoki/lib/admin/site-settings').then((m) => m.SiteSettingsPageComponent) },
+```
+
+- `SiteSettings` - `load()` once at boot: a read that fails leaves no announcement and every page anybody's (the
+  server keeps a hidden page's API paths refused on its own; nothing in the browser is a security boundary).
+  `refresh()` after a save (the admin page calls it), `maintenance()`, `announcement()`, `pages()`,
+  `mayNavigate(path)`, `noticeFor(path)`.
+- `pageAccessGuard` - a `canMatch` on the routes that begin at the root (top level, or under a layout route of path
+  `''`): a refused page lets the router go on to the site's not-found page at the address typed, as if it had never
+  been written (genshin's rule) - never a redirect that tells somebody the page exists.
+- `<anotoki-announcement>` - in the kind's colours and icon, the kind said to a screen reader first. Hide keeps a mark
+  of the announcement - never its words - in the browser under `storageKey`, until its words or its kind change. The Privacy page names it: the legal facts' storage item `{ preset: 'announcement', name:
+  'anotoki-survey:announcement' }`.
+- `<anotoki-page-notice>` - what the administrators alone read above the page: the site is closed, this page is
+  switched off, this page is kept for some readers. In the admin panel's frame (`[adminFrameNotice]`) the maintenance
+  line alone shows: no row governs `/admin`.
+- The closed sign is `@anotoki/lib/migrations/maintenance`, which the status page loads as the site says it is
+  closed - no first load carries it or its words. While the site is closed the gate draws it for everybody but the
+  ADMIN, but on the sign-in's way back, the legal pages, About and Support (`openWhileClosed`). At the staff route,
+  for somebody not signed in, it offers Sign in, back to `/` afterwards. A site whose router redirects addresses it does
+  not know keeps a route at the staff route (genshin's `staff`): the sign is drawn over it.
+- **The IAM** draws `<anotoki-announcement>` in each of its frames - the sign-in pages', the account and legal pages',
+  the admin panel's - and needs no guard, notice or staff route.
+- The page's words are the library's, read by the pieces themselves (`anotoki.siteSettings.*`,
+  `anotoki.maintenance.*`, migration 015 of `anotoki_translations`); the admin page is English, as every admin page.
+
+### Genshin's, mapped
+
+| genshin | the library |
+| --- | --- |
+| `site_settings` (`maintenance_mode`, `maintenance_message`, `announcement_enabled`, `_level`, `_message`; text values) | `anotoki_site_settings` (JSON values), copied by a migration of genshin's (below) |
+| `site_routes` and `site_route_endpoints` | `anotoki_page_access` (the endpoints' prefixes in `api_paths`) |
+| `api/site_settings.php`, `api/site_routes.php`: `/api/settings`, `/api/site-routes` | `SiteSettings`, `SiteSettingsRoutes::admin()` at `/api/admin/site-settings` |
+| `/api/settings/public`'s maintenance, announcement and routes | `GET /api/site-settings` (the boot answer keeps the rest) |
+| `meddleware/maintenance.php` (`maintenanceGate()`) | the SiteGate's `exempt`, its SiteState's `settings` |
+| `meddleware/route_gate.php` (`routeGate()`, `423 route_locked`) | `PageAccessGate`, `423 page_locked` - the pages read the new code |
+| `<app-maintenance>` and the `staff` route's sign-in | the gate's closed sign, `staffRoute: '/staff'` |
+| `<app-announcement>` | `<anotoki-announcement>` |
+| `routeAccessGuard`, `<app-route-notice>` | `pageAccessGuard`, `<anotoki-page-notice>` |
+| the admin Site Settings page and its two dialogs | `@anotoki/lib/admin/site-settings` |
+| `site.maintenance.*`, `site.announcement.hide`, `route.*` | `anotoki.maintenance.*`, `anotoki.siteSettings.*` |
+
+Genshin's rows come across in a migration of its own - the library's set `anotoki_admin` runs first, so its tables are
+there - and its own tables go in a later one, once nothing reads them (`updated_by` is the IAM's id already: the IAM
+took genshin's accounts over with their ids):
+
+```sql
+INSERT INTO anotoki_site_settings (name, value, updated_at, updated_by)
+SELECT name,
+       CASE type WHEN 'boolean' THEN to_jsonb(value = 'true')
+                 WHEN 'i18n' THEN COALESCE(NULLIF(value, '')::jsonb, '{}'::jsonb)
+                 ELSE to_jsonb(value) END,
+       updated_at AT TIME ZONE 'UTC', updated_by
+  FROM site_settings
+ WHERE site = 'genshin_impact'
+   AND name IN ('maintenance_mode', 'maintenance_message', 'announcement_enabled', 'announcement_level', 'announcement_message')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO anotoki_page_access (path, visibility, blocked, api_paths, sort_order, updated_at, updated_by)
+SELECT r.path, r.visibility, r.blocked,
+       COALESCE((SELECT array_agg(e.prefix ORDER BY e.prefix) FROM site_route_endpoints e WHERE e.route_id = r.id), '{}'),
+       r.sort_order, r.updated_at AT TIME ZONE 'UTC', r.updated_by
+  FROM site_routes r
+ WHERE r.site = 'genshin_impact'
+ON CONFLICT (path) DO NOTHING;
+```
+
+## robots.txt and sitemap.xml (0.11.0)
+
+The owner's request of 2026-10-25: every anotoki site answers both from its PHP - never a static file of the app, which
+knows neither the site's address nor what Page access hides.
+
+```php
+use Anotoki\Lib\Robots\Http\RobotsRoutes;
+use Anotoki\Lib\Robots\Robots;
+
+$robots = new Robots(
+    address: fn (): ?string => siteAddress(),                  // the installation's own, never a request's Host
+    disallow: [],                                              // more than /admin, /api and /auth (the IAM's below)
+    pages: ['/', '/daily', '/quizzes', '/database'],           // the public pages
+    entries: fn (): iterable => characterPaths(),              // the site's own: '/database/characters/12', or {path, lastmod}
+    settings: $settings,                                       // Page access: what it hides stays out
+    cacheFile: storageDir() . '/cache/anotoki-sitemap.json',
+);
+RobotsRoutes::robots($app, $robots);                           // GET|HEAD /robots.txt
+RobotsRoutes::sitemap($app, $robots);                          // GET|HEAD /sitemap.xml
+```
+
+- **robots.txt**: every robot kept out of `/admin`, `/api` and `/auth` and what the site adds; then
+  `Sitemap: <address>/sitemap.xml` - no line while no address is configured, and never an address read off a request
+  (a `Host` header is anybody's to write).
+- **sitemap.xml**: the sitemaps protocol (`<urlset>`, each `<url>` its `<loc>` and, where the site gives one, its
+  `<lastmod>`), absolute addresses, each once, at most 50,000 - leaving out what Page access hides (a page for people
+  signed in, for editors, for administrators, or switched off, matched as the guard matches, `:id` rows too), what
+  robots.txt keeps out, and anything that is no path of the site's. A name may be given as it reads
+  (`/characters/Hu Tao`): every segment is encoded as an address needs. Kept an hour in `cacheFile`, made again at once
+  when what Page access hides or the address changes; `404 not_configured` while no address is.
+- Both are public, `Cache-Control: public, max-age=3600`, and behind the site's gate like any route: a robot told
+  `503` with `Retry-After` keeps what it had.
+- **The IAM** keeps its sign-in and account pages out (`disallow: ['/login', '/register', '/confirm-email',
+  '/forgot-password', '/reset-password', '/logout', '/error', '/not-set-up', '/account', '/unsubscribe']`) and lists the
+  legal pages, About and Support.
+- **The deploy tool**: the front controller is given both as it is given `/api` - in `extra["anotoki-deploy"]`,
+  `"routes": ["api", "robots.txt", "sitemap.xml"]` (the IAM: its two `.well-known` routes besides). `frontend/.htaccess`
+  sends a route to `index.php` before it looks for a file, so a file of the app at a route is never served, and the
+  build refuses a release that holds one: **genshin and the build analyzer delete `frontend/public/robots.txt` when they
+  switch** - its `Disallow: /auth/` is the library's now.
+- **In development**: the dev server's proxy sends `/robots.txt` and `/sitemap.xml` to PHP beside `/api`, and the PHP
+  server's router hands them to the front controller.
+
 ## Deploying a site (0.9.0)
 
 `deploy/` is `@anotoki/deploy`: the one build and deploy of every site, `anotoki-deploy`. A site's folder on the host
@@ -3343,9 +3782,9 @@ bun run build           # ng build lib -> frontend/dist/lib, then scripts/check-
                         # size (gzipped code; limits for the eager ones) and import boundaries; what a site's
                         # build keeps of an entry point nothing is used of (nothing); no bundle naming innerHTML,
                         # outerHTML, insertAdjacentHTML or bypassSecurityTrust, comments too (the IAM's deploy
-                        # check refuses such a release); and eleven first loads - the gate, the bar, the words, a
+                        # check refuses such a release); and twelve first loads - the gate, the bar, the words, a
                         # button, a select, the sign-in, the badge, the words + feedback, the error report, the
-                        # words + legal links, the footer - beside lazy pages that use the rest (no file of theirs, under a limit; the words
+                        # words + legal links, the footer, the site settings - beside lazy pages that use the rest (no file of theirs, under a limit; the words
                         # of the namespaces their page says, and no others), each file through Angular's own
                         # linker and the CLI's esbuild
 bun run test            # ng test lib --watch=false (Vitest, jsdom)
@@ -3360,7 +3799,10 @@ bun run showcase        # projects/showcase on http://localhost:4320: every piec
                         # the legal pages with a sample site's facts, linked from the footer (?iam=1 the anotoki
                         # account's own, ?fan=1 the fan clause, ?feedback=0 a site without feedback); /about and
                         # /support, the About and Support pages; /admin-frame, the admin panel's frame (0.10.0) -
-                        # a page of its own, outside the showcase's bar and footer; the family's
+                        # a page of its own, outside the showcase's bar and footer; the site settings (0.11.0):
+                        # /site-settings with the announcement bar (?announcement=info|warning|danger) and the
+                        # administrators' notice, /admin/site-settings (?iam=1 the announcement alone), and
+                        # /maintenance and /maintenance/staff, the closed sign; the family's
                         # footer under every page (the library's version, What's new, Feedback; the same
                         # ?fan=1 and ?feedback=0) and its samples in the gallery; never published)
 bun run build:showcase  # the same, built into frontend/dist/showcase

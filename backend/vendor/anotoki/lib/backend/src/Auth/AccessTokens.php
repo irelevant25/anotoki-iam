@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Anotoki\Lib\Auth;
 
+use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 
 /**
@@ -62,6 +63,20 @@ final class AccessTokens
         }
 
         return $person;
+    }
+
+    /**
+     * The person a request's `Authorization: Bearer` token names, verified as Identify verifies it - or null: no
+     * Bearer token, or one that does not verify. For a check that runs before the site identifies its requests -
+     * the SiteGate's `exempt` (0.11.0), which lets the site's ADMIN through while the site is closed for
+     * maintenance: `fn ($request) => $tokens->personOf($request)?->isAdmin() ?? false`. Never a cookie, never a
+     * body: the token alone.
+     */
+    public function personOf(ServerRequestInterface $request): ?Person
+    {
+        $token = Bearer::token(Bearer::header($request));
+
+        return $token === null ? null : $this->verify($token);
     }
 
     /**

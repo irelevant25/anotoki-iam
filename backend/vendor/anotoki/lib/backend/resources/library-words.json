@@ -1225,6 +1225,16 @@
       "en": "Chosen: {names}",
       "sk": "Vybrané: {names}"
     },
+    "anotoki.filePicker.chooseFolder": {
+      "description": "The anotoki library's file picker, where the site takes a whole folder: the button's words, which open the device's folder chooser. No placeholders.",
+      "en": "Choose a folder",
+      "sk": "Vybrať priečinok"
+    },
+    "anotoki.filePicker.folder": {
+      "description": "The anotoki library's file picker, where the site takes a whole folder: the line that names the folder chosen, under the picker. {name}: the folder's name; {count}: how many files it holds, its folders' included, written the page's way. Placeholders: {name}, {count}.",
+      "en": "{name} (files: {count})",
+      "sk": "{name} (súbory: {count})"
+    },
     "anotoki.combobox.noMatches": {
       "description": "The anotoki library's combobox (a field that lists what matches what is typed, to choose one or several - characters with their portraits): said in the list when nothing matches what was typed, and told to a screen reader. No placeholders.",
       "en": "No matches",
@@ -1439,6 +1449,341 @@
       "description": "The anotoki library's Support page: the owner's thanks, the last line, under the button. No placeholders.",
       "en": "Thank you!",
       "sk": "Ďakujem!"
+    },
+    "anotoki.dates.justNow": {
+      "description": "The anotoki library's dates (how long ago a moment was, or how soon it comes, as a site writes it beside a comment, a sign-in, a save): said of a moment less than a minute ago. A lower-case phrase that stands inside a sentence (\"Saved just now\"). No placeholders.",
+      "en": "just now",
+      "sk": "práve teraz"
+    },
+    "anotoki.dates.soon": {
+      "description": "The anotoki library's dates: said of a moment less than a minute from now (a review that is due, a quiz that opens). A lower-case phrase that stands inside a sentence. No placeholders.",
+      "en": "in a moment",
+      "sk": "o chvíľu"
+    },
+    "anotoki.dates.onDate": {
+      "description": "The anotoki library's dates: a date as a phrase that stands inside a sentence, where the library writes the date in place of how long ago - a week away or more (\"You sent your answers on 16 Oct 2026\"). {date}: the date, written the reader's way. Slovak needs no preposition. Placeholders: {date}.",
+      "en": "on {date}",
+      "sk": "{date}"
+    },
+    "anotoki.numberField.invalid": {
+      "description": "The anotoki library's number field (a number typed, a dot or a comma before its decimals): said under the field when what was typed is no number. {example}: a number written the way the field takes them (\"12\", \"1.5\" or \"1,5\"). Placeholders: {example}.",
+      "en": "Write a number, like {example}.",
+      "sk": "Číslo treba zadať v tvare {example}."
+    },
+    "anotoki.numberField.whole": {
+      "description": "The anotoki library's number field: said under the field when the number typed has decimals and the field takes whole numbers alone. No placeholders.",
+      "en": "Write a whole number.",
+      "sk": "Treba zadať celé číslo."
+    },
+    "anotoki.numberField.step": {
+      "description": "The anotoki library's number field: said under the field when the number typed is not one of the field's steps - more decimals than it takes (steps of 0.01), or not a multiple of its step (steps of 5). {step}: the step, written the page's way. Placeholders: {step}.",
+      "en": "Write a number in steps of {step}.",
+      "sk": "Číslo treba zadať v krokoch po {step}."
+    },
+    "anotoki.numberField.tooSmall": {
+      "description": "The anotoki library's number field: said under the field when the number typed is below the smallest it takes. {min}: that smallest number, written the page's way. Placeholders: {min}.",
+      "en": "The smallest number is {min}.",
+      "sk": "Najmenšie možné číslo je {min}."
+    },
+    "anotoki.numberField.tooLarge": {
+      "description": "The anotoki library's number field: said under the field when the number typed is above the largest it takes. {max}: that largest number, written the page's way. Placeholders: {max}.",
+      "en": "The largest number is {max}.",
+      "sk": "Najväčšie možné číslo je {max}."
+    },
+    "anotoki.multiselect.more": {
+      "description": "The anotoki library's multiselect (a filter's button that says what is chosen, opening a list of checkboxes): said on its button after the first chosen names when more are chosen (\"Furina, Neuvillette and 3 more\"). {count}: how many more, written the page's way. Placeholders: {count}.",
+      "en": "and {count} more",
+      "sk": "a ďalšie ({count})"
+    },
+    "anotoki.multiselect.noneChosen": {
+      "description": "The anotoki library's multiselect: what its button says while nothing is chosen and the site gives no words of its own (a filter's \"Any\"). No placeholders.",
+      "en": "None chosen",
+      "sk": "Nič nie je vybrané"
+    },
+    "anotoki.multiselect.clear": {
+      "description": "The anotoki library's multiselect: the button under its checkboxes that unticks every one of them. No placeholders.",
+      "en": "Clear",
+      "sk": "Zrušiť výber"
+    },
+    "anotoki.multiselect.empty": {
+      "description": "The anotoki library's multiselect: said in its list when there is nothing in it to choose. No placeholders.",
+      "en": "Nothing to choose from",
+      "sk": "Nie je z čoho vyberať"
+    },
+    "anotoki.audioPlayer.player": {
+      "description": "The anotoki library's audio player (a sound's play and pause button, where it is in it, and how long it is): the name a screen reader hears for the player where the site gives it none (the file's name). No placeholders.",
+      "en": "Audio player",
+      "sk": "Prehrávač zvuku"
+    },
+    "anotoki.audioPlayer.play": {
+      "description": "The anotoki library's audio player: the name and the tooltip of its button while the sound is not playing. No placeholders.",
+      "en": "Play",
+      "sk": "Prehrať"
+    },
+    "anotoki.audioPlayer.pause": {
+      "description": "The anotoki library's audio player: the name and the tooltip of its button while the sound plays. No placeholders.",
+      "en": "Pause",
+      "sk": "Pozastaviť"
+    },
+    "anotoki.audioPlayer.stop": {
+      "description": "The anotoki library's audio player: the name and the tooltip of its button that stops the sound and goes back to its start. No placeholders.",
+      "en": "Stop",
+      "sk": "Zastaviť"
+    },
+    "anotoki.audioPlayer.position": {
+      "description": "The anotoki library's audio player: the name a screen reader hears for the slider that says, and moves, where the sound is. No placeholders.",
+      "en": "Position",
+      "sk": "Pozícia"
+    },
+    "anotoki.audioPlayer.positionText": {
+      "description": "The anotoki library's audio player: what a screen reader hears of the slider's value. {elapsed}: how far into the sound it is; {total}: how long the sound is - both minutes and seconds (\"1:05\"). Placeholders: {elapsed}, {total}.",
+      "en": "{elapsed} of {total}",
+      "sk": "{elapsed} z {total}"
+    },
+    "anotoki.audioPlayer.failed": {
+      "description": "The anotoki library's audio player: said in its place when the sound could not be loaded or played. No placeholders.",
+      "en": "This file could not be played.",
+      "sk": "Tento súbor sa nepodarilo prehrať."
+    },
+    "anotoki.htmlEditor.toolbar": {
+      "description": "The anotoki library's HTML editor (a text with bold, lists, links, sizes and colours, as a site's admin panel writes a guide or a survey's question): the name a screen reader hears for its row of buttons. {field}: the editor's own label, as the page shows it. Placeholders: {field}.",
+      "en": "{field}: formatting",
+      "sk": "{field}: formátovanie"
+    },
+    "anotoki.htmlEditor.heading": {
+      "description": "The anotoki library's HTML editor: the name and the tooltip of a button that makes the line a heading, or a heading a line again. {level}: the heading's level (2 the largest, 4 the smallest). Placeholders: {level}.",
+      "en": "Heading {level}",
+      "sk": "Nadpis {level}"
+    },
+    "anotoki.htmlEditor.highlight": {
+      "description": "The anotoki library's HTML editor: the name and the tooltip of the button that marks the selected words as with a highlighter, or takes the mark away. No placeholders.",
+      "en": "Highlight",
+      "sk": "Zvýraznenie"
+    },
+    "anotoki.htmlEditor.size": {
+      "description": "The anotoki library's HTML editor: the name of the menu of text sizes. No placeholders.",
+      "en": "Text size",
+      "sk": "Veľkosť písma"
+    },
+    "anotoki.htmlEditor.sizeChosen": {
+      "description": "The anotoki library's HTML editor: the name a screen reader hears for the button that opens the menu of text sizes. {size}: the size chosen, in the menu's words (\"Normal\"). Placeholders: {size}.",
+      "en": "Text size: {size}",
+      "sk": "Veľkosť písma: {size}"
+    },
+    "anotoki.htmlEditor.size1": {
+      "description": "The anotoki library's HTML editor: the smallest of the seven text sizes in its menu. No placeholders.",
+      "en": "Very small",
+      "sk": "Veľmi malé"
+    },
+    "anotoki.htmlEditor.size2": {
+      "description": "The anotoki library's HTML editor: the second of the seven text sizes in its menu. No placeholders.",
+      "en": "Small",
+      "sk": "Malé"
+    },
+    "anotoki.htmlEditor.size3": {
+      "description": "The anotoki library's HTML editor: the third of the seven text sizes in its menu - the text's own. No placeholders.",
+      "en": "Normal",
+      "sk": "Normálne"
+    },
+    "anotoki.htmlEditor.size4": {
+      "description": "The anotoki library's HTML editor: the fourth of the seven text sizes in its menu. No placeholders.",
+      "en": "Large",
+      "sk": "Veľké"
+    },
+    "anotoki.htmlEditor.size5": {
+      "description": "The anotoki library's HTML editor: the fifth of the seven text sizes in its menu. No placeholders.",
+      "en": "Very large",
+      "sk": "Veľmi veľké"
+    },
+    "anotoki.htmlEditor.size6": {
+      "description": "The anotoki library's HTML editor: the sixth of the seven text sizes in its menu. No placeholders.",
+      "en": "Huge",
+      "sk": "Obrovské"
+    },
+    "anotoki.htmlEditor.size7": {
+      "description": "The anotoki library's HTML editor: the largest of the seven text sizes in its menu. No placeholders.",
+      "en": "Largest",
+      "sk": "Najväčšie"
+    },
+    "anotoki.htmlEditor.font": {
+      "description": "The anotoki library's HTML editor: the name of the menu of fonts (the fonts' own names are never words). No placeholders.",
+      "en": "Font",
+      "sk": "Písmo"
+    },
+    "anotoki.htmlEditor.fontChosen": {
+      "description": "The anotoki library's HTML editor: the name a screen reader hears for the button that opens the menu of fonts. {font}: the font chosen, in its own name (\"Arial\"). Placeholders: {font}.",
+      "en": "Font: {font}",
+      "sk": "Písmo: {font}"
+    },
+    "anotoki.htmlEditor.textColor": {
+      "description": "The anotoki library's HTML editor: the name and the tooltip of the button that opens a choice of the selected words' colour, and that choice's heading. No placeholders.",
+      "en": "Text colour",
+      "sk": "Farba textu"
+    },
+    "anotoki.htmlEditor.highlightColor": {
+      "description": "The anotoki library's HTML editor: the name and the tooltip of the button that opens a choice of the colour behind the selected words, and that choice's heading. No placeholders.",
+      "en": "Highlight colour",
+      "sk": "Farba zvýraznenia"
+    },
+    "anotoki.htmlEditor.apply": {
+      "description": "The anotoki library's HTML editor: the button that gives the selected words the colour chosen. No placeholders.",
+      "en": "Apply",
+      "sk": "Použiť"
+    },
+    "anotoki.htmlEditor.noColor": {
+      "description": "The anotoki library's HTML editor: the button that takes a colour off the selected words, so that they have the text's own. No placeholders.",
+      "en": "No colour",
+      "sk": "Bez farby"
+    },
+    "anotoki.htmlEditor.source": {
+      "description": "The anotoki library's HTML editor: the name and the tooltip of the button that shows the text as its HTML, to write it so, and back. No placeholders.",
+      "en": "HTML source",
+      "sk": "Zdrojový kód HTML"
+    },
+    "anotoki.htmlEditor.sourceField": {
+      "description": "The anotoki library's HTML editor: the name a screen reader hears for the field that holds the text as its HTML. {field}: the editor's own label, as the page shows it. Placeholders: {field}.",
+      "en": "{field}: HTML source",
+      "sk": "{field}: zdrojový kód HTML"
+    },
+    "anotoki.htmlEditor.preview": {
+      "description": "The anotoki library's HTML editor: the name and the tooltip of the button that shows and hides the text as the site will show it, beside the editor - and that pane's heading. No placeholders.",
+      "en": "Preview",
+      "sk": "Ukážka"
+    },
+    "anotoki.htmlEditor.linkAdd": {
+      "description": "The anotoki library's HTML editor: the heading of the dialog that asks for a link's address, where the selected words are no link yet. No placeholders.",
+      "en": "Add a link",
+      "sk": "Pridať odkaz"
+    },
+    "anotoki.htmlEditor.linkChange": {
+      "description": "The anotoki library's HTML editor: the heading of the dialog that asks for a link's address where the words are a link already, and its button that changes the address. No placeholders.",
+      "en": "Change the link",
+      "sk": "Zmeniť odkaz"
+    },
+    "anotoki.htmlEditor.linkAddress": {
+      "description": "The anotoki library's HTML editor: the label of the field in the link's dialog where the address is written. No placeholders.",
+      "en": "Address",
+      "sk": "Adresa"
+    },
+    "anotoki.htmlEditor.linkHint": {
+      "description": "The anotoki library's HTML editor: the line under the link's address that says what a link may point at. Keep https://… and mailto:… as they are. No placeholders.",
+      "en": "A web address (https://…) or a mail address (mailto:…).",
+      "sk": "Webová adresa (https://…) alebo e-mailová adresa (mailto:…)."
+    },
+    "anotoki.htmlEditor.linkInvalid": {
+      "description": "The anotoki library's HTML editor: said under the link's address when it cannot be a link of a text (javascript:, a file, another scheme) - nothing is done. Keep https://… and mailto:… as they are. No placeholders.",
+      "en": "That cannot be a link: write a web address (https://…) or a mail address (mailto:…).",
+      "sk": "Toto nemôže byť odkaz: treba zadať webovú adresu (https://…) alebo e-mailovú adresu (mailto:…)."
+    },
+    "anotoki.htmlEditor.linkSubmit": {
+      "description": "The anotoki library's HTML editor: the button of the link's dialog that makes the selected words a link. No placeholders.",
+      "en": "Add the link",
+      "sk": "Pridať odkaz"
+    },
+    "anotoki.htmlEditor.linkRemove": {
+      "description": "The anotoki library's HTML editor: the button of the link's dialog that makes a link plain words again. No placeholders.",
+      "en": "Remove the link",
+      "sk": "Odstrániť odkaz"
+    },
+    "anotoki.maintenance.title": {
+      "description": "The anotoki library's closed sign - the page shown in place of the site while its administrators have closed it for maintenance (the site settings' \"Getting in\"), to everybody but the site's ADMIN: its heading. The Slovak addresses nobody - no ty, no Vy - so that it fits every site. No placeholders.",
+      "en": "Back shortly",
+      "sk": "Hneď sme späť"
+    },
+    "anotoki.maintenance.text": {
+      "description": "The anotoki library's closed sign: the sentence under its heading when the administrators wrote no message of their own (theirs is said instead, in the reader's language or else in English). The page asks again by itself and reloads once the site is open. No placeholders.",
+      "en": "The site is closed for a moment while something is being fixed. This page reloads by itself once it is back.",
+      "sk": "Stránka je na chvíľu zatvorená, kým niečo opravujeme. Táto stránka sa obnoví sama, keď bude späť."
+    },
+    "anotoki.maintenance.staffLead": {
+      "description": "The anotoki library's closed sign, at the address its administrators sign in at (/staff): the line above its Sign in button (anotoki.maintenance.signIn). The sign-in is the anotoki account's, as everywhere; the site lets its administrators in and nobody else. No placeholders.",
+      "en": "An administrator can sign in here and use the site while it is closed.",
+      "sk": "Administrátor sa tu môže prihlásiť a používať stránku, aj keď je zatvorená."
+    },
+    "anotoki.maintenance.signIn": {
+      "description": "The anotoki library's closed sign, at the address its administrators sign in at: the button that starts the anotoki account's sign-in. Short. No placeholders.",
+      "en": "Sign in",
+      "sk": "Prihlásiť sa"
+    },
+    "anotoki.siteSettings.announcement": {
+      "description": "The anotoki library's announcement bar - the line across the top of every page that the site's administrators write in the site settings: its name to a screen reader (a region of the page). The Slovak addresses nobody - no ty, no Vy - so that it fits every site. No placeholders.",
+      "en": "Announcement",
+      "sk": "Oznámenie"
+    },
+    "anotoki.siteSettings.levelInfo": {
+      "description": "The anotoki library's announcement bar: what a screen reader says before an announcement of the kind \"information\" (drawn in the information colour) - one word, followed by the announcement itself. No placeholders.",
+      "en": "Information",
+      "sk": "Informácia"
+    },
+    "anotoki.siteSettings.levelWarning": {
+      "description": "The anotoki library's announcement bar: what a screen reader says before an announcement of the kind \"warning\" - one word, followed by the announcement itself. No placeholders.",
+      "en": "Warning",
+      "sk": "Upozornenie"
+    },
+    "anotoki.siteSettings.levelDanger": {
+      "description": "The anotoki library's announcement bar: what a screen reader says before an announcement of the kind \"something is wrong\" (drawn in the danger colour) - one word, followed by the announcement itself. No placeholders.",
+      "en": "Important",
+      "sk": "Dôležité"
+    },
+    "anotoki.siteSettings.hide": {
+      "description": "The anotoki library's announcement bar: the button that hides the announcement - it stays hidden in this browser until its words change. Short: it stands at the bar's end. No placeholders.",
+      "en": "Hide",
+      "sk": "Skryť"
+    },
+    "anotoki.siteSettings.hideName": {
+      "description": "The anotoki library's announcement bar: what a screen reader says for the Hide button (anotoki.siteSettings.hide) - starting with that button's own words, so a person who speaks to the computer names the button by what it shows (WCAG 2.5.3, Label in Name). No placeholders.",
+      "en": "Hide the announcement",
+      "sk": "Skryť oznámenie"
+    },
+    "anotoki.siteSettings.maintenanceOnTitle": {
+      "description": "The anotoki library's notice for the site's administrators above a page, while they have closed the site for maintenance: its heading. Only an administrator sees the site then - everybody else, the maintenance page. The Slovak addresses nobody. No placeholders.",
+      "en": "The site is closed for maintenance",
+      "sk": "Stránka je zatvorená pre údržbu"
+    },
+    "anotoki.siteSettings.maintenanceOnText": {
+      "description": "The anotoki library's notice for the site's administrators while the site is closed for maintenance: the sentence under its heading, saying why the site shows for this reader. No placeholders.",
+      "en": "Everybody else sees the maintenance page. It shows here because this account is an administrator's.",
+      "sk": "Všetci ostatní vidia stránku o údržbe. Tu sa zobrazuje, lebo tento účet patrí administrátorovi."
+    },
+    "anotoki.siteSettings.pageOffTitle": {
+      "description": "The anotoki library's notice for the site's administrators above a page that the site settings' Page access switched off: its heading. Only an administrator sees such a page; nobody else ever sees this notice. No placeholders.",
+      "en": "This page is switched off",
+      "sk": "Táto stránka je vypnutá"
+    },
+    "anotoki.siteSettings.pageOffText": {
+      "description": "The anotoki library's notice for the site's administrators above a page that is switched off: the sentence under its heading. No placeholders.",
+      "en": "Only administrators see it: everybody else gets a page that is not there.",
+      "sk": "Vidia ju len administrátori: všetci ostatní dostanú stránku, ktorá neexistuje."
+    },
+    "anotoki.siteSettings.pageLimitedTitle": {
+      "description": "The anotoki library's notice for the site's administrators above a page that the site settings' Page access shows to some readers alone (people signed in, editors, administrators): its heading. No placeholders.",
+      "en": "This page is not for everybody",
+      "sk": "Táto stránka nie je pre každého"
+    },
+    "anotoki.siteSettings.pageLimitedText": {
+      "description": "The anotoki library's notice for the site's administrators above a page shown to some readers alone: the sentence under its heading. {audience}: who the page is shown to, in the words of anotoki.siteSettings.audienceUser, audienceEditor or audienceAdmin - in Slovak in the dative, as the sentence takes it. Placeholders: {audience}.",
+      "en": "It is shown to {audience}. It shows here because this account is an administrator's.",
+      "sk": "Zobrazuje sa {audience}. Tu sa zobrazuje, lebo tento účet patrí administrátorovi."
+    },
+    "anotoki.siteSettings.audienceUser": {
+      "description": "The anotoki library's notice for the site's administrators: who a page is shown to, when it is people signed in - the {audience} of anotoki.siteSettings.pageLimitedText (in Slovak the dative). No placeholders.",
+      "en": "people who are signed in",
+      "sk": "prihláseným"
+    },
+    "anotoki.siteSettings.audienceEditor": {
+      "description": "The anotoki library's notice for the site's administrators: who a page is shown to, when it is editors and administrators - the {audience} of anotoki.siteSettings.pageLimitedText. No placeholders.",
+      "en": "editors and administrators",
+      "sk": "editorom a administrátorom"
+    },
+    "anotoki.siteSettings.audienceAdmin": {
+      "description": "The anotoki library's notice for the site's administrators: who a page is shown to, when it is administrators alone - the {audience} of anotoki.siteSettings.pageLimitedText. No placeholders.",
+      "en": "administrators only",
+      "sk": "len administrátorom"
+    },
+    "anotoki.legal.storageAnnouncementPurpose": {
+      "description": "The anotoki library's Privacy page: what the stored announcement is - the browser keeps which announcement its reader hid (a mark of its words, never the words), so that it stays hidden until they change. No placeholders.",
+      "en": "Which announcement you hid, so that it stays hidden until its words change.",
+      "sk": "Ktoré oznámenie bolo skryté, aby zostalo skryté, kým sa jeho text nezmení."
     }
   }
 }
