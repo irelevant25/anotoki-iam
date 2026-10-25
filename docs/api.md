@@ -1787,7 +1787,8 @@ interface AdminApplication {
 
 Every application is a public client and there are no landing page settings
 (migration 011): the shape carries no `type`, secret, `show_on_landing` or
-`sort_order`. A new application goes last (`sort_order` the largest + 1) and
+`sort_order` - and since migration 027 the database has no column for the
+first three. A new application goes last (`sort_order` the largest + 1) and
 gets ADMIN ("Everything in the site's admin panel"), EDITOR ("Edits the site's
 content in its admin panel"), EARLY_ACCESS ("Uses the site while it lets in
 only chosen people (a beta, a test); given by an administrator") and MEMBER
@@ -2269,7 +2270,7 @@ interface BackupsStatus {
 
 `GET /api/applications` - every application that is switched on, but the IAM
 itself, in the order they were added (`sort_order`, then name; migration 011
-took the landing page settings away, so `show_on_landing` is not read):
+took the landing page settings away, and 027 their `show_on_landing`):
 `[{ client_id, name, description, home_url, logo_url }]`. CORS open,
 cacheable. The anotoki.eu landing page keeps its own list.
 

@@ -117,15 +117,13 @@ if (in_array('--dev', $argv, true)) {
 
 // The columns named: on a database without 010's login_required this stops
 // with the database's error, never a listing that says "sign-in required: no".
-foreach ($pdo->query('SELECT id, client_id, name, type, enabled, system, login_required, home_url FROM applications ORDER BY sort_order, client_id')->fetchAll() as $application) {
+foreach ($pdo->query('SELECT id, client_id, name, enabled, system, login_required, home_url FROM applications ORDER BY sort_order, client_id')->fetchAll() as $application) {
     // Who gets in is whether the site requires signing in and which of its
     // roles may sign in (migration 010; the access column before it went in
-    // 027).
+    // 027). Every client is public (011): nothing to say of its kind, whose
+    // column 027 dropped too.
     $who = $application['system'] ? 'the IAM itself' : 'sign-in required: ' . ($application['login_required'] ? 'yes' : 'no');
-    // Every client is public since 011; one that is not yet is worth a word
-    // before that migration is applied (it will have to use PKCE).
-    $type = $application['type'] === 'public' ? '' : ", {$application['type']} - 011 makes it public";
-    echo "\n{$application['client_id']}  ({$application['name']}{$type}, {$who}" . ($application['enabled'] ? '' : ', DISABLED') . ")\n";
+    echo "\n{$application['client_id']}  ({$application['name']}, {$who}" . ($application['enabled'] ? '' : ', DISABLED') . ")\n";
     echo '  home: ' . ($application['home_url'] ?? '-') . "\n";
 
     if (!$application['system']) {

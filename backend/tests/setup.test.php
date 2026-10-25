@@ -369,11 +369,12 @@ test('a fresh database arrives with the sites\' development addresses, as in the
     same('Build Analyzer', $pdo->query("SELECT name FROM applications WHERE client_id = 'build-analyzer'")->fetchColumn(), 'the analyzer is called what it is');
 
     // The survey site arrives by a later migration than the others, and on a
-    // database built on this computer it gets what they got: a card, and roles.
-    $survey = $pdo->query("SELECT id, name, login_required, show_on_landing FROM applications WHERE client_id = 'survey'")->fetch();
+    // database built on this computer it gets what they got: its roles. (Its
+    // card on the landing page went with the landing page settings: 011 left
+    // show_on_landing unread, 027 dropped it.)
+    $survey = $pdo->query("SELECT id, name, login_required FROM applications WHERE client_id = 'survey'")->fetch();
     same('Surveys', $survey['name'], 'the survey site is called what it is');
     same(true, asBool($survey['login_required']), 'it asks everybody to sign in');
-    same(true, asBool($survey['show_on_landing']), 'and it has a card on the landing page');
     $roles = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? AND may_sign_in ORDER BY name');
     $roles->execute([$survey['id']]);
     same(

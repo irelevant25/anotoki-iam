@@ -277,9 +277,14 @@ test('a fresh IAM: MEMBER everywhere, every role may sign in, genshin and the an
         'visitors welcome on genshin and the build analyzer; the other sites require signing in',
     );
     same(
-        0,
-        (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications' AND column_name = 'access'")->fetchColumn(),
-        'the access column, the rule before 010, gone (027)',
+        [],
+        $pdo
+            ->query(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications'
+                    AND column_name IN ('access', 'type', 'secret_hash', 'show_on_landing')",
+            )
+            ->fetchAll(PDO::FETCH_COLUMN),
+        'the access column, the rule before 010, gone - and 011\'s type, secret_hash and show_on_landing (027)',
     );
     same(2, (int) $pdo->query("SELECT count(*) FROM pg_trigger WHERE tgname IN ('trg_users_member_everywhere', 'trg_applications_member_role')")->fetchColumn(), 'both triggers');
 
@@ -290,7 +295,6 @@ test('a fresh IAM: MEMBER everywhere, every role may sign in, genshin and the an
             "{$application['client_id']}: the fixed roles (011, and 023's EARLY_ACCESS)",
         );
     }
-    same(0, (int) $pdo->query("SELECT count(*) FROM applications WHERE type <> 'public' OR secret_hash IS NOT NULL")->fetchColumn(), 'every client public, no secret');
 
     makeUser('fresh', 'fresh@example.test');
     same([], withoutMember($pdo), 'an account made now holds MEMBER in every application');
@@ -534,7 +538,11 @@ test('a new application in the admin panel: ADMIN, EDITOR, EARLY_ACCESS and MEMB
         'the family\'s four roles in the family\'s words, MEMBER every account\'s, ticked as asked',
     );
     same([], array_intersect(['access', 'type', 'has_secret', 'show_on_landing', 'sort_order'], array_keys($application)), 'no access, type, secret or landing page settings in the panel\'s shape');
-    same(['public', null], array_values(iamDb()->query("SELECT type, secret_hash FROM applications WHERE client_id = 'newsite'")->fetch(PDO::FETCH_NUM)), 'a public client without a secret');
+    same(
+        [],
+        array_values(array_intersect(['type', 'secret_hash', 'show_on_landing'], array_keys(iamDb()->query("SELECT * FROM applications WHERE client_id = 'newsite'")->fetch()))),
+        'nor in its row: no kind, no secret, no card - the body\'s type and show_on_landing read and set nothing (027)',
+    );
     same(
         (int) iamDb()->query("SELECT max(sort_order) FROM applications WHERE client_id <> 'newsite'")->fetchColumn() + 1,
         (int) iamDb()->query("SELECT sort_order FROM applications WHERE client_id = 'newsite'")->fetchColumn(),
@@ -740,7 +748,16 @@ test('the public contract: three fields for an enabled site, cacheable, no cooki
 
 // ── Public clients only ──────────────────────────────────────────────────────
 
-test('public clients only: a client secret is refused at the token and revocation endpoints, PKCE is asked of every client, discovery says so', function () {
+test('public clients only: a client secret is refused at the token and revocation endpoints, PKCE is asked of every client, discovery says so - with no column to read', function () {
+    // What follows is decided by the request alone: since 027 no column says a client's kind or holds a secret
+    // (dropped-leftovers.test.php refuses one on an IAM whose row still held it, before the drop and after).
+    same(
+        [],
+        iamDb()
+            ->query("SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications' AND column_name IN ('type', 'secret_hash')")
+            ->fetchAll(PDO::FETCH_COLUMN),
+        'no type or secret_hash column to read',
+    );
     $discovery = (new Browser())->get('/.well-known/openid-configuration')->json();
     same(
         [['none'], ['none']],
@@ -772,28 +789,24 @@ test('public clients only: a client secret is refused at the token and revocatio
     }
     same(200, refreshAt($tokens['refresh_token'])->status, 'none of that revoked or spent the token: without a secret it refreshes');
 
-    // A client left confidential (the build before 011, or a row edited by
-    // hand) is asked for PKCE all the same.
-    iamDb()->exec("UPDATE applications SET type = 'confidential' WHERE client_id = 'survey'");
-    try {
-        $start = $browser->get(
-            '/api/oidc/authorize?' .
-                http_build_query([
-                    'response_type' => 'code',
-                    'client_id' => 'survey',
-                    'redirect_uri' => SURVEY_CALLBACK,
-                    'scope' => 'openid',
-                    'state' => 's',
-                ]),
-        );
-        same(
-            ['invalid_request', 'A public client must send a PKCE code_challenge'],
-            [queryOf($start->location())['error'] ?? null, queryOf($start->location())['error_description'] ?? null],
-            'no code without a PKCE challenge, whatever the row says',
-        );
-    } finally {
-        iamDb()->exec("UPDATE applications SET type = 'public' WHERE client_id = 'survey'");
-    }
+    // Every client is asked for PKCE: there is no kind of client that is not
+    // (a row left confidential was asked all the same until 027 dropped the
+    // column).
+    $start = $browser->get(
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'response_type' => 'code',
+                'client_id' => 'survey',
+                'redirect_uri' => SURVEY_CALLBACK,
+                'scope' => 'openid',
+                'state' => 's',
+            ]),
+    );
+    same(
+        ['invalid_request', 'A public client must send a PKCE code_challenge'],
+        [queryOf($start->location())['error'] ?? null, queryOf($start->location())['error_description'] ?? null],
+        'no code without a PKCE challenge',
+    );
 });
 
 // ── The admin panel's rules ──────────────────────────────────────────────────
@@ -839,9 +852,9 @@ test('the admin panel: the roles are fixed, MEMBER stays, some role may sign in,
         'no confidential clients',
     );
     same(200, $admin->put("/api/admin/applications/{$id}", ['type' => 'public'])->status, 'public is what it is anyway');
-    $before = iamDb()->query("SELECT show_on_landing, sort_order FROM applications WHERE client_id = 'survey'")->fetch();
-    same(200, $admin->put("/api/admin/applications/{$id}", ['show_on_landing' => !asBool($before['show_on_landing']), 'sort_order' => 999])->status, 'landing page settings sent by an old script');
-    same($before, iamDb()->query("SELECT show_on_landing, sort_order FROM applications WHERE client_id = 'survey'")->fetch(), 'are ignored');
+    $before = iamDb()->query("SELECT sort_order FROM applications WHERE client_id = 'survey'")->fetchColumn();
+    same(200, $admin->put("/api/admin/applications/{$id}", ['show_on_landing' => true, 'sort_order' => 999])->status, 'landing page settings sent by an old script');
+    same($before, iamDb()->query("SELECT sort_order FROM applications WHERE client_id = 'survey'")->fetchColumn(), 'are ignored: its place kept - and no card to set (027 dropped the column)');
 
     $none = array_map(static fn(array $role): array => ['name' => $role['name'], 'description' => $role['description'], 'may_sign_in' => false], $application['roles']);
     $refused = $admin->put("/api/admin/applications/{$id}", ['roles' => $none]);

@@ -97,13 +97,12 @@ function applySurveyMigration(PDO $pdo): void
     same(1, (int) $pdo->query("SELECT count(*) FROM migrations WHERE filename = '" . SURVEY_MIGRATION . "'")->fetchColumn(), 'and recorded as applied');
 }
 
-/** The survey site's entry as a database has it, or null - its `access` null where 027 dropped the column (a database built from every file). */
+/** The survey site's entry as a database has it, or null - its `type`, `access` and `show_on_landing` null where 027 dropped them (a database built from every file). */
 function surveyIn(PDO $pdo): ?array
 {
-    $access = asBool(
-        $pdo->query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications' AND column_name = 'access')")->fetchColumn(),
-    );
-    $row = $pdo->query('SELECT id, name, description, home_url, type, ' . ($access ? 'access' : 'NULL AS access') . ", show_on_landing, system FROM applications WHERE client_id = 'survey'")->fetch();
+    $there = $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications'")->fetchAll(PDO::FETCH_COLUMN);
+    $dropped = implode(', ', array_map(static fn(string $column): string => in_array($column, $there, true) ? $column : "NULL AS {$column}", ['type', 'access', 'show_on_landing']));
+    $row = $pdo->query("SELECT id, name, description, home_url, {$dropped}, system FROM applications WHERE client_id = 'survey'")->fetch();
     if (!$row) {
         return null;
     }
@@ -127,7 +126,7 @@ function surveyIn(PDO $pdo): ?array
         'home_url' => $row['home_url'],
         'type' => $row['type'],
         'access' => $row['access'],
-        'show_on_landing' => asBool($row['show_on_landing']),
+        'show_on_landing' => $row['show_on_landing'] === null ? null : asBool($row['show_on_landing']),
         'system' => asBool($row['system']),
         'login' => $column("SELECT uri FROM application_redirect_uris WHERE application_id = ? AND kind = 'login' ORDER BY uri"),
         'logout' => $column("SELECT uri FROM application_redirect_uris WHERE application_id = ? AND kind = 'logout' ORDER BY uri"),

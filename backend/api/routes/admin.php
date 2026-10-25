@@ -1643,9 +1643,10 @@ function adminApplication(PDO $pdo, int $id): ?array
     $roles->execute([$id]);
 
     // Who gets in is login_required and each role's may_sign_in (010; the
-    // access column before it went in 027). type, the secret, show_on_landing
-    // and sort_order are still there and mean nothing to the panel: every
-    // client is public, and there are no landing page settings.
+    // access column before it went in 027). Every client is public and there
+    // are no landing page settings (011): 027 dropped type, the secret and
+    // show_on_landing; sort_order stays, the public list's order, which the
+    // panel does not show.
     return [
         'id' => $id,
         'client_id' => $application['client_id'],
@@ -1685,9 +1686,10 @@ function adminApplication(PDO $pdo, int $id): ?array
  * application has, and may change only whether it may sign in. Adding,
  * removing, renaming or rewording one is refused. Who may sign in is each
  * role's may_sign_in, and a site switched on keeps at least one role that
- * may. Every client is public, and there are no landing page settings:
- * `type` other than public is refused, `show_on_landing` and `sort_order` are
- * ignored.
+ * may. Every client is public, and there are no landing page settings: a
+ * body's `type` other than public is refused, its `show_on_landing` and
+ * `sort_order` are ignored - read from the body alone, there being no column
+ * of a client's kind, its secret or a card since 027.
  *
  * @return array{changed: string[], sign_in: array}|array{error: string}
  */

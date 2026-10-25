@@ -418,9 +418,9 @@ by nobody, and a role made before stays, read-only. A new application gets
 the three from then on. The admin panel no longer adds, removes, renames or
 rewords a role, offers no client type or secret, and has no landing page
 settings: the public list of sites is every one switched on, in the order
-they were added. `type`, the secret and the landing switch stay, unread, for a
-later migration (027 dropped 010's `access` alone) - not a way back to a build
-from before 011. It adds no strings, and goes with 010, in the same Apply.
+they were added. `type`, the secret and the landing switch stayed, unread,
+until 027 dropped them with 010's `access` - never a way back to a build from
+before 011. It adds no strings, and goes with 010, in the same Apply.
 
 **Migration 012** (new accounts may wait for an administrator's approval - the
 owner's decision of 2026-10-06, `docs/decisions.md`) adds the switch
@@ -653,9 +653,11 @@ sign-in; fix forward.
 **anotoki-lib 0.11.0 and migration 027** (2026-10-25; `docs/decisions.md`):
 upload both halves, then Apply - its backup first, as ever. Apply brings the
 library's `anotoki_admin/003` (the site settings' tables), the IAM's **027**
-(it drops `applications.access`, the rule before 010, and
-`audit_log_before_018`, the copy of the old audit log 018 kept - every entry
-of it is in the audit log), and the library's translations `014` and `015`
+(it drops `applications.access`, the rule before 010; `type`, `secret_hash`
+and `show_on_landing`, which 011 left unread - a client secret is refused as
+before, by the request alone; and `audit_log_before_018`, the copy of the old
+audit log 018 kept - every entry of it is in the audit log), and the
+library's translations `014` and `015`
 (the words of its new pieces and of the site settings). Until Apply the admin
 panel's Site settings page says the update comes first and no page shows an
 announcement; everything else works. After it: the admin panel's System →

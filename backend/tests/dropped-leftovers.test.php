@@ -1,27 +1,33 @@
 <?php
 
 /**
- * Migration 027 (the owner's yes of 2026-10-25): the two things kept "until a
- * later migration drops them, once both IAMs run" the file that left them over
- * go - applications.access, the rule before 010, read only while 010 was
- * pending (the code's signInRulesReady(), gone with this release), and
- * audit_log_before_018, the copy of the IAM's own audit log 018 kept, unread,
- * once every entry was in the library's anotoki_audit_log.
+ * Migration 027 (the owner's yes of 2026-10-25, and their answer of the same
+ * day for 011's three columns): what was kept "until a later migration drops
+ * it, once both IAMs run" the file that left it over goes - applications.access,
+ * the rule before 010, read only while 010 was pending (the code's
+ * signInRulesReady(), gone with this release); applications.type, secret_hash
+ * and show_on_landing, unread since 011 made every client public and took the
+ * landing page settings away; and audit_log_before_018, the copy of the IAM's
+ * own audit log 018 kept, unread, once every entry was in the library's
+ * anotoki_audit_log.
  *
  * Nothing that decides a sign-in changes: who may sign in has been each role's
- * may_sign_in since 010. So 027 is applied to an IAM shaped like an installed
- * one - built through 009 as its owner left it (a site made members-only by
- * hand, an application of the owner's own, a MEMBER somebody held in a
- * members-only one, an audit history), then 010 to 026, as the Migrations page
- * brought them - and the code itself is asked, for every account and every
- * application, before and after: the same answer, account by account. Every
- * audit entry stays in the library's table. And the window - this build on
- * such a database, 027 waiting: a site's sign-in, its refusal, a deletion
- * (the person out of the library's table and of the copy 018 kept, before the
- * Apply's backup), the admin panel's application pages and the sites' public
- * contract all answer, and the Migrations page's Apply (a backup first) brings
- * 027. Its gate refuses a database without 010's column or 018's move, drops
- * nothing, and runs once the cause is gone.
+ * may_sign_in since 010, and a client secret is refused by what the request
+ * carries. So 027 is applied to an IAM shaped like an installed one - built
+ * through 009 as its owner left it (a site made members-only by hand, an
+ * application of the owner's own, a MEMBER somebody held in a members-only
+ * one, an audit history), then 010 to 026, as the Migrations page brought them
+ * - and the code itself is asked, for every account and every application,
+ * before and after: the same answer, account by account. Every audit entry
+ * stays in the library's table, and every application its other columns. And
+ * the window - this build on such a database, 027 waiting: a site's sign-in,
+ * its refusal, a client secret refused (a row edited by hand to hold one
+ * changing nothing) before the drop and after it, a deletion (the person out
+ * of the library's table and of the copy 018 kept, before the Apply's backup),
+ * the admin panel's application pages and the sites' public contract all
+ * answer, and the Migrations page's Apply (a backup first) brings 027. Its
+ * gate refuses a database without 010's column or 018's move, names all that
+ * is missing, drops nothing, and runs once the cause is gone.
  */
 
 declare(strict_types=1);
@@ -84,16 +90,21 @@ function columnThere(PDO $pdo, string $table, string $column): bool
     return asBool($statement->fetchColumn());
 }
 
-/** Every application as the database has it, every column but `access`. */
-function applicationsBesidesAccess(PDO $pdo): array
+/** The columns of applications 027 drops. */
+const DROPPED_COLUMNS = ['access', 'type', 'secret_hash', 'show_on_landing'];
+
+/** Which of DROPPED_COLUMNS a database's applications still has. */
+function droppedColumnsThere(PDO $pdo): array
+{
+    return array_values(array_filter(DROPPED_COLUMNS, static fn(string $column): bool => columnThere($pdo, 'applications', $column)));
+}
+
+/** Every application as the database has it, every column but those 027 drops. */
+function applicationsKept(PDO $pdo): array
 {
     $rows = $pdo->query('SELECT * FROM applications ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
 
-    return array_map(static function (array $row): array {
-        unset($row['access']);
-
-        return $row;
-    }, $rows);
+    return array_map(static fn(array $row): array => array_diff_key($row, array_flip(DROPPED_COLUMNS)), $rows);
 }
 
 /** A table's entries, in the IAM's columns, as text. */
@@ -201,24 +212,26 @@ function refusedAtSurvey(Browser $browser, string $email, string $why): void
 
 // ── 027 itself ───────────────────────────────────────────────────────────────
 
-test('a fresh IAM has run 027: no access column and no audit_log_before_018 - 010\'s columns and triggers, and the library\'s audit table, there', function () {
+test('a fresh IAM has run 027: no access, type, secret_hash or show_on_landing, no audit_log_before_018 - 010\'s columns and triggers, sort_order, the library\'s audit table there', function () {
     $pdo = iamDb();
     check(in_array(DROP_MIGRATION, appliedMigrations($pdo), true), '027 recorded');
-    same([false, false], [columnThere($pdo, 'applications', 'access'), tableThere($pdo, 'audit_log_before_018')], 'the column and the copy gone');
+    same([[], false], [droppedColumnsThere($pdo), tableThere($pdo, 'audit_log_before_018')], 'the four columns and the copy gone');
     same([true, true], [columnThere($pdo, 'application_roles', 'may_sign_in'), columnThere($pdo, 'applications', 'login_required')], '010\'s columns there');
+    same(true, columnThere($pdo, 'applications', 'sort_order'), 'and the public list\'s order');
     same(2, (int) $pdo->query("SELECT count(*) FROM pg_trigger WHERE tgname IN ('trg_users_member_everywhere', 'trg_applications_member_role')")->fetchColumn(), 'and its triggers');
     same([true, false], [tableThere($pdo, 'anotoki_audit_log'), tableThere($pdo, 'audit_log')], 'the library\'s audit table, and the old name gone');
 });
 
 test(
-    'an IAM through 026 as its owner left it, from before 010 and 018: 027 drops the two - every account let in, or refused, by the code itself exactly as before; every audit entry where it was',
+    'an IAM through 026 as its owner left it, from before 010, 011 and 018: 027 drops the five - every account let in, or refused, by the code itself exactly as before; every audit entry where it was',
     function () {
         $main = testEnvironment()['db'];
         $pdo = buildIamThrough('_installed', '009_admin_panel.sql');
 
         // What an owner had before 010: an administrator, an editor, a site made members-only by hand with its ADMIN
-        // given, an application of their own with a role of its own, a MEMBER somebody held in a members-only one -
-        // and a history in the IAM's own audit log.
+        // given, an application of their own with a role of its own, a MEMBER somebody held in a members-only one,
+        // a confidential client with its secret and a site's card taken off the landing page - and a history in the
+        // IAM's own audit log.
         $admin = accountIn($pdo, 'admin');
         grantIn($pdo, $admin, 'iam', 'ADMIN');
         $editor = accountIn($pdo, 'editor');
@@ -233,6 +246,8 @@ test(
         grantIn($pdo, $reader, 'notes', 'READER');
         membersOnlyBefore010($pdo, 'invited', ['MEMBER' => 'Invited people']);
         grantIn($pdo, $guest, 'invited', 'MEMBER');
+        $pdo->exec("UPDATE applications SET type = 'confidential', secret_hash = '" . hash('sha256', 'a secret of 2026') . "' WHERE client_id = 'notes'");
+        $pdo->exec("UPDATE applications SET show_on_landing = FALSE WHERE client_id = 'genshin'");
         $insert = $pdo->prepare('INSERT INTO audit_log (actor_id, action, target_type, target_id, details, ip) VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?)');
         $insert->execute([$admin, 'user.roles_set', 'user', (string) $pianist, '{"after": [{"client_id": "piano-academy", "role": "ADMIN"}]}', '203.0.113.9']);
         $insert->execute([$reader, 'account.username_changed', 'user', (string) $reader, '{"from": "Čitateľ", "to": "reader"}', '2001:db8::1']);
@@ -246,7 +261,15 @@ test(
             "DELETE FROM user_roles WHERE user_id = ? AND role_id = (SELECT r.id FROM application_roles r JOIN applications a ON a.id = r.application_id
                     WHERE a.client_id = 'survey' AND r.name = 'MEMBER')",
         )->execute([$reader]);
-        same([true, true], [columnThere($pdo, 'applications', 'access'), tableThere($pdo, 'audit_log_before_018')], 'the two leftovers there, before 027');
+        same([DROPPED_COLUMNS, true], [droppedColumnsThere($pdo), tableThere($pdo, 'audit_log_before_018')], 'the leftovers there, before 027');
+        same(
+            [['genshin', 'public', false, false], ['notes', 'public', false, false], ['survey', 'public', false, true]],
+            array_map(
+                static fn(array $row): array => [$row['client_id'], $row['type'], $row['secret_hash'] !== null, asBool($row['show_on_landing'])],
+                $pdo->query("SELECT client_id, type, secret_hash, show_on_landing FROM applications WHERE client_id IN ('genshin', 'notes', 'survey') ORDER BY client_id")->fetchAll(),
+            ),
+            '011 made every client public and cleared its secret; the cards as they were left, read by nothing since',
+        );
         same($history, entriesOf($pdo, 'audit_log_before_018'), '018 kept the old table as it was');
         same($history, entriesOf($pdo, 'anotoki_audit_log'), 'and moved every entry into the library\'s');
 
@@ -271,14 +294,14 @@ test(
             ) {
                 same($answer, $before[$pair] ?? null, "before 027: {$pair}");
             }
-            $applications = applicationsBesidesAccess($pdo);
+            $applications = applicationsKept($pdo);
 
             $result = applyMigrationsThrough($pdo, DROP_MIGRATION);
             same([[DROP_MIGRATION], null], [$result['applied'], $result['failed']], '027 applied, its gates passed (' . ($result['error'] ?? '') . ')');
-            same([false, false], [columnThere($pdo, 'applications', 'access'), tableThere($pdo, 'audit_log_before_018')], 'the column and the copy gone');
+            same([[], false], [droppedColumnsThere($pdo), tableThere($pdo, 'audit_log_before_018')], 'the four columns and the copy gone');
 
             same($before, decisions(), 'every account let into every application, or refused, by the code itself exactly as before');
-            same($applications, applicationsBesidesAccess($pdo), 'every application otherwise as it was, column by column');
+            same($applications, applicationsKept($pdo), 'every application otherwise as it was, column by column');
             same($history, entriesOf($pdo, 'anotoki_audit_log'), 'every audit entry where it was, in the library\'s table');
         } finally {
             useIamDatabase($main);
@@ -287,7 +310,7 @@ test(
 );
 
 test(
-    'the window: this build on an IAM through 026, 027 waiting - a site\'s sign-in, its refusal, a deletion (the copy 018 kept scrubbed too), the admin panel\'s application pages and the public contract answer; Apply brings 027 after a backup',
+    'the window: this build on an IAM through 026, 027 waiting - a site\'s sign-in, its refusal, a client secret refused before the drop and after, a deletion (the copy 018 kept scrubbed too), the admin pages and the public contract answer; Apply brings 027 after a backup',
     function () {
         $main = testEnvironment()['db'];
         $pdo = buildIamThrough('_window', BEFORE_DROP);
@@ -304,11 +327,22 @@ test(
                         WHERE a.client_id = 'survey' AND r.name = 'MEMBER')",
             )->execute([$blockedId]);
             $goneId = makeUser('gone', 'gone@example.test', PASSWORD);
-            same([true, true], [columnThere($pdo, 'applications', 'access'), tableThere($pdo, 'audit_log_before_018')], 'the two leftovers there');
+            same([DROPPED_COLUMNS, true], [droppedColumnsThere($pdo), tableThere($pdo, 'audit_log_before_018')], 'the leftovers there');
 
             $tokens = intoSurvey(new Browser('10.27.0.1'), 'person@example.test');
             same(['MEMBER'], verifyLikeAnApp(new Browser(), $tokens['access_token'], 'survey')['roles'] ?? null, 'a site\'s sign-in, with the MEMBER every account holds');
             refusedAtSurvey(new Browser('10.27.0.2'), 'blocked@example.test', 'MEMBER taken from somebody');
+
+            // A client secret is refused by what the request carries, never by a row: shown here with the survey
+            // site's row edited by hand to say a confidential client holding this very secret - which nothing reads -
+            // and again below, once 027 has dropped both columns. Refused, the request spends nothing.
+            $pdo->exec("UPDATE applications SET type = 'confidential', secret_hash = '" . hash('sha256', 'the site secret') . "' WHERE client_id = 'survey'");
+            $withSecret = static fn(string $refreshToken): TestResponse => (new Browser())->request('POST', '/api/oidc/token', [
+                'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $refreshToken, 'client_id' => 'survey', 'client_secret' => 'the site secret'],
+                'headers' => ['Origin' => SURVEY_FRONTEND],
+            ]);
+            $publicOnly = ['error' => 'invalid_client', 'error_description' => 'Public clients only - send client_id and the PKCE code_verifier, no secret'];
+            same([401, $publicOnly], [($r = $withSecret($tokens['refresh_token']))->status, $r->json()], 'a client secret, the one the row holds: refused before 027');
 
             $admin = new Browser('10.27.0.3');
             same(200, $admin->signIn('admin@example.test', PASSWORD)->status, 'the administrator signs in to press Apply');
@@ -351,9 +385,10 @@ test(
                 preg_match('/^A backup of the database as it was is \S+-before-migration-[0-9a-f]{32}\.$/', (string) ($applied->json()['note'] ?? '')) === 1,
                 'a backup made first: ' . ($applied->json()['note'] ?? ''),
             );
-            same([false, false], [columnThere($pdo, 'applications', 'access'), tableThere($pdo, 'audit_log_before_018')], 'the two gone');
+            same([[], false], [droppedColumnsThere($pdo), tableThere($pdo, 'audit_log_before_018')], 'the leftovers gone');
 
-            same(200, refreshAt($tokens['refresh_token'])->status, 'the refresh token from before keeps working');
+            same([401, $publicOnly], [($r = $withSecret($tokens['refresh_token']))->status, $r->json()], 'and after it the same refusal, with no column to read');
+            same(200, refreshAt($tokens['refresh_token'])->status, 'the refresh token from before keeps working - without a secret');
             refusedAtSurvey(new Browser('10.27.0.4'), 'blocked@example.test', 'after 027 too');
             same(200, $admin->get('/api/admin/applications')->status, 'the application pages answer as before');
         } finally {
@@ -362,31 +397,40 @@ test(
     },
 );
 
-test('a 027 whose gate fails - a database without 010\'s may_sign_in, or without 018\'s move - drops nothing, names what is missing, and runs once the cause is gone', function () {
+test('a 027 whose gate fails - a database without 010\'s may_sign_in, or without 018\'s move, or both - drops nothing, names all that is missing, and runs once the cause is gone', function () {
     $pdo = buildIamThrough('_spoilt', BEFORE_DROP);
-    $untouched = static function (string $why) use ($pdo): void {
-        same([true, true], [columnThere($pdo, 'applications', 'access'), tableThere($pdo, 'audit_log_before_018')], "{$why}: nothing dropped");
+    $lacks = 'this file drops what an IAM without 010 and 018 still reads, and this database lacks: ';
+    $notMoved = 'the move of audit_log into anotoki_audit_log (018: the old name is still there)';
+    $untouched = static function (string $why, string $copy = 'audit_log_before_018') use ($pdo): void {
+        same([DROPPED_COLUMNS, true], [droppedColumnsThere($pdo), tableThere($pdo, $copy)], "{$why}: nothing dropped");
         same(DROP_MIGRATION, pendingMigrations($pdo)[0] ?? null, "{$why}: 027 still waits");
     };
 
+    // Each failure in the gate's own words - never PostgreSQL's about the gate itself.
     $pdo->exec('ALTER TABLE application_roles RENAME COLUMN may_sign_in TO may_sign_in_elsewhere');
     $result = applyMigrationsThrough($pdo, DROP_MIGRATION);
     same([[], DROP_MIGRATION], [$result['applied'], $result['failed']], 'without 010\'s column: 027 fails');
-    check(str_contains((string) $result['error'], 'application_roles.may_sign_in (010)'), 'naming it: ' . $result['error']);
+    check(str_contains((string) $result['error'], $lacks . 'application_roles.may_sign_in (010)'), 'naming it: ' . $result['error']);
     $untouched('without 010\'s column');
-    $pdo->exec('ALTER TABLE application_roles RENAME COLUMN may_sign_in_elsewhere TO may_sign_in');
 
     $pdo->exec('ALTER TABLE audit_log_before_018 RENAME TO audit_log');
     $result = applyMigrationsThrough($pdo, DROP_MIGRATION);
+    same([[], DROP_MIGRATION], [$result['applied'], $result['failed']], 'without either: 027 fails');
+    check(str_contains((string) $result['error'], $lacks . 'application_roles.may_sign_in (010); ' . $notMoved), 'naming both: ' . $result['error']);
+    $untouched('without either', 'audit_log');
+    $pdo->exec('ALTER TABLE application_roles RENAME COLUMN may_sign_in_elsewhere TO may_sign_in');
+
+    $result = applyMigrationsThrough($pdo, DROP_MIGRATION);
     same(DROP_MIGRATION, $result['failed'], 'with the old audit table under its old name: 027 fails');
-    check(str_contains((string) $result['error'], 'the old name is still there'), 'naming it: ' . $result['error']);
+    check(str_contains((string) $result['error'], $lacks . $notMoved), 'naming it: ' . $result['error']);
     same([true, false], [tableThere($pdo, 'audit_log'), tableThere($pdo, 'audit_log_before_018')], 'nothing dropped');
+    $untouched('the old name', 'audit_log');
     $pdo->exec('ALTER TABLE audit_log RENAME TO audit_log_before_018');
     $untouched('the old name back');
 
     $result = applyMigrationsThrough($pdo, DROP_MIGRATION);
     same([[DROP_MIGRATION], null], [$result['applied'], $result['failed']], 'the causes gone, it runs (' . ($result['error'] ?? '') . ')');
-    same([false, false], [columnThere($pdo, 'applications', 'access'), tableThere($pdo, 'audit_log_before_018')], 'and drops the two');
+    same([[], false], [droppedColumnsThere($pdo), tableThere($pdo, 'audit_log_before_018')], 'and drops the five');
 });
 
 finishTests();

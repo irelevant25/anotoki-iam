@@ -563,7 +563,8 @@ in applications of iam admin console. It will be public only." Migration 011:
   keeps its own list (only its auditor compares).
 - `type`, `secret_hash` and `show_on_landing` stay in the database, unread
   (not a way back: as with 010, no build from before it goes on the host
-  again); the migration that drops 010's `access` drops them too.
+  again); the migration that drops 010's `access` drops them too - and so it
+  did: migration 027, with the owner's answer of 2026-10-25 (below).
   `sort_order` stays for good: it is the order of the list (a new
   application goes last), only no longer set in the panel.
 
@@ -2665,11 +2666,16 @@ the genshin site's, so that it is never mistaken for the site. anotoki-lib
   the bar moved to `sites/main/common/top-bar`. Nothing the bar shows on
   those pages changed, so its fold (`PHONE_BAR_MAX`, 1040 px) stays.
 
-## 2026-10-25 - The owner's yes: the leftovers of 010 and 018 dropped (migration 027)
+## 2026-10-25 - The owner's yes: the leftovers of 010, 011 and 018 dropped (migration 027)
 
-Two things were kept "until a later migration drops it, once both IAMs run"
+Five things were kept "until a later migration drops it, once both IAMs run"
 the file that left them over, and both IAMs - this computer's and the host's -
-have run 010 and 018 since. The owner said yes to dropping both now.
+have run 010, 011 and 018 since. The owner said yes to dropping 010's and
+018's now, and - asked the same day about 011's three, which the entry of
+2026-10-05 said would go with 010's `access` - yes to those too, in the same
+027 (applied nowhere yet, so extended rather than followed by a 028). The
+five: `applications.access`, `applications.type`, `applications.secret_hash`,
+`applications.show_on_landing` and `audit_log_before_018`.
 
 - **`applications.access`**, the rule before 010 ('everyone', or 'members':
   a role there held), was read only while 010 was pending:
@@ -2689,6 +2695,22 @@ have run 010 and 018 since. The owner said yes to dropping both now.
   application page fails the same way, its roles' query naming `may_sign_in`
   (`tests/sign-in-rules.test.php`). The approvals' `503
   sign_in_rules_unavailable` while 012 is pending stays.
+- **`applications.type`, `secret_hash` and `show_on_landing`**, which 011
+  left unread when every client became public and the landing page settings
+  went. Nothing read them, as was checked before they went: the token and
+  revocation endpoints refuse a request carrying a client secret
+  (`client_secret` in the body, even empty, or HTTP Basic) by what it
+  carries, before any row is read (`clientSentSecret()`) - the refusal never
+  asked `secret_hash`, and is the same before the drop and after, a row
+  edited by hand to say a confidential client holding that very secret
+  changing nothing; authorize asks every client for PKCE whatever its row;
+  the admin panel refuses a body's `type` other than public by the body and
+  ignores its `show_on_landing`; the public list is every site switched on,
+  in `sort_order`, which stays; `php clients.php` printed `type` and no
+  longer does; the SDKs and the pages never knew them. Nothing that decides a
+  sign-in changed (`tests/sign-in-rules.test.php`, public clients only, on a
+  database without the columns; `tests/dropped-leftovers.test.php`, the
+  window, before and after).
 - **`audit_log_before_018`**, the IAM's own audit log as 018 left it, every
   entry of it in the library's `anotoki_audit_log` (018 proved the move in its
   gate), unread since and scrubbed by an account's deletion like the log -
@@ -2696,20 +2718,25 @@ have run 010 and 018 since. The owner said yes to dropping both now.
   event. The old table under its old name, `audit_log` - while 018 waits, on a
   database put back by hand from a backup made before it - is still scrubbed,
   and the entries that wait for 018 still wait in their file.
-- **027 is one migration**, both drops, its gate first asking that 010 and
-  018 are what they say (each role's `may_sign_in`, each application's
+- **027 is one migration**, the five drops, its gate first asking that 010
+  and 018 are what they say (each role's `may_sign_in`, each application's
   `login_required`, 010's two triggers; the library's audit table, the old
   name gone) - on a database without them it would drop the one thing it still
-  reads, so it stops, naming what is missing - and after the drops proving
-  both gone. Tested on an IAM built through 009 as an owner left it, then 010
-  to 026: the code itself asked, for every account and every application,
-  before and after - the same answer, account by account
+  reads, so it stops, naming all that is missing - and after the drops proving
+  all five gone and `sort_order`, 010's columns and the library's table still
+  there. (The first cut's gate collected what was missing with `missing ||
+  '...'`, which PostgreSQL reads as an array literal: it stopped all the same,
+  dropping nothing, but in PostgreSQL's words about the gate, naming only the
+  first thing missing; it uses `array_append()` now, and its test asks for
+  its own words, two causes at once.) Tested on an IAM built through 009 as
+  an owner left it - a confidential client with its secret, a card taken off
+  the landing page among it -, then 010 to 026: the code itself asked, for
+  every account and every application, before and after - the same answer,
+  account by account - and every application's other columns as they were
   (`tests/dropped-leftovers.test.php`).
 - It is no one-way step: a build from before 027 still runs on a database
-  that ran it - once 010 and 018 are applied that build reads neither.
-- **011's leftovers stay**: `type`, `secret_hash` and `show_on_landing`,
-  which the entry of 2026-10-05 said would go with 010's `access`, are
-  unread and kept for a migration of their own - the yes named the two above.
+  that ran it - once 010, 011 and 018 are applied that build reads none of the
+  five (its `php clients.php` alone looked at `type`, only to print it).
 - **The window is scrubbed too.** Between the upload and the Apply, a
   deletion that falls due takes the person out of the old copy as it always
   did - their addresses, the names in what was about them, a token's name -

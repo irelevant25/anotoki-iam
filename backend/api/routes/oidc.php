@@ -35,8 +35,10 @@ function redirectTo(Response $response, string $location): Response
  * There are no client secrets, so a request that carries one - by HTTP Basic
  * or as client_secret in the body - is refused (clientSentSecret()) rather
  * than half-read: a secret sent means the caller expects a check the IAM no
- * longer makes. An unknown, switched-off or system client is the same answer
- * as any other failure.
+ * longer makes. The refusal is the request's alone, asked before any row is
+ * read: no column says a client's kind or holds a secret (027 dropped type
+ * and secret_hash). An unknown, switched-off or system client is the same
+ * answer as any other failure.
  *
  * @return array|null the application
  */
@@ -528,9 +530,9 @@ $app->post('/api/oidc/revoke', function (Request $request, Response $response) {
 // ── The sites' list ──────────────────────────────────────────────────────────
 
 // Every site that is switched on, in the order the applications were made
-// (011: the admin panel no longer has landing page settings - show_on_landing
-// is not read, and a new application goes last). The anotoki.eu landing page
-// keeps its own list; only its auditor compares with this one.
+// (011: the admin panel no longer has landing page settings - a new
+// application goes last; 027 dropped show_on_landing). The anotoki.eu
+// landing page keeps its own list; only its auditor compares with this one.
 $app->get('/api/applications', function (Request $request, Response $response) {
     $rows = iamDb()
         ->query(
