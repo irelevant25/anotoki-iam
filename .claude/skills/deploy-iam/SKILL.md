@@ -216,7 +216,8 @@ that the public list of sites is every one switched on.
 
 anotoki-lib 0.11.0 and migration 027 (2026-10-25): upload both halves, then
 Apply - the library's `anotoki_admin/003` (the site settings' tables), the
-IAM's `027` (drops `applications.access` and `audit_log_before_018`) and the
+IAM's `027` (drops `applications.access`, `type`, `secret_hash` and
+`show_on_landing`, and `audit_log_before_018`) and the
 translations set's `014` and `015`. Apply right after the upload. Then the
 admin panel's System → Site settings sets the announcement (the IAM's one
 part: no maintenance, no page access); the release's `.htaccess` sends

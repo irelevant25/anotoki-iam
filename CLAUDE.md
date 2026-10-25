@@ -139,11 +139,15 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   before it never goes on the host again (it would fail open); fix forward.
 - **Public clients only, the same roles everywhere** (migration 011, the
   owner's words of 2026-10-05): every application proves each sign-in with
-  PKCE and has no secret (a request carrying one is refused); every site has
+  PKCE and has no secret (a request carrying one is refused, by what it
+  carries alone); every site has
   ADMIN, EDITOR, EARLY_ACCESS (since 023, below) and MEMBER, the IAM's entry
   ADMIN and MEMBER, made with the application - the admin panel only ticks
   which may sign in, never adds, removes, renames or rewords a role; there
   are no landing page settings (the public list is every site switched on).
+  The columns 011 left unread - `type`, `secret_hash`, `show_on_landing` -
+  went in migration 027 with 010's `access` (the owner's answer of
+  2026-10-25); `sort_order` stays, the public list's order.
   The panel shows who is blocked where by one rule (`blockedFromSql()`,
   `sign-in-check.ts`).
 - **Early access** (migration 023, the owner's decision of 2026-10-19;

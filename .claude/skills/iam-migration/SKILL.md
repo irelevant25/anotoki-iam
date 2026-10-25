@@ -38,7 +38,11 @@ code that reads what a migration makes checks for it first (`*Ready()`).
   where people type the value.
 - **`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`** so a file is safe to reason about.
 - **A `DO $$ … $$` gate** at the end of any migration that changes or seeds data,
-  raising an exception when the result is not what it should be.
+  raising an exception when the result is not what it should be. A gate that
+  gathers what is wrong into a `TEXT[]` adds with `array_append()` (or a
+  `'...'::TEXT`): `list || 'words'` reads the words as an array literal, and
+  the gate stops on PostgreSQL's "malformed array literal" instead of its own
+  message (027's first cut; its test asks for the gate's own words).
 - **Never edit an applied migration** - write the next one.
 - **Seeded applications carry development addresses** - the port table
   (`{frontend}/auth/callback`, `{frontend}/`, the origin; see `README.md`) - and
@@ -89,7 +93,8 @@ code that reads what a migration makes checks for it first (`*Ready()`).
   trigger's function made again, `SITE_ROLES` (`routes/admin.php`) and the
   panel's `NEW_APPLICATION_ROLES` with the same words, and a test on an IAM
   shaped like the installed one (`tests/early-access.test.php`). Every
-  application is a public client: never seed `type` or a secret.
+  application is a public client: 027 dropped `type`, `secret_hash` and
+  `show_on_landing`, so a seeded application names none of them.
 - **An anonymized account's row stays one** (`users_anonymized_check`, 016):
   switched off, unconfirmed, with no password, no password sign-in, no TOTP
   secret and no two-factor. A migration that updates those columns

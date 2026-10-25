@@ -26,8 +26,10 @@ the files you were given). You do not edit anything.
 - **Client secrets**: there are none. The token and revocation endpoints
   refuse any request carrying one (`client_secret` in the body, even empty,
   or `Authorization: Basic`) with `invalid_client` before reading anything
-  else (`clientSentSecret()`); discovery says `["none"]`. Nothing may read
-  `type` or `secret_hash` to decide anything.
+  else (`clientSentSecret()`); discovery says `["none"]`. Nothing decides by
+  a client's kind or a stored secret: 027 dropped `type` and `secret_hash`
+  (and `show_on_landing`), and bringing either back, or reading a kind from
+  anywhere else, is a finding.
 - **Tokens**: RS256 pinned on every read; `typ` distinguishes access and ID
   tokens; `aud` is the client; roles are that application's only; lifetimes as
   documented; the SDK checks the same.
