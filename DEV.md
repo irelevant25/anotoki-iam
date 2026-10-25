@@ -73,7 +73,7 @@ Google sign-in is optional: a client id from the Google Cloud console, with
 
 ```bash
 cd frontend
-npm start          # http://localhost:4300, proxying /api, /.well-known and /setup.php to :8100
+npm start          # http://localhost:4300, proxying /api, /.well-known, /robots.txt, /sitemap.xml and /setup.php to :8100
 ```
 
 `npm start` installs the packages before it serves - `bun ci`, exactly as

@@ -11,9 +11,10 @@
  * to one built through 009 the way an owner leaves it - members-only
  * applications of the owner's own among it, one with a MEMBER somebody held -
  * and nobody gets in after it who did not before, nor is anybody kept out who
- * got in. And a build is uploaded before its migrations are applied: with 010
- * pending, signing in works by the rule before it and the admin panel's
- * application pages say what to do, until Apply.
+ * got in. The rule before it - the applications' `access`, read while 010 was
+ * pending - went with that column (migration 027, tests/dropped-leftovers.test.php):
+ * on a database without 010 the rule asks for what is not there, and nothing
+ * is let in.
  *
  * And 011, the owner's later request of the same day: public clients only
  * (no secrets, PKCE for everyone), the same fixed roles in every application
@@ -275,11 +276,10 @@ test('a fresh IAM: MEMBER everywhere, every role may sign in, genshin and the an
         loginRequiredIn($pdo),
         'visitors welcome on genshin and the build analyzer; the other sites require signing in',
     );
-    same(true, signInRulesReady($pdo), 'the rules are ready');
     same(
-        1,
+        0,
         (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications' AND column_name = 'access'")->fetchColumn(),
-        'the access column stays, for the build before 010',
+        'the access column, the rule before 010, gone (027)',
     );
     same(2, (int) $pdo->query("SELECT count(*) FROM pg_trigger WHERE tgname IN ('trg_users_member_everywhere', 'trg_applications_member_role')")->fetchColumn(), 'both triggers');
 
@@ -986,83 +986,51 @@ test('the admin panel\'s lists: blocked_in on each account, the Members tab\'s h
     }
 });
 
-// ── With 010 pending: a build uploaded before Apply ──────────────────────────
+// ── A database without 010 ──────────────────────────────────────────────────
+//
+// Until migration 027 a build carried the rule before 010 (the applications'
+// `access`) for the minutes between an upload and Apply. 027 dropped that
+// column, and the code that read it went with it: a database without 010 is
+// none this build runs on - and on one, nothing reaches a site.
 
-test('with 010 pending signing in works by the rule before it, the panel\'s application pages say what to do, and Apply brings the rules in this very process', function () {
+test('a database without 010: the rule asks for each role\'s may_sign_in, which is not there - no answer by the rule before it, and no code for a site', function () {
     $main = testEnvironment()['db'];
-    $window = throwawayDatabase($main . '_window');
-    buildIamThrough('_window', '009_admin_panel.sql');
+    $window = throwawayDatabase($main . '_without010');
+    buildIamThrough('_without010', '009_admin_panel.sql');
     useIamDatabase($window);
 
     try {
         $pdo = iamDb();
-        same($window, $pdo->query('SELECT current_database()')->fetchColumn(), 'the app runs on the database without 010');
-        same(false, signInRulesReady($pdo), 'no rules yet');
+        same($window, $pdo->query('SELECT current_database()')->fetchColumn(), 'the app runs on a database without 010');
+        $personId = makeUser('person', 'person@example.test');
+        same('everyone', $pdo->query("SELECT access FROM applications WHERE client_id = 'survey'")->fetchColumn(), 'a site the rule before 010 opened to every account');
 
-        $adminId = makeUser('admin', 'admin@example.test');
-        grantRole($adminId, 'iam', 'ADMIN');
-        makeUser('person', 'person@example.test');
-        $pdo->exec("UPDATE applications SET access = 'members' WHERE client_id = 'piano-academy'");
-
-        $personBrowser = new Browser('10.5.6.1');
-        $tokens = intoSurvey($personBrowser, 'person@example.test');
-        same([], verifyLikeAnApp(new Browser(), $tokens['access_token'], 'survey')['roles'] ?? null, 'a site open to everyone lets an account with no role in, as before');
-        $refreshed = refreshAt($tokens['refresh_token']);
-        same(200, $refreshed->status, 'and refreshes: ' . $refreshed->body);
-        check(isset(queryOf(startSignIn($personBrowser, 'piano-academy', PIANO_CALLBACK)['location'])['request']), 'a members-only site turns it away, as before');
-        same(['survey' => true], array_intersect_key(listedFor($personBrowser), ['survey' => 1, 'piano-academy' => 1]), 'the account page lists what it may use and leaves out the members-only one');
-
-        $admin = admin();
-        $surveyId = (int) $pdo->query("SELECT id FROM applications WHERE client_id = 'survey'")->fetchColumn();
-        foreach (['GET /api/admin/applications', "GET /api/admin/applications/{$surveyId}", "GET /api/admin/applications/{$surveyId}/members", "PUT /api/admin/applications/{$surveyId}"] as $call) {
-            [$method, $path] = explode(' ', $call);
-            $answer = $method === 'GET' ? $admin->get($path) : $admin->put($path, ['description' => 'x']);
-            same([503, 'sign_in_rules_unavailable'], [$answer->status, $answer->code()], $call);
+        $answered = null;
+        try {
+            $answered = rolesKeepOut(applicationByClientId('survey'), $personId);
+        } catch (\PDOException) {
+            // The answer expected: no answer.
         }
-        same(503, $admin->post('/api/admin/applications', ['client_id' => 'early', 'name' => 'Early'])->status, 'nor is one made');
-        same([401, 'no_session'], [($r = (new Browser('10.5.6.9'))->get('/api/admin/applications'))->status, $r->code()], 'to anybody else: sign in first');
-        $users = $admin->get('/api/admin/users');
-        same(200, $users->status, 'the users pages work meanwhile');
-        same([[]], array_values(array_unique(array_column($users->json(), 'blocked_in'), SORT_REGULAR)), 'nobody shown blocked anywhere: there is no such thing yet');
-        $filters = $admin->get('/api/admin/users/filters');
-        same(200, $filters->status, 'with their filters');
-        $survey = array_column($filters->json()['applications'], null, 'client_id')['survey'];
-        same([false, $survey['roles']], [$survey['system'], $survey['sign_in_roles']], 'every role lets somebody in, by the rule before 010');
-        $early = $admin->post('/api/admin/users', ['username' => 'early', 'email' => 'early@example.test', 'password' => 'correct horse']);
-        same(201, $early->status, 'an account can be made');
-        $renamed = $admin->put('/api/admin/users/' . $early->json()['id'], ['username' => 'earlier']);
-        same([200, 'earlier', []], [$renamed->status, $renamed->json()['username'] ?? null, $renamed->json()['blocked_in'] ?? null], 'and changed, its row as ever');
-        $contract = (new Browser())->get('/api/public/applications/survey');
-        same(
-            [503, 'sign_in_rules_unavailable', 'no-store'],
-            [$contract->status, $contract->code(), $contract->header('Cache-Control')],
-            'the public contract has no switch to read yet: 503, kept by nobody',
-        );
-        same(404, (new Browser())->get('/api/public/applications/nobody-here')->status, 'an unknown site is still 404');
-        same(
-            [RULES_MIGRATION, STATIC_MIGRATION],
-            array_slice(migrationNames($admin->get('/api/admin/migrations')->json()['pending'] ?? []), 0, 2),
-            'the Migrations page shows 010 and 011 pending, first',
-        );
+        same(null, $answered, 'whether the account\'s roles keep it out: the query fails - never an answer read off the old column');
 
-        $applied = $admin->post('/api/admin/migrations/apply');
-        same(
-            [200, [RULES_MIGRATION, STATIC_MIGRATION], null],
-            [$applied->status, array_slice(migrationNames($applied->json()['applied'] ?? []), 0, 2), $applied->json()['failed'] ?? null],
-            'Apply pending: ' . $applied->body,
+        $person = new Browser('10.5.6.1');
+        same(200, $person->signIn('person@example.test', 'correct horse')->status, 'the IAM\'s own sign-in asks no site\'s roles');
+        [, $challenge] = pkce();
+        $authorize = $person->get(
+            '/api/oidc/authorize?' .
+                http_build_query([
+                    'response_type' => 'code',
+                    'client_id' => 'survey',
+                    'redirect_uri' => SURVEY_CALLBACK,
+                    'scope' => 'openid profile email',
+                    'state' => 's',
+                    'nonce' => 'n',
+                    'code_challenge' => $challenge,
+                    'code_challenge_method' => 'S256',
+                ]),
         );
-
-        same(true, signInRulesReady($pdo), 'from the next request on, in the same process: the rules are there');
-        $list = $admin->get('/api/admin/applications');
-        same(200, $list->status, 'the application pages answer');
-        same(true, array_column($list->json(), 'login_required', 'client_id')['survey'] ?? null, 'with the switch');
-        same([200, true], [($r = (new Browser())->get('/api/public/applications/survey'))->status, $r->json()['login_required'] ?? null], 'and so does the public contract');
-        $refreshed = refreshAt($refreshed->json()['refresh_token']);
-        same(200, $refreshed->status, 'the refresh token from before keeps working: ' . $refreshed->body);
-        same(['MEMBER'], verifyLikeAnApp(new Browser(), $refreshed->json()['access_token'], 'survey')['roles'] ?? null, 'and now carries MEMBER');
-        check(isset(queryOf(startSignIn($personBrowser, 'piano-academy', PIANO_CALLBACK)['location'])['request']), 'the members-only site still turns it away');
-        same(['survey' => true], array_intersect_key(listedFor($personBrowser), ['survey' => 1, 'piano-academy' => 1]), 'and the account page is as it was');
-        same([], withoutMember($pdo), 'every account made in the window holds MEMBER now');
+        same([500, 'server_error'], [$authorize->status, $authorize->code()], 'a sign-in to the site fails, as a failure');
+        same('', $authorize->location(), 'and sends the browser nowhere with a code');
     } finally {
         useIamDatabase($main);
     }

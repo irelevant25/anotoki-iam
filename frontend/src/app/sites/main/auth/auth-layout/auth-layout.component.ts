@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { LanguageSwitcherComponent, ThemeToggleComponent } from '@anotoki/lib/shell';
+import { AnnouncementComponent } from '@anotoki/lib/site-settings';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { Changelog } from '../../../../shared/changelog/changelog.service';
 import { TPipe } from '../../../../shared/i18n/t.pipe';
@@ -22,10 +23,15 @@ import { TPipe } from '../../../../shared/i18n/t.pipe';
  *
  * The sky is always night, in both themes: it is the brand, not a surface.
  * Its stars are CSS gradients and its twinkle stops under reduced motion.
+ *
+ * Above it all, across the page, the administrators' announcement when there
+ * is one - the family's bar (`<anotoki-announcement>`, the site settings' one
+ * part the IAM offers: shared/site-settings), as above every frame but the
+ * admin panel's.
  */
 @Component({
   selector: 'app-auth-layout',
-  imports: [RouterOutlet, TPipe, IconComponent, LanguageSwitcherComponent, ThemeToggleComponent, SiteFooterComponent],
+  imports: [RouterOutlet, TPipe, IconComponent, LanguageSwitcherComponent, ThemeToggleComponent, SiteFooterComponent, AnnouncementComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './auth-layout.component.html',
   styleUrl: './auth-layout.component.scss',

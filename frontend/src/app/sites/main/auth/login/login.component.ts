@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { AutofocusDirective } from '@anotoki/lib/ui/autofocus';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { formatTime } from '@anotoki/lib/ui/dates';
 import { CheckboxComponent, CodeInputComponent, PasswordFieldComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
@@ -17,7 +18,6 @@ import { PublicApi } from '../../../../api/public.api';
 import { readDeviceToken, storeDeviceToken } from '../../common/device-token';
 import { safeNext } from '../../../../shared/auth/next-path';
 import { SessionService } from '../../../../shared/auth/session.service';
-import { formatAppDate } from '../../../../shared/i18n/app-date.pipe';
 import { TranslationKey } from '../../../../shared/i18n/en';
 import { errorText } from '../../../../shared/i18n/error-text';
 import { TPipe } from '../../../../shared/i18n/t.pipe';
@@ -128,7 +128,7 @@ export class LoginComponent implements OnInit {
   /** Whether that code has been asked for, so the field it is typed into shows. */
   protected readonly pausedCodeSent = signal(false);
   /** The pause's end as a time of day, the reader's own way of writing one. */
-  protected readonly pausedTime = computed(() => formatAppDate(this.pausedUntil(), 'time', this._i18n.locale(), null));
+  protected readonly pausedTime = computed(() => formatTime(this.pausedUntil(), { locale: this._i18n.locale(), choices: null }));
 
   // ── A forced password change ───────────────────────────────────────────────
   protected readonly currentPassword = signal('');

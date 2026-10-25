@@ -33,7 +33,7 @@
                                 <p class="meta small muted" [class.indented]="setting.type === 'boolean'">
                                     <code>{{ setting.name }}</code>
                                     @if (setting.updated_at) {
-                                        · changed {{ setting.updated_at | appDate }}{{ setting.updated_by ? " by " + setting.updated_by : "" }}
+                                        · changed {{ setting.updated_at | anotokiDate: "datetime" }}{{ setting.updated_by ? " by " + setting.updated_by : "" }}
                                     }
                                     @if (changed(setting)) {
                                         ·

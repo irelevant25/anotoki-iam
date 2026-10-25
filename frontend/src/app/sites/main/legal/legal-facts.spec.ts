@@ -149,6 +149,7 @@ describe('the legal pages, as the IAM fills them in', () => {
       'anotoki-iam:lang, anotoki-iam:lang-cache',
       'anotoki-iam:lang',
       'anotoki-iam:localization-drafts',
+      'anotoki-iam:announcement',
     ]);
     // On a plain-http development machine the session cookie goes by its bare name (api/session.php).
     expect(iamLegalFacts(i18n, false).storage[1].name).toBe('anotoki_iam');
@@ -208,7 +209,10 @@ describe('the legal pages, as the IAM fills them in', () => {
       'anotoki-iam:lang, anotoki-iam:lang-cache',
       'anotoki-iam:lang',
       'anotoki-iam:localization-drafts',
+      'anotoki-iam:announcement',
     ]);
+    // The administrators' announcement hidden (the family's site settings): a mark of it, in the library's words.
+    expect(host.textContent).toContain('Which announcement you hid, so that it stays hidden until its words change.');
     expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name')).toEqual(['WebSupport s.r.o.', 'Cloudflare, Inc.', 'Google', 'WebSupport s.r.o.']);
     expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name + p')[2]).toBe(en['legal.google.role']);
     // Google is contacted only when somebody presses the button (sites/main/common/google-button; the owner's decision of 2026-10-14).

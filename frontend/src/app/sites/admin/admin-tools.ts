@@ -1,4 +1,5 @@
 import { inject } from '@angular/core';
+import { AnotokiDates } from '@anotoki/lib/ui/dates';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminToolsPanel } from '../../shared/admin/admin-tools.config';
 import { ApiError } from '../../api/api-error';
@@ -35,4 +36,16 @@ export function adminToolsPanel(): AdminToolsPanel {
     },
     restoreOffText: RESTORE_OFF_TEXT,
   };
+}
+
+/**
+ * The family's dates for the admin tools' pages and the Migrations page
+ * (shared/admin/admin-dates.ts), handed over by the panel's routes as they
+ * load - run in their injection context: a moment as the `anotokiDate` pipe
+ * writes `'datetime'`, in the page's locale (English here) and the account's
+ * date order and clock where it chose them.
+ */
+export function adminDates(): (iso: string) => string {
+  const dates = inject(AnotokiDates);
+  return (iso) => dates.format(iso, 'datetime');
 }

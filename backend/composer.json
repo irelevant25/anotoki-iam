@@ -32,6 +32,8 @@
       ],
       "routes": [
         "api",
+        "robots.txt",
+        "sitemap.xml",
         ".well-known/openid-configuration",
         ".well-known/jwks.json"
       ],

@@ -97,10 +97,13 @@ function applySurveyMigration(PDO $pdo): void
     same(1, (int) $pdo->query("SELECT count(*) FROM migrations WHERE filename = '" . SURVEY_MIGRATION . "'")->fetchColumn(), 'and recorded as applied');
 }
 
-/** The survey site's entry as a database has it, or null. */
+/** The survey site's entry as a database has it, or null - its `access` null where 027 dropped the column (a database built from every file). */
 function surveyIn(PDO $pdo): ?array
 {
-    $row = $pdo->query("SELECT id, name, description, home_url, type, access, show_on_landing, system FROM applications WHERE client_id = 'survey'")->fetch();
+    $access = asBool(
+        $pdo->query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'applications' AND column_name = 'access')")->fetchColumn(),
+    );
+    $row = $pdo->query('SELECT id, name, description, home_url, type, ' . ($access ? 'access' : 'NULL AS access') . ", show_on_landing, system FROM applications WHERE client_id = 'survey'")->fetch();
     if (!$row) {
         return null;
     }

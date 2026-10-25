@@ -6,6 +6,7 @@ use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Feedback\Http\FeedbackRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\SiteSettings\Http\SiteSettingsRoutes;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Anotoki\Lib\Translations\Translations;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -50,7 +51,7 @@ function rolesOf(PDO $pdo, int $userId): array
  * account holding just MEMBER where MEMBER may not sign in (a members-only
  * site) was simply never invited - it is not listed, as the account page does
  * not list such a site to it, or every ordinary account would be "blocked"
- * there. Reads may_sign_in: only once 010 is applied.
+ * there. Reads each role's may_sign_in (010).
  */
 function blockedFromSql(string $user, string $application): string
 {
@@ -64,22 +65,20 @@ function blockedFromSql(string $user, string $application): string
 
 /**
  * The admin panel's account rows. `blocked_in` - the switched-on sites the
- * account is blocked from (blockedFromSql()) - needs 010's may_sign_in; while
- * 010 is pending it is empty, so the users pages keep working in the minutes
- * between an upload and Apply. `approved` needs 012, and reads as true while
- * it is pending: nobody can wait before it. The deletion's two times need
- * 016, and are null while it is pending; an anonymized account holds no role
- * anywhere, and is blocked nowhere - there is nobody to block.
+ * account is blocked from (blockedFromSql(), on 010's may_sign_in).
+ * `approved` needs 012, and reads as true while it is pending: nobody can
+ * wait before it. The deletion's two times need 016, and are null while it is
+ * pending; an anonymized account holds no role anywhere, and is blocked
+ * nowhere - there is nobody to block.
  */
 function adminUserSelect(PDO $pdo): string
 {
     $deletion = accountDeletionReady($pdo);
-    $blockedIn = signInRulesReady($pdo)
-        ? "COALESCE((SELECT json_agg(a.client_id ORDER BY a.sort_order, a.client_id) FROM applications a
+    $blockedIn =
+        "COALESCE((SELECT json_agg(a.client_id ORDER BY a.sort_order, a.client_id) FROM applications a
                       WHERE a.system = FALSE AND a.enabled AND " .
-            blockedFromSql('u', 'a') .
-            "), '[]')"
-        : "'[]'";
+        blockedFromSql('u', 'a') .
+        "), '[]')";
     if ($deletion) {
         $blockedIn = "CASE WHEN u.anonymized_at IS NOT NULL THEN '[]' ELSE {$blockedIn} END";
     }
@@ -362,12 +361,9 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
         $pdo = iamDb();
         $applications = [];
         // Which roles let somebody in, for the role editor's "cannot sign in"
-        // warning; every role while 010 is pending (the rule before it had
-        // no such thing).
-        $ready = signInRulesReady($pdo);
-
+        // warning.
         foreach ($pdo->query('SELECT id, client_id, name, system FROM applications ORDER BY sort_order, name')->fetchAll() as $application) {
-            $roles = $pdo->prepare('SELECT name, ' . ($ready ? 'may_sign_in' : 'TRUE') . ' AS may_sign_in FROM application_roles WHERE application_id = ? ORDER BY name');
+            $roles = $pdo->prepare('SELECT name, may_sign_in FROM application_roles WHERE application_id = ? ORDER BY name');
             $roles->execute([(int) $application['id']]);
             $rows = $roles->fetchAll();
             $applications[] = [
@@ -1587,6 +1583,29 @@ $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     ->add(requireAdmin())
     ->add(requireSession());
 
+// ── Site settings ────────────────────────────────────────────────────────────
+
+// The anotoki family's Site settings page's routes (anotoki/lib's
+// SiteSettingsRoutes::admin(), anotoki-lib 0.11.0; iamSiteSettings(),
+// api/site_settings.php) - the announcement alone, the one part the IAM
+// offers: GET /api/admin/site-settings (the switches with who changed each
+// last, by name), PUT {settings: {announcement_enabled, announcement_level,
+// announcement_message}} - audited site_settings.changed, each switch before
+// and after. A switch of a part the IAM does not offer (maintenance_mode,
+// maintenance_message) is 422 part_not_offered, and so is every Page access
+// route (/pages: POST, PUT; a DELETE finds nothing, 404). 503
+// feature_unavailable while the library's table waits for its update.
+//
+// The library mounts its group at its own whole path (SiteSettings'
+// adminPath), so it stands beside the admin group above rather than in it -
+// under the same checks, added here the same way: the session, the IAM's ADMIN
+// (requireAdmin(): never an administrator whose deletion is pending), and
+// inside, the library's own ADMIN check (iamAdminContext()'s isAdmin, the same
+// rule) before anything else. The CSRF header guards every write here as
+// everywhere (csrfMiddleware(), global). Written into the audit log by the
+// library through iamAuditLog(), as the admin tools above are.
+SiteSettingsRoutes::admin($app, iamSiteSettings(), iamAdminContext(), iamAuditLog())->add(requireAdmin())->add(requireSession());
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Applications, in the admin panel's shape
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1619,11 +1638,10 @@ function adminApplication(PDO $pdo, int $id): ?array
     );
     $roles->execute([$id]);
 
-    // The access column is still there (read only while 010 is pending; a
-    // later migration drops it) but means nothing now: login_required and
-    // each role's may_sign_in say who gets in. type, the secret,
-    // show_on_landing and sort_order are there too and mean nothing to the
-    // panel: every client is public, and there are no landing page settings.
+    // Who gets in is login_required and each role's may_sign_in (010; the
+    // access column before it went in 027). type, the secret, show_on_landing
+    // and sort_order are still there and mean nothing to the panel: every
+    // client is public, and there are no landing page settings.
     return [
         'id' => $id,
         'client_id' => $application['client_id'],
@@ -1698,9 +1716,9 @@ function saveApplication(PDO $pdo, int $id, array $body, bool $creating): array
         return ['error' => 'Every application is a public client: it names itself and proves each sign-in with PKCE - there are no client secrets'];
     }
 
-    // `access` is not read any more (010): who may sign in is each role's
-    // may_sign_in, below. A body that still sends it - the admin panel from
-    // before 010 - changes nothing by it.
+    // Who may sign in is each role's may_sign_in, below. A body that still
+    // sends `access` - the admin panel from before 010, whose column 027
+    // dropped - changes nothing by it.
 
     // The login_required in the database is also an OIDC error code
     // (routes/oidc.php); here it is the site's own switch, published to the

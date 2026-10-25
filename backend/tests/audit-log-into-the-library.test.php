@@ -6,7 +6,8 @@
  * audit log is kept in its table, anotoki_audit_log - made by the library's
  * own set, anotoki_admin, which runs before the IAM's files. 018 moves every
  * entry of the IAM's audit_log there with its id, proves it in its gate, and
- * keeps the old table, unread, as audit_log_before_018.
+ * keeps the old table, unread, as audit_log_before_018 - which 027 dropped
+ * (tests/dropped-leftovers.test.php).
  *
  * 018 arrives at installed IAMs - built from the IAM's files through 017 and
  * the library's translations set's 001 and 002, with no admin set - so it is
@@ -32,7 +33,8 @@ use Slim\Psr7\Factory\ServerRequestFactory;
 bootTests();
 
 const AUDIT_MIGRATION = '018_audit_log_into_the_library.sql';
-const ADMIN_SET_FILES = ['anotoki_admin/001_audit_log.sql', 'anotoki_admin/002_feedback.sql'];
+/** The library's admin set, as the engine lists its files - 001 the audit log, 002 feedback, 003 the site settings, ...: before every one of the IAM's. */
+define('ADMIN_SET_FILES', array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_admin/'))));
 const PASSWORD = 'correct horse';
 const SITE_CALLBACK = 'http://localhost:4200/auth/callback';
 const SITE_ORIGIN = 'http://localhost:4200';
@@ -179,7 +181,7 @@ function signInToTheSite(Browser $browser, string $email): TestResponse
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('a fresh IAM: the library\'s admin set first, 018 after 017, every entry in the library\'s table - and the old one kept, empty, under its new name', function () {
+test('a fresh IAM: the library\'s admin set first, 018 after 017, every entry in the library\'s table - the old one\'s name gone, and the copy 018 kept dropped by 027', function () {
     $pdo = iamDb();
     same(
         ['anotoki_admin', 'iam', 'anotoki_translations'],
@@ -187,7 +189,7 @@ test('a fresh IAM: the library\'s admin set first, 018 after 017, every entry in
         'the family\'s order: the admin set, the IAM\'s, the translations set',
     );
     $applied = appliedMigrations($pdo);
-    same(ADMIN_SET_FILES, array_slice($applied, 0, 2), 'the library\'s admin set the first applied');
+    same(ADMIN_SET_FILES, array_slice($applied, 0, count(ADMIN_SET_FILES)), 'the library\'s admin set the first applied');
     same(array_search('017_strings_through_the_library.sql', $applied, true) + 1, array_search(AUDIT_MIGRATION, $applied, true), '018 right after 017');
     same(
         ADMIN_SET_FILES,
@@ -196,11 +198,10 @@ test('a fresh IAM: the library\'s admin set first, 018 after 017, every entry in
     );
 
     same(
-        [false, true, true],
+        [false, false, true],
         [tableThere($pdo, 'audit_log'), tableThere($pdo, 'audit_log_before_018'), tableThere($pdo, 'anotoki_audit_log')],
-        'the old name gone, kept under the new one; the library\'s table there',
+        'the old name gone, and the copy 018 kept under the new one (027); the library\'s table there',
     );
-    same(0, (int) $pdo->query('SELECT count(*) FROM audit_log_before_018')->fetchColumn(), 'nothing in the kept table of a fresh IAM');
     same(true, auditMovedToLibrary($pdo), 'so audit() writes into the library\'s table');
 
     $id = makeUser('fresh', 'fresh@example.test');
@@ -221,51 +222,61 @@ test('a fresh IAM: the library\'s admin set first, 018 after 017, every entry in
     same([], waitingActions(), 'nothing waits in the file');
 });
 
-test('an installed IAM with a history: 018 moves every entry exactly, its id kept, the next one numbered after them, the old table kept as it was', function () {
-    $pdo = buildIamAsInstalled('_installed');
-    $history = writeHistory($pdo);
-    same(8, count($history), 'the history written');
-    // 018 and every file of the IAM's after it (019, the authenticator's pause, ...): what waited on an IAM
-    // built through 017 when 018 came, and what has come since.
-    $iam = migrationFiles('iam');
-    same(
-        [
-            ...ADMIN_SET_FILES,
-            ...array_slice($iam, (int) array_search(AUDIT_MIGRATION, $iam, true)),
-            ...array_slice(array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_translations/'))), 2),
-        ],
-        pendingMigrations($pdo),
-        'what an upload brings an installed IAM: the library\'s admin set, 018 and the IAM\'s files after it, the translations set\'s new files',
-    );
+test(
+    'an installed IAM with a history: 018 moves every entry exactly, its id kept, the next one numbered after them, the old table kept as it was - until 027 drops it, every entry still in the library\'s',
+    function () {
+        $pdo = buildIamAsInstalled('_installed');
+        $history = writeHistory($pdo);
+        same(8, count($history), 'the history written');
+        // 018 and every file of the IAM's after it (019, the authenticator's pause, ...): what waited on an IAM
+        // built through 017 when 018 came, and what has come since.
+        $iam = migrationFiles('iam');
+        same(
+            [
+                ...ADMIN_SET_FILES,
+                ...array_slice($iam, (int) array_search(AUDIT_MIGRATION, $iam, true)),
+                ...array_slice(array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, 'anotoki_translations/'))), 2),
+            ],
+            pendingMigrations($pdo),
+            'what an upload brings an installed IAM: the library\'s admin set, 018 and the IAM\'s files after it, the translations set\'s new files',
+        );
 
-    $result = applyPendingMigrations($pdo);
-    same([[], null], [pendingMigrations($pdo), $result['failed']], 'every file applied, every gate passed (' . ($result['error'] ?? '') . ')');
-    same(AUDIT_MIGRATION, $result['applied'][2] ?? null, '018 after the admin set');
+        // 018 on its own first: the state it leaves.
+        $result = applyMigrationsThrough($pdo, AUDIT_MIGRATION);
+        same([[...ADMIN_SET_FILES, AUDIT_MIGRATION], null], [$result['applied'], $result['failed']], 'the admin set, then 018, its gate passed (' . ($result['error'] ?? '') . ')');
 
-    same($history, entriesOf($pdo, 'anotoki_audit_log'), 'every entry in the library\'s table exactly as it was: id, time, who, what, to what, details, address');
-    same(
-        0,
-        (int) $pdo->query('SELECT count(*) FROM anotoki_audit_log WHERE actor_session IS NOT NULL OR scope_type IS NOT NULL OR scope_id IS NOT NULL')->fetchColumn(),
-        'and nothing the IAM never wrote',
-    );
-    same([false, $history], [tableThere($pdo, 'audit_log'), entriesOf($pdo, 'audit_log_before_018')], 'the old table kept, as it was, under its new name');
+        same($history, entriesOf($pdo, 'anotoki_audit_log'), 'every entry in the library\'s table exactly as it was: id, time, who, what, to what, details, address');
+        same(
+            0,
+            (int) $pdo->query('SELECT count(*) FROM anotoki_audit_log WHERE actor_session IS NOT NULL OR scope_type IS NOT NULL OR scope_id IS NOT NULL')->fetchColumn(),
+            'and nothing the IAM never wrote',
+        );
+        same([false, $history], [tableThere($pdo, 'audit_log'), entriesOf($pdo, 'audit_log_before_018')], 'the old table kept, as it was, under its new name');
 
-    // The next entry: numbered after the highest, written where the app now writes.
-    $main = testEnvironment()['db'];
-    useDatabase($main . '_installed');
-    try {
-        audit(null, null, 'keys.removed', 'key', 'k1');
-        same([1001, 'keys.removed'], array_values(iamDb()->query('SELECT id, action FROM anotoki_audit_log ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_NUM)), 'the next entry is 1001');
-        same(8, (int) iamDb()->query('SELECT count(*) FROM audit_log_before_018')->fetchColumn(), 'and the kept table is never written');
-    } finally {
-        useDatabase($main);
-    }
-});
+        // The next entry: numbered after the highest, written where the app now writes.
+        $main = testEnvironment()['db'];
+        useDatabase($main . '_installed');
+        try {
+            audit(null, null, 'keys.removed', 'key', 'k1');
+            same([1001, 'keys.removed'], array_values(iamDb()->query('SELECT id, action FROM anotoki_audit_log ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_NUM)), 'the next entry is 1001');
+            same(8, (int) iamDb()->query('SELECT count(*) FROM audit_log_before_018')->fetchColumn(), 'and the kept table is never written');
+        } finally {
+            useDatabase($main);
+        }
+        $logged = entriesOf($pdo, 'anotoki_audit_log');
+
+        // Then every file after it: 027 drops the copy 018 kept, and the library's table keeps every entry.
+        $result = applyPendingMigrations($pdo);
+        same([[], null], [pendingMigrations($pdo), $result['failed']], 'every file applied, every gate passed (' . ($result['error'] ?? '') . ')');
+        same([false, false], [tableThere($pdo, 'audit_log'), tableThere($pdo, 'audit_log_before_018')], 'the old table gone, under either name');
+        same($logged, entriesOf($pdo, 'anotoki_audit_log'), 'every entry still in the library\'s table, as it was');
+    },
+);
 
 test('a 018 whose gate fails moves nothing and keeps nothing - every entry where it was, 018 waiting - and runs once the cause is gone', function () {
     $pdo = buildIamAsInstalled('_spoilt');
     $history = writeHistory($pdo);
-    $result = applyMigrationsThrough($pdo, ADMIN_SET_FILES[1]);
+    $result = applyMigrationsThrough($pdo, ADMIN_SET_FILES[count(ADMIN_SET_FILES) - 1]);
     same([ADMIN_SET_FILES, null], [$result['applied'], $result['failed']], 'the library\'s admin set applied first');
 
     $untouched = static function (string $why) use ($pdo, $history): void {
@@ -370,7 +381,7 @@ test('the window: an installed IAM, the new code, nothing applied - every way in
 
         // Apply: a backup of the database as it was, the library's set, 018, the entries that waited.
         $pending = migrationNames($admin->get('/api/admin/migrations')->json()['pending'] ?? []);
-        same([...ADMIN_SET_FILES, AUDIT_MIGRATION], array_slice($pending, 0, 3), 'what Apply will bring: the admin set, 018, ...');
+        same([...ADMIN_SET_FILES, AUDIT_MIGRATION], array_slice($pending, 0, count(ADMIN_SET_FILES) + 1), 'what Apply will bring: the admin set, 018, ...');
         $applied = $admin->post('/api/admin/migrations/apply');
         same([200, $pending, null], [$applied->status, migrationNames($applied->json()['applied'] ?? []), $applied->json()['failed'] ?? null], 'Apply: ' . $applied->body);
         check(

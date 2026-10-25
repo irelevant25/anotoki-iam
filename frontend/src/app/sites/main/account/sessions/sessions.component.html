@@ -77,10 +77,10 @@
                                     <span class="mono">{{ session.ip ?? "-" }}</span>
                                 </td>
                                 <td [attr.data-label]="'sessions.column.started' | t">
-                                    <span class="nowrap">{{ session.created_at | appDate }}</span>
+                                    <span class="nowrap">{{ session.created_at | anotokiDate: "datetime" }}</span>
                                 </td>
                                 <td [attr.data-label]="'sessions.column.lastSeen' | t">
-                                    <span class="nowrap" [attr.title]="session.last_seen_at | appDate">{{ session.last_seen_at | appDate: "relative" : "-" }}</span>
+                                    <span class="nowrap" [attr.title]="session.last_seen_at | anotokiDate: 'datetime'">{{ (session.last_seen_at | anotokiAgo) || "-" }}</span>
                                 </td>
                                 <td [attr.data-label]="'sessions.column.state' | t">
                                     @if (session.current) {
@@ -91,7 +91,7 @@
                                         <span class="ended" [attr.title]="session.revoked_reason">
                                             {{ stateKey(session) | t }}
                                             @if (session.revoked_at) {
-                                                <span class="small muted">{{ session.revoked_at | appDate }}</span>
+                                                <span class="small muted">{{ session.revoked_at | anotokiDate: "datetime" }}</span>
                                             }
                                         </span>
                                     }

@@ -4,6 +4,7 @@ import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiAgoPipe, AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
@@ -13,7 +14,6 @@ import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminApi } from '../../../api/admin.api';
 import { ApiError } from '../../../api/api-error';
 import { ApprovalQueue, PendingAccount } from '../../../api/models';
-import { AppDatePipe } from '../../../shared/i18n/app-date.pipe';
 import { adminErrorText } from '../shared/admin-errors';
 
 /**
@@ -30,7 +30,19 @@ import { adminErrorText } from '../shared/admin-errors';
  */
 @Component({
   selector: 'app-approvals',
-  imports: [RouterLink, AppDatePipe, AlertComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, PageHeaderComponent, SpinnerComponent],
+  imports: [
+    RouterLink,
+    AnotokiAgoPipe,
+    AnotokiDatePipe,
+    AlertComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    EmptyStateComponent,
+    ErrorStateComponent,
+    PageHeaderComponent,
+    SpinnerComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './approvals.component.html',
   styleUrl: './approvals.component.scss',

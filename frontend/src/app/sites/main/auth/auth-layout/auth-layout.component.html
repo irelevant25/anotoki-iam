@@ -1,6 +1,9 @@
 <!-- Focus is moved by hand: with <base href="/">, a bare #main would resolve to /#main and leave the page. -->
 <a class="skip-link" href="#main" (click)="$event.preventDefault(); main.focus()">{{ "shell.skipToContent" | t }}</a>
 
+<!-- The administrators' announcement, when there is one (the family's site settings): above the page, across it, after the skip link. -->
+<anotoki-announcement />
+
 <div class="auth">
     <section class="sky">
         <div class="stars stars-far" aria-hidden="true"></div>

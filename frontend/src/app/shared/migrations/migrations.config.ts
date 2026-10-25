@@ -2,8 +2,8 @@ import { Injector, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AnotokiMigrationsConfig, SiteStatusWords } from '@anotoki/lib/migrations';
 import { TranslationService as LibraryTranslations, siteStatusWords } from '@anotoki/lib/translations';
+import { adminDateTime } from '../admin/admin-dates';
 import { SessionService } from '../auth/session.service';
-import { formatAppDate } from '../i18n/app-date.pipe';
 import { TranslationService } from '../i18n/translation.service';
 
 /** The admin panel's Migrations page: the route that shows the module's page. */
@@ -32,7 +32,8 @@ export const MIGRATIONS_ROUTE = '/admin/migrations';
  *   other; the module's built-in English and Slovak where there is none) -
  *   and over them the IAM's own words for its not-set-up page (`notSetUp.*`),
  *   in the language on the page.
- * - Dates: as the account writes them (`appDate`).
+ * - Dates: as the account writes them (the family's, handed over by the
+ *   admin panel's routes: shared/admin/admin-dates.ts).
  * - After an Apply that leaves nothing to apply: the strings are read again -
  *   a migration may have brought some.
  */
@@ -74,7 +75,7 @@ export function iamMigrationsConfig(): AnotokiMigrationsConfig {
         },
       });
     },
-    formatDate: (iso) => formatAppDate(iso, 'datetime', i18n.locale(), session.user()?.preferences ?? null),
+    formatDate: adminDateTime,
     onUpToDate: () => i18n.reload(),
   };
 }

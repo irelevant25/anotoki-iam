@@ -1,9 +1,9 @@
 import { inject } from '@angular/core';
 import { AdminFailure, AnotokiAdminConfig } from '@anotoki/lib/admin';
 import { SessionService } from '../auth/session.service';
-import { formatAppDate } from '../i18n/app-date.pipe';
 import { TranslationService } from '../i18n/translation.service';
 import { MIGRATIONS_ROUTE } from '../migrations/migrations.config';
+import { adminDateTime } from './admin-dates';
 
 /**
  * What only the admin panel says and does for the admin tools' pages - handed
@@ -46,8 +46,12 @@ export function useAdminToolsPanel(part: AdminToolsPanel | null): void {
  *   or - for an account without one - a sign-in of the last fifteen minutes,
  *   whose refusal offers "Sign in again" (FreshSignInService).
  * - A person the logs or a feedback message name opens on the Users page;
- *   dates as the account writes them (`appDate`); the Migrations page while a
+ *   dates as the account writes them (the family's, handed over by the
+ *   panel's routes: shared/admin/admin-dates.ts); the Migrations page while a
  *   table waits.
+ * - The Site settings page (anotoki-lib 0.11.0, the announcement alone): a
+ *   field for the announcement's words in each language the IAM offers, by
+ *   its own name.
  */
 export function iamAdminToolsConfig(): AnotokiAdminConfig {
   const session = inject(SessionService);
@@ -57,7 +61,8 @@ export function iamAdminToolsConfig(): AnotokiAdminConfig {
     siteName: 'the IAM',
     migrationsRoute: MIGRATIONS_ROUTE,
     personLink: (id) => ['/admin/users', id],
-    formatDate: (iso) => formatAppDate(iso, 'datetime', i18n.locale(), session.user()?.preferences ?? null),
+    formatDate: adminDateTime,
+    languages: () => i18n.languages().map((language) => ({ code: language.code, name: language.native_name })),
     failureText: (failure) => panel?.failureText(failure),
     signInAgain: () => panel?.signInAgain(),
     // Read as the Backups page is made - after the panel's routes handed it over.

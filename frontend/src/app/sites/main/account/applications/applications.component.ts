@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, u
 import { AvatarComponent } from '@anotoki/lib/ui/avatar';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { AnotokiAgoPipe } from '@anotoki/lib/ui/dates';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { IconComponent } from '@anotoki/lib/ui/icon';
@@ -10,7 +11,6 @@ import { AccountApi } from '../../../../api/account.api';
 import { ApiError } from '../../../../api/api-error';
 import { AccountApplication } from '../../../../api/models';
 import { SessionService } from '../../../../shared/auth/session.service';
-import { AppDatePipe } from '../../../../shared/i18n/app-date.pipe';
 import { errorText } from '../../../../shared/i18n/error-text';
 import { TPipe } from '../../../../shared/i18n/t.pipe';
 import { TranslationService } from '../../../../shared/i18n/translation.service';
@@ -26,7 +26,7 @@ import { TranslationService } from '../../../../shared/i18n/translation.service'
  */
 @Component({
   selector: 'app-applications',
-  imports: [AppDatePipe, TPipe, AvatarComponent, BadgeComponent, ButtonComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],
+  imports: [AnotokiAgoPipe, TPipe, AvatarComponent, BadgeComponent, ButtonComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './applications.component.html',
   styleUrl: './applications.component.scss',

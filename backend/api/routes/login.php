@@ -3,6 +3,8 @@
 use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Feedback\Http\FeedbackRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
+use Anotoki\Lib\Robots\Http\RobotsRoutes;
+use Anotoki\Lib\SiteSettings\Http\SiteSettingsRoutes;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Anotoki\Lib\Translations\Translations;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -312,6 +314,28 @@ ErrorLogRoutes::client($app, '/api/client-errors', iamErrorLog(), iamAdminContex
 // Origin like every write here, never an exemption, and in neither CORS list.
 // 503 feature_unavailable while the library's table is not there.
 FeedbackRoutes::public($app, '/api/feedback', iamFeedback(), iamAdminContext(), iamFeedbackSender(...))->add(optionalSession());
+
+// What every page is told before anybody signs in - the anotoki family's site
+// settings (anotoki/lib's SiteSettingsRoutes::public(), anotoki-lib 0.11.0;
+// iamSiteSettings(), api/site_settings.php): {announcement: null | {level,
+// message: {en, sk, ...}}}, the announcement alone - the one part the IAM
+// offers. The same for everybody: no cookie is read and none is set, and only
+// the IAM's own pages read it - it is in neither CORS list. no-store (the
+// security headers): a switch thrown on the admin panel reaches the next page
+// load. While the library's table waits for its update, no announcement.
+SiteSettingsRoutes::public($app, iamSiteSettings());
+
+// What search engines read, at the issuer's root - the family's (anotoki/lib's
+// RobotsRoutes, anotoki-lib 0.11.0; iamRobots(), api/site_settings.php):
+// robots.txt keeps them out of /admin, /api, /auth, every sign-in page, the
+// account pages and /.well-known/, and names the sitemap by the configured
+// issuer; sitemap.xml lists the legal pages, About and Support. Public, GET and
+// HEAD, cacheable for an hour, no cookie read. The front controller is given
+// both paths as it is given /api (backend/composer.json's
+// extra["anotoki-deploy"] routes; router.php and the dev server's proxy in
+// development).
+RobotsRoutes::robots($app, iamRobots());
+RobotsRoutes::sitemap($app, iamRobots());
 
 // ── The pending authorization request ────────────────────────────────────────
 

@@ -4,6 +4,7 @@ import { DEVICE_TOKEN_KEY } from '../common/device-token';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { LANGUAGE_STORAGE } from '../../../shared/i18n/translations.config';
 import { THEME_STORAGE_KEY } from '../../../shared/kit/kit.config';
+import { ANNOUNCEMENT_STORAGE_KEY } from '../../../shared/site-settings/site-settings.config';
 
 /**
  * The day the IAM's facts last changed: the pages show the later of it and
@@ -11,7 +12,7 @@ import { THEME_STORAGE_KEY } from '../../../shared/kit/kit.config';
  * the IAM keeps or for how long - and the strings that say so (`legal.*`,
  * migration 020).
  */
-export const IAM_LEGAL_UPDATED = '2026-10-19';
+export const IAM_LEGAL_UPDATED = '2026-10-25';
 
 /** The hosting company the owner named on 2026-10-18: a name and an address of the code's, never a string's. */
 const WEB_HOST = { name: 'WebSupport s.r.o.', url: 'https://www.websupport.sk' } as const;
@@ -123,6 +124,8 @@ export function iamLegalFacts(i18n: TranslationService, secure: boolean): LegalF
       { preset: 'language', name: `${LANGUAGE_STORAGE.language}, ${LANGUAGE_STORAGE.cache}` },
       { name: LANGUAGE_STORAGE.language, kind: 'session', purpose: i18n.t('legal.storage.tabLanguage.purpose'), kept: i18n.t('legal.storage.untilTabClosed') },
       { name: LANGUAGE_STORAGE.drafts, kind: 'session', purpose: i18n.t('legal.storage.drafts.purpose'), kept: i18n.t('legal.storage.untilTabClosed') },
+      // The administrators' announcement hidden (the family's site settings, anotoki-lib 0.11.0): a mark of it, never its words.
+      { preset: 'announcement', name: ANNOUNCEMENT_STORAGE_KEY },
     ],
     processors: [
       // The hosting company, named by the owner on 2026-10-18: the servers, the database and the mail - which goes out

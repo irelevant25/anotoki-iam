@@ -183,29 +183,9 @@ function iamAdminCount(?int $besides = null): int
 }
 
 /**
- * Whether the database has migration 010's sign-in rules (each role's
- * may_sign_in, each application's login_required).
- *
- * A build is uploaded before its migrations are applied, so for the minutes
- * until "Apply pending" this code runs on a database without them - and every
- * site's refresh passes through applicationAccessRefusal(). A catalog query
- * that cannot fail, asked afresh every time like translationsReady(): a memo
- * would still say "not yet" after the admin panel applied 010 in this very
- * process.
+ * The answer of the approvals' routes while migration 012 is pending
+ * (requireSignInRules()): a 503 that points at the Migrations page, not a 500.
  */
-function signInRulesReady(PDO $pdo): bool
-{
-    return asBool(
-        $pdo
-            ->query(
-                "SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('application_roles') AND attname = 'may_sign_in' AND NOT attisdropped)
-            AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('applications') AND attname = 'login_required' AND NOT attisdropped)",
-            )
-            ->fetchColumn(),
-    );
-}
-
-/** The answer of what needs 010 while it is pending: a 503 that points at the Migrations page, not a 500. */
 function signInRulesUnavailable(): array
 {
     return [
@@ -281,18 +261,16 @@ function applicationAccessRefusal(array $application, array $user): ?array
 
 /**
  * Whether the account's roles keep it out of the application - whatever else
- * (the application switched off, the account's own state) would.
+ * (the application switched off, the account's own state) would: it holds no
+ * role there that may sign in (migration 010's rule, each role's
+ * may_sign_in). The IAM's own entry is never asked (its gate is Settings ->
+ * Signing in). The rule before 010, on the applications' `access` column,
+ * went with that column (migration 027): a database without 010 is no
+ * database this build runs on - the query below fails, and nothing is let in.
  */
 function rolesKeepOut(array $application, int $userId): bool
 {
-    if (signInRulesReady(iamDb())) {
-        return !asBool($application['system']) && !userMaySignInTo($userId, (int) $application['id']);
-    }
-
-    // Until 010 is applied: the rule before it, on the column it read. Goes,
-    // with the access column, in the migration that drops it once both IAMs
-    // have 010 (docs/decisions.md, 2026-10-05).
-    return ($application['access'] ?? 'everyone') === 'members' && userRolesIn($userId, (int) $application['id']) === [];
+    return !asBool($application['system']) && !userMaySignInTo($userId, (int) $application['id']);
 }
 
 /** The public face of an application, as the sign-in pages show it. */

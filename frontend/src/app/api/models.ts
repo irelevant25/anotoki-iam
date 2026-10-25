@@ -350,7 +350,7 @@ export interface AdminUser {
   /**
    * Client ids of the switched-on sites this account is blocked from: it holds
    * no role there that may sign in, and its MEMBER there was taken away or it
-   * holds another role there. Empty while migration 010 is pending.
+   * holds another role there.
    */
   blocked_in: string[];
   /** False: made by signing up while new accounts needed approval, and not approved yet - it signs in nowhere. */
@@ -403,7 +403,7 @@ export interface FilterApplication {
   /** The IAM's own entry: its roles are never asked at sign-in (Settings -> Signing in is its gate). */
   system: boolean;
   roles: string[];
-  /** The roles whose holders may sign in (every role while migration 010 is pending). */
+  /** The roles whose holders may sign in. */
   sign_in_roles: string[];
 }
 

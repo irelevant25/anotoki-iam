@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, 
 import { RouterOutlet } from '@angular/router';
 import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { ShellComponent } from '@anotoki/lib/shell';
+import { AnnouncementComponent } from '@anotoki/lib/site-settings';
 import { SessionService } from '../../../shared/auth/session.service';
 import { Changelog } from '../../../shared/changelog/changelog.service';
 import { AppTopBarComponent } from '../common/top-bar/top-bar.component';
@@ -13,11 +14,12 @@ import { DeletionBannerComponent } from './deletion-banner.component';
  * while the account's deletion is pending, the notice above every one of
  * them that says when, and cancels it. Under them the family's footer
  * (@anotoki/lib/footer): the IAM's version, What's new and Feedback, then
- * Terms · Privacy · Contact.
+ * Terms · Privacy · Contact. Above the frame, the administrators'
+ * announcement when there is one (`<anotoki-announcement>`: shared/site-settings).
  */
 @Component({
   selector: 'app-account-layout',
-  imports: [RouterOutlet, ShellComponent, AppTopBarComponent, DeletionBannerComponent, SiteFooterComponent],
+  imports: [RouterOutlet, ShellComponent, AppTopBarComponent, DeletionBannerComponent, SiteFooterComponent, AnnouncementComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './account-layout.component.html',
   styleUrl: './account-layout.component.scss',

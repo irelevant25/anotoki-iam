@@ -47,13 +47,13 @@
                                 </td>
                                 <td [attr.data-label]="'tokens.column.app' | t">{{ token.application_name }}</td>
                                 <td [attr.data-label]="'tokens.column.created' | t">
-                                    <span class="nowrap">{{ token.created_at | appDate: "date" }}</span>
+                                    <span class="nowrap">{{ token.created_at | anotokiDate }}</span>
                                 </td>
                                 <td [attr.data-label]="'tokens.column.expires' | t">
-                                    <span class="nowrap">{{ token.expires_at | appDate: "date" }}</span>
+                                    <span class="nowrap">{{ token.expires_at | anotokiDate }}</span>
                                 </td>
                                 <td [attr.data-label]="'tokens.column.lastUsed' | t">
-                                    <span class="nowrap">{{ token.last_used_at | appDate: "relative" : ("common.never" | t) }}</span>
+                                    <span class="nowrap">{{ (token.last_used_at | anotokiAgo) || ("common.never" | t) }}</span>
                                 </td>
                                 <td [attr.data-label]="'tokens.column.state' | t">
                                     @switch (state(token)) {

@@ -192,7 +192,7 @@ function accountAwaitsApproval(array $user): bool
 
 /**
  * Whether the database has migration 012's `users.approved`. A catalog query
- * that cannot fail, asked afresh every time like signInRulesReady(): a build
+ * that cannot fail, asked afresh every time like translationsReady(): a build
  * is uploaded before its migrations, signing up must work in between, and the
  * admin panel's Apply runs in the same process as the requests after it.
  */

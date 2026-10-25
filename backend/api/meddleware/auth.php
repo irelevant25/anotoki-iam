@@ -139,20 +139,18 @@ function requireAdmin(): callable
 }
 
 /**
- * For the admin panel: every /applications* route answers 503
- * sign_in_rules_unavailable while migration 010 is pending - they read and
- * write its columns (login_required, each role's may_sign_in), and would
- * otherwise be a 500. Everything else in the panel works, the Migrations page
- * that applies it first of all. The /users* routes work too: what they read of
- * 010 answers as before it while it is pending, so the owner can still make
- * an account or change somebody's roles in that window. Decided on the
- * route's own pattern, not the address, so no spelling of a path slips past.
- * Must come after requireAdmin() in the chain (added before it).
+ * For the admin panel: the approvals - the list, approving and declining -
+ * answer 503 sign_in_rules_unavailable while migration 012 is pending: there
+ * is nothing to approve before it, and no column to read. Everything else in
+ * the panel works, the Migrations page that applies it first of all; the user
+ * pages read 012 only once it is there, and keep working in that window.
+ * Decided on the route's own pattern, not the address, so no spelling of a
+ * path slips past. Must come after requireAdmin() in the chain (added before
+ * it).
  *
- * The same answer from the approvals - the list, approving and declining -
- * while migration 012 is pending: there is nothing to approve before it, and
- * no column to read. The user pages read it only once it is there, and keep
- * working in that window.
+ * (It answered the /applications* routes the same while migration 010 was
+ * pending, until migration 027 dropped the column the rule before 010 read:
+ * this build runs on no database without 010.)
  */
 function requireSignInRules(): callable
 {
@@ -160,9 +158,7 @@ function requireSignInRules(): callable
         $route = \Slim\Routing\RouteContext::fromRequest($request)->getRoute();
         $pattern = $route !== null ? $route->getPattern() : '';
 
-        $unready =
-            (preg_match('#^/api/admin/applications(/|$)#', $pattern) && !signInRulesReady(iamDb())) ||
-            (preg_match('#^/api/admin/(approvals|users/[^/]+/(approve|decline))$#', $pattern) && !accountApprovalReady(iamDb()));
+        $unready = preg_match('#^/api/admin/(approvals|users/[^/]+/(approve|decline))$#', $pattern) && !accountApprovalReady(iamDb());
 
         if ($unready) {
             $refusal = signInRulesUnavailable();

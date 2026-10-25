@@ -16,5 +16,17 @@
     "secure": false,
     "changeOrigin": false,
     "logLevel": "warn"
+  },
+  "/robots.txt": {
+    "target": "http://localhost:8100",
+    "secure": false,
+    "changeOrigin": false,
+    "logLevel": "warn"
+  },
+  "/sitemap.xml": {
+    "target": "http://localhost:8100",
+    "secure": false,
+    "changeOrigin": false,
+    "logLevel": "warn"
   }
 }

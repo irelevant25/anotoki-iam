@@ -5,6 +5,7 @@ import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiDatePipe, formatDate, formatInOrder, formatTime } from '@anotoki/lib/ui/dates';
 import { SelectComponent, SelectOption, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
@@ -15,8 +16,6 @@ import { ApiError } from '../../../../api/api-error';
 import { DateFormatChoice, TimeFormatChoice } from '../../../../api/models';
 import { SessionService } from '../../../../shared/auth/session.service';
 import { usernameFits } from '../../../../shared/auth/username';
-import { AppDatePipe } from '../../../../shared/i18n/app-date.pipe';
-import { DATE_FORMATS, TIME_FORMATS, formatClock, formatDatePattern } from '../../../../shared/i18n/date-patterns';
 import { TranslationKey } from '../../../../shared/i18n/en';
 import { errorText } from '../../../../shared/i18n/error-text';
 import { TPipe } from '../../../../shared/i18n/t.pipe';
@@ -36,6 +35,15 @@ const QUICK_LINKS: QuickLink[] = [
   { link: '/account/applications', icon: 'grid', title: 'account.nav.applications', text: 'overview.quickApplications' },
   { link: '/account/tokens', icon: 'terminal', title: 'account.nav.tokens', text: 'overview.quickTokens' },
 ];
+
+/**
+ * The account's date orders and clocks (migration 015) - the anotoki family's
+ * one vocabulary, which every site writes by (@anotoki/lib/ui/dates): a date
+ * in a fixed order of numbers, the clock with or without am and pm.
+ * "Automatic" (none) is the page language's own way.
+ */
+const DATE_FORMATS: readonly DateFormatChoice[] = ['dmy_dot', 'dmy_slash', 'mdy_slash', 'ymd_dash'];
+const TIME_FORMATS: readonly TimeFormatChoice[] = ['24', '12'];
 
 /**
  * /account - who the account is, and the way to everything else.
@@ -58,7 +66,7 @@ const QUICK_LINKS: QuickLink[] = [
   selector: 'app-overview',
   imports: [
     RouterLink,
-    AppDatePipe,
+    AnotokiDatePipe,
     TPipe,
     AlertComponent,
     BadgeComponent,
@@ -114,18 +122,18 @@ export class OverviewComponent {
   protected readonly dateFormatOptions = computed<SelectOption[]>(() => {
     const locale = this._i18n.locale();
     const sample = sampleMoment();
-    const automatic = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(sample);
-    return [{ value: '', label: `${this._i18n.t('overview.formatAutomatic')} (${automatic})` }, ...DATE_FORMATS.map((format) => ({ value: format, label: formatDatePattern(sample, format) }))];
+    const automatic = formatDate(sample, { locale });
+    return [{ value: '', label: `${this._i18n.t('overview.formatAutomatic')} (${automatic})` }, ...DATE_FORMATS.map((format) => ({ value: format, label: formatInOrder(sample, format) }))];
   });
 
   protected readonly timeFormatOptions = computed<SelectOption[]>(() => {
     const locale = this._i18n.locale();
     const sample = sampleMoment();
-    const automatic = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(sample);
+    const automatic = formatTime(sample, { locale });
     const label: Record<TimeFormatChoice, string> = { '24': this._i18n.t('overview.clock24'), '12': this._i18n.t('overview.clock12') };
     return [
       { value: '', label: `${this._i18n.t('overview.formatAutomatic')} (${automatic})` },
-      ...TIME_FORMATS.map((clock) => ({ value: clock, label: `${label[clock]} (${formatClock(sample, locale, clock)})` })),
+      ...TIME_FORMATS.map((clock) => ({ value: clock, label: `${label[clock]} (${formatTime(sample, { locale, choices: { time_format: clock } })})` })),
     ];
   });
 

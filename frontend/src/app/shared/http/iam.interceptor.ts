@@ -32,6 +32,17 @@ function fromMigrationsModule(url: string): boolean {
 }
 
 /**
+ * The family's site settings' read (`GET /api/site-settings`, made by
+ * `@anotoki/lib/site-settings` as the site starts, and again after the admin
+ * panel's Site settings page saves): what every page is told - the
+ * announcement, for the IAM. Its failure leaves no bar and is never a reason
+ * to move a page, as the words' own request's is not.
+ */
+function siteSettingsRead(method: string, url: string): boolean {
+  return method === 'GET' && url.split(/[?#]/)[0] === '/api/site-settings';
+}
+
+/**
  * The four things every request to the IAM's own API needs.
  *
  * 1. `X-IAM-Request: 1` on anything that is not a GET. It is the CSRF guard: a
@@ -63,6 +74,9 @@ function fromMigrationsModule(url: string): boolean {
  * request is made while the site starts, before any page exists to be sent
  * away from - so no `/not-set-up` and no session cleared: a page's own first
  * request says `not_set_up` a moment later, and that one does the sending.
+ * So does the site settings' read (`GET /api/site-settings`, the
+ * announcement's), made as the site starts too: its failure is no bar, never
+ * a page moved.
  *
  * The report of a page's own error (`POST /api/client-errors`, which the
  * family's reporter marks ANOTOKI_ERROR_REPORT - `provideAnotokiErrorReport()`
@@ -94,7 +108,7 @@ export const iamInterceptor: HttpInterceptorFn = (request, next) => {
 
       const apiError = toApiError(error);
 
-      if (request.context.get(ANOTOKI_TRANSLATION_BUNDLE)) {
+      if (request.context.get(ANOTOKI_TRANSLATION_BUNDLE) || siteSettingsRead(request.method, request.url)) {
         return throwError(() => apiError);
       }
 

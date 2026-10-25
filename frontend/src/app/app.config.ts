@@ -7,6 +7,7 @@ import { provideAnotokiFeedback } from '@anotoki/lib/feedback';
 import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { provideAnotokiMigrations, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { ThemeService, provideAnotokiShell } from '@anotoki/lib/shell';
+import { SiteSettings, provideAnotokiSiteSettings } from '@anotoki/lib/site-settings';
 import { provideAnotokiTranslations } from '@anotoki/lib/translations';
 import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { routes } from './app.routes';
@@ -21,6 +22,7 @@ import { iamTranslationsConfig, startTranslations } from './shared/i18n/translat
 import { iamShellConfig, iamUiConfig } from './shared/kit/kit.config';
 import { iamLegalConfig } from './shared/legal/legal.config';
 import { iamMigrationsConfig } from './shared/migrations/migrations.config';
+import { iamSiteSettingsConfig } from './shared/site-settings/site-settings.config';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -75,6 +77,11 @@ export const appConfig: ApplicationConfig = {
     // with the first press: the page's language, the database's words, the
     // session's account and its address (shared/feedback/feedback.config.ts).
     provideAnotokiFeedback(iamFeedbackConfig),
+    // The family's site settings (@anotoki/lib/site-settings, anotoki-lib
+    // 0.11.0): the announcement alone - the one part the IAM offers -, a bar
+    // across the top of the sign-in, account and legal pages' frames, never
+    // the admin panel's (shared/site-settings/site-settings.config.ts).
+    provideAnotokiSiteSettings(iamSiteSettingsConfig),
     { provide: TitleStrategy, useClass: IamTitleStrategy },
     // The theme applies itself on construction; asking for it here makes that
     // happen before the first page renders, not on first use. The words are
@@ -83,10 +90,16 @@ export const appConfig: ApplicationConfig = {
     // The start never rejects, so a server that cannot be reached still leaves
     // a site that starts and says so. The IAM's versions (public/changelog.json,
     // shared/changelog) are asked for beside it, once a page load and never
-    // waited for: the footer's version is there long before the words are.
+    // waited for: the footer's version is there long before the words are. So
+    // is the announcement (GET /api/site-settings), never waited for either:
+    // the IAM governs no page by its settings, so nothing has to be known
+    // before the first page is drawn, and a sign-in page waits on nothing it
+    // can do without. It is usually there before the words, in the bar above
+    // every frame but the admin panel's.
     provideAppInitializer(() => {
       inject(ThemeService);
       void inject(Changelog).load();
+      void inject(SiteSettings).load();
       return startTranslations(inject(SessionService), inject(TranslationService), inject(DOCUMENT).location?.pathname ?? '/');
     }),
   ],

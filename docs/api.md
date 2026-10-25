@@ -19,7 +19,7 @@ the IAM frontend. The examples use the development one:
 
 | | Issuer |
 | --- | --- |
-| Development | `http://localhost:4300` (the Angular dev server, which proxies `/api`, `/.well-known` and `/setup.php` to PHP on `:8100`) |
+| Development | `http://localhost:4300` (the Angular dev server, which proxies `/api`, `/.well-known`, `/robots.txt`, `/sitemap.xml` and `/setup.php` to PHP on `:8100`) |
 | A real host | its own https address, as typed into the installer (`config/iam.local.php`) |
 
 ---
@@ -593,10 +593,10 @@ turned in the admin panel reaches the sites within a minute or so.
   lowercase letters, digits and dashes), a switched-off application
   (`enabled: false`) and the IAM's own entry (`iam`, system). A site reads a
   404 as "sign-in required" and keeps it.
-- `503 sign_in_rules_unavailable` for an application that exists while
-  migration 010 is pending (there is no switch to read yet);
-  `503 not_set_up` before the installer. A site keeps the last answer it had,
-  or requires sign-in when it never had one.
+- `503 not_set_up` before the installer. A site keeps the last answer it had,
+  or requires sign-in when it never had one. (Until migration 027 it was a
+  `503 sign_in_rules_unavailable` too while 010 was pending; no build since
+  runs on a database without 010.)
 - Both are `no-store`.
 
 What it gives away: to anybody who knows a client id, that an enabled site
@@ -722,6 +722,30 @@ that the database does not answer - a timing signal, which opens nothing
 
 `installed` is whether a real host's install has finished
 (`storage/installed.lock`); once it is true, nothing offers the installer.
+The IAM's state is never `maintenance`: it offers no Getting in (below).
+
+### `GET /api/site-settings`
+
+What every page is told before anybody signs in - the anotoki family's site
+settings (anotoki-lib 0.11.0), of which the IAM offers **the announcement
+alone**: a bar across the top of the sign-in pages, the account pages and the
+legal pages (never the admin panel's), set on the admin panel's Site settings
+page ("Site settings" under the admin panel).
+
+```json
+{ "announcement": { "level": "warning", "message": { "en": "The sign-in is slow tonight.", "sk": "Prihlasovanie je dnes večer pomalé." } } }
+```
+
+`announcement` is `null` while it is switched off or says nothing (and while
+the library's table waits for its update); `level` is `info`, `warning` or
+`danger`; `message` its words per language, line breaks kept - the page shows
+its language's, else the English, else no bar. Only this key: no
+`maintenance`, no `pages` (the IAM offers neither Getting in nor Page access).
+The same for everybody: no cookie is read or set, in neither CORS list,
+`Cache-Control: no-store`. The pages read it once as they start and never wait
+for it (a failure is no bar, never a page moved). Hiding the bar keeps a mark
+of it - never its words - in `localStorage` under `anotoki-iam:announcement`,
+until its words or its kind change (the Privacy page says so).
 
 ### `GET /api/translations/{code}`
 
@@ -1523,9 +1547,7 @@ role there beyond `MEMBER` (every account holds `MEMBER`); with a role,
 from: it holds no role there that may sign in, and either its `MEMBER` there
 was taken away or it holds another role there. An account holding just
 `MEMBER` where `MEMBER` may not sign in (a members-only site) was never
-invited and is not counted - or every ordinary account would be. While
-migration 010 is pending, `blocked_in` is `[]` and `sign_in_roles` every role:
-the users routes keep working in the minutes between an upload and Apply.
+invited and is not counted - or every ordinary account would be.
 
 `language` on `POST` and `PUT` is lower-cased and trimmed; a language the IAM
 does not offer is `422 invalid_language`, not turned into English. `POST`
@@ -1731,9 +1753,8 @@ every role it holds there (`MEMBER` included); `blocked` the accounts that are
 switched on and blocked from it, by `blocked_in`'s rule (always `[]` for
 `iam`, whose gate is Settings → Signing in).
 
-All six answer `503 sign_in_rules_unavailable` ("Apply the pending migrations
-in the admin panel") while migration 010 is pending; the rest of the panel
-answers as usual.
+Who may sign in is each role's `may_sign_in` (migration 010); the column the
+rule before it read, `access`, went in migration 027.
 
 ```ts
 interface AdminApplication {
@@ -1930,7 +1951,7 @@ every anotoki site; the admin panel's Migrations page is the family's page,
 header on Apply. The engine applies the files the IAM has not recorded yet, in
 order - the anotoki library's admin set (`anotoki_admin`, in
 `vendor/anotoki/lib/backend/migrations/admin`: the tables of the admin tools - the
-audit log and feedback), those of
+audit log, feedback and, since anotoki-lib 0.11.0, the site settings), those of
 `migrations/iam`, then the library's translations set (`anotoki_translations`,
 in `vendor/anotoki/lib/backend/migrations/translations`: the tables of the words
 proved, and the library's own words) - each in a transaction of its own with
@@ -1951,7 +1972,9 @@ says why.
 interface MigrationsStatus {
   sets: string[];   // ['anotoki_admin', 'iam', 'anotoki_translations']: the library's admin set, the IAM's files, the library's translations set
   applied: { set: string; name: string; applied_at: string | null }[];  // recorded and on disk, in the order they ran; ISO 8601 UTC
-  pending: { set: string; name: string; ready: boolean; blocked: boolean }[];  // in the order they will run; the IAM has no drafts: ready true, blocked false
+  // In the order they will run; the IAM has no drafts: ready true, blocked false. duplicates (anotoki-lib 0.11.0): the
+  // other files of its set with its number - a file whose number is taken waits, and every file after it, until renamed.
+  pending: { set: string; name: string; ready: boolean; blocked: boolean; duplicates: string[] }[];
   missing: { set: string; name: string; applied_at: string | null }[];  // recorded as applied, but the file is not there
 }
 
@@ -1977,6 +2000,54 @@ interface ApplyResult {
   answer itself still carries the whole error for the administrator.
   The audit entries that waited for migration 018 go in before it, with their
   own times ("The admin tools" below).
+
+### Site settings
+
+The anotoki family's (anotoki/lib's `SiteSettingsRoutes::admin()`, anotoki-lib
+0.11.0; the admin panel's Site settings page is the family's,
+`@anotoki/lib/admin/site-settings`), the IAM offering **the announcement
+alone** (the owner's decision: closed for maintenance, the IAM would stop every
+site's sign-in; a page switched off could hide a sign-in page). The library
+mounts them at their own path, beside the admin group, under the same checks:
+the session, the IAM's `ADMIN` (not while one's own deletion is pending), the
+library's own ADMIN check, the CSRF header on every write. Refusals are in the
+IAM's body, `{ error, code }`.
+
+| Method + path | |
+| --- | --- |
+| `GET /api/admin/site-settings` | `AdminSiteSettings` (below) |
+| `PUT /api/admin/site-settings` | `{ settings: { announcement_enabled?: boolean, announcement_level?: 'info'\|'warning'\|'danger', announcement_message?: { [language]: string } } }` → `AdminSiteSettings` |
+| `POST`, `PUT /api/admin/site-settings/pages`, `DELETE .../pages/{id}` | Page access, which the IAM does not offer: `422 part_not_offered` (a delete finds nothing: `404 not_found`) |
+
+```ts
+interface AdminSiteSettings {
+  parts: ['announcement'];
+  settings: {
+    announcement_enabled: SettingRow<boolean>;
+    announcement_level: SettingRow<'info' | 'warning' | 'danger'>;
+    announcement_message: SettingRow<{ [language: string]: string }>;  // trimmed, line breaks kept; empty languages left out
+  };
+  pages: [];
+  levels: ['info', 'warning', 'danger'];
+  visibilities: string[];
+  reserved: { pages: string[]; api_paths: string[] };  // what no part may ever close: the library's and the IAM's own
+  limits: { message: number; message_languages: number; api_paths: number; pages: number };  // 2000 characters, 30 languages
+}
+interface SettingRow<T> { value: T; updated_at: string | null; updated_by: number | null; updated_by_name: string | null }
+```
+
+- A switch is saved only when it changed, all of them checked first:
+  `422 invalid_setting` (a level it does not know, a control character, a
+  message longer than 2,000 characters or in more than 30 languages, a
+  message that is no `{language: text}`), `unknown_setting`, `invalid_body`;
+  `maintenance_mode` and `maintenance_message` - Getting in, which the IAM does
+  not offer - are `422 part_not_offered`. `503 feature_unavailable` while the
+  library's table waits for its update (`anotoki_admin/003`).
+- Audited `site_settings.changed`, `{ name: { old, new } }` for each switch
+  that changed - by the library through `iamAuditLog()`, the administrator and
+  their address as ever. A save that changes nothing writes nothing.
+- What every page is told is `GET /api/site-settings` ("First-party: signing
+  in"); a switch reaches the next page that loads.
 
 ### The admin tools: audit log, error log, feedback, backups
 
@@ -2205,3 +2276,40 @@ in, for the sites' backends: under OpenID Connect above.
 
 `GET /api/public/anonymized-accounts` - the ids of the accounts deleted at
 their owners' request, for the sites' backends: under OpenID Connect above.
+
+`GET|HEAD /robots.txt` and `GET|HEAD /sitemap.xml` - what search engines read,
+at the issuer's root, answered by the PHP (the family's `Robots`, anotoki-lib
+0.11.0; the release's `.htaccess` gives the front controller both paths). Both
+public, `Cache-Control: public, max-age=3600`, no cookie read; behind the
+gate like any route (`503 not_set_up` before the installer).
+
+```
+# The robots of every search engine: what to leave alone, and where the site's pages are listed.
+User-agent: *
+Disallow: /admin
+Disallow: /api
+Disallow: /auth
+Disallow: /login
+Disallow: /register
+Disallow: /confirm-email
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /logout
+Disallow: /error
+Disallow: /not-set-up
+Disallow: /account
+Disallow: /unsubscribe
+Disallow: /.well-known/
+
+Sitemap: https://iam.example.test/sitemap.xml
+```
+
+Every sign-in page and the account pages stay out (some carry a mailed token
+in their address), and so does `/.well-known/`: the discovery document and the
+key set are for applications, never a page for a search - robots.txt binds
+crawlers alone, so no OIDC client or SDK is touched by it. `sitemap.xml` lists
+the legal pages, About and Support (`/terms`, `/privacy`, `/contact`,
+`/about`, `/support`), absolute. Both name the configured issuer
+(`config/iam.local.php`'s `public_url`), never a request's `Host`; with no
+usable issuer robots.txt has no `Sitemap:` line and the sitemap answers
+`404 not_configured`.

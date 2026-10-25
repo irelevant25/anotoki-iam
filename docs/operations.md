@@ -56,8 +56,9 @@ it; in a checkout, `backend/`'s own.
 `backend/setup.php` is never in a release: for the first install it is uploaded
 by hand into the live `backend/`, and it deletes itself.
 
-The release's `frontend/.htaccess` sends `/api`, `/.well-known/openid-configuration`
-and `/.well-known/jwks.json` to `index.php` (which requires `backend/api/index.php`),
+The release's `frontend/.htaccess` sends `/api`, `/robots.txt`, `/sitemap.xml`,
+`/.well-known/openid-configuration` and `/.well-known/jwks.json` to `index.php`
+(which requires `backend/api/index.php`),
 `/setup.php` to the installer while `backend/` has it, falls back to `index.html`
 for the app's own routes (a missing file with an extension is a 404), sets the
 security headers, and gets the `Authorization` header to PHP under CGI / FastCGI
@@ -378,9 +379,9 @@ the build analyzer no, the rest yes). Nothing changes for anybody on the day
 it runs: an application set to members only keeps letting in only the holders
 of its other roles (its MEMBER may not sign in), a MEMBER somebody held there
 becomes INVITED with its holders, and a members-only application nobody could
-get into is switched off. Before uploading the build that brings it, `php
-clients.php` lists each application's `access` - the members-only ones are
-those whose MEMBER 010 will untick. It adds no strings.
+get into is switched off. Before uploading the build that brought it, `php
+clients.php` listed each application's `access` - the members-only ones were
+those whose MEMBER 010 would untick. It adds no strings.
 
 **Apply 010 right after uploading its build, and before any site that reads
 the sign-in switch** - the opposite of 007's order. Until Apply, signing in
@@ -389,8 +390,9 @@ answer "Apply the pending migrations" (the other pages work); the public
 answer the sites read, `/api/public/applications/{client_id}`, is a 503,
 so each site keeps its last answer, or requires signing in. MEMBER in a
 token is harmless to the sites as they are: they read ADMIN and EDITOR.
-`access` stays in the database, unread; a later migration drops it once both
-IAMs run 010. **Once 010 is applied, never upload the build from before it
+`access` stayed in the database, unread, until migration 027 dropped it (below)
+once both IAMs ran 010 - and the rule before 010 went from the code with it.
+**Once 010 is applied, never upload the build from before it
 again** - it would let every account into a members-only site and let back in
 anybody blocked by having MEMBER taken away. A problem after 010 is fixed
 forward, with a new build (`docs/decisions.md`).
@@ -416,9 +418,9 @@ by nobody, and a role made before stays, read-only. A new application gets
 the three from then on. The admin panel no longer adds, removes, renames or
 rewords a role, offers no client type or secret, and has no landing page
 settings: the public list of sites is every one switched on, in the order
-they were added. `type`, the secret and the landing switch stay, unread, until
-the migration that drops `access` - not a way back to a build from before
-010. It adds no strings, and goes with 010, in the same Apply.
+they were added. `type`, the secret and the landing switch stay, unread, for a
+later migration (027 dropped 010's `access` alone) - not a way back to a build
+from before 011. It adds no strings, and goes with 010, in the same Apply.
 
 **Migration 012** (new accounts may wait for an administrator's approval - the
 owner's decision of 2026-10-06, `docs/decisions.md`) adds the switch
@@ -503,8 +505,8 @@ brings, in this order: `anotoki_admin/001_audit_log.sql` and
 `002_feedback.sql` (the library's tables - the audit log, and feedback, which
 the IAM takes since 2026-10-19), then 018, which moves every entry of the IAM's
 `audit_log` into the library's `anotoki_audit_log` with its id, and keeps the
-old table, unread, as `audit_log_before_018` (a later migration drops it once
-both IAMs run 018); then the library's translations set's `003` and `004`
+old table, unread, as `audit_log_before_018` (migration 027 dropped it once
+both IAMs ran 018, below); then the library's translations set's `003` and `004`
 (the words of the sites' sign-in screen and feedback form - the IAM shows
 the sign-in screen's never and the feedback form's since 1.0.0, and they are
 in its Translations page like every library word).
@@ -648,6 +650,26 @@ before it goes on the host again** - it would open the three holes again, and
 its confirmation page would read a confirmation that signs nobody in as a
 sign-in; fix forward.
 
+**anotoki-lib 0.11.0 and migration 027** (2026-10-25; `docs/decisions.md`):
+upload both halves, then Apply - its backup first, as ever. Apply brings the
+library's `anotoki_admin/003` (the site settings' tables), the IAM's **027**
+(it drops `applications.access`, the rule before 010, and
+`audit_log_before_018`, the copy of the old audit log 018 kept - every entry
+of it is in the audit log), and the library's translations `014` and `015`
+(the words of its new pieces and of the site settings). Until Apply the admin
+panel's Site settings page says the update comes first and no page shows an
+announcement; everything else works. After it: the admin panel's System →
+Site settings sets the announcement - the IAM's one part of the family's site
+settings: no maintenance mode, no page access -, shown above the sign-in,
+account and legal pages. The release's `.htaccess` now gives the front
+controller `/robots.txt` and `/sitemap.xml` (`extra["anotoki-deploy"].routes`):
+after the deploy, `/robots.txt` answers text naming
+`https://<the IAM's address>/sitemap.xml`, and the sitemap lists the five
+legal, About and Support pages. The sites need nothing. It is no one-way
+step: a build from before 027 still runs on the database after it. Apply 027
+right after the upload: a deletion that falls due in between leaves that
+person's entries in the old copy until 027 drops it.
+
 ### The family's library (anotoki/lib)
 
 What the anotoki sites share lives in one library,
@@ -666,8 +688,8 @@ the audit log, feedback (its form too) and backups (a migration set of its own, 
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
 styles and palette, its components, the top bar and the frame, the admin
-panel's frame, the legal pages and the footer. The IAM is on 0.10.0, both halves (`composer.json`'s `^0.10.0`, the lock
-on v0.10.0, and the 0.10.0 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+panel's frame, the legal pages, the footer, the site settings' pieces and the dates. The IAM is on 0.11.0, both halves (`composer.json`'s `^0.11.0`, the lock
+on v0.11.0, and the 0.11.0 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/backend/migrations`, `/backend/resources`),
 which a release carries with the rest of `vendor/` and which are denied
@@ -679,7 +701,7 @@ development machine:
 
 ```bash
 cd backend
-composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.10.0"); change it first for 0.11
+composer update anotoki/lib --prefer-dist   # within the constraint in composer.json ("^0.11.0"); change it first for 0.12
 # frontend/package.json: "@anotoki/lib": the new release's .tgz URL, then
 cd ../frontend
 bun install                         # bun.lock

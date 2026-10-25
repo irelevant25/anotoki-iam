@@ -29,6 +29,7 @@ import {
   iconTrash,
   iconUserPlus,
   iconUsers,
+  iconWrench,
 } from '@anotoki/lib/ui/icons';
 
 /**
@@ -67,6 +68,7 @@ export const IAM_ICONS = {
   trash: iconTrash,
   userPlus: iconUserPlus,
   users: iconUsers,
+  wrench: iconWrench,
 } satisfies IconSet;
 
 /**

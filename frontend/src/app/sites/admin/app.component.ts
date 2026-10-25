@@ -17,28 +17,25 @@ import { IconName } from '../../shared/kit/icons';
 type PanelLink = SideNavLink & { path: string; icon: IconName };
 
 /**
- * The panel's sixteen pages, as the frame's column lists them: the dashboard
- * first, then under headings - who may get in and where (the accounts, the
- * ones waiting for approval, the sign-ins, the sites), the mails, the words,
- * and the IAM itself (its settings and keys, its logs and the feedback, the
- * backups and the database's updates).
+ * The panel's seventeen pages, as the frame's column lists them - the one
+ * shape of every anotoki admin panel (the owner's request of 2026-10-25): the
+ * IAM's own pages at the top with no heading - the dashboard, who may get in
+ * and where (the accounts, the ones waiting for approval, the sign-ins, the
+ * sites), the mails -, then Localization, then System: the IAM's own system
+ * pages first (its settings and signing keys), then the family's, in the
+ * family's order and words - Site settings, Feedback, Error log, Audit log,
+ * Backups, Migrations (the family's People page is none of the IAM's: its
+ * Users page is the accounts themselves).
  */
 const GROUPS: readonly { id: string; label?: string; links: readonly PanelLink[] }[] = [
-  { id: 'home', links: [{ label: 'Dashboard', path: '/admin', exact: true, icon: 'dashboard' }] },
   {
-    id: 'access',
-    label: 'Access',
+    id: 'site',
     links: [
+      { label: 'Dashboard', path: '/admin', exact: true, icon: 'dashboard' },
       { label: 'Users', path: '/admin/users', icon: 'users' },
       { label: 'Approvals', path: '/admin/approvals', icon: 'clock' },
       { label: 'Sessions', path: '/admin/sessions', icon: 'laptop' },
       { label: 'Applications', path: '/admin/applications', icon: 'appWindow' },
-    ],
-  },
-  {
-    id: 'mail',
-    label: 'Mail',
-    links: [
       { label: 'Announcements', path: '/admin/announcements', icon: 'send' },
       { label: 'Email log', path: '/admin/emails', icon: 'mail' },
     ],
@@ -57,9 +54,10 @@ const GROUPS: readonly { id: string; label?: string; links: readonly PanelLink[]
     links: [
       { label: 'Settings', path: '/admin/settings', icon: 'sliders' },
       { label: 'Signing keys', path: '/admin/keys', icon: 'key' },
-      { label: 'Audit log', path: '/admin/audit', icon: 'history' },
-      { label: 'Error log', path: '/admin/errors', icon: 'alert' },
+      { label: 'Site settings', path: '/admin/site-settings', icon: 'wrench' },
       { label: 'Feedback', path: '/admin/feedback', icon: 'message' },
+      { label: 'Error log', path: '/admin/errors', icon: 'alert' },
+      { label: 'Audit log', path: '/admin/audit', icon: 'history' },
       { label: 'Backups', path: '/admin/backups', icon: 'layers' },
       { label: 'Migrations', path: '/admin/migrations', icon: 'database' },
     ],

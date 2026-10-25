@@ -567,12 +567,6 @@ $app->get('/api/public/applications/{client_id}', function (Request $request, Re
     if ($application === null || !asBool($application['enabled']) || asBool($application['system'])) {
         return respondError($response, 404, 'not_found', 'There is no such application');
     }
-    // 010 pending: there is no switch to read yet. A 503 makes the SDK keep
-    // the answer it had (or require sign-in) until the migration is applied.
-    if (!signInRulesReady(iamDb())) {
-        $refusal = signInRulesUnavailable();
-        return respondError($response, $refusal['status'], $refusal['code'], $refusal['error']);
-    }
 
     return respondJson($response, [
         'client_id' => $application['client_id'],

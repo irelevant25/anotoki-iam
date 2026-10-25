@@ -13,7 +13,7 @@ PHP in [`../backend/api/routes/`](../backend/api/routes/) says more, the code wi
 
 ```bash
 bun ci                  # the packages, exactly as bun.lock lists them (npm start runs it first)
-npm start               # ng serve on http://localhost:4300; /api, /.well-known and /setup.php proxied to PHP on :8100
+npm start               # ng serve on http://localhost:4300; /api, /.well-known, /robots.txt, /sitemap.xml and /setup.php proxied to PHP on :8100
 npm run build           # production build into dist/iam/browser/
 npm run build:dev       # development build (unminified, source maps)
 npm run build:deploy    # production build + its checks before a release (see below)
@@ -27,13 +27,14 @@ when `bun.lock` and `package.json` disagree: add or update packages with bun
 (`bun add`, `bun update`), which keeps `bun.lock` in step.
 
 One of them is the anotoki family's library, `@anotoki/lib` - the tarball of
-its GitHub release, named in `package.json` (0.10.0) - which every anotoki site
+its GitHub release, named in `package.json` (0.11.0) - which every anotoki site
 draws with: `@anotoki/lib/styles` (the tokens - one palette, the IAM's -
 Manrope, whose files come with the package, the base, the utilities, the
 tables), the UI kit, a piece an entry point (`@anotoki/lib/ui/button`,
-`/config`, `/forms`, `/dialog`, ...: always imported from its own, never
-through the `@anotoki/lib/ui` barrel, which would pull every piece into the
-first load), `@anotoki/lib/shell` (the theme, the language switcher, the top
+`/config`, `/forms`, `/dialog`, `/dates` - the dates and how long ago, as the
+account writes them -, ...: always imported from its own, never through the
+`@anotoki/lib/ui` barrel, which would pull every piece into the first load),
+`@anotoki/lib/shell` (the theme, the language switcher, the top
 bar, the frame of the account and legal pages), `@anotoki/lib/translations` (the pages' words and language
 from the database; `@anotoki/lib/translations/admin` is the admin panel's
 Translations and Languages pages), `@anotoki/lib/migrations` (the
@@ -41,7 +42,11 @@ not-set-up page, the admin panel's "A database update is waiting" line;
 `@anotoki/lib/migrations/page` is the Migrations page) and
 `@anotoki/lib/admin` (the admin tools' configuration; `@anotoki/lib/admin/errors`,
 `/audit`, `/feedback` and `/backups` are the admin panel's Error log, Audit
-log, Feedback and Backups pages, `@anotoki/lib/admin/frame` its frame), `@anotoki/lib/error-report` (the pages' own errors, reported to the
+log, Feedback and Backups pages, `@anotoki/lib/admin/frame` its frame,
+`@anotoki/lib/admin/site-settings` its Site settings page),
+`@anotoki/lib/site-settings` (the site settings on the pages - the
+announcement alone, the IAM's one part: its bar above the sign-in, account and
+legal pages), `@anotoki/lib/error-report` (the pages' own errors, reported to the
 backend's error log: `provideAnotokiErrorReport()` in `app.config.ts`),
 `@anotoki/lib/legal` (the legal pages' configuration and their links, Terms ·
 Privacy · Contact; `@anotoki/lib/legal/pages` is the three pages),
@@ -82,7 +87,9 @@ and clears no session; a 429 reaches the reporter as it came, which stops it;
 a request of the person's own still sends an ended session to the sign-in
 page; a request from anybody - the feedback form's message - carries the CSRF
 header and gets its refusal back as it came, no page moved, no session
-cleared), the feedback form as the IAM sets it up
+cleared; the site settings' read - the announcement - asked with no CSRF
+header, and a failure of it no bar, never a page moved or a session cleared),
+the feedback form as the IAM sets it up
 (`shared/feedback/feedback.config.spec.ts`: the library's form drawn for real
 behind the IAM's interceptor and session - "without my name" and the
 account's address for the person signed in, neither for anybody else, the
@@ -113,6 +120,7 @@ dot, an accent or a look-alike of another script refused; `username.spec.ts`), t
 (`shared/admin/admin-tools.config.spec.ts`: the library's Backups and Audit log
 pages drawn for real behind the IAM's interceptor and session - the IAM's
 ADMIN alone, a refusal in the panel's words, the CSRF header on every write,
+a date as the account writes it - the family's, handed over with the panel -,
 the password as the proof, "Sign in again" signing out and coming back, a
 failed sign-out said in a toast, restoring off with the IAM's reason, a person
 the log names linked to the Users page), the legal pages as the IAM fills
@@ -157,8 +165,13 @@ language (English in the admin panel) and the database's words; What's new
 opening the IAM's dialog and Feedback the family's form -; the admin panel in
 the family's admin frame, with no top bar - its name, the person, Back to your
 account, Sign out (the bar's own, which it signs out with), the theme and the
-sixteen pages in groups, in English for a reader of Slovak - and closed (no
-access, the deletion pending) with no frame round it; and `/not-set-up` on a route of its own:
+seventeen pages in the family's one shape (the IAM's own at the top, then
+Localization, then System), in English for a reader of Slovak - and closed (no
+access, the deletion pending) with no frame round it; the administrators'
+announcement above a sign-in page, an account page and a legal page - across
+the top of the frame, in the page's language -, never in the admin panel, and
+Hide keeping a mark of it under the IAM's own name, never its words; and
+`/not-set-up` on a route of its own:
 the family's status page in a `<main>` of its own with nothing of the IAM
 round it (never installed, installed and set up no more, the database out of
 reach, the moment's spinner), and once the IAM answers, back by `location` to
@@ -215,10 +228,12 @@ src/
                            an update waits
       admin/               the family's admin tools (@anotoki/lib/admin) wired in
                            (admin-tools.config.ts): who is ADMIN, the people the logs
-                           name (the Users page), the dates, Migrations; the admin
-                           panel's words for a refusal, "Sign in again" and why
-                           restoring is off are handed over by its routes
-                           (sites/admin/admin-tools.ts), out of the first load
+                           name (the Users page), Migrations, the languages of the
+                           Site settings page's words; the admin panel's words for a
+                           refusal, "Sign in again", why restoring is off and the
+                           dates of its pages (admin-dates.ts, the family's) are
+                           handed over by its routes (sites/admin/admin-tools.ts),
+                           out of the first load
       auth/                the session signal, the guard, `next` validation, the
                            usernames' rule, "Sign in again" (fresh-sign-in.ts), Sign
                            out (sign-out.ts: the bar's and the admin frame's)
@@ -229,8 +244,7 @@ src/
                            words once the panel loads), translation.service.ts
                            (the library's service seen with the IAM's keys),
                            en.ts (the keys, the last-resort English), the typed `t`
-                           pipe and `appDate` (the account's date order and clock:
-                           date-patterns.ts), error texts, the sessions' words
+                           pipe, error texts, the sessions' words
                            (session-labels.ts), the page-title strategy
                            (the family's form - "Users · Admin panel · anotoki
                            account" -, which tells the translations where the
@@ -239,8 +253,15 @@ src/
                            the kit's words from the database - the IAM's own keys
                            where it has them (kit-words.ts), the library's
                            `anotoki.*` otherwise -, the icons the IAM's templates
-                           name (icons.ts), the theme (the account's while signed
-                           in), the languages (the translations' forShell())
+                           name (icons.ts), the dates (@anotoki/lib/ui/dates: the
+                           page's locale, the account's date order and clock), the
+                           theme (the account's while signed in), the languages
+                           (the translations' forShell())
+      site-settings/       the family's site settings wired in (site-settings.config.ts):
+                           the announcement alone - the bar the sign-in, account and
+                           legal frames draw, never the admin panel's -, read as the
+                           pages start and never waited for; the name of its mark in
+                           the browser (anotoki-iam:announcement)
       legal/               the family's legal pages wired in: legal.config.ts (the
                            language, the database's words - for the footer's links,
                            in the first load); the IAM's facts are sites/main/legal's
@@ -287,7 +308,8 @@ src/
                            column on the left with the panel's name, the person,
                            Back to your account, Sign out, the theme and the pages
                            in groups; closed with no frame round it to anybody but
-                           the IAM's ADMIN): users,
+                           the IAM's ADMIN; its menu in the family's one shape - the
+                           IAM's own pages, Localization, System): users,
                            approvals, sessions, applications, announcements (the
                            history and senders, the composer, one announcement and
                            its sending), the email log, settings, keys;
@@ -298,7 +320,10 @@ src/
                            /admin/feedback and /admin/backups are the family's admin
                            tools (@anotoki/lib/admin/*: the audit log, the error log,
                            feedback, the backups - encrypted, restoring off, behind
-                           the password -, the panel's part in admin-tools.ts); and /admin/migrations
+                           the password -, the panel's part in admin-tools.ts);
+                           /admin/site-settings is the family's Site settings page
+                           (@anotoki/lib/admin/site-settings: the announcement
+                           alone); and /admin/migrations
                            is the family's (@anotoki/lib/migrations/page), whose
                            update line sits above them all - and the family's
                            footer under them all, in English. shared/: what its
@@ -397,9 +422,13 @@ scripts/
   bar: a column on the left with the panel's name ("anotoki account · admin
   panel", linking to the dashboard), the person (name and address), "Back to
   your account", Sign out (the bar's own, `shared/auth/sign-out.ts`), the
-  theme (the family's switch, the account's theme) and the sixteen pages in
-  groups - Access, Mail, Localization, System, the new feedback counted
-  beside Feedback -, and on the right the update line, the page and the
+  theme (the family's switch, the account's theme) and the seventeen pages in
+  the family's one shape (the owner's request of 2026-10-25): the IAM's own at
+  the top with no heading - Dashboard, Users, Approvals, Sessions,
+  Applications, Announcements, Email log -, Localization, then System - its
+  Settings and Signing keys, then the family's Site settings, Feedback (the new
+  ones counted beside it), Error log, Audit log, Backups, Migrations -, and on
+  the right the update line, the page and the
   footer, each column scrolling on its own. Up to 860 px a row with the
   name and Menu, the column in the side navigation's drawer. Its own words
   (Skip to content, Menu, Sign out, the theme's) are the kit's, said with
@@ -423,7 +452,8 @@ scripts/
 (`bun run anotoki-deploy build`) runs it and makes the release's `frontend/` of
 it. The release's `.htaccess` (anotoki-deploy's, from `backend/composer.json`):
 
-- passes `/api/…` through to the backend untouched;
+- passes `/api/…`, `/robots.txt` and `/sitemap.xml` through to the backend
+  untouched (the PHP answers both: the family's `Robots`);
 - refuses `/config`, `/migrations`, `/storage` and `/vendor` (403), in any
   case of letters - the backend's own folders: the master key, the backups
   (every hash and encrypted secret), the logs - before anything else, as each

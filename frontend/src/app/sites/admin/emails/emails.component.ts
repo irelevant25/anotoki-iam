@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BadgeComponent, BadgeTone } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { SelectComponent, SelectOption, TextFieldComponent } from '@anotoki/lib/ui/forms';
@@ -14,7 +15,6 @@ import { catchError, debounceTime, distinctUntilChanged, of, skip, switchMap, ta
 import { AdminApi } from '../../../api/admin.api';
 import { ApiError } from '../../../api/api-error';
 import { EmailFilters, EmailLogEntry, EmailQuery, Paged } from '../../../api/models';
-import { AppDatePipe } from '../../../shared/i18n/app-date.pipe';
 import { adminErrorText } from '../shared/admin-errors';
 
 /**
@@ -27,7 +27,7 @@ import { adminErrorText } from '../shared/admin-errors';
   selector: 'app-emails',
   imports: [
     RouterLink,
-    AppDatePipe,
+    AnotokiDatePipe,
     BadgeComponent,
     ButtonComponent,
     CardComponent,

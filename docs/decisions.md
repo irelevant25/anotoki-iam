@@ -2664,3 +2664,93 @@ the genshin site's, so that it is never mistaken for the site. anotoki-lib
   admin wordmark, "Back to your account", no language switch) is gone, and
   the bar moved to `sites/main/common/top-bar`. Nothing the bar shows on
   those pages changed, so its fold (`PHONE_BAR_MAX`, 1040 px) stays.
+
+## 2026-10-25 - The owner's yes: the leftovers of 010 and 018 dropped (migration 027)
+
+Two things were kept "until a later migration drops it, once both IAMs run"
+the file that left them over, and both IAMs - this computer's and the host's -
+have run 010 and 018 since. The owner said yes to dropping both now.
+
+- **`applications.access`**, the rule before 010 ('everyone', or 'members':
+  a role there held), was read only while 010 was pending:
+  `signInRulesReady()` asked for 010's columns on every sign-in and fell back
+  to the old column without them, the admin panel's application routes and
+  the sites' public contract answered `503 sign_in_rules_unavailable`, and the
+  users pages showed nobody blocked. All of it went: who may sign in is each
+  role's `may_sign_in`, as it has been on both IAMs since 010 was applied, and
+  nothing that decides a sign-in changed (`rolesKeepOut()` asks the one rule).
+  A database without 010 is now none this build runs on, and on one it fails
+  closed: the rule asks for a column that is not there, and no code reaches a
+  site (`tests/sign-in-rules.test.php`). The approvals' `503
+  sign_in_rules_unavailable` while 012 is pending stays.
+- **`audit_log_before_018`**, the IAM's own audit log as 018 left it, every
+  entry of it in the library's `anotoki_audit_log` (018 proved the move in its
+  gate), unread since and scrubbed by an account's deletion like the log. The
+  anonymization no longer scrubs it; 027 drops it whole, losing no event. The
+  old table under its old name, `audit_log` - while 018 waits, on a database
+  put back by hand from a backup made before it - is still scrubbed, and the
+  entries that wait for 018 still wait in their file.
+- **027 is one migration**, both drops, its gate first asking that 010 and
+  018 are what they say (each role's `may_sign_in`, each application's
+  `login_required`, 010's two triggers; the library's audit table, the old
+  name gone) - on a database without them it would drop the one thing it still
+  reads, so it stops, naming what is missing - and after the drops proving
+  both gone. Tested on an IAM built through 009 as an owner left it, then 010
+  to 026: the code itself asked, for every account and every application,
+  before and after - the same answer, account by account
+  (`tests/dropped-leftovers.test.php`).
+- It is no one-way step: a build from before 027 still runs on a database
+  that ran it - once 010 and 018 are applied that build reads neither.
+- **011's leftovers stay**: `type`, `secret_hash` and `show_on_landing`,
+  which the entry of 2026-10-05 said would go with 010's `access`, are
+  unread and kept for a migration of their own - the yes named the two above.
+- Between the upload and the Apply, a deletion that falls due leaves that
+  person's entries in the old copy until 027 drops it: apply 027 with the
+  upload, as every update is.
+
+## 2026-10-25 - The owner's requests: site settings (the announcement alone), robots.txt and sitemap.xml, the library's pieces, one admin menu (anotoki-lib 0.11.0)
+
+"I would like the projects to use the library primarily": genshin's site
+settings made general, robots.txt and sitemap.xml on every site, the pieces
+each site drew itself from the library, and every admin menu in one shape.
+
+- **The announcement alone.** The family's site settings are Getting in
+  (maintenance), the announcement and Page access; the IAM takes the
+  announcement (the owner's decision): closed for maintenance the IAM would
+  stop every site's sign-in and refresh, and the admin panel's own way in; a
+  page switched off, or kept for some readers, could hide a sign-in page or
+  the account page where a deletion is asked. So the IAM's `SiteState` gets no
+  settings (its state is never `maintenance`), no `PageAccessGate` is mounted,
+  and the library refuses a switch of either part (`part_not_offered`); a row
+  of either put into the tables by hand is read by nothing
+  (`tests/site-settings.test.php`). The bar is drawn above the sign-in, account
+  and legal pages' frames - never the admin panel's, where an administrator
+  needs no notice of their own words - and read once as the pages start, never
+  waited for: the IAM governs no page by it, so nothing has to be known before
+  the first page is drawn, and its failure leaves no bar and moves no page.
+  The admin routes sit beside the admin group (the library mounts them at their
+  own path) under the same checks - the session, `requireAdmin()`, the
+  library's ADMIN check, the CSRF header - each change audited.
+- **robots.txt and sitemap.xml** from the PHP: robots kept out of every
+  sign-in page and the account pages (some carry a mailed token in their
+  address) and out of `/.well-known/` - the discovery document and the key set
+  are for applications, never a page for a search, and robots.txt binds
+  crawlers alone, so no OIDC client or SDK is touched; the sitemap lists the
+  legal pages, About and Support, nothing else of the IAM's. Both by the
+  configured issuer, never a request's `Host`.
+- **The dates** are the family's (`@anotoki/lib/ui/dates`) in place of the
+  IAM's `appDate` and `formatAppDate()`: the same day, time and moment for
+  the reader, in the page's locale and the account's date order and clock.
+  How long ago differs a little, as the family counts it: under a minute
+  "just now" (was "now"), minutes and hours counted down rather than rounded,
+  and days by the reader's calendar ("yesterday" for any time yesterday); the
+  date from a week away, as before. The admin panel's own pages take their
+  writer from the panel's routes, so the dates' code stays out of the sign-in
+  pages' first load.
+- **One admin menu**: the IAM's own pages at the top with no heading
+  (Dashboard, Users, Approvals, Sessions, Applications, Announcements, Email
+  log - the Access and Mail headings gone), Localization, then System - the
+  IAM's own (Settings, Signing keys), then the family's in the family's order
+  and words (Site settings, Feedback, Error log, Audit log, Backups,
+  Migrations; the family's People page is none of the IAM's: its Users page
+  is the accounts). Who sees the panel is unchanged.

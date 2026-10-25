@@ -12,8 +12,8 @@
                         · {{ d.application.name }}
                     }
                 </span>
-                <span [attr.title]="d.created_at | appDate">
-                    {{ d.created_at | appDate: "relative" }}
+                <span [attr.title]="d.created_at | anotokiDate: 'datetime'">
+                    {{ d.created_at | anotokiAgo }}
                     @if (d.created_by) {
                         by {{ d.created_by }}
                     }
@@ -64,7 +64,7 @@
                     @case ("sending") {
                         @if (running() && waitingUntil()) {
                             <anotoki-alert tone="info">
-                                The host's hourly allowance of mails is used up: it goes on by itself at {{ waitingUntil() | appDate: "time" }} - keep this page open.
+                                The host's hourly allowance of mails is used up: it goes on by itself at {{ waitingUntil() | anotokiDate: "time" }} - keep this page open.
                             </anotoki-alert>
                         } @else if (running() && othersSending()) {
                             <anotoki-alert tone="info">Another page is sending it too: this one waits its turn.</anotoki-alert>
@@ -91,10 +91,10 @@
                         </div>
                     }
                     @case ("sent") {
-                        <p class="muted">Finished {{ d.finished_at | appDate }}.</p>
+                        <p class="muted">Finished {{ d.finished_at | anotokiDate: "datetime" }}.</p>
                     }
                     @case ("stopped") {
-                        <p class="muted">Stopped {{ d.finished_at | appDate }}: what was not sent then never goes.</p>
+                        <p class="muted">Stopped {{ d.finished_at | anotokiDate: "datetime" }}: what was not sent then never goes.</p>
                     }
                 }
             </div>
@@ -196,7 +196,7 @@
                                         </td>
                                         <td data-label="When">
                                             @if (recipient.sent_at) {
-                                                <span class="nowrap">{{ recipient.sent_at | appDate }}</span>
+                                                <span class="nowrap">{{ recipient.sent_at | anotokiDate: "datetime" }}</span>
                                             } @else {
                                                 <span class="muted">-</span>
                                             }

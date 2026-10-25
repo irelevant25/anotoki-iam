@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
@@ -11,7 +12,6 @@ import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminApi } from '../../../api/admin.api';
 import { ApiError } from '../../../api/api-error';
 import { SigningKey } from '../../../api/models';
-import { AppDatePipe } from '../../../shared/i18n/app-date.pipe';
 import { adminErrorText } from '../shared/admin-errors';
 
 /** How long a retired key stays in the JWKS (the backend's KEY_RETIRED_GRACE). */
@@ -26,7 +26,7 @@ const RETIRED_GRACE_MS = 24 * 60 * 60 * 1000;
  */
 @Component({
   selector: 'app-keys',
-  imports: [AppDatePipe, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],
+  imports: [AnotokiDatePipe, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './keys.component.html',
   styleUrl: './keys.component.scss',

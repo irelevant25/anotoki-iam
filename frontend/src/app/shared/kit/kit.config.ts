@@ -26,13 +26,23 @@ export const THEME_STORAGE_KEY = 'anotoki-iam:theme';
  * library's key for it (`anotoki.<key>`, the translations' `forKit()`) - so
  * an administrator's rewording on the Translations page is what the kit shows
  * either way - and the kit's own words where the database has none.
+ *
+ * The dates (`@anotoki/lib/ui/dates`: the `anotokiDate` and `anotokiAgo`
+ * pipes, the functions under them) are written in the page's locale - the
+ * translations' (en-GB, sk-SK; English in the admin panel) - in the account's
+ * date order and on its clock while somebody is signed in and chose them
+ * (migration 015, the session's `preferences`), the page language's own way
+ * otherwise.
  */
 export function iamUiConfig(): AnotokiUiConfig {
   const i18n = inject(TranslationService);
+  const session = inject(SessionService);
   const kit = i18n.forKit();
   return {
     language: kit.language,
     lookup: (key) => iamKitWord(i18n, key) ?? kit.lookup(key),
+    locale: kit.locale,
+    dateChoices: () => session.user()?.preferences ?? null,
     icons: IAM_ICONS,
   };
 }

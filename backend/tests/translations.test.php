@@ -475,7 +475,7 @@ function cli(string ...$arguments): array
 // ── The window: new code, the old database ───────────────────────────────────
 
 test(
-    'before 006 is applied the IAM still runs: config, discovery, a site\'s sign-in to its tokens, registration, the three mails, the admin\'s accounts - and then Apply brings the strings',
+    'before 006 is applied the IAM still runs: config, discovery, a site\'s sign-in as far as the sign-in page, registration, the three mails, the account page - and then Apply brings the strings, the site\'s sign-in completes, the admin\'s accounts answer',
     function () {
         $main = testEnvironment()['db'];
         $window = databaseBeforeStrings('_window');
@@ -556,23 +556,14 @@ test(
             same('sk', $known->put('/api/account/profile', ['language' => 'sk'])->json()['language'] ?? null, 'Slovak can be chosen');
             same('invalid_language', $known->put('/api/account/profile', ['language' => 'de'])->code(), 'German cannot');
 
-            // A site's sign-in, all the way: the code exchanged for tokens, and the site told the language chosen a moment ago.
-            same(['sk', 'sk'], localeOf('known@example.test', '10.8.0.8'), 'a site\'s sign-in completes before 006: the code exchange, and the locale in the access token and from userinfo');
+            // (A site's sign-in goes no further than the sign-in page here: who may sign in is each role's
+            // may_sign_in, 010's - the rule before it went with migration 027 -, so it completes after the Apply below.)
 
             // The admin panel: its string pages say "not yet"; Migrations is where that is mended.
             $admin = new Browser('10.8.0.6');
             same(200, $admin->signIn('admin@example.test', 'correct horse')->status, 'the admin can sign in to press Apply');
 
-            // Its accounts pages work meanwhile, with the two languages of before.
-            $made = $admin->post('/api/admin/users', ['username' => 'made', 'email' => 'made@example.test', 'password' => 'correct horse', 'language' => 'sk']);
-            same([201, 'sk'], [$made->status, $made->json()['language'] ?? null], 'the admin makes a Slovak account: ' . $made->body);
-            same('sk', $pdo->query("SELECT language FROM users WHERE email = 'made@example.test'")->fetchColumn(), 'and Slovak is what the row has');
-            $refused = $admin->post('/api/admin/users', ['username' => 'unmade', 'email' => 'unmade@example.test', 'password' => 'correct horse', 'language' => 'de']);
-            same([422, 'invalid_language'], [$refused->status, $refused->code()], 'a German one is refused - said so, not left to the CHECK');
-            same(0, (int) $pdo->query("SELECT count(*) FROM users WHERE email = 'unmade@example.test'")->fetchColumn(), 'and not made');
-            $refused = $admin->put('/api/admin/users/' . $made->json()['id'], ['language' => 'de']);
-            same([422, 'invalid_language'], [$refused->status, $refused->code()], 'nor can an account be given German');
-            same('en', $admin->put('/api/admin/users/' . $made->json()['id'], ['language' => 'en'])->json()['language'] ?? null, 'English it can');
+            // (Its accounts pages read 010's roles - who is blocked where -, so they answer after the Apply below.)
             foreach (['/api/admin/languages', '/api/admin/translations', '/api/admin/translations/sk/export'] as $path) {
                 same([503, 'translations_unavailable'], [$admin->get($path)->status, $admin->get($path)->code()], $path);
             }
@@ -610,6 +601,20 @@ test(
             same('sk', $pdo->query("SELECT language FROM users WHERE email = 'novacik@example.test'")->fetchColumn(), 'the account kept its language through the change of constraint');
             same(200, (new Browser('10.8.0.7'))->post('/api/password/forgot', ['email' => 'known@example.test'])->status, 'a reset');
             same('Nastavenie nového hesla anotoki', lastMailTo('known@example.test')['subject'] ?? null, 'now in Slovak, the language the account chose above');
+
+            // A site's sign-in, all the way: the code exchanged for tokens, and the site told the language chosen in the window.
+            same(['sk', 'sk'], localeOf('known@example.test', '10.8.0.8'), 'a site\'s sign-in completes: the code exchange, and the locale in the access token and from userinfo');
+
+            // The admin panel's accounts, with the languages on offer.
+            $made = $admin->post('/api/admin/users', ['username' => 'made', 'email' => 'made@example.test', 'password' => 'correct horse', 'language' => 'sk']);
+            same([201, 'sk'], [$made->status, $made->json()['language'] ?? null], 'the admin makes a Slovak account: ' . $made->body);
+            same('sk', $pdo->query("SELECT language FROM users WHERE email = 'made@example.test'")->fetchColumn(), 'and Slovak is what the row has');
+            $refused = $admin->post('/api/admin/users', ['username' => 'unmade', 'email' => 'unmade@example.test', 'password' => 'correct horse', 'language' => 'de']);
+            same([422, 'invalid_language'], [$refused->status, $refused->code()], 'a German one is refused - said so');
+            same(0, (int) $pdo->query("SELECT count(*) FROM users WHERE email = 'unmade@example.test'")->fetchColumn(), 'and not made');
+            $refused = $admin->put('/api/admin/users/' . $made->json()['id'], ['language' => 'de']);
+            same([422, 'invalid_language'], [$refused->status, $refused->code()], 'nor can an account be given German');
+            same('en', $admin->put('/api/admin/users/' . $made->json()['id'], ['language' => 'en'])->json()['language'] ?? null, 'English it can');
         } finally {
             useDatabase($main);
         }
@@ -641,9 +646,9 @@ test('the two languages the IAM is released in, and every key - the IAM\'s and t
     );
     $library = count(LibraryWords::keys());
     same(
-        288,
+        357,
         $library,
-        'the library\'s words: 288 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 -, 004 - the feedback form\'s 31 -, 005 - the legal pages\' 122 -, 006 - the top bar\'s 1 -, 007 - the kit\'s pieces\' 4 -, 008 - the tabs\' 2 -, 009 - the input pieces\' 34 -, 012 - the footer\'s 4 - and 013 - the About and Support pages\', the footer\'s two links\' and the feedback form\'s Clear, 27; 010 and 011 reword)',
+        'the library\'s words: 357 keys (anotoki_translations/002 - its kit\'s and status page\'s 54 -, 003 - the sign-in page\'s 9 -, 004 - the feedback form\'s 31 -, 005 - the legal pages\' 122 -, 006 - the top bar\'s 1 -, 007 - the kit\'s pieces\' 4 -, 008 - the tabs\' 2 -, 009 - the input pieces\' 34 -, 012 - the footer\'s 4 -, 013 - the About and Support pages\', the footer\'s two links\' and the feedback form\'s Clear, 27 -, 014 - the kit\'s pieces of 0.11.0, 49 - and 015 - the announcement bar\'s, the closed sign\'s and the Privacy page\'s line for the bar\'s mark, 20; 010 and 011 reword)',
     );
     same(
         IAM_PAGE_KEYS + IAM_MAIL_KEYS,
@@ -748,7 +753,7 @@ test('placeholders: a Slovak string uses none its English lacks; the two the pag
 
     // Everything the migrations wrote - the IAM's and the library's - would be accepted by the panel as it is.
     same([], iamTranslations()->storedRefusals(), 'every stored string passes the rules it is edited under');
-    same(2 * (IAM_PAGE_KEYS + IAM_MAIL_KEYS + count(LibraryWords::keys())), (int) iamDb()->query('SELECT count(*) FROM translations')->fetchColumn(), 'all 1754 of them');
+    same(2 * (IAM_PAGE_KEYS + IAM_MAIL_KEYS + count(LibraryWords::keys())), (int) iamDb()->query('SELECT count(*) FROM translations')->fetchColumn(), 'all 1980 of them');
 });
 
 test('the mails: MAIL_KEYS and MAIL_FALLBACK are exactly what the database has', function () {
@@ -1387,7 +1392,7 @@ test('the bundle: a language\'s strings with English underneath, the library\'s 
     same(['language', 'languages', 'values'], array_keys($english->json()), 'no second copy of English');
     same('en', $english->json()['language'], 'the language it is in');
     same([ENGLISH, SLOVAK], $english->json()['languages'], 'the languages on offer, with only what a chooser shows');
-    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 581 strings of the pages, and the library\'s 288');
+    same(IAM_PAGE_KEYS + count(LibraryWords::keys()), count($english->json()['values']), 'the 581 strings of the pages, and the library\'s 357');
     same('Save', $english->json()['values']['common.save'], 'a string');
     same(
         ['Language', 'Language: {name} ({code})'],

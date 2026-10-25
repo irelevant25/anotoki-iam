@@ -102,8 +102,8 @@ function announcementReachable(PDO $pdo): string
 
 /**
  * Whether migration 013 is applied: its tables and users.news_mail. A catalog
- * query that cannot fail, asked afresh every time like signInRulesReady(): a
- * build is uploaded before its migrations, and the admin panel's Apply runs
+ * query that cannot fail, asked afresh every time like accountApprovalReady():
+ * a build is uploaded before its migrations, and the admin panel's Apply runs
  * in the same process as the requests after it.
  */
 function announcementsReady(PDO $pdo): bool

@@ -3,6 +3,7 @@ import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiAgoPipe, AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
@@ -13,7 +14,6 @@ import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../../../api/account.api';
 import { ApiError } from '../../../../api/api-error';
 import { SessionEntry } from '../../../../api/models';
-import { AppDatePipe } from '../../../../shared/i18n/app-date.pipe';
 import { errorText } from '../../../../shared/i18n/error-text';
 import { TPipe } from '../../../../shared/i18n/t.pipe';
 import { TranslationService } from '../../../../shared/i18n/translation.service';
@@ -30,7 +30,20 @@ import { sessionMethodKey, sessionStateKey } from '../../../../shared/i18n/sessi
  */
 @Component({
   selector: 'app-sessions',
-  imports: [AppDatePipe, TPipe, AlertComponent, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, ErrorStateComponent, IconComponent, PageHeaderComponent, SwitchComponent],
+  imports: [
+    AnotokiAgoPipe,
+    AnotokiDatePipe,
+    TPipe,
+    AlertComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    EmptyStateComponent,
+    ErrorStateComponent,
+    IconComponent,
+    PageHeaderComponent,
+    SwitchComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sessions.component.html',
   styleUrl: './sessions.component.scss',

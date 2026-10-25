@@ -5,7 +5,7 @@
             @if (first) {
                 <anotoki-badge tone="success">{{ "whatsNew.latest" | t }}</anotoki-badge>
             }
-            <span class="date">{{ version.day | appDate: "date" }}</span>
+            <span class="date">{{ version.day | anotokiDate }}</span>
         </header>
 
         <!-- The sentences are the changelog's: in the reader's language where it has them all, in English otherwise - and then they say so. -->

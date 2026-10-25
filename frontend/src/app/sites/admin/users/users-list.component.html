@@ -99,7 +99,7 @@
                                                 <anotoki-badge tone="danger">Switched off</anotoki-badge>
                                             }
                                             @if (user.deletion_due_at) {
-                                                <anotoki-badge tone="danger">Deletion due {{ user.deletion_due_at | appDate: "date" }}</anotoki-badge>
+                                                <anotoki-badge tone="danger">Deletion due {{ user.deletion_due_at | anotokiDate }}</anotoki-badge>
                                             }
                                             @if (!user.approved) {
                                                 <anotoki-badge tone="warning">{{ user.disabled ? "Not approved" : "Awaiting approval" }}</anotoki-badge>
@@ -144,10 +144,10 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="nowrap" [attr.title]="user.last_login_at | appDate">{{ user.last_login_at | appDate: "relative" : "Never" }}</span>
+                                    <span class="nowrap" [attr.title]="user.last_login_at | anotokiDate: 'datetime'">{{ (user.last_login_at | anotokiAgo) || "Never" }}</span>
                                 </td>
                                 <td>
-                                    <span class="nowrap">{{ user.created_at | appDate: "date" }}</span>
+                                    <span class="nowrap">{{ user.created_at | anotokiDate }}</span>
                                 </td>
                             </tr>
                         }

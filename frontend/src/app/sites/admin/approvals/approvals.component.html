@@ -39,7 +39,7 @@
                                         </div>
                                     </td>
                                     <td data-label="Signed up">
-                                        <span class="nowrap" [attr.title]="account.created_at | appDate">{{ account.created_at | appDate: "relative" }}</span>
+                                        <span class="nowrap" [attr.title]="account.created_at | anotokiDate: 'datetime'">{{ account.created_at | anotokiAgo }}</span>
                                     </td>
                                     <td class="cell-actions">
                                         <span class="decisions">

@@ -315,7 +315,7 @@ test('audit() never undoes the change it records: an entry the database refuses 
     }
 });
 
-test('a deleted account\'s person out of the audit log, by the IAM\'s rules - in the library\'s table and in the old one 018 keeps', function () {
+test('a deleted account\'s person out of the audit log, by the IAM\'s rules - in the library\'s table (the copy 018 kept went in 027)', function () {
     global $adminId;
     $pdo = iamDb();
     $gone = makeUser('gone', 'gone@example.test');
@@ -324,7 +324,7 @@ test('a deleted account\'s person out of the audit log, by the IAM\'s rules - in
         'REMOTE_ADDR' => $ip,
     ]);
 
-    // The same history in both tables: by the person, about them by nobody and by an administrator, their token, and somebody else's.
+    // A history: by the person, about them by nobody and by an administrator, their token, and somebody else's.
     $history = [
         [$gone, 'account.username_changed', 'user', $gone, ['from' => 'gone', 'to' => 'gone2'], '192.0.2.1'],
         [null, 'account.created', 'user', $gone, ['username' => 'gone', 'email' => 'gone@example.test'], '192.0.2.2'],
@@ -334,38 +334,28 @@ test('a deleted account\'s person out of the audit log, by the IAM\'s rules - in
     ];
     foreach ($history as [$actor, $action, $type, $target, $details, $ip]) {
         audit($from($ip), $actor, $action, $type, $target, $details);
-        $pdo->prepare('INSERT INTO audit_log_before_018 (actor_id, action, target_type, target_id, details, ip) VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?)')->execute([
-            $actor,
-            $action,
-            $type,
-            (string) $target,
-            json_encode($details),
-            $ip,
-        ]);
     }
 
     scrubAuditLog($pdo, [$gone]);
 
-    foreach (['anotoki_audit_log', 'audit_log_before_018'] as $table) {
-        $rows = $pdo->query("SELECT actor_id, action, target_id, details, ip FROM {$table} WHERE target_id IN ('{$gone}', '{$other}', '17') ORDER BY id")->fetchAll();
-        $seen = array_map(static function (array $row): array {
-            $details = (array) json_decode((string) $row['details'], true);
-            ksort($details);
+    $rows = $pdo->query("SELECT actor_id, action, target_id, details, ip FROM anotoki_audit_log WHERE target_id IN ('{$gone}', '{$other}', '17') ORDER BY id")->fetchAll();
+    $seen = array_map(static function (array $row): array {
+        $details = (array) json_decode((string) $row['details'], true);
+        ksort($details);
 
-            return [$row['action'], $details, $row['ip']];
-        }, array_slice($rows, -5));
-        same(
-            [
-                ['account.username_changed', [], null],
-                ['account.created', [], null],
-                ['user.updated', ['kept' => 'yes'], '198.51.100.1'],
-                ['account.token_created', ['days' => 30], null],
-                ['account.username_changed', ['from' => 'other', 'to' => 'other2'], '192.0.2.4'],
-            ],
-            $seen,
-            "$table: the person's own address gone, and the one by nobody about them; their names out of what was about them; their token's name - an administrator's address, and the rest of the details, and somebody else's entries as they were",
-        );
-    }
+        return [$row['action'], $details, $row['ip']];
+    }, array_slice($rows, -5));
+    same(
+        [
+            ['account.username_changed', [], null],
+            ['account.created', [], null],
+            ['user.updated', ['kept' => 'yes'], '198.51.100.1'],
+            ['account.token_created', ['days' => 30], null],
+            ['account.username_changed', ['from' => 'other', 'to' => 'other2'], '192.0.2.4'],
+        ],
+        $seen,
+        "the person's own address gone, and the one by nobody about them; their names out of what was about them; their token's name - an administrator's address, and the rest of the details, and somebody else's entries as they were",
+    );
 });
 
 test('the error log: a failure written with its status and code, a trace without arguments - and no secret, cookie, header, query string or address in it, the IAM\'s own names included', function () {
@@ -666,7 +656,11 @@ test('a backup: made only with the proof - the password, counted by the limiter 
     $users = array_values(array_filter($manifest['tables'], static fn(array $table): bool => $table['name'] === 'users'))[0] ?? null;
     same((int) iamDb()->query('SELECT count(*) FROM users')->fetchColumn(), $users['rows'] ?? null, 'opened with the master key: every account');
     check(str_contains((string) file_get_contents($folder . '/' . $users['file']), 'admin@example.test'), 'and its rows');
-    check(count(array_filter($manifest['schema']['migrations'], static fn(array $file): bool => $file['set'] === 'anotoki_admin')) === 2, 'with the migrations the database had applied');
+    same(
+        count(array_filter(appliedMigrations(iamDb()), static fn(string $file): bool => str_starts_with($file, 'anotoki_admin/'))),
+        count(array_filter($manifest['schema']['migrations'], static fn(array $file): bool => $file['set'] === 'anotoki_admin')),
+        'with the migrations the database had applied',
+    );
     removeTree($folder);
     $refused = null;
     try {

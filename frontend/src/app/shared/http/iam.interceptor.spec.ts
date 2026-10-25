@@ -5,8 +5,10 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { issuedAs } from '@anotoki/lib/auth/marker';
 import { ANOTOKI_ERROR_REPORT, ErrorReport, provideAnotokiErrorReport } from '@anotoki/lib/error-report';
+import { SiteSettings, provideAnotokiSiteSettings } from '@anotoki/lib/site-settings';
 import { AccountUser } from '../../api/models';
 import { SessionService } from '../auth/session.service';
+import { iamSiteSettingsConfig } from '../site-settings/site-settings.config';
 import { iamInterceptor } from './iam.interceptor';
 
 const REPORTS = '/api/client-errors';
@@ -188,5 +190,68 @@ describe("a request from anybody - the feedback form's message - through the IAM
     expect(await refused(503, { code: 'not_set_up', installed: true, message: 'Not set up.' })).toBeInstanceOf(HttpErrorResponse);
     expect(session.signedIn()).toBe(true);
     expect(router.url).toBe('/account/security');
+  });
+});
+
+/**
+ * The site settings' read - what every page is told: the announcement, for the
+ * IAM (@anotoki/lib/site-settings, read as the site starts and never waited
+ * for, app.config.ts) - through the IAM's interceptor: made while the site
+ * starts, as the words' own request is, so whatever it fails with leaves no
+ * bar and moves no page - no /not-set-up, no session cleared -, the page's own
+ * first request doing the sending.
+ */
+describe("the site settings' read - the announcement - through the IAM's interceptor", () => {
+  let http: HttpTestingController;
+  let session: SessionService;
+  let router: Router;
+  let settings: SiteSettings;
+
+  beforeEach(async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'account/security', component: NowhereComponent },
+          { path: 'login', component: NowhereComponent },
+          { path: 'not-set-up', component: NowhereComponent },
+        ]),
+        provideHttpClient(withInterceptors([iamInterceptor])),
+        provideHttpClientTesting(),
+        provideAnotokiSiteSettings(iamSiteSettingsConfig),
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    session = TestBed.inject(SessionService);
+    router = TestBed.inject(Router);
+    settings = TestBed.inject(SiteSettings);
+    session.set(account());
+    await router.navigateByUrl('/account/security');
+  });
+
+  afterEach(() => http.verify());
+
+  it('reads the announcement - a GET, no CSRF header asked of it, no cookie needed', async () => {
+    const loaded = settings.load();
+    const read = http.expectOne('/api/site-settings');
+    expect([read.request.method, read.request.headers.has('X-IAM-Request')]).toEqual(['GET', false]);
+    read.flush({ announcement: { level: 'warning', message: { en: 'Slow tonight.', sk: 'Dnes pomalé.' } } });
+    await loaded;
+    expect(settings.announcement()).toEqual({ level: 'warning', message: { en: 'Slow tonight.', sk: 'Dnes pomalé.' } });
+  });
+
+  it('a read that fails leaves no bar and moves no page, clears no session - an IAM not set up, an ended session, a server down', async () => {
+    for (const [status, body] of [
+      [503, { code: 'not_set_up', installed: true, message: 'Not set up.' }],
+      [401, { error: 'Sign in first', code: 'no_session' }],
+      [500, { error: 'Something went wrong on our side', code: 'server_error' }],
+    ] as const) {
+      const loaded = settings.load();
+      http.expectOne('/api/site-settings').flush(body, { status, statusText: 'Refused' });
+      await loaded;
+      await new Promise((done) => setTimeout(done, 5));
+      expect(settings.announcement(), `${status}: no bar`).toBeNull();
+      expect(router.url, `${status}: the page stays`).toBe('/account/security');
+      expect(session.signedIn(), `${status}: the session stays`).toBe(true);
+    }
   });
 });

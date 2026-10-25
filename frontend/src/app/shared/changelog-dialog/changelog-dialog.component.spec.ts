@@ -1,12 +1,14 @@
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { AnotokiDialog, AnotokiDialogRef } from '@anotoki/lib/ui/dialog';
 import { AccountUser } from '../../api/models';
 import { SessionService } from '../auth/session.service';
 import type { ChangelogEntry } from '../changelog/changelog.service';
 import { en } from '../i18n/en';
 import { TranslationService } from '../i18n/translation.service';
+import { iamUiConfig } from '../kit/kit.config';
 import { ChangelogDialogComponent } from './changelog-dialog.component';
 
 const ENTRIES: ChangelogEntry[] = [
@@ -44,7 +46,8 @@ describe('What’s new: the IAM’s versions in the kit’s dialog, in the reade
 
   async function open(language: 'en' | 'sk'): Promise<void> {
     TestBed.configureTestingModule({
-      providers: [language === 'sk' ? provideTestTranslations({ ...en, ...SLOVAK }, { language: 'sk', english: en }) : provideTestTranslations(en)],
+      // The kit as the IAM configures it: the family's dates in the page's locale and the account's order (iamUiConfig).
+      providers: [language === 'sk' ? provideTestTranslations({ ...en, ...SLOVAK }, { language: 'sk', english: en }) : provideTestTranslations(en), provideAnotokiUi(iamUiConfig)],
     });
     ref = TestBed.inject(AnotokiDialog).open(ChangelogDialogComponent, { data: ENTRIES, size: 'lg' });
     await stable();
@@ -84,7 +87,7 @@ describe('What’s new: the IAM’s versions in the kit’s dialog, in the reade
   });
 
   it('a signed-in person reads the days in the account’s own order', async () => {
-    TestBed.configureTestingModule({ providers: [provideTestTranslations(en)] });
+    TestBed.configureTestingModule({ providers: [provideTestTranslations(en), provideAnotokiUi(iamUiConfig)] });
     TestBed.inject(SessionService).set({ id: 7, preferences: { theme: 'auto', date_format: 'ymd_dash', time_format: null } } as AccountUser);
     ref = TestBed.inject(AnotokiDialog).open(ChangelogDialogComponent, { data: ENTRIES, size: 'lg' });
     await stable();

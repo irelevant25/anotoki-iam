@@ -26,7 +26,7 @@
                     <anotoki-badge tone="success" [dot]="true">Enabled</anotoki-badge>
                 }
                 @if (d.account.deletion_due_at) {
-                    <anotoki-badge tone="danger">Deletion due {{ d.account.deletion_due_at | appDate: "date" }}</anotoki-badge>
+                    <anotoki-badge tone="danger">Deletion due {{ d.account.deletion_due_at | anotokiDate }}</anotoki-badge>
                 }
                 @if (!d.account.approved && !d.account.anonymized_at) {
                     <anotoki-badge tone="warning">{{ d.account.disabled ? "Not approved" : "Awaiting approval" }}</anotoki-badge>
@@ -75,11 +75,11 @@
 
         @if (d.account.anonymized_at) {
             <anotoki-alert tone="info" heading="Deleted at its owner's request">
-                Anonymized on {{ d.account.anonymized_at | appDate: "date" }}. The row stays, so its id is never anybody else's, and nothing about it can be changed.
+                Anonymized on {{ d.account.anonymized_at | anotokiDate }}. The row stays, so its id is never anybody else's, and nothing about it can be changed.
             </anotoki-alert>
         } @else if (d.account.deletion_due_at) {
             <anotoki-alert tone="warning" heading="Its owner asked for its deletion">
-                It is deleted on {{ d.account.deletion_due_at | appDate: "date" }} and signs in to no site until then. Only its owner can cancel it, on their account page.
+                It is deleted on {{ d.account.deletion_due_at | anotokiDate }} and signs in to no site until then. Only its owner can cancel it, on their account page.
             </anotoki-alert>
         }
 
@@ -95,11 +95,11 @@
                     <dt>Language</dt>
                     <dd>{{ d.account.language.toUpperCase() }}</dd>
                     <dt>Created</dt>
-                    <dd>{{ d.account.created_at | appDate }}</dd>
+                    <dd>{{ d.account.created_at | anotokiDate: "datetime" }}</dd>
                     <dt>Updated</dt>
-                    <dd>{{ d.account.updated_at | appDate: "datetime" : "-" }}</dd>
+                    <dd>{{ (d.account.updated_at | anotokiDate: "datetime") || "-" }}</dd>
                     <dt>Last sign-in</dt>
-                    <dd>{{ d.account.last_login_at | appDate: "datetime" : "Never" }}</dd>
+                    <dd>{{ (d.account.last_login_at | anotokiDate: "datetime") || "Never" }}</dd>
                     <dt>Password</dt>
                     <dd>{{ d.account.has_password ? "Set" : "None - signs in another way" }}</dd>
                     <dt>Google</dt>
@@ -192,8 +192,8 @@
                                         </span>
                                     </td>
                                     <td class="mono">{{ session.ip ?? "-" }}</td>
-                                    <td class="nowrap">{{ session.created_at | appDate }}</td>
-                                    <td class="nowrap">{{ session.last_seen_at | appDate: "relative" : "-" }}</td>
+                                    <td class="nowrap">{{ session.created_at | anotokiDate: "datetime" }}</td>
+                                    <td class="nowrap">{{ (session.last_seen_at | anotokiAgo) || "-" }}</td>
                                     <td>
                                         @if (session.active) {
                                             <anotoki-badge tone="success" [dot]="true">Signed in</anotoki-badge>
@@ -232,7 +232,7 @@
                             <tbody>
                                 @for (attempt of d.login_attempts; track attempt.id) {
                                     <tr>
-                                        <td class="nowrap">{{ attempt.created_at | appDate }}</td>
+                                        <td class="nowrap">{{ attempt.created_at | anotokiDate: "datetime" }}</td>
                                         <td>{{ attempt.method }}</td>
                                         <td>
                                             <anotoki-badge [tone]="outcomeTone(attempt.outcome)" [mono]="true">{{ attempt.outcome }}</anotoki-badge>
@@ -265,7 +265,7 @@
                                         <tr>
                                             <td>{{ identity.provider }}</td>
                                             <td class="break">{{ identity.email ?? "-" }}</td>
-                                            <td class="nowrap">{{ identity.created_at | appDate: "date" }}</td>
+                                            <td class="nowrap">{{ identity.created_at | anotokiDate }}</td>
                                         </tr>
                                     }
                                 </tbody>
@@ -294,8 +294,8 @@
                                         <tr [class.row-muted]="tokenState(token) !== 'active'">
                                             <td class="break">{{ token.name }}</td>
                                             <td>{{ token.application_name }}</td>
-                                            <td class="nowrap">{{ token.expires_at | appDate: "date" }}</td>
-                                            <td class="nowrap">{{ token.last_used_at | appDate: "relative" : "Never" }}</td>
+                                            <td class="nowrap">{{ token.expires_at | anotokiDate }}</td>
+                                            <td class="nowrap">{{ (token.last_used_at | anotokiAgo) || "Never" }}</td>
                                             <td>
                                                 <anotoki-badge [tone]="tokenState(token) === 'active' ? 'success' : tokenState(token) === 'revoked' ? 'danger' : 'neutral'">
                                                     {{ tokenState(token) }}

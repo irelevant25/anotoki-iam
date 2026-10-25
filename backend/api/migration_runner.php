@@ -129,10 +129,12 @@ function iamMigrationFiles(Migrator $migrator): array
  * The IAM does not block while an update waits (blockWhilePending false),
  * unlike every other anotoki site: it is the door every site signs in through,
  * and its administrator has to sign in through it to press Apply. Its features
- * check their own tables meanwhile, as they always have (signInRulesReady(),
- * translationsReady(), accountApprovalReady(), announcementsReady(),
- * preferencesReady(), accountDeletionReady(), auditMovedToLibrary(), ...), and
- * its administrators see a line in the admin panel saying an update waits.
+ * check their own tables meanwhile, as they always have (translationsReady(),
+ * accountApprovalReady(), announcementsReady(), preferencesReady(),
+ * accountDeletionReady(), auditMovedToLibrary(), the library's site settings'
+ * ready(), ...), and its administrators see a line in the admin panel saying
+ * an update waits. Its SiteState is given no site settings: the IAM offers no
+ * Getting in, so it is never closed for maintenance (api/site_settings.php).
  */
 function iamSiteState(): SiteState
 {

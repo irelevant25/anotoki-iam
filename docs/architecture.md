@@ -159,9 +159,9 @@ routes. The IAM wires it in `backend/api/migration_runner.php` and
   closes behind a calm "being updated" page until its administrator applies
   the update - and that administrator signs in through the IAM. So the IAM
   keeps answering: its features check their own tables, as they always have
-  (`signInRulesReady()`, `translationsReady()`, `accountApprovalReady()`,
+  (`translationsReady()`, `accountApprovalReady()`,
   `announcementsReady()`, `preferencesReady()`, `accountDeletionReady()`,
-  `signInDevicesReady()`, `auditMovedToLibrary()`), and of its pages only the admin panel says so:
+  `signInDevicesReady()`, `auditMovedToLibrary()`, the site settings' `ready()`), and of its pages only the admin panel says so:
   `<anotoki-update-banner>` - "A database update is waiting. Migrations" -
   above every page of it, which asks the status once. (The status path itself
   is public, as on every anotoki site: anybody may learn that an update
@@ -251,14 +251,15 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `user_recovery_codes`, `user_trusted_devices` | Two-factor's way back in, and browsers that answered a code in the last 30 days - hashes only. |
 | `sessions` | A signed-in browser at the IAM: the cookie's hash, a public `sid`, how it signed in, sliding expiry with an absolute cap. |
 | `login_attempts`, `email_log` | The limiter's memory and the history; the mail log keeps no bodies. An attempt's `outcome` says how it went (`bad_totp` - a wrong authenticator code, which the pause counts by account; `totp_paused` - one refused unchecked during a pause; `bad_email_code` - a wrong code by email beside the password during a pause, five of which end the mailbox's standing in until it ends; `email_code_paused` - one refused unchecked then; ...). The pause itself is `users.totp_paused_until`, and `totp_count_from` where the count starts again (019). |
-| `applications` (+ `application_redirect_uris`, `application_origins`, `application_roles`) | The sites: exact redirect URIs, the origins allowed to call the token endpoint, whether the site requires signing in (`login_required`, published to the sites' backends at `GET /api/public/applications/{client_id}`), token lifetime, their roles and which of them may sign in (`may_sign_in`). Every application is a public client and has the same roles - ADMIN, EDITOR, EARLY_ACCESS, MEMBER (the IAM's own entry ADMIN, MEMBER; EARLY_ACCESS since migration 023) - and every account holds MEMBER everywhere: triggers of migrations 010 and 011 keep it so for every account and application made later. `type`, `secret_hash`, `show_on_landing` and `access` stay, unread (`access` only while 010 is pending), until a later migration drops them - not a way back: once 010 is applied no build from before it goes on the host (`decisions.md`). `sort_order` is the order of the public list. |
+| `applications` (+ `application_redirect_uris`, `application_origins`, `application_roles`) | The sites: exact redirect URIs, the origins allowed to call the token endpoint, whether the site requires signing in (`login_required`, published to the sites' backends at `GET /api/public/applications/{client_id}`), token lifetime, their roles and which of them may sign in (`may_sign_in`). Every application is a public client and has the same roles - ADMIN, EDITOR, EARLY_ACCESS, MEMBER (the IAM's own entry ADMIN, MEMBER; EARLY_ACCESS since migration 023) - and every account holds MEMBER everywhere: triggers of migrations 010 and 011 keep it so for every account and application made later. `type`, `secret_hash` and `show_on_landing` stay, unread, until a later migration drops them - not a way back: once 011 is applied no build from before it goes on the host (`decisions.md`); `access`, the rule before 010, read only while 010 was pending, went in migration 027. `sort_order` is the order of the public list. |
 | `user_roles` | Who holds which application role, and who granted it. |
 | `auth_requests` | What an application asked for while the person signs in (and logouts waiting for confirmation). |
 | `auth_codes`, `refresh_tokens` | Codes and refresh / personal tokens - hashes only; refresh tokens grouped into families for reuse detection. |
 | `signing_keys` | RSA key pairs; the private half **encrypted**. One active, retired ones published for a day. |
 | `settings` | The switches. |
-| `anotoki_audit_log` | What was done: every admin change and every security-relevant change an account made to itself - who, what, to what, the details, the address, the time. The anotoki library's table (its set `anotoki_admin`, 001), the IAM's own `audit_log` with three columns the IAM leaves empty (a session, a scope); migration 018 moved every entry there with its id, and kept the old table, unread, as `audit_log_before_018` until a later migration drops it. Kept for good, its person scrubbed out when an account is deleted. |
+| `anotoki_audit_log` | What was done: every admin change and every security-relevant change an account made to itself - who, what, to what, the details, the address, the time. The anotoki library's table (its set `anotoki_admin`, 001), the IAM's own `audit_log` with three columns the IAM leaves empty (a session, a scope); migration 018 moved every entry there with its id, and kept the old table, unread, as `audit_log_before_018` - which migration 027 dropped (every event in it was in this one). Kept for good, its person scrubbed out when an account is deleted. |
 | `anotoki_feedback` | What people sent through the family's feedback form (the library's table, its set `anotoki_admin`, 002; the IAM's since the owner's decision of 2026-10-19): the kind, the subject and the message, the page as a path, its language, the browser's name, the sender's account unless it was sent without a name, a reply address only as the sender left it, its status and who handled it. Nothing of where it came from. Spam 30 days and resolved 365 days after they were marked; when an account is deleted, its messages - and any whose reply address is its address - lose the address and the browser. |
+| `anotoki_site_settings`, `anotoki_page_access` | The family's site settings (the library's tables, its set `anotoki_admin`, 003; anotoki-lib 0.11.0): a row per switch thrown, its value JSON - on the IAM only the announcement's three (shown or not, its kind, its words per language), who changed each last and when. The IAM governs no page: the second table stays empty, and a row put in by hand is read by nothing. |
 | `languages` | The languages the IAM speaks: `code` (`xx` or `xx-yy`, small letters), `name` in English, `native_name`, `enabled` (offered), `sort_order`. English and Slovak are seeded. |
 | `translation_keys` | Every key the pages and the mails ask for, with a description for the translator. Written by migrations only. |
 | `translations` | One string per key and language, who reworded it last (`updated_by`, null for a migration) and when. No empty string: a language without one has no row and reads the English. |
@@ -428,9 +429,14 @@ family's admin frame (`<anotoki-admin-frame>`, anotoki-lib 0.10.0 - the owner's
 request of 2026-10-24: every admin panel the genshin site's, so it is never
 mistaken for the site), with no bar: a column on the left - the panel's name,
 who is signed in, Back to your account, Sign out (the bar's own), the theme
-(the account's) and the panel's pages in groups - and the page on the right; on
-a phone a row with the name and Menu, the column in a drawer. Somebody
-without the IAM's ADMIN sees the panel closed, with no frame round it.
+(the account's) and the panel's pages - in the one shape of every anotoki
+admin menu (the owner's request of 2026-10-25): the IAM's own pages at the
+top with no heading (Dashboard, Users, Approvals, Sessions, Applications,
+Announcements, Email log), Localization, then System (its Settings and
+Signing keys, then the family's Site settings, Feedback, Error log, Audit log,
+Backups, Migrations) - and the page on the right; on a phone a row with the
+name and Menu, the column in a drawer. Somebody without the IAM's ADMIN sees
+the panel closed, with no frame round it.
 
 On HTTPS the cookie is `__Host-anotoki_iam` (a hardening of 2026-10-07): a
 browser keeps a cookie of exactly that name only from the IAM's own host -
@@ -454,7 +460,9 @@ and the account page - or a site, with the person's access token, through
 follow them like any site: the family's `ThemeService` (`@anotoki/lib/shell`,
 given the account by `frontend/src/app/shared/kit/kit.config.ts`) shows the
 account's theme and saves a choice to it - one save at a time, the latest
-last - and the `appDate` pipe writes the account's order and clock. Signed
+last - and the family's dates (`@anotoki/lib/ui/dates`: the `anotokiDate` and
+`anotokiAgo` pipes, given the page's locale and the account's choices by the
+same file) write the account's order and clock. Signed
 out, each device keeps its own theme, as before.
 
 ## The legal pages
@@ -523,6 +531,34 @@ every anotoki site: the version, What's new and Feedback.
   (`anotoki_feedback`), read on the admin panel's Feedback page ("The admin
   panel's tools" below); an account's deletion takes the reply address and
   the browser's name out of them, the words staying.
+
+## Site settings: the announcement alone; robots.txt and the sitemap
+
+The family's site settings (anotoki-lib 0.11.0, the owner's request of
+2026-10-25: genshin's, for every anotoki site) are three parts - Getting in
+(maintenance), the announcement, Page access - and **the IAM offers the
+announcement alone** (the owner's decision): closed for maintenance it would
+stop every site's sign-in, and a page switched off could hide a sign-in page
+or the account page where a deletion is asked. So the IAM's `SiteState` is
+given no settings - its state is never `maintenance` - no `PageAccessGate` is
+mounted, and the library refuses a switch of either part (`part_not_offered`).
+
+- **The announcement** - information, a warning or something wrong, its words
+  per language - is set on the admin panel's Site settings page (the family's,
+  `@anotoki/lib/admin/site-settings`; its routes beside the admin group under
+  its checks, audited `site_settings.changed`) and told to every page by
+  `GET /api/site-settings` (`api/site_settings.php`, `iamSiteSettings()`). The
+  pages read it once as they start, never waiting for it, and draw the family's
+  bar (`<anotoki-announcement>`) across the top of the sign-in pages' frame, the
+  account pages' and the legal pages' - never the admin panel's. Hide keeps a
+  mark of it (never its words) in `localStorage`, `anotoki-iam:announcement`,
+  which the Privacy page names.
+- **robots.txt and sitemap.xml** are the PHP's (the family's `Robots`,
+  `iamRobots()`): robots kept out of `/admin`, `/api`, `/auth`, every sign-in
+  page, the account pages and `/.well-known/` (for applications, never a page
+  for a search); the sitemap the legal pages, About and Support - by the
+  configured issuer, never a request's `Host`. The release's `.htaccess` gives
+  the front controller both paths (`extra["anotoki-deploy"].routes`).
 
 ## The IAM's own words
 
@@ -648,7 +684,7 @@ IAM's error body) and `frontend/src/app/shared/i18n/translations.config.ts`.
 
 Four pages of the admin panel are the anotoki library's (anotoki-lib 0.4, the
 owner's decision of 2026-10-11 - feedback since the owner's decision of
-2026-10-19; 0.10.0 now, both halves): the same pages, routes and
+2026-10-19; 0.11.0 now, both halves): the same pages, routes and
 answers on every anotoki site. What is the IAM's is their configuration -
 `api/admin_tools.php` and `api/audit.php` - and where they are mounted: inside
 the admin group (`routes/admin.php`), behind the session, the IAM's ADMIN and
@@ -671,7 +707,8 @@ shows it, and a header from anywhere else is never believed.
   018 has moved the old table in, an entry waits in
   `storage/logs/audit-pending.jsonl` and goes in after the Apply with its own
   time. An account's deletion scrubs it by the IAM's rules (the library's
-  `scrubPeople()` and the IAM's personal-token rule), the kept old table too.
+  `scrubPeople()` and the IAM's personal-token rule) - and the old table while
+  018 waits.
 - **The error log** (`/admin/errors`) is files, `storage/logs/errors-*.jsonl`:
   what failed (an exception the IAM answered - with the failures it was thrown
   for -, every 5xx and 404, 405, 413, 415, 429, PHP's warnings and fatal
@@ -838,6 +875,7 @@ written down, not a refactor.
 | `backend/config/` | `config.php` (reading `*.local.php` - cleanly or not at all, `readLocalConfigFile()` - and whether the IAM is set up), and one loader per file: `db.php`, `iam.php`, `secret.php`, `mail.php`, `google.php`, `cloudflare.php` (the zone's origin secret). |
 | `backend/api/index.php` | Front controller: requires, middleware order (the error log's outermost, the family's gate where "not set up" is answered), error handler; the library's after-the-answer runner after `$app->run()`. |
 | `backend/api/migration_runner.php` | The IAM's migrations through anotoki/lib's engine (`iamMigrator()`: the library's admin set, the IAM's set, then the library's translations set; `iamMigrationLabel()` names a library file `set/name`), where the IAM stands (`iamSiteState()`), and the two things beside them: `ensureDatabase()`, `createFirstAdmin()`. |
+| `backend/api/site_settings.php` | The family's site settings on the IAM, the announcement alone (`iamSiteSettings()`, with the IAM's own API paths no part may ever close), and robots.txt and sitemap.xml (`iamRobots()`: what robots stay out of, the pages they may list, the issuer's address). Their routes are in `routes/login.php` and `routes/admin.php`. |
 | `backend/api/admin_tools.php` | The IAM's configuration of the library's admin tools: `iamAdminContext()` (who acts, who the ADMIN is, the proof, the address and its bucket, the people's names, the error body), `iamErrorLog()` with the IAM's names of secrets (`IAM_SECRET_NAMES`, given to the library's redactor) and its own prefixes and cookies (`iamRedactSecrets()`, down an exception's chain; `iamClientErrorRedaction()` on the pages' own errors), `iamFeedback()` (the feedback form's messages: the sender the session's account, `iamFeedbackSender()`; the limits' hashes keyed by the master key), `iamBackups()` (encrypted, never restored), `iamMigratorWithBackup()`. |
 | `backend/api/audit.php` | `audit()`, every route's one way into the audit log - the library's `AuditLog` (`iamAuditLog()`), waiting in a file until 018 has run (`auditMovedToLibrary()`). |
 | `backend/backup.php` | The backups from the command line - the library's command on the IAM's backups: list, make, inspect, extract; another IAM's with its master key. Never uploaded. |
@@ -864,6 +902,7 @@ written down, not a refactor.
 | `frontend/src/app/shared/kit/` | How the pages use the family's UI kit and shell (`@anotoki/lib/ui`, `@anotoki/lib/shell`; the styles are `@anotoki/lib/styles`, in `src/styles.scss`): the kit's words from the database (the IAM's own strings where it has one, `kit-words.ts`; the library's `anotoki.*` for the rest), the icons the IAM's templates name, the account's theme and the languages. |
 | `frontend/src/app/shared/legal/`, `sites/main/legal/` | How the pages use the family's legal pages (`@anotoki/lib/legal`): `legal.config.ts` (the language, the database's words - in the first load, for the footer's links) and, beside the pages' frame (`legal-layout`), `legal-facts.ts` (the IAM's facts and every address the pages link to, given by that frame). |
 | `frontend/src/app/shared/changelog/`, `shared/changelog-dialog/` | The IAM's versions (`public/changelog.json`, asked for as the pages start): the footer's version, and What's new - the IAM's own dialog, its code with the first press. |
+| `frontend/src/app/shared/site-settings/` | How the pages use the family's site settings (`@anotoki/lib/site-settings`): the announcement alone, its mark's name in the browser; the bar is drawn by the sign-in, account and legal pages' frames. |
 | `frontend/src/app/shared/feedback/` | How the pages use the family's feedback form (`@anotoki/lib/feedback`): the page's language, the database's words, the session's account and its address. |
 | `frontend/src/app/sites/main/` | The IAM's own pages (`main.routes.ts`) and their frames: `auth/auth-layout` (the sign-in pages' night-sky frame), `account/` (the account pages), `legal/legal-layout` (the legal pages' frame), `common/` (what they share: the top bar, the Google button, Google's script on a press, the remembered-device token) - `common/top-bar` is the anotoki family's one bar, `<anotoki-top-bar>`, worded for the IAM: the account pages as links, the language, the theme, the person's menu; a menu button up to 1040 px. The account pages and the legal pages are in the family's frame, `<anotoki-shell>`, under that bar; every frame, the sign-in pages' and the admin panel's too, has the family's footer under it (`<anotoki-site-footer>`, `@anotoki/lib/footer`: the IAM's version, What's new and Feedback, then Terms · Privacy · Contact). `/not-set-up` is on none of them (`main.routes.ts`). |
 | `frontend/src/app/sites/admin/` | The admin panel (`admin.routes.ts`, loaded with its first page): its frame (`app.component`: the family's admin frame, `<anotoki-admin-frame>` - its column, the page, the footer - and the closed panel with no frame), a folder per group of pages, `shared/` (what those pages share), and the panel's part of the family's admin tools and Translations pages (`admin-tools.ts`, `localization.ts`). |

@@ -117,11 +117,11 @@ function auditEntriesWaiting(): bool
 
 /**
  * Whether migration 018 has moved the IAM's audit_log into the library's
- * table: the old table's name is gone (018 renamed it audit_log_before_018).
- * Until then an entry waits in the pending file - the library checks its own
- * table besides. A catalog query that cannot fail, asked afresh every time like
- * the others (signInRulesReady(), ...): the Apply runs in the same process as
- * the requests after it.
+ * table: the old table's name is gone (018 renamed it, and 027 dropped the
+ * copy it kept). Until then an entry waits in the pending file - the library
+ * checks its own table besides. A catalog query that cannot fail, asked afresh
+ * every time like the others (accountApprovalReady(), ...): the Apply runs in
+ * the same process as the requests after it.
  */
 function auditMovedToLibrary(PDO $pdo): bool
 {

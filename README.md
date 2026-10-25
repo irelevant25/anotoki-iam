@@ -154,6 +154,13 @@ hosting:
   site's), its column on the left - the panel's name, who is signed in, Back
   to your account, Sign out, the theme and its pages in groups - the page on
   the right, the column in a drawer on a phone.
+- An announcement across the top of the sign-in, account and legal pages
+  (anotoki-lib 0.11.0, the owner's request of 2026-10-25: the family's site
+  settings, of which the IAM takes the announcement alone - no maintenance
+  mode, which would stop every site's sign-in): set on the admin panel's Site
+  settings page, its words per language. And `/robots.txt` and `/sitemap.xml`
+  from the PHP: every sign-in and account page kept out, the legal pages,
+  About and Support listed, by the configured address.
 - Five wrong authenticator codes pause an account's codes for fifteen minutes,
   whatever addresses they come from (migration 019, the owner's decision of
   2026-10-13): the sign-in page then offers a code by email after the

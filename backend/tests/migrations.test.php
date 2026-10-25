@@ -249,7 +249,11 @@ test('the Migrations routes: what the database has and lacks, a file\'s SQL, and
         foreach ($status['applied'] as $file) {
             check(preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', (string) $file['applied_at']) === 1, "{$file['name']} applied at a time in UTC: " . $file['applied_at']);
         }
-        same([['set' => NEWEST_FILE[0], 'name' => NEWEST_FILE[1], 'ready' => true, 'blocked' => false]], $status['pending'] ?? null, 'the newest pending');
+        same(
+            [['set' => NEWEST_FILE[0], 'name' => NEWEST_FILE[1], 'ready' => true, 'blocked' => false, 'duplicates' => []]],
+            $status['pending'] ?? null,
+            'the newest pending, no other file of its number',
+        );
         same([], $status['missing'] ?? null, 'nothing recorded that is not on disk');
 
         $file = $admin->get('/api/admin/migrations/file?' . http_build_query(['set' => 'iam', 'name' => '001_initial_schema.sql']));

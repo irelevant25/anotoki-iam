@@ -58,7 +58,7 @@
                         <tbody>
                             @for (email of r.items; track email.id) {
                                 <tr>
-                                    <td class="nowrap">{{ email.created_at | appDate }}</td>
+                                    <td class="nowrap">{{ email.created_at | anotokiDate: "datetime" }}</td>
                                     <td class="break">{{ email.recipient }}</td>
                                     <td>
                                         <anotoki-badge [mono]="true">{{ email.kind }}</anotoki-badge>

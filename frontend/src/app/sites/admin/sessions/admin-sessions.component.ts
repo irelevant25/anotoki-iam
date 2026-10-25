@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiAgoPipe, AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
@@ -15,7 +16,6 @@ import { catchError, debounceTime, distinctUntilChanged, of, skip, switchMap, ta
 import { AdminApi } from '../../../api/admin.api';
 import { ApiError } from '../../../api/api-error';
 import { AdminSession, AdminSessionQuery, AdminSessionsResponse } from '../../../api/models';
-import { AppDatePipe } from '../../../shared/i18n/app-date.pipe';
 import { TPipe } from '../../../shared/i18n/t.pipe';
 import { deviceLabel } from '../../../shared/util/user-agent';
 import { sessionMethodKey, sessionStateKey } from '../../../shared/i18n/session-labels';
@@ -35,7 +35,8 @@ const ROW_LIMIT = 200;
   selector: 'app-admin-sessions',
   imports: [
     RouterLink,
-    AppDatePipe,
+    AnotokiAgoPipe,
+    AnotokiDatePipe,
     TPipe,
     BadgeComponent,
     ButtonComponent,

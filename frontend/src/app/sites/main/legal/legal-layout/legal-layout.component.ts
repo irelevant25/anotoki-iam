@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { ANOTOKI_LEGAL_CONFIG } from '@anotoki/lib/legal';
 import { ShellComponent } from '@anotoki/lib/shell';
+import { AnnouncementComponent } from '@anotoki/lib/site-settings';
 import { Changelog } from '../../../../shared/changelog/changelog.service';
 import { iamLegalPagesConfig } from '../legal-facts';
 import { AppTopBarComponent } from '../../common/top-bar/top-bar.component';
@@ -21,10 +22,12 @@ import { AppTopBarComponent } from '../../common/top-bar/top-bar.component';
  * somebody signed in and Sign in for anybody else (`area="public"`); the
  * session is asked for before the first page when a legal page is the one
  * the site was opened at (startTranslations()), and read as it is otherwise.
+ * Above the frame, the administrators' announcement when there is one
+ * (`<anotoki-announcement>`: shared/site-settings).
  */
 @Component({
   selector: 'app-legal-layout',
-  imports: [RouterOutlet, ShellComponent, AppTopBarComponent, SiteFooterComponent],
+  imports: [RouterOutlet, ShellComponent, AppTopBarComponent, SiteFooterComponent, AnnouncementComponent],
   providers: [{ provide: ANOTOKI_LEGAL_CONFIG, useFactory: iamLegalPagesConfig }],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './legal-layout.component.html',

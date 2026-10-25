@@ -7,11 +7,14 @@ import { ANOTOKI_ADMIN_CONFIG, AdminFailure, AnotokiAdminConfig, provideAnotokiA
 import { AuditLogPageComponent, AuditPage } from '@anotoki/lib/admin/audit';
 import { BackupInfo, BackupsAnswer, BackupsPageComponent, BackupsStatus } from '@anotoki/lib/admin/backups';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { ToastService } from '@anotoki/lib/ui/toast';
-import { RESTORE_OFF_TEXT, adminToolsPanel } from '../../sites/admin/admin-tools';
+import { RESTORE_OFF_TEXT, adminDates, adminToolsPanel } from '../../sites/admin/admin-tools';
 import { AccountUser } from '../../api/models';
 import { SessionService } from '../auth/session.service';
 import { iamInterceptor } from '../http/iam.interceptor';
+import { iamUiConfig } from '../kit/kit.config';
+import { useAdminDates } from './admin-dates';
 import { iamAdminToolsConfig, useAdminToolsPanel } from './admin-tools.config';
 
 const BACKUPS = '/api/admin/backups';
@@ -97,6 +100,7 @@ describe("the family's admin tools, wired for the IAM (iamAdminToolsConfig)", ()
 
   beforeEach(async () => {
     useAdminToolsPanel(null);
+    useAdminDates(null);
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
@@ -107,6 +111,7 @@ describe("the family's admin tools, wired for the IAM (iamAdminToolsConfig)", ()
         provideHttpClient(withInterceptors([iamInterceptor])),
         provideHttpClientTesting(),
         provideTestTranslations(),
+        provideAnotokiUi(iamUiConfig),
         provideAnotokiAdmin(iamAdminToolsConfig),
       ],
     });
@@ -124,11 +129,15 @@ describe("the family's admin tools, wired for the IAM (iamAdminToolsConfig)", ()
     document.body.innerHTML = '';
     vi.restoreAllMocks();
     useAdminToolsPanel(null);
+    useAdminDates(null);
   });
 
-  /** What the admin panel's routes do as they load: the panel's part handed over. */
+  /** What the admin panel's routes do as they load: the panel's part handed over, and its dates. */
   function handOver(): void {
-    TestBed.runInInjectionContext(() => useAdminToolsPanel(adminToolsPanel()));
+    TestBed.runInInjectionContext(() => {
+      useAdminToolsPanel(adminToolsPanel());
+      useAdminDates(adminDates());
+    });
   }
 
   /** Lets the requests' promises, timers of 0 and change detection run out. */
@@ -183,8 +192,9 @@ describe("the family's admin tools, wired for the IAM (iamAdminToolsConfig)", ()
     expect(config.personLink?.(42)).toEqual(['/admin/users', 42]);
   });
 
-  it('writes a date as the account does (its date order and clock, migration 015)', () => {
+  it("writes a date as the account does (its date order and clock, migration 015) - the family's dates, handed over with the panel", () => {
     session.set(account({ preferences: { theme: 'auto', date_format: 'ymd_dash', time_format: '24' } }));
+    handOver();
     const when = new Date('2026-10-11T03:00:00Z');
     const day = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`;
     expect(config.formatDate?.(when.toISOString())).toMatch(new RegExp(`^${day} \\d{2}:\\d{2}$`));

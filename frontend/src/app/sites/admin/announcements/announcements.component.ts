@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiAgoPipe, AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
@@ -16,7 +17,6 @@ import { catchError, of, switchMap, tap } from 'rxjs';
 import { AdminApi } from '../../../api/admin.api';
 import { ApiError } from '../../../api/api-error';
 import { AnnouncementSummary, MailSender, MailSenders, Paged } from '../../../api/models';
-import { AppDatePipe } from '../../../shared/i18n/app-date.pipe';
 import { adminErrorText } from '../shared/admin-errors';
 import { STATUS_LABELS, people, templateLabel } from './announcement-labels';
 
@@ -34,7 +34,8 @@ import { STATUS_LABELS, people, templateLabel } from './announcement-labels';
   selector: 'app-announcements',
   imports: [
     RouterLink,
-    AppDatePipe,
+    AnotokiAgoPipe,
+    AnotokiDatePipe,
     BadgeComponent,
     ButtonComponent,
     CardComponent,

@@ -42,7 +42,7 @@
                     <div class="app-foot">
                         <span class="small muted">
                             @if (app.last_used_at) {
-                                {{ "apps.lastUsed" | t }}: {{ app.last_used_at | appDate: "relative" }}
+                                {{ "apps.lastUsed" | t }}: {{ app.last_used_at | anotokiAgo }}
                             } @else {
                                 {{ "apps.neverUsed" | t }}
                             }

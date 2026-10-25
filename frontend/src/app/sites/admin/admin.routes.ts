@@ -1,10 +1,11 @@
 import { inject, provideEnvironmentInitializer } from '@angular/core';
 import { Routes } from '@angular/router';
 import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
+import { useAdminDates } from '../../shared/admin/admin-dates';
 import { useAdminToolsPanel } from '../../shared/admin/admin-tools.config';
 import { SessionService } from '../../shared/auth/session.service';
 import { useAdminPages } from '../../shared/i18n/translations.config';
-import { adminToolsPanel } from './admin-tools';
+import { adminDates, adminToolsPanel } from './admin-tools';
 import { AppComponent } from './app.component';
 import { localizationPages } from './localization';
 
@@ -16,8 +17,13 @@ export const ADMIN_ROUTES: Routes = [
     // The Translations and Languages pages as the IAM words them, handed to the family's translations as the
     // panel loads - before either page can be made - and kept out of the first load (shared/i18n/translations.config.ts);
     // the same for the family's admin tools - the Error log, Audit log, Feedback and Backups pages
-    // (shared/admin/admin-tools.config.ts).
-    providers: [provideEnvironmentInitializer(() => useAdminPages(localizationPages(inject(SessionService)))), provideEnvironmentInitializer(() => useAdminToolsPanel(adminToolsPanel()))],
+    // (shared/admin/admin-tools.config.ts); and the family's dates for their pages and the Migrations page, as the
+    // account writes them (shared/admin/admin-dates.ts).
+    providers: [
+      provideEnvironmentInitializer(() => useAdminPages(localizationPages(inject(SessionService)))),
+      provideEnvironmentInitializer(() => useAdminToolsPanel(adminToolsPanel())),
+      provideEnvironmentInitializer(() => useAdminDates(adminDates())),
+    ],
     children: [
       { path: '', title: 'Dashboard', loadComponent: () => import('./dashboard/dashboard.component').then((m) => m.DashboardComponent) },
       { path: 'users', title: 'Users', loadComponent: () => import('./users/users-list.component').then((m) => m.UsersListComponent) },
@@ -82,6 +88,13 @@ export const ADMIN_ROUTES: Routes = [
         loadComponent: () => import('@anotoki/lib/translations/admin').then((m) => m.LanguagesPageComponent),
       },
       { path: 'keys', title: 'Signing keys', loadComponent: () => import('./keys/keys.component').then((m) => m.KeysComponent) },
+      // The anotoki family's Site settings page (@anotoki/lib/admin/site-settings, anotoki-lib 0.11.0): the announcement
+      // alone - the one part the IAM offers -, its bar above the sign-in, account and legal pages, never this panel.
+      {
+        path: 'site-settings',
+        title: 'Site settings',
+        loadComponent: () => import('@anotoki/lib/admin/site-settings').then((m) => m.SiteSettingsPageComponent),
+      },
       // Encrypted with a key from the master key, restoring off; the proof is the IAM's own (docs/decisions.md, 2026-10-11).
       { path: 'backups', title: 'Backups', loadComponent: () => import('@anotoki/lib/admin/backups').then((m) => m.BackupsPageComponent) },
       // The anotoki family's Migrations page (@anotoki/lib), as every anotoki site has it.

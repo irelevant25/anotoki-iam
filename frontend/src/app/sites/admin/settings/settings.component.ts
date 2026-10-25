@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
 import { SelectComponent, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
@@ -10,7 +11,6 @@ import { ToastService } from '@anotoki/lib/ui/toast';
 import { AdminApi } from '../../../api/admin.api';
 import { ApiError } from '../../../api/api-error';
 import { Setting } from '../../../api/models';
-import { AppDatePipe } from '../../../shared/i18n/app-date.pipe';
 import { adminErrorText } from '../shared/admin-errors';
 
 /** What each switch does, said plainly - the setting's name alone does not say what happens when it is off. */
@@ -44,7 +44,7 @@ const DESCRIPTIONS: Record<string, { label: string; text: string }> = {
  */
 @Component({
   selector: 'app-settings',
-  imports: [AppDatePipe, AlertComponent, ButtonComponent, CardComponent, ErrorStateComponent, PageHeaderComponent, SelectComponent, SpinnerComponent, SwitchComponent, TextFieldComponent],
+  imports: [AnotokiDatePipe, AlertComponent, ButtonComponent, CardComponent, ErrorStateComponent, PageHeaderComponent, SelectComponent, SpinnerComponent, SwitchComponent, TextFieldComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',

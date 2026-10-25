@@ -347,11 +347,11 @@ function anonymizedLeftovers(PDO $pdo): void
  *
  * The log is the anotoki library's table (migration 018 moved the IAM's rows
  * into it): the first two rules are its scrubPeople() - the IAM's, made the
- * family's - and the third is the IAM's own. And while they are there, the
- * IAM's own table too: audit_log until 018 has run (a build is uploaded
- * before Apply), audit_log_before_018 - the copy 018 keeps, unread - until a
- * later migration drops it. An entry still waiting in the pending file for 018
- * is scrubbed by the sweep after it goes in.
+ * family's - and the third is the IAM's own. And while it is there, the IAM's
+ * own table too: audit_log until 018 has run (a build is uploaded before
+ * Apply; a database put back by hand from a backup made before it). An entry
+ * still waiting in the pending file for 018 is scrubbed by the sweep after it
+ * goes in. (The copy 018 kept, audit_log_before_018, unread, went in 027.)
  *
  * @param list<int> $ids
  */
@@ -372,23 +372,20 @@ function scrubAuditLog(PDO $pdo, array $ids): void
         )->execute([$idArray]);
     }
 
-    $person = "ARRAY['from', 'to', 'username', 'email', 'name', 'address']";
-    foreach (['audit_log', 'audit_log_before_018'] as $table) {
-        if (!$there($table)) {
-            continue;
-        }
+    if ($there('audit_log')) {
+        $person = "ARRAY['from', 'to', 'username', 'email', 'name', 'address']";
         $pdo->prepare(
-            "UPDATE {$table} SET ip = NULL
+            "UPDATE audit_log SET ip = NULL
               WHERE ip IS NOT NULL
                 AND (actor_id = ANY (CAST(? AS int[])) OR (actor_id IS NULL AND target_type = 'user' AND target_id = ANY (CAST(? AS text[]))))",
         )->execute([$idArray, $idArray]);
         $pdo->prepare(
-            "UPDATE {$table} SET details = details - $person
+            "UPDATE audit_log SET details = details - $person
               WHERE target_type = 'user' AND target_id = ANY (CAST(? AS text[]))
                 AND jsonb_typeof(details) = 'object' AND jsonb_exists_any(details, $person)",
         )->execute([$idArray]);
         $pdo->prepare(
-            "UPDATE {$table} SET details = details - 'name'
+            "UPDATE audit_log SET details = details - 'name'
               WHERE actor_id = ANY (CAST(? AS int[])) AND action = 'account.token_created' AND jsonb_typeof(details) = 'object' AND jsonb_exists(details, 'name')",
         )->execute([$idArray]);
     }

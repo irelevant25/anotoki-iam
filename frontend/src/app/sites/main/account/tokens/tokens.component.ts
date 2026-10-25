@@ -4,6 +4,7 @@ import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
 import { CopyButtonComponent } from '@anotoki/lib/ui/copy';
+import { AnotokiAgoPipe, AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { ConfirmService, DialogComponent } from '@anotoki/lib/ui/dialog';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
@@ -15,7 +16,6 @@ import { forkJoin } from 'rxjs';
 import { AccountApi } from '../../../../api/account.api';
 import { ApiError } from '../../../../api/api-error';
 import { AccountApplication, CreatedToken, PersonalToken } from '../../../../api/models';
-import { AppDatePipe } from '../../../../shared/i18n/app-date.pipe';
 import { TranslationKey } from '../../../../shared/i18n/en';
 import { errorText } from '../../../../shared/i18n/error-text';
 import { TPipe } from '../../../../shared/i18n/t.pipe';
@@ -41,7 +41,8 @@ const EXPIRY_OPTIONS: { days: number; label: TranslationKey }[] = [
 @Component({
   selector: 'app-tokens',
   imports: [
-    AppDatePipe,
+    AnotokiAgoPipe,
+    AnotokiDatePipe,
     TPipe,
     AlertComponent,
     BadgeComponent,

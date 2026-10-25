@@ -116,19 +116,17 @@ if (in_array('--dev', $argv, true)) {
 }
 
 foreach ($pdo->query('SELECT * FROM applications ORDER BY sort_order, client_id')->fetchAll() as $application) {
-    // With migration 010 applied, who gets in is whether the site requires
-    // signing in and which of its roles may sign in; before it, the old
-    // access - worth reading before uploading the build that brings 010,
-    // whose header says what it makes of a members-only application.
-    $rules = array_key_exists('login_required', $application);
-    $who = !$rules ? "access: {$application['access']}" : ($application['system'] ? 'the IAM itself' : 'sign-in required: ' . ($application['login_required'] ? 'yes' : 'no'));
+    // Who gets in is whether the site requires signing in and which of its
+    // roles may sign in (migration 010; the access column before it went in
+    // 027).
+    $who = $application['system'] ? 'the IAM itself' : 'sign-in required: ' . ($application['login_required'] ? 'yes' : 'no');
     // Every client is public since 011; one that is not yet is worth a word
     // before that migration is applied (it will have to use PKCE).
     $type = $application['type'] === 'public' ? '' : ", {$application['type']} - 011 makes it public";
     echo "\n{$application['client_id']}  ({$application['name']}{$type}, {$who}" . ($application['enabled'] ? '' : ', DISABLED') . ")\n";
     echo '  home: ' . ($application['home_url'] ?? '-') . "\n";
 
-    if ($rules && !$application['system']) {
+    if (!$application['system']) {
         $maySignIn = $pdo->prepare('SELECT name FROM application_roles WHERE application_id = ? AND may_sign_in ORDER BY name');
         $maySignIn->execute([$application['id']]);
         echo '  may sign in: ' . (implode(', ', $maySignIn->fetchAll(PDO::FETCH_COLUMN)) ?: 'no role') . "\n";

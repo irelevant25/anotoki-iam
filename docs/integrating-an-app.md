@@ -64,7 +64,7 @@ application that has one - those there when 007 ran, the one the installer or
 An application for a few people - a beta, a test, one registered in the admin
 panel - unticks MEMBER under the roles that may sign in, and gives EARLY_ACCESS
 by hand to the people it is for; ADMIN or EDITOR only to those who run it (what
-`access: members` was before 010; the column is still there, unread).
+`access: members` was before 010; migration 027 dropped that column).
 
 The first-party sites arrive registered with their development addresses - the
 port each one's dev server uses:

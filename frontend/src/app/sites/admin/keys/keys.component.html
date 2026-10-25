@@ -45,10 +45,10 @@
                                         <anotoki-badge>Retired</anotoki-badge>
                                     }
                                 </td>
-                                <td class="nowrap">{{ key.created_at | appDate }}</td>
+                                <td class="nowrap">{{ key.created_at | anotokiDate: "datetime" }}</td>
                                 <td>
                                     @if (key.retired_at) {
-                                        <span class="nowrap">{{ key.retired_at | appDate }}</span>
+                                        <span class="nowrap">{{ key.retired_at | anotokiDate: "datetime" }}</span>
                                         <span class="small muted block">{{ publishedUntil(key) }}</span>
                                     } @else {
                                         <span class="muted">-</span>

@@ -8,6 +8,7 @@ import { provideAnotokiFeedback } from '@anotoki/lib/feedback';
 import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { SiteState, SiteStatus, provideAnotokiMigrations } from '@anotoki/lib/migrations';
 import { provideAnotokiShell } from '@anotoki/lib/shell';
+import { SiteSettings, provideAnotokiSiteSettings } from '@anotoki/lib/site-settings';
 import { provideAnotokiTranslations } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { provideAnotokiUi } from '@anotoki/lib/ui/config';
@@ -27,6 +28,7 @@ import { iamTranslationsConfig } from './shared/i18n/translations.config';
 import { iamShellConfig, iamUiConfig } from './shared/kit/kit.config';
 import { iamLegalConfig } from './shared/legal/legal.config';
 import { iamMigrationsConfig } from './shared/migrations/migrations.config';
+import { ANNOUNCEMENT_STORAGE_KEY, iamSiteSettingsConfig } from './shared/site-settings/site-settings.config';
 import { AuthLayoutComponent } from './sites/main/auth/auth-layout/auth-layout.component';
 import { LegalLayoutComponent } from './sites/main/legal/legal-layout/legal-layout.component';
 import { AccountLayoutComponent } from './sites/main/account/account-layout.component';
@@ -178,6 +180,7 @@ describe("the IAM's frames: the family's footer under every page, and the status
         provideAnotokiLegal(iamLegalConfig),
         provideAnotokiFeedback(iamFeedbackConfig),
         provideAnotokiAdmin(iamAdminToolsConfig),
+        provideAnotokiSiteSettings(iamSiteSettingsConfig),
       ],
     });
     fixture = TestBed.createComponent(AppComponent);
@@ -414,6 +417,73 @@ describe("the IAM's frames: the family's footer under every page, and the status
   });
 
   /**
+   * The administrators' announcement - the family's site settings' one part the IAM offers (anotoki-lib 0.11.0; the
+   * owner's decision: no maintenance, no page access on the IAM) -, read as the site starts (app.config.ts): a bar
+   * across the top of the sign-in pages' frame, the account pages' and the legal pages', in the page's language, and
+   * never in the admin panel.
+   */
+  describe('the announcement', () => {
+    const ANNOUNCEMENT = { level: 'warning', message: { en: 'The sign-in is slow tonight.', sk: 'Prihlasovanie je dnes večer pomalé.' } };
+
+    /** The frames, and the site settings as the start reads them. */
+    async function withAnnouncement(answer: object = { announcement: ANNOUNCEMENT }): Promise<void> {
+      configureFrames();
+      const loaded = TestBed.inject(SiteSettings).load();
+      TestBed.inject(HttpTestingController).expectOne('/api/site-settings').flush(answer);
+      await loaded;
+    }
+
+    /** The frame's own elements, in order. */
+    const children = (selector: string) => Array.from(host.querySelector(selector)?.children ?? []).map(named);
+
+    afterEach(() => localStorage.removeItem(ANNOUNCEMENT_STORAGE_KEY));
+
+    it('above a sign-in page, an account page and a legal page - across the top of the frame, in the page’s language', async () => {
+      await withAnnouncement();
+      await at('/login');
+      expect(children('app-auth-layout')).toEqual(['a.skip-link', 'anotoki-announcement.anotoki-announcement', 'div.auth']);
+      const bar = host.querySelector('anotoki-announcement [data-announcement]')!;
+      expect([bar.getAttribute('data-level'), words(bar.querySelector('.anotoki-announcement__message'))]).toEqual(['warning', 'Prihlasovanie je dnes večer pomalé.']);
+
+      user.set({ ...MIRA });
+      await at('/account/security');
+      expect(children('app-account-layout')).toEqual(['anotoki-announcement.anotoki-announcement', 'anotoki-shell.anotoki-shell']);
+      expect(host.querySelectorAll('[data-announcement]')).toHaveLength(1);
+
+      await at('/terms');
+      expect(children('app-legal-layout')).toEqual(['anotoki-announcement.anotoki-announcement', 'anotoki-shell.anotoki-shell']);
+      expect(host.querySelectorAll('[data-announcement]')).toHaveLength(1);
+    });
+
+    it('never in the admin panel', async () => {
+      user.set({ ...MIRA });
+      await withAnnouncement();
+      await at('/admin/users');
+      TestBed.inject(HttpTestingController).expectOne('/api/admin/feedback/unread').flush({ unread: 0 });
+      await settle();
+      expect(host.querySelector('anotoki-admin-frame')).not.toBeNull();
+      expect(host.querySelector('anotoki-announcement, [data-announcement]')).toBeNull();
+    });
+
+    it('none to say - nothing written, or switched off: no bar', async () => {
+      await withAnnouncement({ announcement: null });
+      await at('/login');
+      expect(host.querySelector('[data-announcement]')).toBeNull();
+    });
+
+    it('Hide: gone, and a mark of it kept under the IAM’s own name - never its words - until they change', async () => {
+      await withAnnouncement();
+      await at('/login');
+      host.querySelector<HTMLButtonElement>('[data-announcement] [data-hide]')!.click();
+      await settle();
+      expect(host.querySelector('[data-announcement]')).toBeNull();
+      const mark = localStorage.getItem(ANNOUNCEMENT_STORAGE_KEY) ?? '';
+      expect(mark).toMatch(/^v1:[0-9a-f]{8}$/);
+      expect(mark).not.toContain('slow');
+    });
+  });
+
+  /**
    * The admin panel in the anotoki family's admin frame (`<anotoki-admin-frame>`, anotoki-lib 0.10.0 - the owner's
    * request of 2026-10-24: every admin panel the genshin site's, never mistaken for the site): no top bar, a column of
    * its own, worded and wired by the IAM (sites/admin/app.component).
@@ -453,19 +523,29 @@ describe("the IAM's frames: the family's footer under every page, and the status
       expect(frame.querySelector('.anotoki-admin-frame__theme anotoki-theme-toggle [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Appearance');
       expect(words(frame.querySelector('a.anotoki-admin-frame__skip'))).toBe('Skip to content');
       expect(frame.querySelector('nav.anotoki-side-nav__nav')?.getAttribute('aria-label')).toBe('Admin panel');
-      // The sixteen pages the panel had, under headings; the page's own marked.
+      // The family's one shape of an admin menu (the owner's request of 2026-10-25): the IAM's own pages at the top with
+      // no heading, Localization, then System - the IAM's own system pages, then the family's in the family's order -;
+      // the page's own marked.
       expect(pages()).toEqual([
-        [null, 'Dashboard /admin'],
-        ['Access', 'Users /admin/users [page]', 'Approvals /admin/approvals', 'Sessions /admin/sessions', 'Applications /admin/applications'],
-        ['Mail', 'Announcements /admin/announcements', 'Email log /admin/emails'],
+        [
+          null,
+          'Dashboard /admin',
+          'Users /admin/users [page]',
+          'Approvals /admin/approvals',
+          'Sessions /admin/sessions',
+          'Applications /admin/applications',
+          'Announcements /admin/announcements',
+          'Email log /admin/emails',
+        ],
         ['Localization', 'Translations /admin/translations', 'Languages /admin/languages'],
         [
           'System',
           'Settings /admin/settings',
           'Signing keys /admin/keys',
-          'Audit log /admin/audit',
-          'Error log /admin/errors',
+          'Site settings /admin/site-settings',
           'Feedback /admin/feedback',
+          'Error log /admin/errors',
+          'Audit log /admin/audit',
           'Backups /admin/backups',
           'Migrations /admin/migrations',
         ],

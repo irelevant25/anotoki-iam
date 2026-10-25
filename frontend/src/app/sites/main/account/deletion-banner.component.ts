@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { formatDate } from '@anotoki/lib/ui/dates';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../../api/account.api';
 import { ApiError } from '../../../api/api-error';
 import { SessionService } from '../../../shared/auth/session.service';
-import { formatAppDate } from '../../../shared/i18n/app-date.pipe';
 import { errorText } from '../../../shared/i18n/error-text';
 import { TPipe } from '../../../shared/i18n/t.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
@@ -45,7 +45,9 @@ export class DeletionBannerComponent {
   private readonly _button = viewChild('cancelButton', { read: ElementRef<HTMLButtonElement> });
 
   /** The heading - and the landmark's name - with the day as the account writes dates. */
-  protected readonly title = computed(() => this._i18n.t('deletion.pendingTitle', { date: formatAppDate(this.due(), 'date', this._i18n.locale(), this._session.user()?.preferences ?? null) }));
+  protected readonly title = computed(() =>
+    this._i18n.t('deletion.pendingTitle', { date: formatDate(this.due(), { locale: this._i18n.locale(), choices: this._session.user()?.preferences ?? null }) }),
+  );
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
 

@@ -98,8 +98,8 @@
                                         </span>
                                     </td>
                                     <td class="mono">{{ session.ip ?? "-" }}</td>
-                                    <td class="nowrap">{{ session.created_at | appDate }}</td>
-                                    <td class="nowrap">{{ session.last_seen_at | appDate: "relative" : "-" }}</td>
+                                    <td class="nowrap">{{ session.created_at | anotokiDate: "datetime" }}</td>
+                                    <td class="nowrap">{{ (session.last_seen_at | anotokiAgo) || "-" }}</td>
                                     <td>
                                         @if (session.active) {
                                             <anotoki-badge tone="success" [dot]="true">Signed in</anotoki-badge>

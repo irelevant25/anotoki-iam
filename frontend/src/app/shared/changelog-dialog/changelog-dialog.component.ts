@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { ANOTOKI_DIALOG_DATA, AnotokiDialogRef, DialogFooterDirective } from '@anotoki/lib/ui/dialog';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { type ChangeKind, type ChangelogEntry, changesIn } from '../changelog/changelog.service';
-import { AppDatePipe } from '../i18n/app-date.pipe';
 import { TranslationKey } from '../i18n/en';
 import { TPipe } from '../i18n/t.pipe';
 import { TranslationService } from '../i18n/translation.service';
@@ -20,7 +20,7 @@ const KINDS: readonly { kind: ChangeKind; key: TranslationKey; icon: IconName }[
 /** A version as the dialog draws it: its lists in the reader's language where they are whole, and that language where it is not the page's. */
 interface ShownVersion {
   version: string;
-  /** Its day at noon, as the reader's clock has it: a day, the same day in every time zone (`appDate`). */
+  /** Its day, as the file says it (`2026-10-19`): a calendar day, the same day in every time zone (`anotokiDate`). */
   day: string;
   lang: string | null;
   lists: { kind: ChangeKind; key: TranslationKey; icon: IconName; sentences: string[] }[];
@@ -35,14 +35,14 @@ interface ShownVersion {
  * The frame's words are the IAM's keys (`whatsNew.*`, migration 024, in the
  * language on the page: English in the admin panel) - the heading, a
  * version's name, Latest, the three headings - with Close, and the date in
- * the account's order (`appDate`). The sentences are the file's: a version's
+ * the account's order (the family's `anotokiDate`). The sentences are the file's: a version's
  * translation into the reader's language when it is whole (`translations.sk`:
  * the IAM's informal Slovak), its English otherwise - and then its lists say
  * they are English.
  */
 @Component({
   selector: 'app-changelog-dialog',
-  imports: [AppDatePipe, BadgeComponent, ButtonComponent, DialogFooterDirective, IconComponent, TPipe],
+  imports: [AnotokiDatePipe, BadgeComponent, ButtonComponent, DialogFooterDirective, IconComponent, TPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './changelog-dialog.component.html',
   styleUrl: './changelog-dialog.component.scss',
@@ -58,7 +58,7 @@ export class ChangelogDialogComponent {
       const { changes, lang } = changesIn(entry, language);
       return {
         version: entry.version,
-        day: `${entry.date}T12:00:00`,
+        day: entry.date,
         lang: lang === language ? null : lang,
         lists: KINDS.map((kind) => ({ ...kind, sentences: changes[kind.kind] ?? [] })).filter((list) => list.sentences.length > 0),
       };

@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, inject, output } from '@angular/core';
+import { formatDate } from '@anotoki/lib/ui/dates';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { AccountApi } from '../../../../api/account.api';
 import { ApiError } from '../../../../api/api-error';
 import { AccountUser } from '../../../../api/models';
 import { SessionService } from '../../../../shared/auth/session.service';
-import { formatAppDate } from '../../../../shared/i18n/app-date.pipe';
 import { TPipe } from '../../../../shared/i18n/t.pipe';
 import { TranslationService } from '../../../../shared/i18n/translation.service';
 import { ProofDialogComponent } from './proof-dialog.component';
@@ -42,7 +42,7 @@ export class DeletionDialogComponent {
   protected readonly explain = (error: ApiError): string | null => (error.code === 'last_admin' ? this._i18n.t('deletion.lastAdmin') : null);
 
   protected requested(user: AccountUser): void {
-    const date = formatAppDate(user.deletion_due_at, 'date', this._i18n.locale(), user.preferences);
+    const date = formatDate(user.deletion_due_at, { locale: this._i18n.locale(), choices: user.preferences });
     // The mail that says how to keep the account goes to a confirmed address
     // only: so does the toast that says it was sent.
     this._toast.show(this._i18n.t(user.email_confirmed ? 'deletion.requested' : 'deletion.pendingTitle', { date }), 'success', 9000);

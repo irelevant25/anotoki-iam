@@ -53,6 +53,7 @@ require_once __DIR__ . '/oidc.php';
 require_once __DIR__ . '/housekeeping.php';
 require_once __DIR__ . '/migration_runner.php';
 require_once __DIR__ . '/admin_tools.php';
+require_once __DIR__ . '/site_settings.php';
 require_once __DIR__ . '/meddleware/security.php';
 require_once __DIR__ . '/meddleware/auth.php';
 
