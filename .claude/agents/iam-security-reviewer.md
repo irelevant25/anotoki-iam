@@ -95,7 +95,10 @@ the files you were given). You do not edit anything.
   asked (Settings -> Signing in is its gate). The rule before 010 (the
   `access` column, read while 010 was pending) is gone with the column
   (migration 027): on a database without 010 the rule must fail closed - an
-  error, never a code. A change of who may sign in is audited (`application.sign_in_changed`;
+  error, never a code - and so must every reader of a 010 column: named in
+  its query, never read off a whole row, where a missing key is false (the
+  public contract's `login_required`, the security review of 2026-10-25).
+  A change of who may sign in is audited (`application.sign_in_changed`;
   a new application's `application.created` says what it starts with).
   Taking MEMBER away, or unticking it, stops a personal token made before at
   its next exchange too, and a code given before at its exchange.
@@ -216,8 +219,9 @@ the files you were given). You do not edit anything.
   cleanly that names none, a folder - fails closed (a secret no request
   carries), and only nothing there is no secret (2026-10-18). The audit log: `audit()` keeps what it kept, never throws, writes behind
   a savepoint; a deleted account's person scrubbed by the IAM's rules in
-  `anotoki_audit_log` (and the old `audit_log` while 018 waits; 027 dropped
-  018's copy, `audit_log_before_018`), and out of the entries
+  `anotoki_audit_log` (and the old `audit_log` while 018 waits, and 018's
+  copy `audit_log_before_018` until 027 drops it - the backup made before
+  that Apply keeps nobody deleted), and out of the entries
   that waited for 018 as they go in (`flushWaitingAuditEntries()`). Backups
   are kept until the owner deletes them (no maximum age - the owner's decision
   of 2026-10-11). Feedback (the owner's decision of 2026-10-19,

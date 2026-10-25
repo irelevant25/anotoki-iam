@@ -133,8 +133,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   went in migration 027 with the code that read it (the owner's yes of
   2026-10-25): this build runs on no database without 010, and on one it
   fails closed (the rule asks for a column that is not there; no code reaches
-  a site). It was never a way back: once 010 is applied, a build from before
-  it never goes on the host again (it would fail open); fix forward.
+  a site; the public contract names its columns - a 500, never a whole row's
+  missing `login_required` read as false, the security review of
+  2026-10-25). It was never a way back: once 010 is applied, a build from
+  before it never goes on the host again (it would fail open); fix forward.
 - **Public clients only, the same roles everywhere** (migration 011, the
   owner's words of 2026-10-05): every application proves each sign-in with
   PKCE and has no secret (a request carrying one is refused); every site has
@@ -351,9 +353,10 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `audit()` stays every route's one way in and keeps what it kept (who, what,
   to what, the details, `requestIp()`, the time), behind a savepoint, never
   throwing; migration 018 moved every entry of `audit_log` there with its id
-  and kept the old table, unread, as `audit_log_before_018` - which migration
-  027 dropped (the owner's yes of 2026-10-25: every event of it was in the
-  library's table). Until 018 has run an
+  and kept the old table, unread, as `audit_log_before_018` - scrubbed by an
+  account's deletion while it is there (the backup before 027's Apply keeps
+  nobody deleted), and dropped by migration 027 (the owner's yes of
+  2026-10-25: every event of it was in the library's table). Until 018 has run an
   entry waits in `storage/logs/audit-pending.jsonl` (`auditMovedToLibrary()`),
   flushed after the Apply, by `php migration.php` and by housekeeping (before
   its deletions) through `flushWaitingAuditEntries()`, which scrubs the
