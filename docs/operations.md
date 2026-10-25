@@ -650,8 +650,9 @@ before it goes on the host again** - it would open the three holes again, and
 its confirmation page would read a confirmation that signs nobody in as a
 sign-in; fix forward.
 
-**anotoki-lib 0.11.0 and migration 027** (2026-10-25; `docs/decisions.md`):
-upload both halves, then Apply - its backup first, as ever. Apply brings the
+**anotoki-lib 0.11.1 and migration 027** (2026-10-25; `docs/decisions.md`;
+0.11.1 adds nothing to Apply): upload both halves, then Apply - its backup
+first, as ever. Apply brings the
 library's `anotoki_admin/003` (the site settings' tables), the IAM's **027**
 (it drops `applications.access`, the rule before 010; `type`, `secret_hash`
 and `show_on_landing`, which 011 left unread - a client secret is refused as
@@ -693,8 +694,8 @@ the audit log, feedback (its form too) and backups (a migration set of its own, 
 applied before the IAM's), their routes and their pages, and the reporter of
 the pages' own errors - and, in the Angular half, the family's UI kit: its
 styles and palette, its components, the top bar and the frame, the admin
-panel's frame, the legal pages, the footer, the site settings' pieces and the dates. The IAM is on 0.11.0, both halves (`composer.json`'s `^0.11.0`, the lock
-on v0.11.0, and the 0.11.0 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
+panel's frame, the legal pages, the footer, the site settings' pieces and the dates. The IAM is on 0.11.1, both halves (`composer.json`'s `^0.11.0`, the lock
+on v0.11.1, and the 0.11.1 tarball; never 0.4.0, which fails on PHP 8.2). Both halves come from GitHub, never
 from a copy on disk; the Composer package brings the library's migration files
 and words with it (`vendor/anotoki/lib/backend/migrations`, `/backend/resources`),
 which a release carries with the rest of `vendor/` and which are denied
