@@ -106,7 +106,7 @@ page) and applies nothing when it cannot; an upload never overwrites
 The move onto anotoki-lib 0.4.1's admin tools brings the library's admin set
 (`anotoki_admin/001`, `/002`), migration 018 (the audit log moved into the
 library's table, every entry with its id; the old table kept as
-`audit_log_before_018`) and the translations set's `003` and `004`: apply
+`audit_log_before_018` - which 027 dropped) and the translations set's `003` and `004`: apply
 right after the upload - the Audit log page waits for it, and the entries made
 meanwhile wait in `storage/logs/audit-pending.jsonl` until then. Once 018 is
 applied, no build from before it goes on the host again. Download a backup
@@ -196,11 +196,10 @@ Migration 010 (MEMBER for every account, roles that may sign in, sign-in
 required per site) goes the other way round from 007: upload the IAM's build,
 **Apply pending at once**, and only then any site that reads the sign-in
 switch (a site reading it from an IAM without 010 requires signing in,
-turning genshin's and the analyzer's visitors away). Until Apply, signing in
-keeps the rule before 010 and the admin panel's Applications pages answer
-"Apply the pending migrations" (the public answer the sites read is a 503:
-a site keeps its last answer, or requires signing in). Before uploading, `php clients.php` (or the
-Applications page) shows which applications are members-only: 010 unticks
+turning genshin's and the analyzer's visitors away). (A build since 027 runs
+on no database without 010: the rule before it went with the `access`
+column.) Before uploading, the Applications page showed which applications
+were members-only: 010 unticks
 their MEMBER, so only holders of their other roles keep getting in - tell the
 owner which, and that ticking MEMBER opens one to every account. **Once 010
 is applied, never upload a build from before it again** (it would let every
@@ -214,6 +213,17 @@ application of another kind that kept a client secret must switch to PKCE (a
 request carrying a secret is refused from the upload on, whatever Apply), that
 every site now has ADMIN, EDITOR and MEMBER (new ones held by nobody), and
 that the public list of sites is every one switched on.
+
+anotoki-lib 0.11.0 and migration 027 (2026-10-25): upload both halves, then
+Apply - the library's `anotoki_admin/003` (the site settings' tables), the
+IAM's `027` (drops `applications.access` and `audit_log_before_018`) and the
+translations set's `014` and `015`. Apply right after the upload. Then the
+admin panel's System → Site settings sets the announcement (the IAM's one
+part: no maintenance, no page access); the release's `.htaccess` sends
+`/robots.txt` and `/sitemap.xml` to the front controller - check both after
+the deploy (read-only GETs: robots.txt names `https://<the IAM>/sitemap.xml`,
+the sitemap lists the five legal, About and Support pages). A build from
+before 027 still runs on the database after it.
 
 The pages' and mails' words are rows in the database (migration 006 and every
 later migration with strings, and the anotoki library's own set,

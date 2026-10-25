@@ -129,12 +129,12 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   thing the sites read from `GET /api/public/applications/{client_id}`
   (three fields, 404 unless enabled and not system; the SDK fails closed). MEMBER
   can be taken from people, never removed from an application. The old
-  `access` column stays, unread, and is read only while 010 is pending
-  (`signInRulesReady()`, never memoised); a later migration drops it once
-  both IAMs run 010 - it is no way back: once 010 is applied, a build from
-  before it never goes on the host again (it would fail open); fix forward.
-  010 goes on an installed IAM right after its upload, before any site
-  reads the sign-in switch.
+  `access` column - the rule before 010, read only while 010 was pending -
+  went in migration 027 with the code that read it (the owner's yes of
+  2026-10-25): this build runs on no database without 010, and on one it
+  fails closed (the rule asks for a column that is not there; no code reaches
+  a site). It was never a way back: once 010 is applied, a build from before
+  it never goes on the host again (it would fail open); fix forward.
 - **Public clients only, the same roles everywhere** (migration 011, the
   owner's words of 2026-10-05): every application proves each sign-in with
   PKCE and has no secret (a request carrying one is refused); every site has
@@ -292,8 +292,8 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   mails stay the IAM's (`MAIL_KEYS`, `MAIL_FALLBACK`, `mailWords()`,
   `mailFill()`, `mailMessage()`); their rules are `IamMailRules`, which the
   library's checks ask. `anotoki.` is the library's namespace: its own words
-  (288 keys since 0.8.0: the kit's, the status page's, the legal pages', the
-  footer's, the About and Support pages' and more) come from its migration set
+  (357 keys since 0.11.0: the kit's, the status page's, the legal pages', the
+  footer's, the About and Support pages', the site settings' and more) come from its migration set
   `anotoki_translations`, which runs after the IAM's set everywhere
   (`iamMigrator()`), is recorded in `migrations` as `set/name`, and writes a
   key's strings only where the key has none - but for 0.6.1's 010, which
@@ -351,8 +351,9 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `audit()` stays every route's one way in and keeps what it kept (who, what,
   to what, the details, `requestIp()`, the time), behind a savepoint, never
   throwing; migration 018 moved every entry of `audit_log` there with its id
-  and kept the old table, unread but scrubbed, as `audit_log_before_018` until
-  a later migration drops it once both IAMs run 018. Until 018 has run an
+  and kept the old table, unread, as `audit_log_before_018` - which migration
+  027 dropped (the owner's yes of 2026-10-25: every event of it was in the
+  library's table). Until 018 has run an
   entry waits in `storage/logs/audit-pending.jsonl` (`auditMovedToLibrary()`),
   flushed after the Apply, by `php migration.php` and by housekeeping (before
   its deletions) through `flushWaitingAuditEntries()`, which scrubs the
@@ -436,6 +437,31 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   never change an account because a message asks. Once 1.0.0 has taken a
   message, no build from before it goes on the host again (it would neither
   scrub a deleted person's messages nor prune them); fix forward.
+- **Site settings: the announcement alone; robots.txt and sitemap.xml** (the
+  owner's requests of 2026-10-25, anotoki-lib 0.11.0; `docs/decisions.md`;
+  `api/site_settings.php`): of the family's site settings - Getting in
+  (maintenance), the announcement, Page access - the IAM offers THE
+  ANNOUNCEMENT ALONE (the owner's decision: maintenance would stop every
+  site's sign-in; a page switched off could hide a sign-in page or the
+  account page's deletion). `iamSiteSettings()` offers that part only, its
+  `SiteState` gets no settings (never `maintenance`), no `PageAccessGate`
+  is mounted, and a switch of either other part is `422 part_not_offered` -
+  never offer one without the owner's decision. `GET /api/site-settings`
+  (public, first-party, no cookie, no CORS) tells every page; the pages read it
+  as they start and never wait for it (its failure is no bar, never a page
+  moved), and draw `<anotoki-announcement>` above the sign-in, account and
+  legal pages' frames - never the admin panel's. The admin routes
+  (`/api/admin/site-settings`) stand beside the admin group - the library
+  mounts them at their own path - under the same checks (`requireSession()`,
+  `requireAdmin()`, the library's ADMIN check, the CSRF header), audited
+  `site_settings.changed`. Hide keeps a mark (never the words) in
+  `anotoki-iam:announcement`, which the Privacy page names (the legal facts'
+  preset `announcement`). robots.txt and sitemap.xml are the PHP's
+  (`iamRobots()`, the release's `.htaccess` routes both to the front
+  controller): robots kept out of /admin, /api, /auth, every sign-in page, the
+  account pages and /.well-known/ (for applications, never a page for a
+  search); the sitemap the legal pages, About and Support - by the configured
+  issuer, never a request's Host.
 - **Usernames are letters and digits** (the owner's decision of 2026-10-19,
   closing Low 1 of that day's security review; migration 025;
   `docs/decisions.md`): `[A-Za-z0-9]`, 1 to 100 (`usernameRefusal()`,
@@ -526,7 +552,9 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
   `iamRedactSecrets()` / `iamRedactException()` and `iamClientErrorRedaction()`,
   `iamFeedback()` / `iamFeedbackSender()`, `iamBackups()`,
   `iamMigratorWithBackup()`; `audit.php` is `audit()` over the
-  library's `AuditLog`, `iamAuditLog()`).
+  library's `AuditLog`, `iamAuditLog()`), and `site_settings.php` (the
+  family's site settings, the announcement alone - `iamSiteSettings()` -, and
+  robots.txt and the sitemap - `iamRobots()`).
   `helpers.php` holds `requestIp()` (the library's `ClientAddress` over
   `config/iam.php`'s trusted proxies and `config/cloudflare.php`'s origin
   secret), `languageCodes()` / `languageOrDefault()`
@@ -564,17 +592,21 @@ php sdk/php/test.php                      # the PHP SDK's cases: the token verif
 - **The family's library** (`irelevant25/anotoki-lib`): `anotoki/lib` in
   `backend/vendor/anotoki/lib` (Composer, from GitHub) and `@anotoki/lib` in
   `frontend/package.json` (the release's tarball), one version for both
-  halves, updated together where both change (`docs/operations.md`): 0.10.0,
+  halves, updated together where both change (`docs/operations.md`): 0.11.0,
   both halves (the migrations module, the translations module, the UI kit,
   the admin tools, the pages' error reporter, the legal pages, the footer,
-  the admin panel's frame; never 0.4.0, which fails on PHP 8.2). Never
+  the admin panel's frame, the site settings, robots.txt and the sitemap, the
+  dates; never 0.4.0, which fails on PHP 8.2). Never
   edit the vendored copy: a change goes to the library and comes back as a
   release. Its routes here: `GET /api/site-status` (first-party, public, no
   CORS), `/api/admin/migrations[/file|/apply]` inside the admin group, the
   bundle `GET /api/translations/{code}` (public, no cookie, no CORS), the
   pages' own errors `POST /api/client-errors` and the feedback form's
   `POST /api/feedback` (first-party, public, the CSRF header, no CORS), the
-  eight `/api/admin/languages|translations` routes, and
+  site settings' `GET /api/site-settings` (first-party, public, no cookie, no
+  CORS) and `/api/admin/site-settings[/pages[/{id}]]` (beside the admin
+  group, under its checks), `GET|HEAD /robots.txt` and `/sitemap.xml`
+  (public), the eight `/api/admin/languages|translations` routes, and
   the admin tools' `/api/admin/audit[/facets]`,
   `/api/admin/errors[/{fingerprint}]`, `/api/admin/feedback/**` and
   `/api/admin/backups/**` (the
@@ -662,10 +694,16 @@ a decision for `docs/decisions.md`, not a refactor.
   words `siteStatusWords()` under the IAM's own `notSetUp.*`), the family's
   admin tools (`admin/admin-tools.config.ts`: `provideAnotokiAdmin` - the
   IAM's ADMIN, a person the logs name opened on the Users page, the account's
-  dates, Migrations; what only the panel says and does - a refusal in
-  `adminErrorText()`'s words, "Sign in again" (`FreshSignInService`: out, and
-  back to the page), why restoring is off - handed over by the admin routes
-  from `sites/admin/admin-tools.ts`, out of the first load), the family's
+  dates, the languages of the Site settings page's words, Migrations; what
+  only the panel says and does - a refusal in `adminErrorText()`'s words,
+  "Sign in again" (`FreshSignInService`: out, and back to the page), why
+  restoring is off, the family's dates for its pages (`admin/admin-dates.ts`)
+  - handed over by the admin routes from `sites/admin/admin-tools.ts`, out of
+  the first load), the
+  family's site settings (`site-settings/site-settings.config.ts`:
+  `provideAnotokiSiteSettings`, the announcement alone, its mark's name
+  `anotoki-iam:announcement`; read as the pages start, never waited for, and
+  its read never moves a page in the interceptor), the family's
   UI kit and shell (`kit/kit.config.ts`: `provideAnotokiUi` - the kit's words
   from the database: the IAM's own keys where it has them, `kit/kit-words.ts`,
   the library's `anotoki.*` otherwise, `forKit()` - and its icons
@@ -680,7 +718,7 @@ a decision for `docs/decisions.md`, not a refactor.
   `i18n/translation.service.ts`: the library's `TranslationService` seen with
   the IAM's keys typed; `i18n/en.ts`: the keys and the English shown only
   while no bundle is in memory; the typed `t` pipe).
-- The UI kit is the family's (anotoki-lib 0.10.0), each piece imported from its
+- The UI kit is the family's (anotoki-lib 0.11.0), each piece imported from its
   own entry point (`@anotoki/lib/ui/button`, `/config`, `/icon`, `ui/forms`,
   `ui/dialog`, `ui/toast`, ... - never the `@anotoki/lib/ui` barrel, which
   pulls every piece into the first load; what only lazy pages use, only they
@@ -688,7 +726,12 @@ a decision for `docs/decisions.md`, not a refactor.
   IAM's palette is the family's - Manrope, the base, utilities, tables). The
   kit's markup is its own, BEM on its host class (`anotoki-top-bar__row`,
   `anotoki-button--primary`): a spec or a browser check reads those names.
-  Build on it; a piece it lacks goes to the library.
+  Build on it; a piece it lacks goes to the library. Dates are the family's
+  (`@anotoki/lib/ui/dates`: the `anotokiDate` and `anotokiAgo` pipes, the
+  `format*` functions; `kit/kit.config.ts` gives `provideAnotokiUi` the
+  page's `locale` and the account's `dateChoices`), the admin panel's own
+  pages' writer handed over with the panel (`shared/admin/admin-dates.ts`), so
+  the dates' code stays out of the first load.
   The IAM's own: `sites/main/common/google-button` and
   `shared/changelog-dialog` (What's new, lazy).
 - **Google only on a press** (the owner's decision of 2026-10-14;
@@ -773,9 +816,14 @@ a decision for `docs/decisions.md`, not a refactor.
   - no top bar: a column on the left with the panel's name ("anotoki account
   · admin panel", to the dashboard), the person, "Back to your account", Sign
   out (the bar's own, `SignOutService`), the theme (`<anotoki-theme-toggle
-  adminFrameTheme />`, the account's) and the pages in groups (Access, Mail,
-  Localization, System; the new feedback counted beside Feedback for an
-  administrator), and on the right `<anotoki-update-banner>`, the page and the
+  adminFrameTheme />`, the account's) and the pages in the family's one
+  shape (the owner's request of 2026-10-25): the IAM's own at the top with no
+  heading (Dashboard, Users, Approvals, Sessions, Applications, Announcements,
+  Email log), Localization (Translations, Languages), then System - its own
+  (Settings, Signing keys), then the family's in the family's order and words
+  (Site settings, Feedback - the new ones counted beside it for an
+  administrator -, Error log, Audit log, Backups, Migrations); no
+  announcement bar - and on the right `<anotoki-update-banner>`, the page and the
   footer; up to 860 px a row with the name and Menu, the column in a drawer.
   Its kit words are the IAM's keys, English there. Anybody but the IAM's
   ADMIN finds the panel closed ("You don't have access", or the deletion

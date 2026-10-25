@@ -92,9 +92,10 @@ the files you were given). You do not edit anything.
 - **Who may sign in to a site** (010): `applicationAccessRefusal()` on every
   way in (authorize, accept, the code exchange, every refresh, personal
   tokens) needs a held role with `may_sign_in`; the IAM's own entry is never
-  asked (Settings -> Signing in is its gate). While 010 is pending the rule
-  before it holds on the `access` column - a fallback, removed with the
-  column. A change of who may sign in is audited (`application.sign_in_changed`;
+  asked (Settings -> Signing in is its gate). The rule before 010 (the
+  `access` column, read while 010 was pending) is gone with the column
+  (migration 027): on a database without 010 the rule must fail closed - an
+  error, never a code. A change of who may sign in is audited (`application.sign_in_changed`;
   a new application's `application.created` says what it starts with).
   Taking MEMBER away, or unticking it, stops a personal token made before at
   its next exchange too, and a code given before at its exchange.
@@ -106,8 +107,7 @@ the files you were given). You do not edit anything.
 - **The public contract** (`GET /api/public/applications/{client_id}`,
   `routes/oidc.php`): three fields - `client_id`, `name`, `login_required` -
   and nothing else ever (no roles, addresses, people); 404 for an unknown,
-  malformed, switched-off or system client id; 503 `sign_in_rules_unavailable`
-  while 010 is pending; no session read, no cookie set, in no CORS list;
+  malformed, switched-off or system client id; no session read, no cookie set, in no CORS list;
   `public, max-age=60` on the 200 only, `no-store` on the rest. It is the
   switch that opens a site to visitors, so everything reading it fails closed:
   the PHP SDK's `anotoki_iam_login_required()` reads anything but a 200 with
@@ -168,6 +168,16 @@ the files you were given). You do not edit anything.
   `LanguageCode::ok()` before any query. The library's set
   (`anotoki_translations`) writes only the three tables, and a library key's
   strings only where it has none.
+- **Site settings, the announcement alone** (`api/site_settings.php`,
+  anotoki-lib 0.11.0, the owner's decision of 2026-10-25): never Getting in
+  (no `settings` on the IAM's `SiteState`, no `exempt`: maintenance would
+  stop every site's sign-in) and never Page access (no `PageAccessGate`);
+  `GET /api/site-settings` public, first-party, no cookie, in no CORS list;
+  `/api/admin/site-settings` under `requireSession()`, `requireAdmin()`, the
+  library's ADMIN check and the CSRF header, audited; a part not offered is
+  `422 part_not_offered`, and a row of it written by hand closes or hides
+  nothing. robots.txt and sitemap.xml name the configured issuer, never a
+  request's Host, and keep the sign-in and account pages out.
 - **The admin tools** (`api/admin_tools.php`, `api/audit.php`; the library's
   `AuditRoutes`, `ErrorLogRoutes`, `FeedbackRoutes`, `BackupsRoutes` mounted in
   `routes/admin.php`): every group inside the admin group (`requireSession()`,
@@ -206,7 +216,8 @@ the files you were given). You do not edit anything.
   cleanly that names none, a folder - fails closed (a secret no request
   carries), and only nothing there is no secret (2026-10-18). The audit log: `audit()` keeps what it kept, never throws, writes behind
   a savepoint; a deleted account's person scrubbed by the IAM's rules in
-  `anotoki_audit_log` and in `audit_log_before_018`, and out of the entries
+  `anotoki_audit_log` (and the old `audit_log` while 018 waits; 027 dropped
+  018's copy, `audit_log_before_018`), and out of the entries
   that waited for 018 as they go in (`flushWaitingAuditEntries()`). Backups
   are kept until the owner deletes them (no maximum age - the owner's decision
   of 2026-10-11). Feedback (the owner's decision of 2026-10-19,

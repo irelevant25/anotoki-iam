@@ -43,7 +43,11 @@ API document is a contract the Angular frontend and all the sites depend on.
   by the master key; an account's deletion scrubs its messages
   (`scrubFeedback()`, `account_deletion.php`) -, `iamBackups()` - encrypted
   under the master key, never restored -, `iamMigratorWithBackup()`; their
-  routes in `routes/admin.php`), `audit.php` (`audit()` over the library's `AuditLog`,
+  routes in `routes/admin.php`), `site_settings.php` (the family's site settings on
+  the IAM, the announcement alone - `iamSiteSettings()`: never Getting in,
+  never Page access -, and robots.txt and sitemap.xml - `iamRobots()`, by the
+  configured issuer; their routes in `routes/login.php` and, beside the admin
+  group under its checks, `routes/admin.php`), `audit.php` (`audit()` over the library's `AuditLog`,
   `iamAuditLog()`: `anotoki_audit_log`, entries waiting in
   `storage/logs/audit-pending.jsonl` until 018 has run), and `translations.php`
   (the IAM's configuration of the library's translations - `iamTranslations()`,
