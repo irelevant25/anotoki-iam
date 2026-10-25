@@ -558,11 +558,22 @@ $app->get('/api/applications', function (Request $request, Response $response) {
  * anybody visits. It confirms to anybody who knows a client id that the
  * application exists, and its name - as the sign-in page does for anybody who
  * starts a sign-in to it. In no CORS list: browsers never read it, the sites'
- * servers do. The 404 and the 503s are no-store (the security headers).
+ * servers do. The 404, the 503s and a 500 are no-store (the security headers).
+ *
+ * The columns are named, never a whole row read: on a database without 010's
+ * `login_required` the query fails - a 500, which every site's SDK reads as
+ * "sign-in required" - where a missing key read as false would answer
+ * `login_required: false` for a minute's caching and open every site that
+ * requires signing in to visitors (the security review of 2026-10-25).
  */
 $app->get('/api/public/applications/{client_id}', function (Request $request, Response $response, array $args) {
     $clientId = (string) $args['client_id'];
-    $application = preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $clientId) ? applicationByClientId($clientId) : null;
+    $application = null;
+    if (preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $clientId)) {
+        $statement = iamDb()->prepare('SELECT client_id, name, enabled, system, login_required FROM applications WHERE client_id = ?');
+        $statement->execute([$clientId]);
+        $application = $statement->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
 
     if ($application === null || !asBool($application['enabled']) || asBool($application['system'])) {
         return respondError($response, 404, 'not_found', 'There is no such application');

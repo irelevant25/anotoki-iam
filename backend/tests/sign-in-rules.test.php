@@ -14,7 +14,7 @@
  * got in. The rule before it - the applications' `access`, read while 010 was
  * pending - went with that column (migration 027, tests/dropped-leftovers.test.php):
  * on a database without 010 the rule asks for what is not there, and nothing
- * is let in.
+ * is let in - nor is any site told that it requires no sign-in.
  *
  * And 011, the owner's later request of the same day: public clients only
  * (no secrets, PKCE for everyone), the same fixed roles in every application
@@ -991,9 +991,10 @@ test('the admin panel\'s lists: blocked_in on each account, the Members tab\'s h
 // Until migration 027 a build carried the rule before 010 (the applications'
 // `access`) for the minutes between an upload and Apply. 027 dropped that
 // column, and the code that read it went with it: a database without 010 is
-// none this build runs on - and on one, nothing reaches a site.
+// none this build runs on - and on one, nothing reaches a site, and nothing
+// tells a site that it requires no sign-in.
 
-test('a database without 010: the rule asks for each role\'s may_sign_in, which is not there - no answer by the rule before it, and no code for a site', function () {
+test('a database without 010: the rule asks for may_sign_in, not there - no answer by the old rule, no code for a site, the public contract a failure, never "no sign-in required"', function () {
     $main = testEnvironment()['db'];
     $window = throwawayDatabase($main . '_without010');
     buildIamThrough('_without010', '009_admin_panel.sql');
@@ -1012,6 +1013,13 @@ test('a database without 010: the rule asks for each role\'s may_sign_in, which 
             // The answer expected: no answer.
         }
         same(null, $answered, 'whether the account\'s roles keep it out: the query fails - never an answer read off the old column');
+        $page = null;
+        try {
+            $page = adminApplication($pdo, (int) applicationByClientId('survey')['id']);
+        } catch (\PDOException) {
+            // No page: the roles' query names may_sign_in.
+        }
+        same(null, $page, 'the admin panel\'s application page: no page - never "sign-in required: no" read off a key that is not there');
 
         $person = new Browser('10.5.6.1');
         same(200, $person->signIn('person@example.test', 'correct horse')->status, 'the IAM\'s own sign-in asks no site\'s roles');
@@ -1031,6 +1039,19 @@ test('a database without 010: the rule asks for each role\'s may_sign_in, which 
         );
         same([500, 'server_error'], [$authorize->status, $authorize->code()], 'a sign-in to the site fails, as a failure');
         same('', $authorize->location(), 'and sends the browser nowhere with a code');
+
+        // The public contract every site's backend reads: a failure, kept by nobody - never `login_required: false`
+        // read off a key that is not there, which would open every site that requires signing in to visitors (the
+        // security review of 2026-10-25).
+        $contract = (new Browser('10.5.6.2'))->get('/api/public/applications/survey');
+        same([500, 'server_error', 'no-store'], [$contract->status, $contract->code(), $contract->header('Cache-Control')], 'the public contract: a failure, not cached');
+        check(!str_contains($contract->body, 'login_required'), 'with no switch in it: ' . $contract->body);
+        // And a site's SDK, should it ever take that body for an answer: sign-in required.
+        $file = testEnvironment()['storage'] . DIRECTORY_SEPARATOR . 'application-without-010.json';
+        file_put_contents($file, $contract->body);
+        $required = anotoki_iam_login_required(['issuer' => 'http://localhost:4300', 'client_id' => 'survey', 'application_file' => $file], $reason);
+        same(true, $required, "the SDK requires signing in ({$reason})");
+        @unlink($file);
     } finally {
         useIamDatabase($main);
     }

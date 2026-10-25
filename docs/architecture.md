@@ -257,7 +257,7 @@ One PostgreSQL database, built by `backend/migrations/iam/*.sql` and nothing els
 | `auth_codes`, `refresh_tokens` | Codes and refresh / personal tokens - hashes only; refresh tokens grouped into families for reuse detection. |
 | `signing_keys` | RSA key pairs; the private half **encrypted**. One active, retired ones published for a day. |
 | `settings` | The switches. |
-| `anotoki_audit_log` | What was done: every admin change and every security-relevant change an account made to itself - who, what, to what, the details, the address, the time. The anotoki library's table (its set `anotoki_admin`, 001), the IAM's own `audit_log` with three columns the IAM leaves empty (a session, a scope); migration 018 moved every entry there with its id, and kept the old table, unread, as `audit_log_before_018` - which migration 027 dropped (every event in it was in this one). Kept for good, its person scrubbed out when an account is deleted. |
+| `anotoki_audit_log` | What was done: every admin change and every security-relevant change an account made to itself - who, what, to what, the details, the address, the time. The anotoki library's table (its set `anotoki_admin`, 001), the IAM's own `audit_log` with three columns the IAM leaves empty (a session, a scope); migration 018 moved every entry there with its id, and kept the old table, unread, as `audit_log_before_018` - scrubbed like this one while it was there, and dropped by migration 027 (every event in it was in this one). Kept for good, its person scrubbed out when an account is deleted. |
 | `anotoki_feedback` | What people sent through the family's feedback form (the library's table, its set `anotoki_admin`, 002; the IAM's since the owner's decision of 2026-10-19): the kind, the subject and the message, the page as a path, its language, the browser's name, the sender's account unless it was sent without a name, a reply address only as the sender left it, its status and who handled it. Nothing of where it came from. Spam 30 days and resolved 365 days after they were marked; when an account is deleted, its messages - and any whose reply address is its address - lose the address and the browser. |
 | `anotoki_site_settings`, `anotoki_page_access` | The family's site settings (the library's tables, its set `anotoki_admin`, 003; anotoki-lib 0.11.0): a row per switch thrown, its value JSON - on the IAM only the announcement's three (shown or not, its kind, its words per language), who changed each last and when. The IAM governs no page: the second table stays empty, and a row put in by hand is read by nothing. |
 | `languages` | The languages the IAM speaks: `code` (`xx` or `xx-yy`, small letters), `name` in English, `native_name`, `enabled` (offered), `sort_order`. English and Slovak are seeded. |
@@ -708,7 +708,8 @@ shows it, and a header from anywhere else is never believed.
   `storage/logs/audit-pending.jsonl` and goes in after the Apply with its own
   time. An account's deletion scrubs it by the IAM's rules (the library's
   `scrubPeople()` and the IAM's personal-token rule) - and the old table while
-  018 waits.
+  018 waits, and 018's copy of it, `audit_log_before_018`, until 027 drops it
+  (so the backup made before that Apply keeps nobody deleted).
 - **The error log** (`/admin/errors`) is files, `storage/logs/errors-*.jsonl`:
   what failed (an exception the IAM answered - with the failures it was thrown
   for -, every 5xx and 404, 405, 413, 415, 429, PHP's warnings and fatal

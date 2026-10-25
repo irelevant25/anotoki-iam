@@ -1632,6 +1632,10 @@ function adminApplication(PDO $pdo, int $id): ?array
         return null;
     }
 
+    // Naming 010's may_sign_in, this fails on a database without 010 - the
+    // page a 500 -, so the whole row's login_required, missing there and false
+    // to asBool(), is never answered (the security review of 2026-10-25, as
+    // for the public contract).
     $roles = $pdo->prepare(
         'SELECT r.name, r.description, r.may_sign_in, (SELECT count(*) FROM user_roles ur WHERE ur.role_id = r.id) AS members
            FROM application_roles r WHERE r.application_id = ? ORDER BY r.name',

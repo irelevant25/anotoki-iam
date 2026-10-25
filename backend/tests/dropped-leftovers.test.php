@@ -16,11 +16,12 @@
  * brought them - and the code itself is asked, for every account and every
  * application, before and after: the same answer, account by account. Every
  * audit entry stays in the library's table. And the window - this build on
- * such a database, 027 waiting: a site's sign-in, its refusal, a deletion,
- * the admin panel's application pages and the sites' public contract all
- * answer, and the Migrations page's Apply (a backup first) brings 027. Its
- * gate refuses a database without 010's column or 018's move, drops nothing,
- * and runs once the cause is gone.
+ * such a database, 027 waiting: a site's sign-in, its refusal, a deletion
+ * (the person out of the library's table and of the copy 018 kept, before the
+ * Apply's backup), the admin panel's application pages and the sites' public
+ * contract all answer, and the Migrations page's Apply (a backup first) brings
+ * 027. Its gate refuses a database without 010's column or 018's move, drops
+ * nothing, and runs once the cause is gone.
  */
 
 declare(strict_types=1);
@@ -286,7 +287,7 @@ test(
 );
 
 test(
-    'the window: this build on an IAM through 026, 027 waiting - a site\'s sign-in, its refusal, a deletion, the admin panel\'s application pages and the public contract answer; Apply brings 027 after a backup',
+    'the window: this build on an IAM through 026, 027 waiting - a site\'s sign-in, its refusal, a deletion (the copy 018 kept scrubbed too), the admin panel\'s application pages and the public contract answer; Apply brings 027 after a backup',
     function () {
         $main = testEnvironment()['db'];
         $pdo = buildIamThrough('_window', BEFORE_DROP);
@@ -316,14 +317,28 @@ test(
             same(['survey'], $admin->get("/api/admin/users/{$blockedId}")->json()['blocked_in'] ?? null, 'and say who is blocked where');
             same([200, true], [($r = (new Browser())->get('/api/public/applications/survey'))->status, $r->json()['login_required'] ?? null], 'the sites\' public contract answers');
 
-            // A deletion falling due meanwhile: done, the library's table scrubbed.
+            // A deletion falling due meanwhile: done, the library's table scrubbed - and the copy 018 kept, still
+            // there until the Apply, by the same rules: the Apply's backup is made before 027 drops it, and must not
+            // keep the person (the security review of 2026-10-25). The same history in the copy: by the person, about
+            // them by nobody and by an administrator, their token.
             audit(null, $goneId, 'account.username_changed', 'user', $goneId, ['from' => 'gone', 'to' => 'gone2']);
+            $copy = $pdo->prepare('INSERT INTO audit_log_before_018 (actor_id, action, target_type, target_id, details, ip) VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?)');
+            $copy->execute([$goneId, 'account.username_changed', 'user', (string) $goneId, '{"from": "gone", "to": "gone2"}', '192.0.2.61']);
+            $copy->execute([null, 'account.created', 'user', (string) $goneId, '{"username": "gone", "email": "gone@example.test"}', '192.0.2.62']);
+            $copy->execute([$adminId, 'user.updated', 'user', (string) $goneId, '{"username": "gone", "kept": "yes"}', '198.51.100.9']);
+            $copy->execute([$goneId, 'account.token_created', 'refresh_token', '17', '{"name": "my script", "days": 30}', '192.0.2.63']);
             $pdo->prepare("UPDATE users SET deletion_requested_at = CURRENT_TIMESTAMP - INTERVAL '31 days', deletion_due_at = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = ?")->execute([$goneId]);
             same(1, anonymizeDueAccounts($pdo), 'the account due is deleted');
             same(
                 '{}',
                 $pdo->query("SELECT details::text FROM anotoki_audit_log WHERE action = 'account.username_changed' AND actor_id = {$goneId} ORDER BY id DESC LIMIT 1")->fetchColumn(),
                 'its names out of the audit log',
+            );
+            $kept = $pdo->query("SELECT action, details, ip FROM audit_log_before_018 WHERE target_id IN ('{$goneId}', '17') ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+            same(
+                [['account.username_changed', [], null], ['account.created', [], null], ['user.updated', ['kept' => 'yes'], '198.51.100.9'], ['account.token_created', ['days' => 30], null]],
+                array_map(static fn(array $row): array => [$row['action'], (array) json_decode((string) $row['details'], true), $row['ip']], $kept),
+                'and out of the copy 018 kept, by the same rules - an administrator\'s address on an administrator\'s action stays',
             );
 
             $applied = $admin->post('/api/admin/migrations/apply');

@@ -667,8 +667,9 @@ after the deploy, `/robots.txt` answers text naming
 `https://<the IAM's address>/sitemap.xml`, and the sitemap lists the five
 legal, About and Support pages. The sites need nothing. It is no one-way
 step: a build from before 027 still runs on the database after it. Apply 027
-right after the upload: a deletion that falls due in between leaves that
-person's entries in the old copy until 027 drops it.
+right after the upload, as every update; a deletion that falls due in between
+takes the person out of the old copy too, so the Apply's backup keeps nobody
+deleted.
 
 ### The family's library (anotoki/lib)
 

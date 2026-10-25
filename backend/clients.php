@@ -115,7 +115,9 @@ if (in_array('--dev', $argv, true)) {
     $pdo->commit();
 }
 
-foreach ($pdo->query('SELECT * FROM applications ORDER BY sort_order, client_id')->fetchAll() as $application) {
+// The columns named: on a database without 010's login_required this stops
+// with the database's error, never a listing that says "sign-in required: no".
+foreach ($pdo->query('SELECT id, client_id, name, type, enabled, system, login_required, home_url FROM applications ORDER BY sort_order, client_id')->fetchAll() as $application) {
     // Who gets in is whether the site requires signing in and which of its
     // roles may sign in (migration 010; the access column before it went in
     // 027).

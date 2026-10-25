@@ -596,8 +596,10 @@ turned in the admin panel reaches the sites within a minute or so.
 - `503 not_set_up` before the installer. A site keeps the last answer it had,
   or requires sign-in when it never had one. (Until migration 027 it was a
   `503 sign_in_rules_unavailable` too while 010 was pending; no build since
-  runs on a database without 010.)
-- Both are `no-store`.
+  runs on a database without 010, and on one this answers `500
+  server_error`, which a site reads as it reads the 503 - never a
+  `login_required: false` for a switch that is not there.)
+- Each is `no-store`.
 
 What it gives away: to anybody who knows a client id, that an enabled site
 with that client id exists, and its name - as the sign-in page does for

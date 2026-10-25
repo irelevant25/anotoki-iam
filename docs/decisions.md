@@ -2681,15 +2681,21 @@ have run 010 and 018 since. The owner said yes to dropping both now.
   nothing that decides a sign-in changed (`rolesKeepOut()` asks the one rule).
   A database without 010 is now none this build runs on, and on one it fails
   closed: the rule asks for a column that is not there, and no code reaches a
-  site (`tests/sign-in-rules.test.php`). The approvals' `503
+  site; the sites' public contract names its columns, so it is a 500, which
+  every SDK reads as "sign-in required" - never `login_required: false` read
+  off a key a whole row does not have, cached for a minute, which would open
+  every site that requires signing in to visitors (the security review of
+  2026-10-25 found that hole in the first cut) -, and the admin panel's
+  application page fails the same way, its roles' query naming `may_sign_in`
+  (`tests/sign-in-rules.test.php`). The approvals' `503
   sign_in_rules_unavailable` while 012 is pending stays.
 - **`audit_log_before_018`**, the IAM's own audit log as 018 left it, every
   entry of it in the library's `anotoki_audit_log` (018 proved the move in its
-  gate), unread since and scrubbed by an account's deletion like the log. The
-  anonymization no longer scrubs it; 027 drops it whole, losing no event. The
-  old table under its old name, `audit_log` - while 018 waits, on a database
-  put back by hand from a backup made before it - is still scrubbed, and the
-  entries that wait for 018 still wait in their file.
+  gate), unread since and scrubbed by an account's deletion like the log -
+  still, for as long as it is there (below). 027 drops it whole, losing no
+  event. The old table under its old name, `audit_log` - while 018 waits, on a
+  database put back by hand from a backup made before it - is still scrubbed,
+  and the entries that wait for 018 still wait in their file.
 - **027 is one migration**, both drops, its gate first asking that 010 and
   018 are what they say (each role's `may_sign_in`, each application's
   `login_required`, 010's two triggers; the library's audit table, the old
@@ -2704,9 +2710,14 @@ have run 010 and 018 since. The owner said yes to dropping both now.
 - **011's leftovers stay**: `type`, `secret_hash` and `show_on_landing`,
   which the entry of 2026-10-05 said would go with 010's `access`, are
   unread and kept for a migration of their own - the yes named the two above.
-- Between the upload and the Apply, a deletion that falls due leaves that
-  person's entries in the old copy until 027 drops it: apply 027 with the
-  upload, as every update is.
+- **The window is scrubbed too.** Between the upload and the Apply, a
+  deletion that falls due takes the person out of the old copy as it always
+  did - their addresses, the names in what was about them, a token's name -
+  and the Apply's backup, made before 027 drops the copy, keeps nobody
+  deleted (the security review of 2026-10-25: the first cut scrubbed only
+  the library's table, and that backup would have kept the person until the
+  owner deleted it). Once 027 has run there is no copy, and nothing to do
+  (`tests/dropped-leftovers.test.php`, the window).
 
 ## 2026-10-25 - The owner's requests: site settings (the announcement alone), robots.txt and sitemap.xml, the library's pieces, one admin menu (anotoki-lib 0.11.0)
 
